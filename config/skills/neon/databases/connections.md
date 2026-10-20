@@ -1,9 +1,9 @@
 ---
 name: neon_connections
 when: Finding why an app cannot connect to a Neon database, waits long for its first query, or runs out of connections
-tools: [resource_status, recent_deploys, inspect_database, run_sql, list_branch_computes]
+tools: [resource_status, recent_deploys, inspect_database, run_sql, list_branch_computes, restart]
 ---
-1. Call `resource_status` for the branch the app uses. A compute that is disabled refuses connections, and one that is idle starts on the first connection, which can make the first query slow or time out in an app with a short connect timeout.
+1. Call `resource_status` for the branch the app uses. A compute that is disabled refuses connections, and one that is idle starts on the first connection, which can make the first query slow or time out in an app with a short connect timeout. `restart` on an idle compute starts it ahead of the app.
 2. Call `recent_deploys` for the compute. Repeated start and suspend operations mean it scales to zero between bursts of traffic. A failed start compute operation explains connections that never succeed.
 3. Find the exact error the app saw before anything else:
    - too many connections: the app connects to the compute directly. Neon pools connections through PgBouncer when the host in the connection string carries -pooler after the compute's id, and apps should connect that way.

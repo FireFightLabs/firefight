@@ -215,9 +215,42 @@ class IntegrationProvider
   OwnServer = Data.define(:placeholder, :hint)
 
   # What the token form says for a provider reached through its MCP server, a hint under the token, such as which
-  # identity to make it for, and the header its server reads the token from when that is not Authorization.
-  TokenForm = Data.define(:hint, :header) do
-    def initialize(hint: nil, header: nil) = super
+  # identity to make it for, and the header its server reads the token from when that is not Authorization. A provider
+  # whose credential is more than one value, or has a shape of its own, names its fields, which the form asks one by
+  # one, and the scheme Firefight builds the header with, so nobody writes a header by hand.
+  # basic is HTTP Basic of the fields joined by a colon and base64 encoded, bearer is Bearer of the fields joined by a colon.
+  TOKEN_BASIC = "basic".freeze
+  TOKEN_BEARER = "bearer".freeze
+  TOKEN_SCHEMES = [ TOKEN_BASIC, TOKEN_BEARER ].freeze
+
+  TokenForm = Data.define(:hint, :header, :scheme, :fields) do
+    def initialize(hint: nil, header: nil, scheme: nil, fields: [])
+      fields = Array(fields).map { |field| field.is_a?(TokenField) ? field : TokenField.new(**field.to_h.symbolize_keys) }
+      raise ArgumentError, "token scheme #{scheme} is not one of #{TOKEN_SCHEMES.join(', ')}" if fields.any? && !TOKEN_SCHEMES.include?(scheme.to_s)
+
+      super(hint: hint, header: header, scheme: scheme&.to_s, fields: fields.freeze)
+    end
+
+    def fields? = fields.any?
+
+    # Why the values given cannot make a credential, naming the first field left empty, or nil.
+    def refusal(values)
+      missing = fields.find { |field| values.to_h[field.key].to_s.strip.empty? }
+      "Fill in #{missing.label} to connect with a token." if missing
+    end
+
+    # The header value built from the values given, each as typed with the space around it taken off.
+    def authorization(values)
+      joined = fields.map { |field| values.to_h[field.key].to_s.strip }.join(":")
+      scheme == TOKEN_BASIC ? "Basic #{Base64.strict_encode64(joined)}" : "Bearer #{joined}"
+    end
+
+    def to_h = { hint: hint, header: header, fields: fields.map(&:to_h) }
+  end
+
+  # One value the token form asks for, such as a key's id or its secret. A secret one is typed into a password field.
+  TokenField = Data.define(:key, :label, :placeholder, :secret) do
+    def initialize(key:, label:, placeholder: nil, secret: false) = super(key: key.to_s, label: label, placeholder: placeholder, secret: secret == true)
   end
 
   # site is the address of the provider's app, which links open, for a provider that runs in one place. A provider with

@@ -29,8 +29,9 @@ module ResourceMap
   KIND_FUNCTION = "function".freeze
   KIND_CLUSTER = "cluster".freeze
   KIND_COMPUTE = "compute".freeze
-  # What releases code rather than running it: a workflow of steps, a pipeline of stages, and the release flow that
-  # promotes one stage of a pipeline. Each has runs, the release history a watch follows.
+  # What runs steps or stages rather than serving: a workflow of steps, a pipeline of stages that releases code or
+  # carries data into a store, and the release flow that promotes one stage of a pipeline. Each has runs or a state a
+  # watch follows.
   KIND_WORKFLOW = "workflow".freeze
   KIND_PIPELINE = "pipeline".freeze
   KIND_RELEASE_FLOW = "release_flow".freeze

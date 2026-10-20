@@ -33,6 +33,15 @@ module Integrations
         "waiting" => Capabilities::History::QUEUED, "working" => Capabilities::History::RUNNING, "done" => Capabilities::History::SUCCEEDED,
         "error" => Capabilities::History::FAILED, "cancelled" => Capabilities::History::CANCELLED
       }.freeze
+      # A deployment's status, as Tinybird's SDK reads it (src/api/deploy.ts): data_ready once built, live once promoted,
+      # failed or error, and deleting or deleted once discarded or replaced. Any other word is a deployment still building.
+      DEPLOYMENT_LIVE = "live".freeze
+      DEPLOYMENT_READY = "data_ready".freeze
+      DEPLOYMENT_STATUSES = {
+        DEPLOYMENT_LIVE => Capabilities::History::SUCCEEDED, DEPLOYMENT_READY => Capabilities::History::SUCCEEDED,
+        "failed" => Capabilities::History::FAILED, "error" => Capabilities::History::FAILED,
+        "deleting" => Capabilities::History::CANCELLED, "deleted" => Capabilities::History::CANCELLED
+      }.freeze
       JOB_DAYS = 7
       MAX_JOB_DAYS = 30
       CELL_LIMIT = 300
@@ -196,6 +205,20 @@ module Integrations
                "status" => { "type" => "string", "enum" => Queries::JOB_STATUSES, "description" => "Only jobs in this status (optional)" },
                "days" => { "type" => "integer", "description" => "How many days back to look (optional, #{JOB_DAYS}, at most #{MAX_JOB_DAYS})" },
                "limit" => { "type" => "integer", "description" => "At most this many jobs (optional, #{JOB_LIMIT})" }
+             }
+           },
+           read_only: true
+
+      tool :deployments,
+           summary: "Lists the workspace's deployments and says which one is live and which is in staging.",
+           description: "The workspace's deployments from Tinybird's Deployments API, newest first, each with its id, status, " \
+                        "whether it is the live one and when it was created and last changed. A deployment that is ready but not " \
+                        "live is in staging, waiting to be promoted. With id, that one deployment",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "id" => { "type" => "string", "description" => "One deployment, by its id (optional, every deployment)" },
+               "limit" => { "type" => "integer", "description" => "At most this many deployments (optional, #{JOB_LIMIT})" }
              }
            },
            read_only: true
@@ -375,6 +398,20 @@ module Integrations
         arguments["job_type"] == Queries::JOB_DEPLOYMENT ? Capabilities::Deploys.with_deploys(result, rows.map { |row| deploy_of(row) }) : result
       end
 
+      def deployments(environment_row:, arguments:)
+        id = arguments["id"].to_s.strip
+        api = api(environment_row)
+        listed = id.empty? ? read { api.deployments } : [ read { api.deployment(id) } ].compact
+        listed = listed.select { |deployment| deployment.is_a?(Hash) }.sort_by { |deployment| deployment["created_at"].to_s }.reverse
+        listed = shown_deployments(listed, Capabilities::Answers.limit(arguments, MAX_ROWS, default: JOB_LIMIT)) if id.empty?
+        link = workspace_link(environment_row)
+        return Telemetry.result(id.empty? ? "The workspace has no deployments." : "Tinybird has no deployment #{id}.", link: link) if listed.empty?
+
+        lines = listed.map { |deployment| deployment_line(deployment) }
+        text = id.empty? ? "Latest #{listed.size} deployments, newest first.\n#{lines.join("\n")}" : [ lines.first, *feedback_lines(listed.first) ].join("\n")
+        Capabilities::Deploys.with_deploys(Telemetry.result(text, link: link), listed.map { |deployment| deployment_deploy(deployment) })
+      end
+
       # The workspace, its data sources and its API endpoints on the resource map, each endpoint linked to the data
       # sources it reads, and each with how it stood in the last hour. A list that cannot be read is a gap naming its kind,
       # so the sweep never takes what it did not read as gone.
@@ -537,7 +574,21 @@ module Integrations
         deployments = data_of(query(api, Queries.deployments(3)))
         lines << (deployments.empty? ? "No deployment in the last 30 days." : "Latest deployments, newest first:")
         deployments.each { |row| lines << "  #{row['created_at']}, job #{row['job_id']}, #{row['status']}#{", #{row['message']}" if row['message'].present?}" }
+        lines << serving(api)
         Telemetry.result(lines.join("\n"), link: workspace_link(environment_row))
+      end
+
+      # Which deployment is live and which waits in staging, from the Deployments API, or why that could not be read.
+      def serving(api)
+        listed = api.deployments.select { |deployment| deployment.is_a?(Hash) }
+        live = listed.find { |deployment| live?(deployment) }
+        staging = listed.find { |deployment| staging?(deployment) }
+        [ live ? "Deployment #{live['id']} is live." : "No deployment is live.",
+          staging ? "Deployment #{staging['id']} is in staging, ready to be promoted." : "No deployment is in staging." ].join(" ")
+      rescue Integrations::RateLimited
+        raise
+      rescue TinybirdApi::Error => error
+        Sentence.join("Which deployment is live could not be read", error)
       end
 
       def datasource_status(environment_row, listed)
@@ -603,11 +654,53 @@ module Integrations
         )
       end
 
-      # A deployment job, known by its job id alone. The jobs log does not say which deployment is live. A job that is
-      # done is taken as the deployment serving, though the jobs log does not say it was promoted.
+      # A deployment job, known by its job id alone. The jobs log does not say which deployment is live, which the
+      # deployments tool does. A job that is done is taken as the deployment serving, though the jobs log does not say it was promoted.
       def deploy_of(row)
         run = history_run(row)
         Capabilities::Deploys::Deploy.new(id: run.id, status: run.status, started_at: run.started_at, finished_at: run.finished_at)
+      end
+
+      # The newest deployments up to the limit, with the live and the staging one kept however many newer ones failed.
+      def shown_deployments(listed, limit)
+        kept = listed.first(limit)
+        serving = listed.select { |deployment| live?(deployment) || staging?(deployment) } - kept
+        (kept + serving).sort_by { |deployment| deployment["created_at"].to_s }.reverse
+      end
+
+      # What Tinybird said of one deployment, its feedback and its errors (the SDK's DeploymentFeedback and
+      # DeploymentDetails.errors), so a failed one says why.
+      def feedback_lines(deployment)
+        feedback = Array(deployment["feedback"]).select { |each| each.is_a?(Hash) && each["message"].present? }.map do |each|
+          "  #{[ each['level'], each['resource'] ].compact_blank.join(' ')}: #{each['message']}".squish
+        end
+        errors = Array(deployment["errors"]).select { |each| each.is_a?(Hash) && each["error"].present? }.map do |each|
+          "  error#{" in #{each['filename']}" if each['filename'].present?}: #{each['error']}"
+        end
+        feedback + errors
+      end
+
+      def live?(deployment) = deployment["live"] == true || deployment["status"] == DEPLOYMENT_LIVE
+
+      # Built and not promoted, so it waits in staging. Tinybird keeps at most one live and one staging deployment.
+      def staging?(deployment) = !live?(deployment) && deployment["status"] == DEPLOYMENT_READY
+
+      def deployment_line(deployment)
+        where = if live?(deployment) then "live"
+        elsif staging?(deployment) then "in staging"
+        end
+        [ deployment["created_at"], "deployment #{deployment['id']}", deployment["status"], where,
+          ("updated #{deployment['updated_at']}" if deployment["updated_at"].present?) ].compact.join(", ")
+      end
+
+      # A deployment that is live serves, one in staging or discarded does not. Tinybird gives no end time, so a
+      # deployment that ended is taken to have ended when it last changed.
+      def deployment_deploy(deployment)
+        status = Capabilities::Deploys.status(deployment["status"], DEPLOYMENT_STATUSES)
+        Capabilities::Deploys::Deploy.new(
+          id: deployment["id"], status: status, live: live?(deployment), started_at: deployment["created_at"],
+          finished_at: (deployment["updated_at"] if Capabilities::History::FINISHED.include?(status))
+        )
       end
 
       def job_line(row)

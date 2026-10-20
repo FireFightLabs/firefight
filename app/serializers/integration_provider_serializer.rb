@@ -88,9 +88,9 @@ class IntegrationProviderSerializer < BaseSerializer
   type "{ placeholder: string, hint: string } | null"
   def own_server = provider.own_server&.to_h
 
-  # What the token form says under the token for a provider reached through its MCP server, and the header its server
-  # reads the token from when that is not Authorization, or null.
-  type "{ hint: string | null, header: string | null } | null"
+  # What the token form says under the token for a provider reached through its MCP server, the header its server
+  # reads the token from when that is not Authorization, and the fields it asks in place of a header, or null.
+  type "{ hint: string | null, header: string | null, fields: { key: string, label: string, placeholder: string | null, secret: boolean }[] } | null"
   def token = provider.token&.to_h
 
   # What the connect form shows under the URL field of a provider connected from a pasted URL, or null.

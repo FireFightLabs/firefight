@@ -7,7 +7,7 @@ class Integrations::Capabilities::NeonTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     neon = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "neon", name: "Neon", slug: "neon", settings: { "server_url" => "https://mcp.neon.tech/mcp" })
     @row = neon.integration_environments.create!
-    changes = %w[restart_postgres_endpoint restore_snapshot reset_from_parent]
+    changes = %w[restart_postgres_endpoint start_postgres_endpoint update_postgres_endpoint restore_snapshot reset_from_parent restore_branch]
     Capabilities::Neon::TOOLS.values.flatten.uniq.each do |name|
       neon.tools.create!(name: name, description: name, read_only: changes.exclude?(name), enabled: true, params_schema: { "type" => "object" })
     end
@@ -86,9 +86,87 @@ class Integrations::Capabilities::NeonTest < ActiveSupport::TestCase
   end
 
   test "Halon says what it can do through Neon" do
-    assert_equal "Halon can read its logs, see what was deployed, check how a resource stands, see how long its operations usually take, " \
-                 "roll a branch back to a snapshot or to its parent, and restart a compute for anything Neon runs, " \
-                 "through the tools that are switched on. It also uses Neon's other tools that are switched on.", Capabilities.halon_sentence("neon", "Neon")
+    assert_equal "Halon can read its logs, read a project's compute time and data sent out, see what was deployed, check how a resource stands, " \
+                 "see how long its operations usually take, read its slowest queries, roll a branch back to a moment, a snapshot or its parent, " \
+                 "restart a compute or start a suspended one, " \
+                 "and resize a compute for anything Neon runs, through the tools that are switched on. It also uses Neon's other tools " \
+                 "that are switched on.", Capabilities.halon_sentence("neon", "Neon")
+  end
+
+  test "a suspended compute is started rather than restarted, by the state the map has for it" do
+    ResourceMap.record!(@row, ResourceMap::Snapshot.new(resources: [ @project, @branch, @compute.with(status: "sleeping") ]))
+    call = resolve(Capabilities::RESTART, "resource" => "ep-cool-1")
+
+    assert_equal [ "start_postgres_endpoint", { "project_id" => "shop-123", "endpoint_id" => "ep-cool-1" } ], [ call.tool.name, call.arguments ]
+    assert call.spec.writes
+    assert_match "Neon is starting ep-cool-1, which was suspended", answer_text(call, { "endpoint" => { "id" => "ep-cool-1" } })
+  end
+
+  test "a compute is resized to one size or an autoscaling range Neon offers, and copies are refused" do
+    fixed = resolve(Capabilities::SCALE, "resource" => "ep-cool-1", "plan" => "2")
+    assert_equal [ "update_postgres_endpoint", { "project_id" => "shop-123", "endpoint_id" => "ep-cool-1", "autoscaling_limit_min_cu" => 2.0,
+                                                 "autoscaling_limit_max_cu" => 2.0 } ], [ fixed.tool.name, fixed.arguments ]
+    assert fixed.spec.writes
+    assert_match "Neon set ep-cool-1 to a fixed 2 CU. It restarts the compute to apply it", answer_text(fixed, { "endpoint" => { "id" => "ep-cool-1" } })
+
+    ranged = resolve(Capabilities::SCALE, "resource" => "ep-cool-1", "plan" => "0.25 - 4")
+    assert_equal [ 0.25, 4.0 ], ranged.arguments.values_at("autoscaling_limit_min_cu", "autoscaling_limit_max_cu")
+    assert_match "autoscale between 0.25 and 4 CU", answer_text(ranged, {})
+    assert_equal [ 20.0, 20.0 ], resolve(Capabilities::SCALE, "resource" => "ep-cool-1", "plan" => "20").arguments.values_at("autoscaling_limit_min_cu", "autoscaling_limit_max_cu")
+
+    assert_match "leave instances out", unroutable(Capabilities::SCALE, "resource" => "ep-cool-1", "instances" => 2)
+    assert_match "Neon offers no 1.5 CU compute", unroutable(Capabilities::SCALE, "resource" => "ep-cool-1", "plan" => "1.5")
+    assert_match "at most 8 CU apart", unroutable(Capabilities::SCALE, "resource" => "ep-cool-1", "plan" => "1-10")
+    assert_match "at most 8 CU apart", unroutable(Capabilities::SCALE, "resource" => "ep-cool-1", "plan" => "16-20")
+    assert_match "smaller size goes first", unroutable(Capabilities::SCALE, "resource" => "ep-cool-1", "plan" => "4-1")
+    assert_match "such as 0.25-4", unroutable(Capabilities::SCALE, "resource" => "ep-cool-1", "plan" => "large")
+    assert_match "no connection offers scaling", unroutable(Capabilities::SCALE, "resource" => "shop/main", "plan" => "2")
+  end
+
+  test "errors are the slowest queries pg_stat_statements holds, for the project's default branch, a branch or one compute" do
+    call = resolve(Capabilities::ERRORS, "resource" => "shop/main", "limit" => 5)
+    assert_equal [ "list_slow_queries", { "project_id" => "shop-123", "limit" => 5, "branch_id" => "br-main-1" } ], [ call.tool.name, call.arguments ]
+    assert_equal({ "project_id" => "shop-123", "limit" => 10 }, resolve(Capabilities::ERRORS, "resource" => "shop").arguments)
+    assert_equal({ "project_id" => "shop-123", "limit" => 10, "compute_id" => "ep-cool-1" }, resolve(Capabilities::ERRORS, "resource" => "ep-cool-1").arguments)
+
+    slow = { "slow_queries" => [ { "query" => "SELECT * FROM orders WHERE   user_id = $1", "calls" => 1200, "total_exec_time_ms" => 960_000.4,
+                                   "mean_exec_time_ms" => 800.04, "rows" => 5000 },
+                                 { "query" => "UPDATE carts SET total = $1", "calls" => 40, "total_exec_time_ms" => 8000, "mean_exec_time_ms" => 200 } ],
+             "total_queries_found" => 2 }
+    text = answer_text(call, slow)
+    assert_match "The 2 slowest queries on shop/main by average time, from pg_stat_statements", text
+    assert_match "800.0ms on average, 1200 calls, 960000ms in all, 5000 rows, SELECT * FROM orders WHERE user_id = $1", text
+    searched = resolve(Capabilities::ERRORS, "resource" => "shop/main", "text" => "ORDERS", "limit" => 1)
+    assert_equal 50, searched.arguments["limit"]
+    assert_no_match "carts", answer_text(searched, slow)
+    assert_match "SELECT * FROM orders", answer_text(searched, slow)
+    assert_match "no slow queries containing payments among its 2 slowest", answer_text(resolve(Capabilities::ERRORS, "resource" => "shop/main", "text" => "payments"), slow)
+    assert_match "pg_stat_statements holds no slow queries for shop/main", answer_text(call, { "slow_queries" => [] })
+  end
+
+  test "a function's status and deploys are its latest deployment and the one serving, read with get_function" do
+    function = ResourceMap::Found.new(provider: "neon", account: "Acme", kind: ResourceMap::KIND_FUNCTION, external_id: "shop-123/br-main-1/hooks",
+                                      name: "shop/main/hooks", url: "https://console.neon.tech/app/projects/shop-123/branches/br-main-1")
+    ResourceMap.record!(@row, ResourceMap::Snapshot.new(resources: [ @project, @branch, @compute, function ]))
+    body = { "function" => { "id" => "fn-1", "slug" => "hooks", "invocation_url" => "https://br-main-1-hooks.example.neon.tech/",
+                             "current_deployment" => { "id" => 4, "status" => "failed", "error" => "build failed", "runtime" => "nodejs22",
+                                                       "memory_mib" => 256, "created_at" => "2026-10-19T10:00:00Z" },
+                             "active_deployment" => { "id" => 3, "status" => "completed", "runtime" => "nodejs22", "memory_mib" => 256,
+                                                      "created_at" => "2026-10-18T10:00:00Z" } } }
+
+    deploys = resolve(Capabilities::DEPLOYS, "resource" => "shop/main/hooks")
+    assert_equal [ "get_function", { "project_id" => "shop-123", "branch_id" => "br-main-1", "slug" => "hooks" } ], [ deploys.tool.name, deploys.arguments ]
+    result = deploys.present_result({ "content" => [ { "type" => "text", "text" => body.to_json } ] })
+    assert_match "version 4, failed, 2026-10-19T10:00:00Z, nodejs22, 256 MiB, failed (build failed)\nversion 3, completed, serving", result["content"].first["text"]
+    assert_equal [ [ "4", "failed", false ], [ "3", "succeeded", true ] ],
+                 Capabilities::Deploys.deploys_of(result).map { |deploy| [ deploy.id, deploy.status, deploy.live ] }
+    assert_equal "3", Capabilities::Deploys.live(Capabilities::Deploys.deploys_of(result)).id
+
+    status = resolve(Capabilities::STATUS, "resource" => "shop/main/hooks")
+    assert_equal "get_function", status.tool.name
+    assert answer_text(status, body).start_with?("How shop/main/hooks stands on Neon now: serving version 3, latest version 4 failed, its latest build " \
+                                                 "failed (build failed), invoked at https://br-main-1-hooks.example.neon.tech/.")
+    assert_match "has no deployment yet", answer_text(deploys, { "function" => { "slug" => "hooks" } })
   end
 
   private
@@ -133,6 +211,28 @@ class Integrations::Capabilities::NeonTest < ActiveSupport::TestCase
 
     assert_match "a snapshot's id, as list_snapshots gives it, or parent", unroutable(Capabilities::ROLLBACK, "resource" => "shop/main", "to" => " ")
     assert_match "no connection offers a rollback", unroutable(Capabilities::ROLLBACK, "resource" => "ep-cool-1", "to" => "parent")
+  end
+
+  test "a branch rolls back to its own state at a moment or an LSN through restore_branch, always keeping its current state" do
+    travel_to Time.utc(2026, 10, 20, 15) do
+      moment = resolve(Capabilities::ROLLBACK, "resource" => "shop/main", "to" => "2026-10-20T14:30:00Z")
+      assert_equal [ "restore_branch", { "project_id" => "shop-123", "branch_id" => "br-main-1", "preserve_under_name" => "main-before-rollback-10201500",
+                                         "source_timestamp" => "2026-10-20T14:30:00Z" } ], [ moment.tool.name, moment.arguments ]
+      assert_equal "its current state as branch main-before-rollback-10201500", moment.keeps
+      assert moment.spec.writes
+
+      lsn = resolve(Capabilities::ROLLBACK, "resource" => "shop/main", "to" => "0/1A2B3C4")
+      assert_equal "0/1A2B3C4", lsn.arguments["source_lsn"]
+    end
+  end
+
+  test "a project's metrics are its compute time and data sent out from its consumption, and what it does not keep is named" do
+    call = resolve(Capabilities::METRICS, "resource" => "shop", "minutes" => 120)
+    assert_equal [ "consumption_history", { "project_id" => "shop-123", "metrics" => %w[compute_unit_seconds public_network_transfer_bytes], "minutes" => 120 } ],
+                 [ call.tool.name, call.arguments ]
+    assert_equal %w[compute_unit_seconds], resolve(Capabilities::METRICS, "resource" => "shop", "metrics" => [ "cpu_time" ]).arguments["metrics"]
+    assert_match "Neon does not keep cpu for this resource. It keeps cpu_time, network_out.", unroutable(Capabilities::METRICS, "resource" => "shop", "metrics" => [ "cpu" ])
+    assert_match "no connection offers metrics", unroutable(Capabilities::METRICS, "resource" => "shop/main")
   end
 
   test "a branch with children keeps its state as a named branch when it is reset, and the confirmation says so" do

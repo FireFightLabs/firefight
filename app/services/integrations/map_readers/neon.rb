@@ -1,7 +1,7 @@
 module Integrations
   module MapReaders
     # Puts Neon on the resource map: every project the connection reaches, its branches, the computes that serve each
-    # branch and the Postgres databases on each branch. It reads through Neon's own server, with only the tools an admin
+    # branch, the Postgres databases on each branch and the Neon Functions deployed on it. It reads through Neon's own server, with only the tools an admin
     # switched on. The tools and their answers are the ones neondatabase/mcp-server-neon publishes in mcp/tools/generated,
     # which answers the Neon API's own objects through @neon/tools. Each page address is the console's, as that server
     # writes it in mcp/tools/handlers/urls.ts.
@@ -14,6 +14,8 @@ module Integrations
       LIST_COMPUTES = "list_postgres_endpoints".freeze
       LIST_DATABASES = "list_postgres_databases".freeze
       DESCRIBE_PROJECT = "describe_project".freeze
+      # A branch's functions (Neon API, listProjectBranchFunctions, the NeonFunction object).
+      LIST_FUNCTIONS = "list_functions".freeze
       # A project's operations, one page of at most OPERATION_LIMIT (Neon API, listProjectOperations, through @neon/tools
       # as list_operations, which without a limit answers every page). Neon's docs do not say in which order a page comes,
       # so a full page is taken as possibly missing some (MapEventSources::Neon).
@@ -25,14 +27,19 @@ module Integrations
       BRANCH_LIMIT = 500
       # Each branch's databases are one call, so a project with many preview branches is read for its busiest first.
       DATABASE_READS = 25
+      # Each branch's functions are one call too, read for the same branches.
+      FUNCTION_READS = 25
+      FUNCTION_LIMIT = 100
+      # A function with no deployment yet, which serves nothing.
+      UNDEPLOYED = "pending".freeze
 
       # A page under the console, the registry's site for Neon.
       def self.project_page(site, project_id) = "#{site}/app/projects/#{project_id}"
 
       def self.branch_page(site, project_id, branch_id) = "#{project_page(site, project_id)}/branches/#{branch_id}"
 
-      ALL_KINDS = [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH, ResourceMap::KIND_COMPUTE ].freeze
-      BRANCH_KINDS = [ ResourceMap::KIND_BRANCH, ResourceMap::KIND_COMPUTE ].freeze
+      ALL_KINDS = [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH, ResourceMap::KIND_COMPUTE, ResourceMap::KIND_FUNCTION ].freeze
+      BRANCH_KINDS = [ ResourceMap::KIND_BRANCH, ResourceMap::KIND_COMPUTE, ResourceMap::KIND_FUNCTION ].freeze
       # The branch a branch was made from (Branch.parent_id), so a rollback knows which branches were made from it.
       PARENT_DETAIL = "parent_id".freeze
       # Neon gives a project no state of its own, and one it lists is one it serves.
@@ -130,6 +137,7 @@ module Integrations
 
         computes(database, account, found)
         databases(database, branches, found)
+        functions(database, account, branches, found)
       end
 
       def branch(database, account, branch)
@@ -181,8 +189,7 @@ module Integrations
 
       # The Postgres databases on a branch go into its details, since a Neon project is the database a person names.
       def databases(database, branches, found)
-        ordered = branches.sort_by { |branch| branch["updated_at"].to_s }.reverse.partition { |branch| branch["default"] }.flatten
-        ordered.first(DATABASE_READS).each do |branch|
+        busiest(branches).first(DATABASE_READS).each do |branch|
           what = "databases on #{database.name}/#{branch['name']}"
           listed = objects(listing(LIST_DATABASES, what, { "project_id" => database.external_id, "branch_id" => branch["id"] }, kinds: []), what, kinds: [], key: "databases")
           next unless listed
@@ -194,6 +201,46 @@ module Integrations
 
         gap("The databases on #{branches.size - DATABASE_READS} more branches of #{database.name} were not read, only on its default and latest #{DATABASE_READS}.",
             kinds: [])
+      end
+
+      # The default branch first, then the latest changed.
+      def busiest(branches) = branches.sort_by { |branch| branch["updated_at"].to_s }.reverse.partition { |branch| branch["default"] }.flatten
+
+      # Each function is part of its branch, project/branch/slug, linked to the branch's page, the one page Neon's server
+      # writes for it. Its state is its latest deployment's (NeonFunctionDeployment status), and the version it serves is
+      # the active one's. A switched off tool is one gap, never one per branch.
+      def functions(database, account, branches, found)
+        kinds = [ ResourceMap::KIND_FUNCTION ]
+        busiest(branches).first(FUNCTION_READS).each do |branch|
+          what = "functions on #{database.name}/#{branch['name']}"
+          result = call(LIST_FUNCTIONS, { "project_id" => database.external_id, "branch_id" => branch["id"], "limit" => FUNCTION_LIMIT }, what)
+          return gap("#{LIST_FUNCTIONS} is switched off for #{NAME}, so the functions of #{database.name} are not on the map.", kinds: kinds) if result.nil?
+
+          if result["isError"]
+            gap(Sentence.join("#{NAME} refused to list the #{what}", Capabilities::Answers.text(result).truncate(200)), kinds: kinds)
+            next
+          end
+          data = Capabilities::Answers.data(result) || gap("#{NAME} answered the #{what} with something that is not JSON.", kinds: kinds)
+          Array(objects(data, what, kinds: kinds, key: "functions")).each { |function| function(account, found[branch["id"]], function) }
+        end
+        return if branches.size <= FUNCTION_READS
+
+        gap("The functions on #{branches.size - FUNCTION_READS} more branches of #{database.name} were not read, only on its default and latest #{FUNCTION_READS}.",
+            kinds: kinds)
+      end
+
+      def function(account, branch, function)
+        slug = function["slug"].presence
+        return unless slug && branch
+
+        current, active = function.values_at("current_deployment", "active_deployment").map { |each| each if each.is_a?(Hash) }
+        found = ResourceMap::Found.new(
+          provider: PROVIDER, account: account, kind: ResourceMap::KIND_FUNCTION, external_id: "#{branch.external_id}/#{slug}",
+          name: "#{branch.name}/#{slug}", status: current&.dig("status") || UNDEPLOYED, url: branch.url,
+          details: { "version" => active&.dig("id"), "runtime" => (active || current)&.dig("runtime"), "deployed_at" => active&.dig("created_at") }.compact
+        )
+        @resources << found
+        @links << ResourceMap::FoundLink.new(from: found.key, to: branch.key, relation: ResourceMap::RELATION_PART_OF)
       end
     end
   end

@@ -13,6 +13,8 @@ module Integrations
       TABLE_LIMIT = 300
       ACTIVITY_LIMIT = 15
       QUERY_SHOWN = 400
+      STATEMENT_LIMIT = 10
+      STATEMENT_MOST = 50
       QUALIFIED_NAME = /\A(?:(?<schema>[A-Za-z_][\w$]*)\.)?(?<table>[A-Za-z_][\w$]*)\z/
       # Functions a read-only transaction allows that act on the server, which signal or end sessions, reload or rotate its
       # files, move the WAL or promote it, take advisory locks, reset its statistics, change a setting such as the
@@ -99,6 +101,20 @@ module Integrations
                         "limit, the oldest open transaction, its commits, rollbacks, deadlocks and cache hit rate since " \
                         "statistics were reset, how close it is to transaction ID wraparound, and its replication",
            params_schema: { "type" => "object", "properties" => {} },
+           read_only: true
+
+      tool :database_errors,
+           summary: "Shows rollbacks, deadlocks and conflicts, and the queries that take the most time.",
+           description: "What has gone wrong in the database since its statistics were reset: rolled back transactions, " \
+                        "deadlocks, queries cancelled by conflicts with recovery and temporary files, and, when pg_stat_statements " \
+                        "is installed, the queries that took the most time in all, with how often each ran and its average time",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "text" => { "type" => "string", "description" => "Only queries containing this text, whatever the case (optional)" },
+               "limit" => { "type" => "integer", "description" => "At most this many queries (optional, #{STATEMENT_LIMIT}, at most #{STATEMENT_MOST})" }
+             }
+           },
            read_only: true
 
       CERTIFICATES = "certificates".freeze
@@ -265,6 +281,21 @@ module Integrations
         end
       end
 
+      # The totals come from pg_stat_database, which any user who can connect may read, and the queries from
+      # pg_stat_statements in whichever schema it was installed.
+      def database_errors(environment_row:, arguments:)
+        limit = arguments["limit"].to_i.positive? ? [ arguments["limit"].to_i, STATEMENT_MOST ].min : STATEMENT_LIMIT
+        text = arguments["text"].to_s.strip.presence
+        read(environment_row) do |connection|
+          totals = connection.exec(<<~SQL).to_a
+            SELECT xact_rollback AS rollbacks, deadlocks, conflicts, temp_files, pg_size_pretty(temp_bytes) AS temp_written,
+                   xact_commit AS commits, stats_reset::text AS since
+            FROM pg_stat_database WHERE datname = current_database()
+          SQL
+          [ "From pg_stat_database, since its statistics were last reset (since)\n#{grid(totals)}", statements(connection, text, limit) ].join("\n\n")
+        end
+      end
+
       # The one database the connection URL reaches, named by its host, port and name, which is all the map needs and
       # holds no credential.
       # The database is also reached at the host and port its URL names, which a service's DATABASE_URL may name too. A
@@ -299,6 +330,60 @@ module Integrations
         fail! "This environment has no connection URL. Reconnect it on the Integrations page." if url.blank?
 
         Connection.open(url, settings.credential(CERTIFICATES) || {}, &)
+      end
+
+      # Read under a savepoint, so a server that has the extension but did not preload it says so instead of failing the
+      # whole answer. Its time columns lost their exec_ prefix before Postgres 13, so the column is read from the view.
+      # Its statistics reset apart from pg_stat_database's, so its own reset time (pg_stat_statements_info, Postgres 14
+      # and later) heads its rows. Text is matched as written, its % and _ taken literally.
+      def statements(connection, text, limit)
+        schema = connection.exec("SELECT n.nspname FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace " \
+                                 "WHERE e.extname = 'pg_stat_statements'").to_a.first&.fetch("nspname")
+        return "pg_stat_statements is not installed in this database, so which queries cost the most is not known. Adding it is the person's call." unless schema
+
+        view = "#{quote(schema)}.pg_stat_statements"
+        current = connection.exec_params("SELECT 1 FROM pg_attribute WHERE attrelid = $1::regclass AND attname = 'total_exec_time'", [ view ]).ntuples.positive?
+        prefix = current ? "exec_" : ""
+        connection.exec("SAVEPOINT halon_statements")
+        pattern = text&.gsub(/[\\%_]/) { |character| "\\#{character}" }
+        rows = connection.exec_params(<<~SQL, [ pattern ]).to_a
+          SELECT calls, round(total_#{prefix}time::numeric, 1) AS total_ms, round(mean_#{prefix}time::numeric, 1) AS mean_ms, rows,
+                 left(query, #{QUERY_SHOWN}) AS query
+          FROM #{view}
+          WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
+            AND ($1::text IS NULL OR query ILIKE '%' || $1 || '%')
+          ORDER BY total_#{prefix}time DESC LIMIT #{limit}
+        SQL
+        hidden = statements_hidden?(connection)
+        return "pg_stat_statements holds no queries#{" containing #{text}" if text} for this database.#{" #{HIDDEN_TEXT}" if hidden && text}" if rows.empty?
+
+        heading = "Queries that took the most time in all, #{statements_since(connection, schema)}"
+        unseen = rows.count { |row| row["query"] == INSUFFICIENT_PRIVILEGE }
+        [ "#{heading}\n#{grid(rows)}", (HIDDEN_TEXT if unseen.positive?) ].compact.join("\n")
+      rescue PG::ObjectNotInPrerequisiteState => error
+        connection.exec("ROLLBACK TO SAVEPOINT halon_statements")
+        "pg_stat_statements is installed but cannot be read: #{error.message.lines.first.to_s.strip.delete_prefix('ERROR:').strip}"
+      end
+
+      # Postgres shows another role's query text only to a role holding pg_read_all_stats, and this placeholder otherwise.
+      INSUFFICIENT_PRIVILEGE = "<insufficient privilege>".freeze
+      HIDDEN_TEXT = "Queries other roles ran show as #{INSUFFICIENT_PRIVILEGE}, and their text cannot be searched, since this connection's " \
+                    "role does not hold pg_read_all_stats.".freeze
+
+      def statements_hidden?(connection)
+        connection.exec(<<~SQL).to_a.first["hidden"] == "t"
+          SELECT CASE WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pg_read_all_stats')
+                      THEN NOT pg_has_role(current_user, 'pg_read_all_stats', 'member') ELSE false END AS hidden
+        SQL
+      end
+
+      # When pg_stat_statements was last reset, from its own info view where the server has one.
+      def statements_since(connection, schema)
+        info = "#{quote(schema)}.pg_stat_statements_info"
+        return "since pg_stat_statements was last reset" unless connection.exec_params("SELECT to_regclass($1) IS NOT NULL AS found", [ info ]).to_a.first["found"] == "t"
+
+        reset = connection.exec("SELECT stats_reset::text AS reset FROM #{info}").to_a.first&.fetch("reset")
+        reset ? "since pg_stat_statements was last reset at #{reset}" : "since pg_stat_statements was last reset"
       end
 
       # How Postgres refuses a statement a cursor cannot hold, which is every statement that writes.
