@@ -39,17 +39,27 @@ class Integrations::Capabilities::FlyTest < ActiveSupport::TestCase
 
     assert_match "stream must be app", unroutable(Integrations::Capabilities::LOGS, "resource" => "web", "stream" => "build")
     assert_match "Fly.io does not keep disk", unroutable(Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => [ "disk" ])
-    assert_match "no connection offers scaling", unroutable(Integrations::Capabilities::SCALE, "resource" => "web", "instances" => 2)
     assert_match "no connection offers logs", unroutable(Integrations::Capabilities::LOGS, "resource" => "main-db")
+  end
+
+  test "scale sets how many machines an app runs, or with a plan the size they run at, one change at a time" do
+    count = resolve(Integrations::Capabilities::SCALE, "resource" => "web", "instances" => 3)
+    assert_equal [ "scale_app", { "resource" => "web", "instances" => 3 } ], [ count.tool.name, count.arguments ]
+    size = resolve(Integrations::Capabilities::SCALE, "resource" => "web", "plan" => "performance-2x")
+    assert_equal [ "resize_app", { "resource" => "web", "size" => "performance-2x" } ], [ size.tool.name, size.arguments ]
+
+    assert_match "one at a time", unroutable(Integrations::Capabilities::SCALE, "resource" => "web", "instances" => 2, "plan" => "shared-cpu-2x")
+    assert_match "Fly.io sizes are shared-cpu-1x", unroutable(Integrations::Capabilities::SCALE, "resource" => "web", "plan" => "huge")
+    assert_not Integrations::Capabilities.wrapped?(@fly.tools.find_by!(name: "scale_app")), "a process group is named only on the tool"
   end
 
   test "every tool the adapter runs is one the pack declares, every metric is in the shared vocabulary, and the wrapped ones are not offered twice" do
     declared = Integrations::Packs::Fly.tool_definitions.map(&:name)
 
-    assert_empty Integrations::Capabilities::Fly::TOOLS.values - declared
+    assert_empty Integrations::Capabilities::Fly::TOOLS.values.flatten - declared
     assert_empty Integrations::Packs::Fly::METRICS.keys - Integrations::Capabilities::METRIC_NAMES
     assert Integrations::Capabilities.wrapped?(@fly.tools.find_by!(name: "rollback_release"))
-    assert_equal %w[logs metrics deploys status history rollback restart], Integrations::Capabilities::Fly.capabilities
+    assert_equal %w[logs metrics deploys status history rollback restart scale], Integrations::Capabilities::Fly.capabilities
   end
 
   test "run history is an app's releases, by its name, and a Postgres cluster has none" do

@@ -20,9 +20,10 @@ module Integrations
         VercelApi.any_instance.stubs(:project_env).returns([ [], false ])
       end
 
-      test "the token and team are stored trimmed, and only the rollback and promotion change anything" do
+      test "the token and team are stored trimmed, and only the deployment and rolling release changes change anything" do
         assert_equal "tok", ConnectionSettings.of(@row.reload).credential(Vercel::API_TOKEN)
-        assert_equal %w[rollback_deployment promote_deployment], Vercel.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[rollback_deployment promote_deployment cancel_deployment redeploy_deployment advance_rolling_release complete_rolling_release abort_rolling_release],
+                     Vercel.tool_definitions.reject(&:read_only).map(&:name)
       end
 
       test "a wrong token or team is said on the form before anything is saved" do
@@ -262,25 +263,133 @@ module Integrations
         assert_raises(VercelApi::Error) { @pack.map_refresh(@row, scope) }
       end
 
-      test "Vercel keeps no metrics the API reads, so it has no baselines, and the health check lists a project" do
+      test "metrics are Observability queries of the project under its owner, production's by default, and a team without Observability Plus is told so" do
+        travel_to Time.utc(2026, 10, 20, 12) do
+          VercelApi.any_instance.expects(:observability_query).with do |body|
+            body == { "scope" => { "type" => "project", "ownerId" => "team_1", "projectIds" => [ "prj_1" ] }, "metric" => "vercel.request.count",
+                      "aggregation" => "sum", "startTime" => "2026-10-20T11:00:00Z", "endTime" => "2026-10-20T12:00:00Z",
+                      "granularity" => { "minutes" => 1 }, "filter" => "(httpStatus ge 500) and (environment eq 'production')" }
+          end.returns("data" => [ { "timestamp" => "2026-10-20T11:00:00Z", "vercel_request_count_sum" => 4 },
+                                  { "timestamp" => "2026-10-20T11:01:00Z", "vercel_request_count_sum" => 10 } ])
+
+          result = @pack.call("query_metrics", environment_row: @row, arguments: { "resource" => "shop", "metrics" => [ "http_5xx" ] })
+
+          assert_match "shop, production", result["content"].sole["text"]
+          chart = result.dig(Telemetry::STRUCTURED, Telemetry::CHARTS).sole
+          assert_equal [ "5xx responses of shop", "requests", [ 4.0, 10.0 ] ], [ chart["title"], chart["unit"], chart["series"].sole["points"].map(&:last) ]
+        end
+
+        VercelApi.any_instance.stubs(:observability_query).raises(VercelApi::PlanLimited, "Vercel answered 402: Observability Plus is required")
+        refused = assert_raises(NativePack::Error) { call(:query_metrics, "resource" => "shop") }
+        assert_match "Observability Plus", refused.message
+      end
+
+      test "Vercel's metrics give it no baselines, and the health check lists a project" do
         assert_nil @pack.baselines_of(@row, [], 7.days.ago..Time.current)
         VercelApi.any_instance.stubs(:check!).raises(VercelApi::Error, "Vercel answered 401: invalid token")
         assert_raises(NativePack::Error) { @pack.check_health!(@row) }
       end
 
-      test "deploy history reads a deployment from when it started building to when it was ready, named by its target" do
-        VercelApi.any_instance.stubs(:deployments).with("prj_1", limit: 20).returns([
-          { "uid" => "dpl_2", "target" => "production", "readyState" => "READY", "createdAt" => 1_759_312_800_000,
-            "buildingAt" => 1_759_312_805_000, "ready" => 1_759_312_925_000, "inspectorUrl" => "https://vercel.com/acme/shop/dpl_2" },
-          { "uid" => "dpl_1", "readyState" => "ERROR", "createdAt" => 1_759_309_200_000, "errorCode" => "BUILD_FAILED" }
+      test "deploy history reads a deployment from when it started building to when it was ready or its build failed, named by its target" do
+        production = { "uid" => "dpl_2", "target" => "production", "readyState" => "READY", "createdAt" => 1_759_312_800_000,
+                       "buildingAt" => 1_759_312_805_000, "ready" => 1_759_312_925_000, "inspectorUrl" => "https://vercel.com/acme/shop/dpl_2" }
+        VercelApi.any_instance.stubs(:deployments).with("prj_1", limit: 20, target: nil).returns([
+          production, { "uid" => "dpl_1", "readyState" => "ERROR", "createdAt" => 1_759_309_200_000, "errorCode" => "BUILD_FAILED" }
         ])
+        VercelApi.any_instance.expects(:deployment).with("dpl_1").returns("id" => "dpl_1", "readyState" => "ERROR", "buildErrorAt" => 1_759_309_290_000)
 
         runs = Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: { "resource" => "SHOP" }))
 
-        assert_equal [ [ "production deploy", "succeeded", 120 ], [ "preview deploy", "failed", nil ] ], runs.map { |run| [ run.name, run.status, run.seconds ] }
+        assert_equal [ [ "production deploy", "succeeded", 120 ], [ "preview deploy", "failed", 90 ] ], runs.map { |run| [ run.name, run.status, run.seconds ] }
         assert_equal "BUILD_FAILED", runs.second.detail
+
+        VercelApi.any_instance.expects(:deployments).with("prj_1", limit: 20, target: "production").returns([ production ])
         only = Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: { "resource" => "SHOP", "name" => "production" }))
         assert_equal [ "dpl_2" ], only.map(&:id)
+      end
+
+      test "a build still running is canceled, and one that ended is refused in words" do
+        VercelApi.any_instance.stubs(:deployment).with("dpl_3").returns("id" => "dpl_3", "projectId" => "prj_1", "readyState" => "BUILDING",
+                                                                         "creator" => { "uid" => "u1", "username" => "ana", "type" => "user" })
+        VercelApi.any_instance.expects(:cancel_deployment).with("dpl_3").returns("id" => "dpl_3", "readyState" => "CANCELED", "inspectorUrl" => "https://vercel.com/acme/shop/3")
+
+        assert_match "Vercel stopped the build of dpl_3 for shop, which is now canceled", call(:cancel_deployment, "resource" => "shop", "deployment" => "dpl_3")
+        owner = @pack.owner_of("cancel_deployment", environment_row: @row, arguments: { "resource" => "shop", "deployment" => "dpl_3" })
+        assert_equal [ "ana", Owner::ROLE_STARTED, "deployment dpl_3 of shop" ], [ owner.name, owner.role, owner.what ]
+
+        VercelApi.any_instance.stubs(:deployment).with("dpl_2").returns("id" => "dpl_2", "projectId" => "prj_1", "readyState" => "READY")
+        assert_match "dpl_2 of shop is ready already, so there is nothing to cancel",
+                     assert_raises(NativePack::Error) { call(:cancel_deployment, "resource" => "shop", "deployment" => "dpl_2") }.message
+      end
+
+      test "a redeploy builds the deployment again for its own target, or the branch's newest commit" do
+        old = { "id" => "dpl_2", "name" => "shop", "projectId" => "prj_1", "target" => "production", "readyState" => "ERROR" }
+        VercelApi.any_instance.stubs(:deployment).with("dpl_2").returns(old)
+        VercelApi.any_instance.expects(:redeploy).with(old, latest_commit: true).returns("id" => "dpl_9", "inspectorUrl" => "https://vercel.com/acme/shop/9")
+
+        text = call(:redeploy_deployment, "resource" => "shop", "deployment" => "dpl_2", "latest_commit" => true)
+
+        assert_match "Vercel is building dpl_9 for shop, a production deployment from the newest commit of its branch", text
+        assert_match "deploy_history with run dpl_9", text
+      end
+
+      test "a rolling release is shown by stage, moved on with the next stage's index, completed, or stopped by a rollback to what it replaces" do
+        release = { "state" => "ACTIVE", "advancementType" => "manual-approval", "canaryDeployment" => { "id" => "dpl_3", "readyState" => "READY" },
+                    "currentDeployment" => { "id" => "dpl_2" }, "stages" => [ {}, {}, {} ],
+                    "activeStage" => { "index" => 0, "targetPercentage" => 5, "isFinalStage" => false, "requireApproval" => true },
+                    "nextStage" => { "index" => 1, "targetPercentage" => 50, "isFinalStage" => false, "requireApproval" => true } }
+        VercelApi.any_instance.stubs(:rolling_release).with("prj_1").returns(release)
+
+        shown = call(:rolling_release, "resource" => "shop")
+        assert_match "Rolling release of shop: active, each stage waits for approval", shown
+        assert_match "At stage 1 of 3, 5% of production traffic to the new deployment", shown
+        assert_match "Next: stage 2, 50% of traffic, waits for approval", shown
+
+        VercelApi.any_instance.expects(:approve_rolling_stage).with("prj_1", next_index: 1, canary_id: "dpl_3").returns("rollingRelease" => release)
+        assert_match "moved to stage 2, 50% of production traffic to dpl_3", call(:advance_rolling_release, "resource" => "shop")
+
+        VercelApi.any_instance.expects(:complete_rolling_release).with("prj_1", canary_id: "dpl_3").returns({})
+        assert_match "dpl_3 now serves all production traffic of shop", call(:complete_rolling_release, "resource" => "shop")
+
+        VercelApi.any_instance.expects(:rollback).with("prj_1", "dpl_2", description: "Rolling release stopped").returns({})
+        assert_match "back to dpl_2, which stops the rolling release of dpl_3", call(:abort_rolling_release, "resource" => "shop")
+
+        VercelApi.any_instance.stubs(:rolling_release).with("prj_1").returns(release.merge("state" => "COMPLETE"))
+        assert_match "shop has no rolling release in progress, its last one is complete",
+                     assert_raises(NativePack::Error) { call(:advance_rolling_release, "resource" => "shop") }.message
+      end
+
+      test "Vercel CI runs are read with their status and timing, and one run by its id has its jobs as parts with their logs" do
+        VercelApi.any_instance.expects(:ci_invocations).with(limit: 20, repository: "acme/shop", branch: nil).returns(
+          "invocations" => [
+            { "invocationId" => "inv_2", "attempt" => 1, "repositoryKey" => "r1", "ref" => "main", "commitSha" => "c4e4267d46e638ac",
+              "createdAt" => 1_759_312_800_000, "status" => "awaiting_jobs" },
+            { "invocationId" => "inv_1", "attempt" => 1, "repositoryKey" => "r1", "ref" => "main", "commitSha" => "aaaa", "createdAt" => 1_759_309_200_000,
+              "status" => "completed", "completed" => { "completedAt" => 1_759_309_500_000, "conclusion" => "failed" } }
+          ],
+          "repositories" => { "r1" => { "owner" => "acme", "name" => "shop" } }
+        )
+        runs = Capabilities::History.runs_of(@pack.call("ci_runs", environment_row: @row, arguments: { "repository" => "acme/shop" }))
+        assert_equal [ [ "inv_2", "CI acme/shop", "running", nil ], [ "inv_1", "CI acme/shop", "failed", 300 ] ],
+                     runs.map { |run| [ run.id, run.name, run.status, run.seconds ] }
+
+        tree = { "invocation" => { "invocationId" => "inv_1", "attempt" => 2, "repositoryKey" => "r1", "createdAt" => 1_759_309_200_000, "status" => "completed",
+                                   "completed" => { "completedAt" => 1_759_309_500_000, "conclusion" => "failed" } },
+                 "repositories" => { "r1" => { "owner" => "acme", "name" => "shop" } },
+                 "jobs" => [ { "definition" => { "jobDefinitionId" => "job_1", "name" => "test" },
+                               "run" => { "attempt" => 1, "started" => { "startedAt" => 1_759_309_210_000 },
+                                          "completed" => { "completedAt" => 1_759_309_400_000, "conclusion" => { "result" => "failed", "reason" => "exit code 1" } } } } ] }
+        VercelApi.any_instance.stubs(:ci_invocation_tree).with("inv_1").returns(tree)
+        run = Capabilities::History.runs_of(@pack.call("ci_runs", environment_row: @row, arguments: { "run" => "inv_1" })).sole
+        part = run.first_failed_part
+        assert_equal [ "test", "failed", "exit code 1", 190 ], [ part.name, part.status, part.detail, part.seconds ]
+        assert_equal({ "tool" => "ci_job_log", "arguments" => { "run" => "inv_1", "job" => "job_1" } }, part.log)
+
+        VercelApi.any_instance.expects(:ci_job_logs).with("inv_1", attempt: 2, job_definition_id: "job_1", run_attempt: 1).returns([
+          { "level" => "info", "timestamp" => 1_759_309_300_000, "message" => "npm test" },
+          { "level" => "error", "timestamp" => 1_759_309_390_000, "message" => "1 test failed" }
+        ])
+        assert_match "1 test failed", call(:ci_job_log, "run" => "inv_1", "job" => "test")
       end
 
       test "one deployment is read by its id with its build and checks, the build's log read for that deployment" do

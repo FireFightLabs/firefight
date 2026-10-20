@@ -13,7 +13,24 @@ module Integrations
         FlyApi.any_instance.stubs(:app_list).with("acme").returns(Pages::Read.new(items: @apps, complete: true))
         stub_machines("web", "started", "2026-10-06T10:00:00Z")
         stub_machines("api", "started", "2026-10-06T10:00:00Z")
+        FlyApi.any_instance.stubs(:releases).returns([ { "version" => 41, "status" => "complete" } ])
         Fly.stubs(:pause)
+      end
+
+      test "a release starting or ending changes its app before its machines move, and a release list Fly does not answer changes nothing" do
+        before = Fly.poll(@row, since: nil).cursor
+        FlyApi.any_instance.stubs(:releases).with("web", limit: 1).returns([ { "version" => 42, "status" => "running" } ])
+
+        moved = Fly.poll(@row, since: before)
+        assert_equal [ [ ResourceMap::Event::UPDATED, "web" ] ], moved.events.map { |event| [ event.action, event.scope.external_id ] }
+
+        FlyApi.any_instance.stubs(:releases).with("web", limit: 1).returns([ { "version" => 42, "status" => "failed" } ])
+        assert_equal [ "web" ], Fly.poll(@row, since: moved.cursor).events.map { |event| event.scope.external_id }
+
+        FlyApi.any_instance.stubs(:releases).with("web", limit: 1).raises(FlyApi::Error, "Fly answered 500: oops")
+        kept = Fly.poll(@row, since: moved.cursor)
+        assert_empty kept.events
+        assert_equal JSON.parse(moved.cursor).dig("apps", "web"), JSON.parse(kept.cursor).dig("apps", "web")
       end
 
       test "the first read takes each app's machines and says nothing, and a machine that changed since names its app" do
