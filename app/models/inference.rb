@@ -36,14 +36,14 @@ class Inference < ApplicationRecord
 
   def self.track(context)
     attrs   = context.slice(*CONTEXT_KEYS)
-    # Priced by the hour the call was sent, for a provider that charges more at busy hours.
-    sent_at = Time.current
     started = monotonic_now
     PromptVersion.remember!(
       template: context[:prompt_template], version: context[:prompt_version], text: context[:prompt_text]
     )
 
     begin
+      # Priced by the hour the call was sent, for a provider that charges more at busy hours.
+      sent_at = Time.current
       response = yield
       tokens = response.try(:tokens)
       inference = create!(
