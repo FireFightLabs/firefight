@@ -8,6 +8,8 @@ class SyncNamedToolsTest < ActiveSupport::TestCase
                                                 settings: { "server_url" => "https://mcp.cloudflare.com/mcp" })
     notion = workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "notion", name: "Notion", slug: "notion",
                                             settings: { "server_url" => "https://mcp.notion.com/mcp" })
+    cloudflare.integration_environments.create!
+    notion.integration_environments.create!
     execute = cloudflare.tools.create!(name: "execute", description: "Runs a script", read_only: false, enabled: false, params_schema: { "type" => "object" })
     Integrations::McpClient.expects(:new).never
     named = Integrations::Provider.for("cloudflare").named_tools.definitions.map(&:name)

@@ -5,7 +5,8 @@ module Integrations
   #
   # The parts, each optional, are named as class names so a definition loads nothing it does not use:
   #   pack             a NativePack subclass, for a provider with kind: native, or for what Firefight's own app with a
-  #                    provider reached through its MCP server adds, such as its installation
+  #                    provider reached through its MCP server adds, such as its installation, or, answering
+  #                    beside_server?, the tools Firefight adds beside the provider's MCP server (firefight_tools)
   #   adapter          a Capabilities adapter, answering logs, metrics and the rest for what is on the map
   #   map_reader       a RemoteReader that puts what a remote server reaches on the map (a pack reads its own, map_of)
   #   baseline_reader  a RemoteReader that reads what normal looks like (a pack reads its own, baselines_of)
@@ -24,9 +25,9 @@ module Integrations
   #   pager            an Integrations::Pager raising a page for an incident and keeping it in step (Integrations::Paging)
   #   agent_sessions   how the provider's own agent sessions reach Halon and Halon answers in them, for a provider whose app
   #                    people assign work to or mention (Integrations::AgentSessions)
-  #   named_tools      tools Firefight adds to a remote server, each one fixed call of the server's own general tool that
-  #                    Firefight writes from the tool's arguments, so a common change is granted and approved by its own name
-  #                    (definitions, handles?, call_for and present)
+  #   named_tools      tools Firefight adds to a remote server (firefight_tools), each one fixed call of the server's own
+  #                    general tool that Firefight writes from the tool's arguments, so a common change is granted and
+  #                    approved by its own name (definitions, handles?, call_for and present)
   # redacted_fields names answer fields that hold a credential, which never reach the model, and redacted_patterns the
   # credentials of the provider's own shape, such as an address that works as a password, wherever they appear in an
   # answer. withheld_tools names the tools whose whole answer is a secret, each with the sentence a refusal says
@@ -69,6 +70,33 @@ module Integrations
       return snapshot if status_words.empty?
 
       snapshot.with(resources: snapshot.resources.map { |found| found.with(status: status_of(found.status)) })
+    end
+
+    # Marks a tool Firefight runs itself on a connection to the provider's MCP server, rather than the server.
+    FIREFIGHT_TOOL = "beside_server".freeze
+
+    # The tools Firefight adds to a connection to the provider's MCP server beside the server's own, as ToolDefinitions
+    # marked FIREFIGHT_TOOL, only those the connection is offered (settings, its ConnectionSettings). This is the one list
+    # of them: discovery adds them to what the server lists, and DiscoveryService.add_firefight_tools! saves them without
+    # asking the server. They are the tools of a pack that sits beside the server (NativePack.beside_server?), which run
+    # through NativeExecutor, and the provider's named tools, each one call of the server's own general tool that
+    # McpExecutor makes (named_tools).
+    def firefight_tools(settings)
+      return [] unless settings
+
+      found = pack
+      beside = found&.beside_server? ? found.tool_definitions.select { |definition| found.offers?(settings, definition) } : []
+      (beside + named_tools&.definitions.to_a).map { |definition| definition.with(spec: definition.spec.to_h.merge(FIREFIGHT_TOOL => true)) }
+    end
+
+    # Whether Firefight runs a tool of a connection to the provider's MCP server through the provider's pack.
+    def runs_beside?(tool) = tool.spec.to_h[FIREFIGHT_TOOL] == true && pack&.beside_server? == true
+
+    # Why the connection is no longer offered a tool Firefight runs, such as a change on a connection now read only, or
+    # nil while it is. Checked when the tool runs, since a tool saved before stays saved until discovery runs again.
+    def beside_refusal(tool, settings)
+      offered = firefight_tools(settings).any? { |definition| definition.name == tool.name }
+      "#{tool.name} is not offered on #{settings.display_name} as it is set up now, so Firefight did not run it." unless offered
     end
 
     # The class names this definition gives, so a test can load every one.

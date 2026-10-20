@@ -252,6 +252,7 @@ Rails.application.routes.draw do
         patch :toggle
         patch :retarget_environment
         patch :choose
+        patch :edit_field
         get :scope_options
         patch :scopes
         patch :map_events_secret

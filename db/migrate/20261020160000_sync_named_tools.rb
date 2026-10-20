@@ -1,11 +1,12 @@
-# Firefight added tools of its own to a remote server's connection (Integrations::NamedTools), which discovery saves only
-# on connect or refresh, so connections made before get them here, switched on as a newly discovered tool is. Only those
-# tools are saved, without asking any server, and a connection whose provider adds none is left as it is.
+# Cloudflare gained named tools beside its server's own (Integrations::Provider#firefight_tools, named_tools), after the
+# connections Firefight's own tools were last given to. Discovery only runs on connect or refresh, so existing connections
+# get them here through the shared helper, without calling any server, every tool the server listed left as it is. A new
+# tool arrives switched on, as at connect.
 class SyncNamedTools < ActiveRecord::Migration[8.1]
   def up
     Ability::Role.reset_column_information
-    Integration.where(kind: Integration::KIND_MCP).find_each do |integration|
-      Integrations::DiscoveryService.sync_named!(integration)
+    Integration.where(kind: Integration::KIND_MCP, deleted_at: nil).find_each do |integration|
+      Integrations::DiscoveryService.add_firefight_tools!(integration)
     end
   end
 

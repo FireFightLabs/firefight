@@ -70,6 +70,38 @@ module Integrations
                      "https://mcp.acme.example/datadog" => "datadog", "https://tools.acme.example/mcp" => "custom_mcp" }, checked)
     end
 
+    test "a pack beside the server adds the tools the connection is offered, keeps its own over a server tool of the same name, and runs them itself" do
+      server = [ { "name" => "list_projects", "inputSchema" => { "type" => "object" } }, { "name" => "restart_project", "description" => "the server's own" } ]
+      McpClient.stubs(:new).returns(stub(tools_list: server))
+      supabase = connection("supabase", "Supabase", "https://mcp.supabase.com/mcp")
+
+      names = McpExecutor.tool_definitions(supabase).map(&:name)
+      assert_equal 1, names.count("restart_project")
+      assert_includes names, "list_action_runs"
+      assert_not_includes names, "restore_to_point_in_time", "a connection left read only, the connect form's default, is offered no change"
+      restart = McpExecutor.tool_definitions(supabase.tap { |each| each.update!(settings: each.settings.merge(Integration::FIELDS_SETTING => { "read_only" => "false" })) })
+                           .find { |definition| definition.name == "restart_project" }
+      assert_equal [ false, true ], [ restart.read_only, restart.spec[Provider::FIREFIGHT_TOOL] ]
+
+      tool = supabase.tools.create!(name: "get_project_health", description: "health", read_only: true, enabled: true, params_schema: {}, spec: { Provider::FIREFIGHT_TOOL => true })
+      Packs::Supabase.any_instance.expects(:call).with("get_project_health", environment_row: supabase.integration_environments.first, arguments: { "project_id" => "abc" })
+                     .returns(Telemetry.result("healthy", link: nil))
+      McpClient.expects(:new).never
+      assert_equal "healthy", call(tool, { "project_id" => "abc" })["content"].sole["text"]
+      assert_equal "Shows how a project and each of its services stand now.", tool.summary
+
+      restart_tool = supabase.tools.create!(name: "restart_project", description: "restart", read_only: false, enabled: true, params_schema: {},
+                                            spec: { Provider::FIREFIGHT_TOOL => true })
+      supabase.update!(settings: supabase.settings.merge(Integration::FIELDS_SETTING => { "read_only" => "true" }))
+      Packs::Supabase.any_instance.expects(:call).with("restart_project", anything).never
+      error = assert_raises(PolicyRefusal) { call(restart_tool.reload) }
+      assert_match "restart_project is not offered on Supabase as it is set up now", error.message
+
+      server_tool = supabase.tools.create!(name: "list_action_runs", description: "The server's own runs. More words.", read_only: true, enabled: true,
+                                           params_schema: {}, spec: { "tool_name" => "list_action_runs" })
+      assert_equal "The server's own runs.", server_tool.summary, "a server tool keeps its own words beside a pack tool of the same name"
+    end
+
     private
 
     test "a provider's named tools join the server's, and each runs as the one general call Firefight writes, linked by it" do
