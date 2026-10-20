@@ -142,8 +142,11 @@ module Integrations
       # The project's database back to a moment, as an ISO 8601 time, with point in time recovery. A preview branch rolls
       # back with reset_branch instead.
       def self.restore(resource, ref, given, settings)
-        at = Telemetry.parse_time(target(given))
-        raise Unroutable, "Supabase restores #{resource.name} to a moment, so say it as an ISO 8601 time, as list_backups shows the range." unless at
+        at = Packs::Supabase.moment(target(given))
+        unless at
+          raise Unroutable, "Supabase restores #{resource.name} to a moment, so say it as an ISO 8601 time, as list_backups shows the range. " \
+                            "A migration's version is not a moment, and only a preview branch goes back to a migration."
+        end
 
         Route.new(tool_name: RESTORE_TO, arguments: pack_project(ref, settings).merge("to" => at.utc.iso8601),
                   keeps: "nothing after #{at.utc.iso8601}, which is lost")

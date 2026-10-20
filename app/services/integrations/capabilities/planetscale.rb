@@ -34,8 +34,8 @@ module Integrations
       LOG_LIMIT = 200
       LOG_MOST = 1_000
       # A run history asked by one of these words reads the changes to a branch's size and settings, and otherwise its
-      # deploy requests.
-      CHANGES = /chang|resiz|size|config/i
+      # deploy requests, so a schema change stays a deploy request.
+      CHANGES = /resiz|\bsize|config|branch chang/i
       # The metrics get_branch_metrics keeps for each engine under its own names (planetscale/mcp-server,
       # src/tools/get-branch-metrics.ts), a Postgres branch's as percentages and a Vitess one's by its primary tablet.
       METRIC_MAP = {

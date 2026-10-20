@@ -61,6 +61,8 @@ class Integrations::Capabilities::PlanetscaleTest < ActiveSupport::TestCase
     assert_equal({ "organization" => "acme", "database" => "shop", "into_branch" => "main", "limit" => 5 }, branch.arguments)
     one = resolve(Capabilities::HISTORY, "resource" => "shop/main", "run" => "#7")
     assert_equal [ "planetscale_get_deploy_request", { "organization" => "acme", "database" => "shop", "number" => "7" } ], [ one.tool.name, one.arguments ]
+    assert_equal "planetscale_list_deploy_requests", resolve(Capabilities::HISTORY, "resource" => "shop", "name" => "schema change").tool.name
+    assert_equal "planetscale_list_branch_changes", resolve(Capabilities::HISTORY, "resource" => "shop", "name" => "branch changes").tool.name
     changes = resolve(Capabilities::HISTORY, "resource" => "shop", "name" => "resize")
     assert_equal [ "planetscale_list_branch_changes", { "organization" => "acme", "database" => "shop", "branch" => "main" } ], [ changes.tool.name, changes.arguments ]
 
