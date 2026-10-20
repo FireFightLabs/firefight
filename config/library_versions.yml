@@ -658,26 +658,29 @@ skills:
     version: 1
     digest: eccf3f4091bb101ac93f4b0bcba2599edcb08629c71419668446059779105342
   railway_api:
-    version: 1
-    digest: 9209a5ebb1d583fe79ee758b07cdb1bfb158ec6741bc06f9e9ec2b45db6bee0b
+    version: 2
+    digest: 4b1e04767357395d1af2d781fde30e27cc34d5b7a138c5606e00b81c4ecf1e77
   railway_crashes:
     version: 1
     digest: dd7004eae583e571510122493c3c792944561d07b90417917455b44eacf15809
+  railway_cron_jobs:
+    version: 1
+    digest: b7889b42fabdc73a6a2794c8b4bd9485a41c4028db53c279715af97da50cb054
   railway_deploy_failures:
-    version: 1
-    digest: f723eff600079140885ab239a34fa06ad73544f700e5b898203fccdb47d2e701
+    version: 2
+    digest: eed745c89961cff7b68729a68d21965780f2f5b594eb7659c9af4462ff26c51e
   railway_failed_to_respond:
-    version: 1
-    digest: f896fb853286b4546b27bd3f84d31b7308baa775dd4740dc587b58993d482a05
+    version: 2
+    digest: ff63503b048c09c8749d6093b992c03a7ca53cee4bbdce052471486beb2e5b58
   railway_fixes:
-    version: 1
-    digest: 06f0ed7a40b9d21750c9650686e431d9251fb9231058c43541ac275210bb8c93
+    version: 2
+    digest: 6fc46233a3936d19a831df00c0b9906bf2e3fdc450574792fab48bc99443ea76
   railway_triage:
-    version: 1
-    digest: 82131a6f1f98518f520d112972f8d781fa213d0d0d2d9ec9519a65886ba1b0d9
+    version: 2
+    digest: 4d429d2c5bf61fc0f097f14924d5344f8bed66619bbf544571312b55f9eca251
   render_api:
-    version: 1
-    digest: 663d243b1ff3c1b2f1eb2f9fd739c202db6924f469305e8e63af01dbf9998fd2
+    version: 2
+    digest: 0a6ef45b464a186d1222924678b296516e4ca7bba0ecb620ce1e4ad8f6b2b630
   render_crashes:
     version: 1
     digest: 7cc215481dcdae1e0a33d2801a3066c91b57c2fb12c15efcaffe1a3ac03e7f2e
@@ -688,11 +691,14 @@ skills:
     version: 1
     digest: 29d3a52348e4297a8cbbf762844fc17d1d8c45f4087e28f18516dd7f92281784
   render_fixes:
-    version: 1
-    digest: 3cb28717c93e8dc4ce0c7643a37da380f5701aebddc935a215d3037f62f6c399
+    version: 2
+    digest: 87c5df8357056788e55f58456579b5783cf45c53c1036b9df886bfc3d9f72600
   render_http_errors:
     version: 1
     digest: 4108c329f6db09180f47399559b21252cfcc2d589b4a97b8e9410f7f4412fb0d
+  render_runs:
+    version: 1
+    digest: e98c5a89f6fea6d99e2f1fa3551e516fc24c863ea37947b974773c3b152decf9
   render_triage:
     version: 1
     digest: 68bb1419452e0eb1b1bff809eebb8810ff29a53115f887dc6a7e26c11c1d76a7
