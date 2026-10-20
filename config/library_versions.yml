@@ -96,9 +96,15 @@ skills:
   checking_a_page:
     version: 1
     digest: b25f7b5655c7651ad756a4c595456afd1314012006b3aee9f78263ddbf99d974
+  circleci_api:
+    version: 1
+    digest: 84bf14424bd427c4586943ac677df725511abf159edec6f1e272744b37adc65f
   circleci_breaking_change:
     version: 1
     digest: 5869e6eca40caead65de98ce33e7ebce4de4d29e38fbbc1896afd6906d55a21e
+  circleci_deploys:
+    version: 1
+    digest: 788842c6c0d349054b03ea8f3e18b83383b7ab147af55788939699ab49e6ae74
   circleci_failing_build:
     version: 1
     digest: ad4f27000eed2c8ce5f01949cefb199ab76af5d8e3c0aad548c622fc0e02ebd4
@@ -106,11 +112,11 @@ skills:
     version: 1
     digest: 7b40f68e7b76ba55d33db994dbe260cd584865a595495cddb49ad8850cb267e3
   circleci_rerun:
-    version: 1
-    digest: 57d687df796c4bfe42f02609ed76a2fd27649963668232405f1a0702ff827a81
+    version: 2
+    digest: 8711669f3325659f0ce395e9f38655593e8a6a0c83f14fce16980c57defb7e5a
   circleci_triage:
-    version: 1
-    digest: beb66516bc9f93825a087b0bd38e23e01a11e5976195753d3b90c25acd62bbfc
+    version: 2
+    digest: 3f67eadda12388e7f166b28a0444fd37bc54d6964ad44981d3f00be46815e764
   clickhouse_failing_queries:
     version: 1
     digest: 616a37c95fe7fe654351784b473ded2704bf25eea3df42fbd90dd334094ed758

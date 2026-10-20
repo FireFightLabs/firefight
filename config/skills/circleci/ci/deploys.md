@@ -1,0 +1,10 @@
+---
+name: circleci_deploys
+when: What a CircleCI project deployed and where, approving a workflow held for a person before a deploy, or rolling a component back to an earlier version
+tools: [list_deploys, ci_status, approve_job, rollback_deploy, rerun_workflow, list_jobs]
+---
+1. `list_deploys` lists what a project's components deployed, newest first: each version in each environment, which one is live, when it went out and the workflow that deployed it. A project records deploys only with CircleCI's deploy markers in its config, so an empty answer means none were recorded, not that nothing went out. `recent_deploys` answers the same for the project on the map.
+2. A workflow can hold for a person before a deploy, an approval job that waits on hold. `ci_status` and `list_jobs` show it. `approve_job` lets it carry on, by the workflow's id and the job's name when it holds more than one. An approval cannot be taken back, so approve only when a person asks or a runbook step says to, and say which workflow and what runs after it before they agree.
+3. To put a component back, call `rollback_deploy` with the component, the environment and the version to go back to, as `list_deploys` shows them, and a reason when the person gives one. `rollback` takes the same as component/environment/version. It runs the project's rollback pipeline from the version live there now, so the answer names the workflow that deployed the version that was live, which rerunning puts back.
+4. A project without a rollback pipeline is refused, and the answer names the workflow that deployed the version asked for. Rerunning that workflow with `rerun_workflow` deploys it again, as CircleCI's own rollback by workflow rerun does, after the person agrees.
+5. Every one of these is a change, so none is done while investigating. Propose it with what it undoes, and follow it with `ci_status` or `list_deploys` to say whether the version went live.
