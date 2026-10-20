@@ -451,8 +451,26 @@ module Integrations
         text = call(:redeploy, "repo" => "Shop/checkout", "deployment" => "41")
 
         assert_includes text, "Deploying the deployment 41 of #{SHA[0, 12]} to production again by rerunning stage Deploy to production of run 20261001.7 (7)"
+        AzureDevopsApi.any_instance.stubs(:list).with("/Shop/_apis/distributedtask/environments", { "$top" => 100 }, pages: 5).returns([ [ { "id" => 3, "name" => "production" } ], false ])
         assert_match "No deployment 99 among the recent deployments of Shop/checkout", assert_raises(NativePack::Error) { call(:redeploy, "repo" => "Shop/checkout", "deployment" => "99") }.message
         assert_match "No deployment 40 among", assert_raises(NativePack::Error) { call(:redeploy, "repo" => "Shop/checkout", "deployment" => "40") }.message, "another repository's deployment is not this one's"
+      end
+
+      test "a deployment in an environment past the usual ones is found by its id all the same, or in the environment named" do
+        environments = (1..11).map { |id| { "id" => id, "name" => "env-#{id}" } }
+        stub_get("/Shop/_apis/distributedtask/environments", { "$top" => 50 }, "value" => environments)
+        AzureDevopsApi.any_instance.stubs(:list).with("/Shop/_apis/distributedtask/environments", { "$top" => 100 }, pages: 5).returns([ environments, false ])
+        (1..10).each { |id| stub_get("/Shop/_apis/distributedtask/environments/#{id}/environmentdeploymentrecords", { "top" => 30 }, "value" => []) }
+        stub_get("/Shop/_apis/distributedtask/environments/11/environmentdeploymentrecords", { "top" => 30 },
+                 "value" => [ { "id" => 77, "planType" => "Build", "result" => "succeeded", "owner" => { "id" => 7, "name" => "20261001.7" }, "definition" => { "id" => 12 }, "stageName" => "Deploy" } ])
+        stub_get(BUILDS, { "buildIds" => "7" }, "value" => [ build(7, "completed", "succeeded") ])
+        stub_get("#{BUILDS}/7/timeline", "records" => [ { "id" => "deploy", "type" => "Stage", "name" => "Deploy", "identifier" => "Deploy" } ])
+        AzureDevopsApi.any_instance.expects(:patch).with("#{BUILDS}/7/stages/Deploy", { "state" => "retry", "forceRetryAllJobs" => true }).twice.returns(nil)
+
+        assert_includes call(:redeploy, "repo" => "Shop/checkout", "deployment" => "77"), "deployment 77 of #{SHA[0, 12]} to env-11 again"
+
+        stub_get("/Shop/_apis/distributedtask/environments", { "name" => "env-11", "$top" => 50 }, "value" => [ environments.last ])
+        assert_includes call(:redeploy, "repo" => "Shop/checkout", "deployment" => "77", "deployment_environment" => "env-11"), "to env-11 again"
       end
 
       test "a deployment that failed is no version to go back to" do

@@ -9,6 +9,8 @@ module Integrations
         DEPLOYMENT_LIMIT = 10
         MAX_DEPLOYMENTS = 50
         ENVIRONMENTS_READ = 10
+        # A deployment looked up by its id past the first ENVIRONMENTS_READ environments reads every one, up to this many pages.
+        EVERY_ENVIRONMENT_PAGES = 5
         ENVIRONMENTS_SHOWN = 5
         CANDIDATES = 30
         NO_DEPLOY_LOOKBACK = 24.hours
@@ -71,6 +73,7 @@ module Integrations
                       "repo" => repo.merge("description" => "#{repo['description']}. Or name a pipeline instead (optional)"),
                       "pipeline" => Pipelines::PIPELINE_PARAM.merge("description" => "#{Pipelines::PIPELINE_PARAM['description']}. Or name a repository instead (optional)"),
                       "project" => Pipelines::PROJECT_PARAM.merge("description" => "The project, for a classic release deployment named without a repository or pipeline (optional)"),
+                      "deployment_environment" => { "type" => "string", "description" => "The environment the deployment went to, by name, e.g. production, as recent_deployments was asked for it (optional)" },
                       "deployment" => { "type" => "string", "description" => "The deployment's id, as recent_deployments or release_deployments shows it" }
                     }, %w[deployment]),
                     read_only: false
@@ -160,7 +163,7 @@ module Integrations
           fail! "deployment must be a deployment's id as recent_deployments shows it, or release/<release>/<stage> as release_deployments does" unless id&.positive?
 
           target = ci_target(azure, arguments)
-          deployment = deployments_of(azure, target, nil).find { |each| each[:record]["id"] == id }
+          deployment = deployment_by_id(azure, target, id, arguments["deployment_environment"].to_s.strip.presence)
           fail! "No deployment #{id} among the recent deployments of #{target.what}. recent_deployments lists them." unless deployment
 
           redeploy_stage(azure, target, deployment)
@@ -214,11 +217,16 @@ module Integrations
 
         # The deployments the project's environments recorded, newest first, kept to the repository's or pipeline's runs,
         # each with the run that made it. An environment named is read alone.
-        def deployments_of(azure, target, environment)
+        def deployments_of(azure, target, environment, every: false)
           project = AzureDevopsApi.project(target.project)
-          environments = azure.values(azure.get("#{project}/_apis/distributedtask/environments", { "name" => environment, "$top" => ENVIRONMENTS_READ * 5 }.compact))
+          environments = if every
+            azure.list("#{project}/_apis/distributedtask/environments", { "$top" => AzureDevopsApi::PAGE_SIZE }, pages: EVERY_ENVIRONMENT_PAGES).first
+          else
+            azure.values(azure.get("#{project}/_apis/distributedtask/environments", { "name" => environment, "$top" => ENVIRONMENTS_READ * 5 }.compact))
+          end
           environments = environments.select { |each| each["name"].to_s.casecmp?(environment) } if environment
-          environments = environments.sort_by { |each| each["name"].to_s.match?(CodeHost::PRODUCTION) ? 0 : 1 }.first(ENVIRONMENTS_READ)
+          environments = environments.sort_by { |each| each["name"].to_s.match?(CodeHost::PRODUCTION) ? 0 : 1 }
+          environments = environments.first(ENVIRONMENTS_READ) unless every
           records = environments.flat_map do |each|
             azure.values(azure.get("#{project}/_apis/distributedtask/environments/#{each['id']}/environmentdeploymentrecords", "top" => CANDIDATES))
                  .map { |record| record.merge("environmentName" => each["name"]) }
@@ -229,6 +237,15 @@ module Integrations
                  .sort_by { |deployment| deployment[:record]["startTime"] || deployment[:record]["queueTime"] || "" }.reverse
         rescue AzureDevopsApi::Refused => error
           fail! Sentence.join("Azure DevOps refused to read #{target.project}'s environments", error, after: "Reading them needs Environment (Read & manage)")
+        end
+
+        # A deployment by its id, in the environment named, else among the usual environments, else among every one, since
+        # recent_deployments given one environment lists deployments the usual read does not reach.
+        def deployment_by_id(azure, target, id, environment)
+          matches = ->(deployments) { deployments.find { |deployment| deployment[:record]["id"] == id } }
+          return matches.call(deployments_of(azure, target, environment)) if environment
+
+          matches.call(deployments_of(azure, target, nil)) || matches.call(deployments_of(azure, target, nil, every: true))
         end
 
         def runs_by_id(azure, project, ids)
@@ -279,7 +296,7 @@ module Integrations
           id = Integer(given.to_s, exception: false)
           fail! "run must be a deployment's id as ci_runs gives it, such as #{DEPLOYMENT_RUN}41" unless id&.positive?
 
-          found = deployments_of(azure, target, nil).find { |deployment| deployment[:record]["id"] == id }
+          found = deployment_by_id(azure, target, id, nil)
           fail! "No deployment #{id} among the recent deployments of #{target.what}. ci_runs with an environment's name lists them." unless found
 
           Capabilities::History.result([ deployment_run(found) ], what: "deployments of #{target.what}")
