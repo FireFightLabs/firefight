@@ -1,8 +1,8 @@
 ---
 name: railway_failed_to_respond
 when: Visitors get a 502, an "Application failed to respond" page, or slow or failing requests from a service on Railway while its deployment is up
-tools: [resource_status, search_logs, query_metrics]
-references: [networking/application-failed-to-respond.md, deployments/serverless.md, observability/logs.md]
+tools: [resource_status, search_logs, query_metrics, search_traces]
+references: [networking/application-failed-to-respond.md, deployments/serverless.md, observability/logs.md, observability/tracing.md]
 ---
 Railway's edge proxy answers 502 with "Application failed to respond" when it cannot reach the app behind a public domain.
 
@@ -12,5 +12,6 @@ Railway's edge proxy answers 502 with "Application failed to respond" when it ca
    - The app does not listen on host 0.0.0.0 and the PORT variable Railway sets. Read its start lines with `search_logs`, `stream` app, for the address it listens on.
    - A domain's target port is not the port the app listens on.
    - The app is too loaded to answer. Call `query_metrics` with `metrics` cpu, memory and requests and look for a spike at the same time.
-4. A service that sleeps when idle wakes on the next request, and that first request can take long or fail with a 502 while it starts.
-5. Say which cause it is, with the request lines that show it. A wrong port or listen address is a change to the service's settings or code for a person to make, so name the setting and the value.
+4. For slow requests, call `query_metrics` with `metrics` latency_p95 for when they slowed, then `search_traces` over that window. Traces come failed and slowest first, each with the route and how long it took. Railway traces a service only once tracing is on for it in that environment, so no traces is not proof of fast requests.
+5. A service that sleeps when idle wakes on the next request, and that first request can take long or fail with a 502 while it starts.
+6. Say which cause it is, with the request lines that show it. A wrong port or listen address is a change to the service's settings or code for a person to make, so name the setting and the value.

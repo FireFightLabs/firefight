@@ -23,10 +23,27 @@ module Integrations
         build_started build_ended pre_deploy_started pre_deploy_ended deploy_started deploy_ended zero_downtime_redeploy_ended
         service_suspended service_resumed instance_count_changed autoscaling_ended plan_changed branch_deleted
       ].freeze
-      POSTGRES_EVENTS = %w[postgres_created postgres_available postgres_unavailable postgres_restarted postgres_upgrade_succeeded].freeze
+      POSTGRES_EVENTS = %w[
+        postgres_created postgres_available postgres_unavailable postgres_restarted postgres_upgrade_started postgres_upgrade_succeeded
+        postgres_upgrade_failed postgres_ha_status_changed
+      ].freeze
       KEY_VALUE_EVENTS = %w[key_value_available key_value_unhealthy key_value_config_restart].freeze
-      EVENTS = (SERVICE_EVENTS + POSTGRES_EVENTS + KEY_VALUE_EVENTS).freeze
+      MAP_EVENTS = (SERVICE_EVENTS + POSTGRES_EVENTS + KEY_VALUE_EVENTS).freeze
       ADDED = %w[postgres_created].freeze
+      # Events that change nothing the map shows but say a run, build, deploy or instance moved, so a watch reading through
+      # the connection checks now: a cron job's or one-off job's run, a build that could not start or fetch what it
+      # deploys, a commit autodeploy skipped, an instance that failed or restarted, autoscaling under way and a backup
+      # that failed.
+      WAKE_EVENTS = %w[
+        cron_job_run_started cron_job_run_ended job_run_ended zero_downtime_redeploy_started image_pull_failed artifact_fetch_failed
+        commit_ignored pipeline_minutes_exhausted server_failed server_restarted server_hardware_failure autoscaling_started
+        postgres_backup_failed
+      ].freeze
+      EVENTS = (MAP_EVENTS + WAKE_EVENTS).freeze
+      # The build, deploy and run events among the map's own, which wake a watch the same way.
+      RUN_EVENTS = %w[
+        build_started build_ended pre_deploy_started pre_deploy_ended deploy_started deploy_ended zero_downtime_redeploy_ended
+      ].freeze
 
       # Why Render may turn a registration down, said after its own words.
       PLAN_NOTE = "Render sends changes to webhooks on Pro workspaces and higher, and a Pro workspace has room for one, " \
@@ -51,7 +68,7 @@ module Integrations
         def events(payload, headers:)
           type = payload["type"].to_s
           about = payload.dig("data", "serviceId").presence
-          return [] unless about && EVENTS.include?(type)
+          return [] unless about && MAP_EVENTS.include?(type)
 
           kind = ResourceMap::KIND_DATABASE if (POSTGRES_EVENTS + KEY_VALUE_EVENTS).include?(type)
           [ ResourceMap::Event.new(id: payload.dig("data", "id").presence || headers[ID_HEADER], at: happened_at(payload["timestamp"]),
@@ -59,10 +76,23 @@ module Integrations
                                    scope: ResourceMap::Scope.new(kind: kind, external_id: about)) ]
         end
 
+        def wakes?(payload, headers:) = payload.dig("data", "serviceId").present? && (RUN_EVENTS + WAKE_EVENTS).include?(payload["type"].to_s)
+
+        # Whether a webhook Firefight registered before, in any workspace the connection reaches, misses an event type it
+        # now follows or was switched off, so registering again brings it up to date. An empty filter sends every type.
+        def register_again?(row, url:)
+          api = api(row)
+          workspaces_of(row).any? do |owner|
+            own = api.webhooks(owner).items.find { |webhook| webhook["url"] == url }
+            own.nil? || outdated?(own)
+          end
+        end
+
         # Registers a webhook in each workspace the connection reaches, or takes back one Firefight registered before at
-        # this connection's own address, switching it on again if Render had switched it off. Render makes each webhook's
-        # secret, so they are kept one a line and a delivery signed with any counts. A workspace the connection no longer
-        # reaches loses the webhook Firefight registered there. A webhook at any other address is never touched.
+        # this connection's own address, switching it on again if Render had switched it off and adding any event type it
+        # misses. Render makes each webhook's secret, so they are kept one a line and a delivery signed with any counts. A
+        # workspace the connection no longer reaches loses the webhook Firefight registered there. A webhook at any other
+        # address is never touched.
         def register(row, url:)
           api = api(row)
           settings = ConnectionSettings.of(row)
@@ -70,7 +100,7 @@ module Integrations
           registrations(row.map_events_webhook_id, settings).except(*workspaces).each_value { |webhook| forget(api, webhook) }
           made = workspaces.to_h do |owner|
             own = api.webhooks(owner).items.find { |webhook| webhook["url"] == url }
-            own = api.enable_webhook(own["id"]) if own && !own["enabled"]
+            own = api.update_webhook(own["id"], events: EVENTS) if own && outdated?(own)
             own ||= api.create_webhook(owner, name: WEBHOOK_NAME, url: url, events: EVENTS)
             [ owner, own ]
           end
@@ -112,8 +142,9 @@ module Integrations
           end
         end
 
-        def limits = "Render says when a service builds, deploys, is suspended or resumed, or scales, and when a datastore changes. " \
-                     "A service created or deleted, and a change to its settings, reach the map at each hourly sweep."
+        def limits = "Render says when a service builds, deploys, is suspended or resumed, or scales, when a cron job or one-off job " \
+                     "runs or an instance fails, and when a datastore changes. A workflow's task runs send nothing, so a watch on one " \
+                     "reads it each minute. A service created or deleted, and a change to its settings, reach the map at each hourly sweep."
 
         # Every workspace's webhook. One already gone from Render is taken back all the same.
         def remove(row, webhook_id)
@@ -122,6 +153,11 @@ module Integrations
         end
 
         private
+
+        def outdated?(webhook)
+          filter = Array(webhook["eventFilter"])
+          !webhook["enabled"] || (filter.any? && (EVENTS - filter).any?)
+        end
 
         def happened_at(timestamp)
           Time.iso8601(timestamp.to_s)

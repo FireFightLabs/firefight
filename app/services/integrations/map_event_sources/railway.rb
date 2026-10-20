@@ -5,17 +5,21 @@ module Integrations
     # { type: "webhook", url, headers } Railway's own dashboard sends). Railway does not sign its deliveries and suggests a
     # custom header with a secret value instead (docs, content/docs/observability/webhooks.md, Verifying the sender), so
     # Firefight sends one of its own and checks it in constant time. A webhook covers every environment in the project,
-    # and its payload names the service it is about (resource.service.id), which the map reads again.
+    # its PR environments too, and its payload names the service it is about (resource.service.id), which the map reads
+    # again when the environment is the connection's own.
     class Railway < MapEventSource
       SECRET_HEADER = "X-Firefight-Webhook-Secret".freeze
 
-      # A project's webhook can follow deployment, monitor and volume alert events (Railway's dashboard,
-      # PROJECT_WEBHOOK_EVENT_TYPES, Object.action as the docs write Deployment.failed). Every deployment status changes
-      # what the map shows of a service, its status and commit. Monitor and volume alerts change nothing the map reads,
-      # and Railway sends nothing when a service is created, renamed or deleted, or its variables change, so the sweep
-      # finds those.
+      # A project's webhook can follow deployment, monitor and volume alert events (docs, content/docs/observability/webhooks.md,
+      # Platform events), each Object.action as the docs write Deployment.failed, with the actions Railway's dashboard
+      # lists for each object (its notification configs for Deployment, Monitor and VolumeAlert). Every deployment status
+      # changes what the map shows of a service, its status and commit. A CPU or memory monitor firing or resolving, and a
+      # volume filling or recovering, name the service they are about, which is read again too. Railway sends nothing when
+      # a service is created, renamed or deleted, or its variables change, so the sweep finds those.
       DEPLOYMENT_ACTIONS = %w[building deploying deployed redeployed failed crashed oom_killed slept resumed restarted removed waiting needs_approval queued].freeze
-      EVENTS = DEPLOYMENT_ACTIONS.map { |action| "Deployment.#{action}" }.freeze
+      DEPLOYMENT_EVENTS = DEPLOYMENT_ACTIONS.map { |action| "Deployment.#{action}" }.freeze
+      ALERT_EVENTS = %w[Monitor.triggered Monitor.resolved VolumeAlert.triggered VolumeAlert.resolved].freeze
+      EVENTS = (DEPLOYMENT_EVENTS + ALERT_EVENTS).freeze
 
       class << self
         def verify(raw_body:, headers:, secret:)
@@ -37,6 +41,27 @@ module Integrations
           account = "#{project}/#{environment}" if project.present? && environment.present?
           [ ResourceMap::Event.new(id: "railway-#{Digest::SHA256.hexdigest(payload.to_json)}", at: happened_at(payload["timestamp"]),
                                    action: ResourceMap::Event::UPDATED, scope: ResourceMap::Scope.new(account: account, external_id: service)) ]
+        end
+
+        # A deployment moving, in the connection's environment or a PR environment, has each watch reading through the
+        # connection check now.
+        def wakes?(payload, headers:) = DEPLOYMENT_EVENTS.include?(payload["type"].to_s)
+
+        # Whether Firefight's webhook on each project follows every event it now follows, PR environments included, so one
+        # registered before an event joined is registered again with it. One Railway no longer has is registered again too.
+        def register_again?(row, url:)
+          api = api(row)
+          settings = ConnectionSettings.of(row)
+          rules = registrations(row.map_events_webhook_id, settings)
+          return true unless rules.keys.sort == settings.scopes.sort
+
+          rules.any? do |project, rule_id|
+            workspace = api.project(project)&.dig("workspaceId")
+            next false if workspace.blank?
+
+            own = api.notification_rules(workspace, project).find { |rule| rule["id"].to_s == rule_id.to_s }
+            own.nil? || !at?(own, url) || (EVENTS - Array(own["eventTypes"])).any? || own["ephemeralEnvironments"] != true
+          end
         end
 
         # Registers a webhook on each project the connection reaches, every one with the same secret of Firefight's own in
@@ -63,8 +88,8 @@ module Integrations
           raise MapEventSource::Refused, error.message
         end
 
-        def limits = "Railway says when a deployment changes status. A service added, renamed or removed, and a change to its variables, " \
-                     "reach the map at each hourly sweep."
+        def limits = "Railway says when a deployment changes status, and when a CPU, memory or volume alert fires or resolves. A service " \
+                     "added, renamed or removed, and a change to its variables, reach the map at each hourly sweep."
 
         # Every project's webhook. One already gone from Railway is taken back all the same.
         def remove(row, webhook_id)

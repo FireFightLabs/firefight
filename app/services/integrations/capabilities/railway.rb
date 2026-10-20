@@ -1,23 +1,28 @@
 module Integrations
   module Capabilities
     # Railway's own tools answer every capability as they are, by the resource's Railway service id. The change tools
-    # send the deploymentRestart, deploymentRollback and environmentPatchCommit mutations the Railway CLI uses.
+    # send the deploymentRestart, deploymentRollback and environmentPatchCommit mutations the Railway CLI uses. A cron
+    # job's run history is its cron runs, and a service's its deployments.
     module Railway
       extend Adapter
 
       PACK = Packs::Railway
       RUNNING = [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_DATABASE, ResourceMap::KIND_JOB ].freeze
       SUPPORTS = {
-        LOGS => RUNNING, METRICS => RUNNING, DEPLOYS => RUNNING, STATUS => RUNNING, HISTORY => RUNNING, ROLLBACK => [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_JOB ],
-        RESTART => [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_DATABASE ], SCALE => [ ResourceMap::KIND_SERVICE ]
+        LOGS => RUNNING, METRICS => RUNNING, DEPLOYS => RUNNING, STATUS => RUNNING, HISTORY => RUNNING, TRACES => [ ResourceMap::KIND_SERVICE ],
+        ROLLBACK => [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_JOB ], RESTART => [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_DATABASE ],
+        SCALE => [ ResourceMap::KIND_SERVICE ]
       }.freeze
+      DEPLOY_HISTORY = "deploy_history".freeze
       TOOLS = {
         LOGS => "search_logs", METRICS => "query_metrics", DEPLOYS => "list_deployments", STATUS => "describe_resource",
-        HISTORY => "deploy_history", ROLLBACK => "rollback_deployment", RESTART => "restart_deployment", SCALE => "scale_service"
+        HISTORY => [ DEPLOY_HISTORY, PACK::CronRuns::CRON_RUNS ], TRACES => PACK::Traces::SEARCH_TRACES, ROLLBACK => "rollback_deployment",
+        RESTART => "restart_deployment", SCALE => "scale_service"
       }.freeze
-      WRAPPED = TOOLS.values.freeze
+      WRAPPED = TOOLS.values.flatten.freeze
       STREAMS = { STREAM_APP => PACK::APP, "build" => PACK::BUILD, "requests" => PACK::HTTP }.freeze
-      METRIC_MAP = PACK::METRICS.index_with(&:itself).freeze
+      # The pack's metrics every capability names, its median and 99th percentile latency staying the pack's own.
+      METRIC_MAP = (PACK::METRICS & METRIC_NAMES).index_with(&:itself).freeze
 
       def self.route(key, resource, given, tool: nil, settings: nil)
         id = resource.external_id
@@ -28,7 +33,10 @@ module Integrations
           Route.new(tool_name: TOOLS[METRICS], arguments: { "resource" => id, "metrics" => names.presence }.compact.merge(given.slice("minutes", "start", "end")))
         when DEPLOYS then Route.new(tool_name: TOOLS[DEPLOYS], arguments: { "resource" => id }.merge(given.slice("limit")))
         when STATUS then Route.new(tool_name: TOOLS[STATUS], arguments: { "resource" => id })
-        when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: { "resource" => id }.merge(given.slice("name", "run", "limit").compact_blank))
+        when HISTORY
+          tool_name = resource.kind == ResourceMap::KIND_JOB ? PACK::CronRuns::CRON_RUNS : DEPLOY_HISTORY
+          Route.new(tool_name: tool_name, arguments: { "resource" => id }.merge(given.slice("name", "run", "limit").compact_blank))
+        when TRACES then Route.new(tool_name: TOOLS[TRACES], arguments: { "resource" => id }.merge(given.slice("text", "limit", "minutes", "start", "end").compact_blank))
         when ROLLBACK then Route.new(tool_name: TOOLS[ROLLBACK], arguments: { "resource" => id, "deployment" => target(given) })
         when RESTART then Route.new(tool_name: TOOLS[RESTART], arguments: { "resource" => id })
         when SCALE then Route.new(tool_name: TOOLS[SCALE], arguments: { "resource" => id, "instances" => instances(given) })

@@ -43,12 +43,36 @@ module Integrations
       assert_raises(Integrations::RateLimited) { @api.restart("dep-1") }
     end
 
-    test "a project's webhook is a notification rule with a webhook channel carrying Firefight's header, outside preview environments" do
+    test "a deployment is cancelled, stopped and approved by its id, and a redeploy answers the new deployment" do
+      %w[deploymentCancel deploymentStop deploymentApprove].each do |mutation|
+        Http.expects(:request).with { |_, request, **| JSON.parse(request.body).then { |body| body["query"].include?("#{mutation}(id: $id) }") && body.dig("variables", "id") == "dep-1" } }
+            .returns(response(200, { data: { mutation => true } }))
+      end
+      assert @api.cancel("dep-1")
+      assert @api.stop("dep-1")
+      assert @api.approve("dep-1")
+
+      Http.expects(:request).with { |_, request, **| request.body.include?("deploymentRedeploy(id: $id) { id status }") }
+          .returns(response(200, { data: { deploymentRedeploy: { id: "dep-2", status: "QUEUED" } } }))
+      assert_equal({ "id" => "dep-2", "status" => "QUEUED" }, @api.redeploy("dep-1"))
+    end
+
+    test "a cron job's runs are its deployment instance executions for the service in the environment" do
+      Http.expects(:request).with do |_, request, **|
+        body = JSON.parse(request.body)
+        body["query"].include?("deploymentInstanceExecutions(input: $input, first: $first)") &&
+          body["variables"] == { "input" => { "environmentId" => "env-1", "serviceId" => "svc-1" }, "first" => 5 }
+      end.returns(response(200, { data: { deploymentInstanceExecutions: { edges: [ { node: { id: "run-1", status: "EXITED" } } ] } } }))
+
+      assert_equal [ { "id" => "run-1", "status" => "EXITED" } ], @api.cron_runs("env-1", "svc-1", limit: 5)
+    end
+
+    test "a project's webhook is a notification rule with a webhook channel carrying Firefight's header, in its PR environments too" do
       Http.expects(:request).with do |_, request, **|
         body = JSON.parse(request.body)
         input = body.dig("variables", "input")
         body["query"].include?("notificationRuleCreate(input: $input)") && input["workspaceId"] == "ws-1" && input["projectId"] == "prj-1" &&
-          input["eventTypes"] == %w[Deployment.failed] && input["ephemeralEnvironments"] == false &&
+          input["eventTypes"] == %w[Deployment.failed] && input["ephemeralEnvironments"] == true &&
           input["channelConfigs"] == [ { "type" => "webhook", "url" => "https://ff.example/hook", "headers" => { "X-Secret" => "s" } } ]
       end.returns(response(200, { data: { notificationRuleCreate: { id: "rule-1" } } }))
 
