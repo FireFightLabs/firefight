@@ -48,6 +48,24 @@ skills:
   azure_cost:
     version: 1
     digest: 68ed788da3849a3d1445b0803b0baa1465a4680274c4fb3c46b73271ddcc0cdc
+  azure_devops_api:
+    version: 1
+    digest: 6b8ad80f4fa0db9ebac0f4cf38038a14896072a2051b02bc9e1f7c5f635c2b0e
+  azure_devops_changes:
+    version: 2
+    digest: 614668802177dea2ef9f1248d4d60fdd8d07f2c7ea8ca3b81cf8774106a04557
+  azure_devops_code:
+    version: 1
+    digest: 732644b2c6562179412bf88ddce4f4ea850eceb66741098f8085ca845c561853
+  azure_devops_failing_pipeline:
+    version: 1
+    digest: 75dab5499d1df275dac68375291ad99169ca4d4c6a5eda211829b8bce751e55b
+  azure_devops_rerun:
+    version: 1
+    digest: a793a48635a8bad0ed2bae27835f89ac7e92e4f3f0cd6a8138a6bb114221648f
+  azure_devops_triage:
+    version: 1
+    digest: 8ced8aa06dacc41fe15c1cf975e262c4e0442c95eab84171c60ad26bc8c2cdc0
   azure_fixes:
     version: 2
     digest: a55dccac314a7c8733c2f4cc5a26826fff5d935b56fdedabb62e03b00e5f877f

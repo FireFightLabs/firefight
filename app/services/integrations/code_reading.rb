@@ -170,11 +170,12 @@ module Integrations
     # Where git fetches a repository from and who it signs in as. The code host's pack gives it, with token read only
     # when a fetch needs one, so this class knows no code host. host names a code host other than the default one, so
     # the same path on two hosts is two repositories in the box. options are git settings the fetch adds, such as the
-    # address a workspace's own host was checked at.
-    Remote = Data.define(:root, :user, :token, :host, :options) do
-      def initialize(host: nil, options: [], **) = super
+    # address a workspace's own host was checked at. address is how the host writes a repository's path after root, for
+    # one whose addresses are not owner/name.git, such as Azure Repos' project/_git/name.
+    Remote = Data.define(:root, :user, :token, :host, :options, :address) do
+      def initialize(host: nil, options: [], address: nil, **) = super
 
-      def url(repository) = "#{root}/#{repository}.git"
+      def url(repository) = address ? "#{root}/#{address.call(repository)}" : "#{root}/#{repository}.git"
 
       # The repository as the box records it.
       def key(repository) = host ? "#{host}:#{repository}" : repository.to_s

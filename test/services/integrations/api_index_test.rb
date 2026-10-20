@@ -4,7 +4,7 @@ module Integrations
   class ApiIndexTest < ActiveSupport::TestCase
     # Each provider whose general read guesses paths keeps an index of its key reads.
     PROVIDERS = %w[
-      aws azure bitbucket cloudflare digitalocean fly github gitlab google_cloud kubernetes netlify northflank railway render
+      aws azure azure_devops bitbucket cloudflare digitalocean fly github gitlab google_cloud kubernetes netlify northflank railway render
       tinybird trigger_dev vercel
     ].freeze
     SAMPLE = "sample1".freeze
