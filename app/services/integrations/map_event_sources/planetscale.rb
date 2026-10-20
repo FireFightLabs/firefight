@@ -92,8 +92,9 @@ module Integrations
           refused = []
           followed = databases(row)
           secrets = followed.filter_map do |organization, database|
-            existing = own_webhooks(api, organization, database, url).first
+            existing = nil
             begin
+              existing = own_webhooks(api, organization, database, url).first
               hook = if existing.nil? then api.create_webhook(organization, database, url: url, events: EVENTS)
               elsif !covers?(existing) then api.update_webhook(organization, database, existing["id"], events: EVENTS).then { |updated| updated.merge("secret" => updated["secret"].presence || existing["secret"]) }
               else existing
