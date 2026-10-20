@@ -187,8 +187,8 @@ module Integrations
 
       environment_row.give_map_events_token!
       environment_row.give_map_events_secret! if source.offers?
-      environment_row.update_columns(map_events_refused_at: nil, map_events_polled_at: nil) if now && source.polls? && !source.registers?
-      return unless source.registers?
+      environment_row.update_columns(map_events_refused_at: nil, map_events_polled_at: nil) if now && source.polls? && !source.registers_for?(environment_row)
+      return unless source.registers_for?(environment_row)
 
       register!(environment_row, source) if environment_row.map_events_registration_due?(now: now) || register_again?(environment_row, source)
     end

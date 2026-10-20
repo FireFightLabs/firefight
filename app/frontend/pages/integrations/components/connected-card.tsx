@@ -29,6 +29,7 @@ import {
 import { ProviderMark } from "@/components/integrations/provider-mark";
 import { CodeChanges } from "@/pages/integrations/components/code-changes";
 import { DisconnectDialog } from "@/pages/integrations/components/disconnect-dialog";
+import { FieldEdit } from "@/pages/integrations/components/field-edit";
 import { InstallationStopped } from "@/pages/integrations/components/installation-stopped";
 import { LiveUpdates } from "@/pages/integrations/components/live-updates";
 import { RepositorySetups } from "@/pages/integrations/components/repository-setups";
@@ -245,6 +246,15 @@ export function ConnectedCard({
                         </SelectContent>
                       </Select>
                     </div>
+                  ))}
+                  {environment.edits.map((edit) => (
+                    <FieldEdit
+                      key={edit.key}
+                      integrationId={integration.id}
+                      rowId={environment.id}
+                      edit={edit}
+                      canManage={canManage}
+                    />
                   ))}
                   {environment.scopes && (
                     <ScopeChoice
