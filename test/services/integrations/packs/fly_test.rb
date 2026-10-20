@@ -18,9 +18,10 @@ module Integrations
         FlyApi.any_instance.stubs(:secret_names).returns([])
       end
 
-      test "the token and organization are stored trimmed, and only the restart and rollback change anything" do
+      test "the token and organization are stored trimmed, and only the machine changes change anything" do
         assert_equal "FlyV1 fm2_x", ConnectionSettings.of(@row.reload).credential(Fly::API_TOKEN)
-        assert_equal %w[restart_app rollback_release], Fly.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[restart_app rollback_release start_app stop_app suspend_app cordon_machine uncordon_machine],
+                     Fly.tool_definitions.reject(&:read_only).map(&:name)
       end
 
       test "a wrong token or organization is said on the form, and the health check lists the organization's apps" do
@@ -183,6 +184,78 @@ module Integrations
 
         assert_match "m1 in iad: moved to the image, but not started again within #{FlyApi::WAIT_SECONDS} seconds", text
         assert_match "Stopped there, so 1 more machines were left as they were. Check m1 in iad in Fly.io before going on.", text
+      end
+
+      test "a start brings up each stopped or suspended machine and waits for it, and one already running is said in words" do
+        FlyApi.any_instance.stubs(:machines).returns([ machine("m1", "stopped"), machine("m2", "suspended"), machine("m3", "started") ])
+        FlyApi.any_instance.expects(:start_machine).with("web", "m1").returns({})
+        FlyApi.any_instance.expects(:start_machine).with("web", "m2").returns({})
+        FlyApi.any_instance.expects(:start_machine).with("web", "m3").never
+        FlyApi.any_instance.stubs(:wait_started).returns(true)
+
+        text = call(:start_app, "resource" => "web")
+
+        assert_match "m1 in iad: started, started again", text
+        assert_match "m2 in iad: started, started again", text
+        assert_equal "Machine m3 of web is started, so there is nothing to start.",
+                     assert_raises(NativePack::Error) { call(:start_app, "resource" => "web", "machine" => "m3") }.message
+      end
+
+      test "a restart with nothing running points at the start" do
+        FlyApi.any_instance.stubs(:machines).returns([ machine("m1", "stopped") ])
+
+        assert_match "start_app starts its stopped machines", assert_raises(NativePack::Error) { call(:restart_app, "resource" => "web") }.message
+      end
+
+      test "a stop and a suspend wait for each machine to reach that state, and stop at one that does not" do
+        FlyApi.any_instance.stubs(:machines).returns([ machine("m1", "started"), machine("m2", "started"), machine("m3", "stopped") ])
+        FlyApi.any_instance.expects(:stop_machine).with("web", "m1").returns({})
+        FlyApi.any_instance.expects(:wait_for).with("web", "m1", "stopped", version: nil).returns(false)
+        FlyApi.any_instance.expects(:stop_machine).with("web", "m2").never
+
+        text = call(:stop_app, "resource" => "web")
+        assert_match "m1 in iad: asked, but not stopped within #{FlyApi::WAIT_SECONDS} seconds", text
+        assert_match "Stopped there, so 1 more machines were left as they were.", text
+
+        FlyApi.any_instance.expects(:suspend_machine).with("web", "m2").returns({})
+        FlyApi.any_instance.expects(:wait_for).with("web", "m2", "suspended", version: nil).returns(true)
+        assert_match "m2 in iad: suspended", call(:suspend_app, "resource" => "web", "machine" => "m2")
+
+        FlyApi.any_instance.stubs(:machines).returns([ machine("m3", "stopped") ])
+        assert_equal "No machine of web is started, so there is nothing to suspend. describe_resource shows each machine's state.",
+                     assert_raises(NativePack::Error) { call(:suspend_app, "resource" => "web") }.message
+      end
+
+      test "a cordon takes one named machine out of traffic and an uncordon puts it back" do
+        FlyApi.any_instance.stubs(:machines).returns([ machine("m1", "started"), machine("m2", "started") ])
+        FlyApi.any_instance.expects(:cordon_machine).with("web", "m2").returns({})
+        FlyApi.any_instance.expects(:uncordon_machine).with("web", "m2").returns({})
+
+        assert_match "no longer sends requests to m2 of web in iad", call(:cordon_machine, "resource" => "web", "machine" => "m2")
+        assert_match "sends requests to m2 of web in iad again", call(:uncordon_machine, "resource" => "web", "machine" => "m2")
+        assert_equal "web has no machine m9. describe_resource shows its machines.",
+                     assert_raises(NativePack::Error) { call(:cordon_machine, "resource" => "web", "machine" => "m9") }.message
+      end
+
+      test "a cluster's slow queries are read over the range, and its running ones in each of its databases" do
+        FlyApi.any_instance.expects(:postgres_slow_queries).with("pg1", range: 7200).returns([
+          { "database" => "app", "user" => "web", "calls" => 1200, "total_exec_time_seconds" => 340.5, "mean_exec_time_seconds" => 0.28,
+            "max_exec_time_seconds" => 4.2, "query" => "SELECT * FROM orders WHERE id = $1" }
+        ])
+        slow = call(:postgres_queries, "resource" => "main-db", "minutes" => 120)
+        assert_match "within the last 120 minutes", slow
+        assert_match "app as web, 1200 calls, 340.5 s in all, mean 280.0 ms, longest 4.2 s, SELECT * FROM orders WHERE id = $1", slow
+
+        FlyApi.any_instance.stubs(:postgres_databases).with("pg1").returns([ { "name" => "app" }, { "name" => "jobs" } ])
+        FlyApi.any_instance.stubs(:postgres_active_queries).with("pg1", database: "app").returns([
+          { "pid" => 42, "user" => "web", "duration_seconds" => 12.5, "state" => "active", "state_duration_seconds" => 12.5,
+            "wait_event_type" => "Lock", "wait_event" => "transactionid", "query" => "UPDATE orders SET paid = true" }
+        ])
+        FlyApi.any_instance.stubs(:postgres_active_queries).with("pg1", database: "jobs").raises(FlyApi::Error, "Fly answered 500: unable to load active queries")
+        active = call(:postgres_queries, "resource" => "pg1", "kind" => "active")
+        assert_match "pid 42, web, running 12.5 s, active for 12.5 s, waiting on Lock transactionid, UPDATE orders SET paid = true", active
+        assert_match "jobs: could not be read: Fly answered 500", active
+        assert_match "is an app", assert_raises(NativePack::Error) { call(:postgres_queries, "resource" => "web") }.message
       end
 
       test "the organization goes on the map with each app's machines, the hostnames it serves and the clusters it uses" do

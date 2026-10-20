@@ -2,6 +2,7 @@
 name: vercel_triage
 when: Starting on anything wrong with a site or app on Vercel, before knowing what kind of problem it is
 tools: [list_resources, resource_status, recent_deploys, deployment_logs, search_logs]
+references: [cli/monitoring-and-debugging.md]
 ---
 Work from the outside in, and stop as soon as one of these explains what was reported.
 

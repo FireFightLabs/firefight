@@ -2,7 +2,7 @@ module Integrations
   module Packs
     # Fly.io for one organization per environment: its apps and Managed Postgres clusters, their machines, logs,
     # metrics and releases, read with a token the workspace creates with fly tokens create. Every tool reads, except
-    # the restart and rollback Halon uses to apply fixes. Sources are cited where each is used:
+    # the restart, rollback, start, stop, suspend and cordon Halon uses to apply fixes. Sources are cited where each is used:
     # the Machines API spec (docs.fly.io/api/machines/openapi.json), superfly/flyctl, superfly/fly-go and superfly/docs.
     class Fly < NativePack
       # The environment row's credentials, which only this pack reads.
@@ -73,6 +73,20 @@ module Integrations
       BASELINE_STEP = 3600
 
       RESOURCE = { "type" => "string", "description" => "An app or Managed Postgres cluster in the organization, by name or id, as list_resources shows it" }.freeze
+      MACHINE = { "type" => "string", "description" => "One machine of the app, by its id or name, as describe_resource shows it" }.freeze
+
+      # The machine states a start, a stop or a suspend acts on (superfly/docs, machines/machine-states.mdx).
+      STOPPED = "stopped".freeze
+      SUSPENDED = "suspended".freeze
+      STARTABLE = [ STOPPED, SUSPENDED ].freeze
+      # A Managed Postgres cluster's slow queries are Fly's top 20 by total time, over a lookback of at most a week (spec,
+      # Postgres_queries_slow range), and its active ones are read per database.
+      QUERY_KINDS = %w[slow active].freeze
+      SLOW_QUERIES = 20
+      SLOW_MINUTES = 60
+      SLOW_MINUTES_MAX = 7 * 24 * 60
+      DATABASES_READ = 10
+      QUERY_SHOWN = 300
 
       tool :list_resources,
            summary: "Lists the apps and Managed Postgres clusters in the Fly.io organization.",
@@ -180,11 +194,79 @@ module Integrations
            },
            read_only: false
 
+      tool :start_app,
+           summary: "Starts an app's stopped or suspended machines, one at a time.",
+           description: "Start the stopped and suspended machines of an app, one at a time, each started on the image it already " \
+                        "runs, for an app that is down because its machines stopped. A suspended machine resumes from where it " \
+                        "was when Fly can. Name one machine to start only it. Machines that already run are left as they are",
+           params_schema: {
+             "type" => "object",
+             "properties" => { "resource" => RESOURCE, "machine" => MACHINE.merge("description" => "#{MACHINE['description']} (optional, every stopped or suspended one otherwise)") },
+             "required" => [ "resource" ]
+           },
+           read_only: false
+
+      tool :stop_app,
+           summary: "Stops an app's running machines, or one of them.",
+           description: "Stop the running machines of an app, one at a time, or only the one named, each sent its own stop " \
+                        "signal. A stopped machine serves nothing until it is started again with start_app. A machine Fly's " \
+                        "proxy starts on demand starts again on the next request",
+           params_schema: {
+             "type" => "object",
+             "properties" => { "resource" => RESOURCE, "machine" => MACHINE.merge("description" => "#{MACHINE['description']} (optional, every running one otherwise)") },
+             "required" => [ "resource" ]
+           },
+           read_only: false
+
+      tool :suspend_app,
+           summary: "Suspends an app's running machines, or one of them, keeping their memory.",
+           description: "Suspend the running machines of an app, one at a time, or only the one named. Fly snapshots each " \
+                        "machine's memory and stops it, so start_app resumes it where it was, though Fly does not promise it " \
+                        "and may boot it afresh",
+           params_schema: {
+             "type" => "object",
+             "properties" => { "resource" => RESOURCE, "machine" => MACHINE.merge("description" => "#{MACHINE['description']} (optional, every running one otherwise)") },
+             "required" => [ "resource" ]
+           },
+           read_only: false
+
+      tool :cordon_machine,
+           summary: "Takes one machine of an app out of traffic while it keeps running.",
+           description: "Stop Fly's proxy sending requests to one machine of an app, while the machine keeps running, such as " \
+                        "one that answers badly while the others are fine. uncordon_machine sends traffic to it again",
+           params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE, "machine" => MACHINE }, "required" => %w[resource machine] },
+           read_only: false
+
+      tool :uncordon_machine,
+           summary: "Sends traffic to a machine of an app again after it was cordoned.",
+           description: "Let Fly's proxy send requests to one machine of an app again, after cordon_machine took it out of traffic",
+           params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE, "machine" => MACHINE }, "required" => %w[resource machine] },
+           read_only: false
+
+      tool :postgres_queries,
+           summary: "Shows a Managed Postgres cluster's slowest queries or the ones running now.",
+           description: "Queries of one Managed Postgres cluster. slow gives the #{SLOW_QUERIES} queries that took the most time in all, " \
+                        "with how often each ran and its mean and longest time, read from Postgres's running totals as they stood " \
+                        "within the range, so they count from the cluster's last reset and not only the range. active gives the " \
+                        "queries running now in one database, or in each of the cluster's databases, with how long each has run, " \
+                        "its state and what it waits on. Fly keeps no logs or metrics of a cluster that its API reads",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => RESOURCE.merge("description" => "A Managed Postgres cluster in the organization, by name or id, as list_resources shows it"),
+               "kind" => { "type" => "string", "enum" => QUERY_KINDS, "description" => "slow or active (optional, slow)" },
+               "database" => { "type" => "string", "description" => "active only: the database to read, by name (optional, each of the cluster's databases)" },
+               "minutes" => { "type" => "integer", "description" => "slow only: how far back the totals may be read from, in minutes (optional, #{SLOW_MINUTES}, at most #{SLOW_MINUTES_MAX})" }
+             },
+             "required" => [ "resource" ]
+           },
+           read_only: true
+
       tool :api_read,
            summary: "Reads any other machine, volume, certificate or Postgres detail on Fly.io.",
            description: "Anything else Fly.io's Machines API reads that the other tools do not cover, such as one machine " \
                         "and its events, processes and versions, an app's volumes and their snapshots, IP assignments and " \
-                        "certificates, or a Managed Postgres cluster's databases, backups and active or slow queries. A GET to " \
+                        "certificates, or a Managed Postgres cluster's databases and backups. A GET to " \
                         "a path of the Machines API (#{FlyApi::MACHINES_HOST}), written with /v1 as the API reference the fly_api " \
                         "skill names writes it, such as /v1/apps/<app>/machines/<machine id>/events. Always in this " \
                         "connection's organization. A list answers one page: pass limit, and the next_cursor it answered as " \
@@ -322,7 +404,7 @@ module Integrations
         resource = find_app(environment_row, arguments["resource"])
         machines = api(environment_row).machines(resource[:name]).select { |machine| app_machine?(machine) }
         running, stopped = machines.partition { |machine| machine["state"] == STARTED }
-        fail! "No machine of #{resource[:name]} is running, so there is nothing to restart. Start its machines in Fly.io instead." if running.empty?
+        fail! "No machine of #{resource[:name]} is running, so there is nothing to restart. start_app starts its stopped machines." if running.empty?
 
         said = one_at_a_time(environment_row, resource, running, "restarted") do |machine|
           api(environment_row).restart_machine(resource[:name], machine["id"])
@@ -330,6 +412,70 @@ module Integrations
         end
         left = stopped.any? ? "\n#{stopped.size} stopped machines were left as they are." : ""
         Telemetry.result("Restarting #{resource[:name]}, machine by machine.\n#{said.join("\n")}#{left}", link: link(environment_row, resource, MACHINES_PAGE))
+      end
+
+      # A start per stopped or suspended machine (spec, POST .../machines/{machine_id}/start), one at a time, each waited on
+      # until it runs again.
+      def start_app(environment_row:, arguments:)
+        resource = find_app(environment_row, arguments["resource"])
+        machines = machines_in(environment_row, resource, arguments["machine"], STARTABLE, "start")
+        said = one_at_a_time(environment_row, resource, machines, "started") do |machine|
+          api(environment_row).start_machine(resource[:name], machine["id"])
+          nil
+        end
+        Telemetry.result("Starting #{resource[:name]}, machine by machine.\n#{said.join("\n")}", link: link(environment_row, resource, MACHINES_PAGE))
+      end
+
+      # A stop per running machine (spec, POST .../machines/{machine_id}/stop), one at a time, each waited on until it stopped.
+      def stop_app(environment_row:, arguments:)
+        resource = find_app(environment_row, arguments["resource"])
+        machines = machines_in(environment_row, resource, arguments["machine"], [ STARTED ], "stop")
+        said = one_at_a_time(environment_row, resource, machines, "stopped", state: STOPPED) do |machine|
+          api(environment_row).stop_machine(resource[:name], machine["id"])
+          nil
+        end
+        Telemetry.result("Stopping #{resource[:name]}, machine by machine. start_app starts them again.\n#{said.join("\n")}",
+                         link: link(environment_row, resource, MACHINES_PAGE))
+      end
+
+      # A suspend per running machine (spec, POST .../machines/{machine_id}/suspend), one at a time, each waited on until
+      # it was suspended.
+      def suspend_app(environment_row:, arguments:)
+        resource = find_app(environment_row, arguments["resource"])
+        machines = machines_in(environment_row, resource, arguments["machine"], [ STARTED ], "suspend")
+        said = one_at_a_time(environment_row, resource, machines, "suspended", state: SUSPENDED) do |machine|
+          api(environment_row).suspend_machine(resource[:name], machine["id"])
+          nil
+        end
+        Telemetry.result("Suspending #{resource[:name]}, machine by machine. start_app resumes them.\n#{said.join("\n")}",
+                         link: link(environment_row, resource, MACHINES_PAGE))
+      end
+
+      # One machine out of the proxy's routing (spec, POST .../machines/{machine_id}/cordon), still running.
+      def cordon_machine(environment_row:, arguments:)
+        resource = find_app(environment_row, arguments["resource"])
+        machine = named_machine(environment_row, resource, arguments["machine"])
+        api(environment_row).cordon_machine(resource[:name], machine["id"])
+        Telemetry.result("Fly's proxy no longer sends requests to #{machine['id']} of #{resource[:name]} in #{machine['region']}, which " \
+                         "keeps running. uncordon_machine sends traffic to it again.", link: link(environment_row, resource, MACHINES_PAGE))
+      end
+
+      def uncordon_machine(environment_row:, arguments:)
+        resource = find_app(environment_row, arguments["resource"])
+        machine = named_machine(environment_row, resource, arguments["machine"])
+        api(environment_row).uncordon_machine(resource[:name], machine["id"])
+        Telemetry.result("Fly's proxy sends requests to #{machine['id']} of #{resource[:name]} in #{machine['region']} again.",
+                         link: link(environment_row, resource, MACHINES_PAGE))
+      end
+
+      # A cluster's slow queries over a lookback, or the queries running now in each database asked (spec,
+      # Postgres_queries_slow and Postgres_queries_active).
+      def postgres_queries(environment_row:, arguments:)
+        resource = find_resource(environment_row, arguments["resource"])
+        fail! "#{resource[:name]} is an app, and this reads a Managed Postgres cluster. list_resources shows the clusters." unless resource[:type] == POSTGRES
+
+        lines = arguments["kind"].to_s == "active" ? active_query_lines(environment_row, resource, arguments["database"]) : slow_query_lines(environment_row, resource, arguments)
+        Telemetry.result(lines.join("\n"), link: link(environment_row, resource))
       end
 
       # Fly documents an image change on each machine as how a machine goes back to an earlier release (superfly/docs,
@@ -885,7 +1031,7 @@ module Integrations
           fail! "#{resource[:name]} has no release #{given} among its newest #{FlyApi::RELEASE_PAGE * FlyApi::RELEASE_PAGES}. deploy_history lists them."
         end
 
-        Capabilities::History.result([ history_run(environment_row, resource, release) ], what: resource[:name], link: link(environment_row, resource, MONITORING))
+        Capabilities::History.result([ history_run(environment_row, resource, release).with(parts: []) ], what: resource[:name], link: link(environment_row, resource, MONITORING))
       end
 
       def release_line(release)
@@ -909,10 +1055,91 @@ module Integrations
       # A machine left as it was on purpose, with why.
       Skipped = Data.define(:reason)
 
+      def reached?(environment_row, resource, machine, state, version)
+        return api(environment_row).wait_started(resource[:name], machine["id"], version: version) if state == STARTED
+
+        api(environment_row).wait_for(resource[:name], machine["id"], state, version: version)
+      end
+
+      # The app's machines in one of states, or only the one named, which is refused in words when it is in none of them.
+      def machines_in(environment_row, resource, named, states, verb)
+        if named.present?
+          machine = named_machine(environment_row, resource, named)
+          fail! "Machine #{machine['id']} of #{resource[:name]} is #{machine['state']}, so there is nothing to #{verb}." unless states.include?(machine["state"])
+          return [ machine ]
+        end
+
+        machines = api(environment_row).machines(resource[:name]).select { |machine| app_machine?(machine) && states.include?(machine["state"]) }
+        if machines.empty?
+          fail! "No machine of #{resource[:name]} is #{states.to_sentence(two_words_connector: ' or ', last_word_connector: ' or ')}, so there is nothing " \
+                "to #{verb}. describe_resource shows each machine's state."
+        end
+
+        machines
+      end
+
+      def named_machine(environment_row, resource, named)
+        wanted = named.to_s.strip
+        fail! "Say which machine, by the id describe_resource shows." if wanted.empty?
+
+        machines = api(environment_row).machines(resource[:name]).select { |machine| app_machine?(machine) }
+        machines.find { |machine| machine["id"] == wanted } || machines.find { |machine| machine["name"] == wanted } ||
+          fail!("#{resource[:name]} has no machine #{wanted}. describe_resource shows its machines.")
+      end
+
+      def slow_query_lines(environment_row, resource, arguments)
+        minutes = arguments["minutes"].to_i.positive? ? [ arguments["minutes"].to_i, SLOW_MINUTES_MAX ].min : SLOW_MINUTES
+        queries = api(environment_row).postgres_slow_queries(resource[:id], range: minutes * 60)
+        head = "#{resource[:name]}, the queries that took the most time in all, by Postgres's running totals read within the last #{minutes} minutes."
+        return [ head, "Fly has no query statistics for this cluster in that time." ] if queries.empty?
+
+        [ head, *queries.map { |query| slow_query_line(query) } ]
+      end
+
+      def slow_query_line(query)
+        [ "#{query['database']}#{" as #{query['user']}" if query['user'].present?}", "#{query['calls']} calls",
+          "#{seconds(query['total_exec_time_seconds'])} in all", "mean #{seconds(query['mean_exec_time_seconds'])}",
+          "longest #{seconds(query['max_exec_time_seconds'])}", query["query"].to_s.squish.truncate(QUERY_SHOWN) ].join(", ")
+      end
+
+      # Each database asked, or each of the cluster's, read one at a time. One Fly refuses is said and the rest still read.
+      def active_query_lines(environment_row, resource, database)
+        api = api(environment_row)
+        names = database.present? ? [ database.to_s.strip ] : api.postgres_databases(resource[:id]).filter_map { |each| each["name"].presence }
+        return [ "#{resource[:name]} has no databases to read." ] if names.empty?
+
+        lines = [ "#{resource[:name]}, queries running now." ]
+        names.first(DATABASES_READ).each do |name|
+          queries = api.postgres_active_queries(resource[:id], database: name)
+          lines << (queries.empty? ? "#{name}: none running." : "#{name}:")
+          lines.concat(queries.sort_by { |query| -query["duration_seconds"].to_f }.map { |query| active_query_line(query) })
+        rescue Integrations::RateLimited
+          raise
+        rescue FlyApi::Error => error
+          lines << Sentence.join("#{name}: could not be read", error)
+        end
+        lines << "#{names.size - DATABASES_READ} more databases were not read. Name one with database to read it." if names.size > DATABASES_READ
+        lines
+      end
+
+      def active_query_line(query)
+        waits = [ query["wait_event_type"], query["wait_event"] ].compact_blank.join(" ")
+        [ "  pid #{query['pid']}", ("#{query['user']}" if query["user"].present?), ("from #{query['application_name']}" if query["application_name"].present?),
+          "running #{seconds(query['duration_seconds'])}", ("#{query['state']} for #{seconds(query['state_duration_seconds'])}" if query["state"].present?),
+          ("waiting on #{waits}" if waits.present?), query["query"].to_s.squish.truncate(QUERY_SHOWN) ].compact.join(", ")
+      end
+
+      def seconds(value)
+        number = value.to_f
+        number >= 1 ? "#{number.round(1)} s" : "#{(number * 1000).round(1)} ms"
+      end
+
       # Changes the machines one at a time, as Fly's rolling deploys do, and waits for each to be started again before the
       # next (spec, GET .../wait). One that fails, or does not come back up, stops the rest, which are left as they were,
       # so a bad image never takes every machine down at once.
-      def one_at_a_time(environment_row, resource, machines, done)
+      # A stop or suspend waits for the machine to reach that state instead, and the rest stop the same way at one that does
+      # not get there.
+      def one_at_a_time(environment_row, resource, machines, done, state: STARTED)
         said = []
         machines.each_with_index do |machine, index|
           where = "#{machine['id']} in #{machine['region']}"
@@ -922,11 +1149,11 @@ module Integrations
               said << "#{where}: #{version.reason}"
               next
             end
-            if api(environment_row).wait_started(resource[:name], machine["id"], version: version)
-              said << "#{where}: #{done}, started again"
+            if reached?(environment_row, resource, machine, state, version)
+              said << (state == STARTED ? "#{where}: #{done}, started again" : "#{where}: #{done}")
               next
             end
-            said << "#{where}: #{done}, but not started again within #{FlyApi::WAIT_SECONDS} seconds"
+            said << (state == STARTED ? "#{where}: #{done}, but not started again within #{FlyApi::WAIT_SECONDS} seconds" : "#{where}: asked, but not #{state} within #{FlyApi::WAIT_SECONDS} seconds")
           rescue Integrations::RateLimited
             raise
           rescue FlyApi::Error => error

@@ -2,8 +2,9 @@ module Integrations
   module MapEventSources
     # Fly.io sends no events for an organization's apps, so every five minutes Firefight lists its apps and each app's
     # machines, with each machine's state and updated_at (spec, GET /v1/apps and GET /v1/apps/{app_name}/machines,
-    # docs.fly.io/api/machines/openapi.json), and an app whose apps list entry or machines changed since the last read is
-    # read again. Fly allows one request a second for each action, with short bursts of three
+    # docs.fly.io/api/machines/openapi.json), and its newest release's version and status (GraphQL, as list_deployments
+    # reads them), and an app whose apps list entry, machines or newest release changed since the last read is read again.
+    # Fly allows one request a second for each action, with short bursts of three
     # (docs.fly.io/machines/api/working-with-machines-api, Rate limits), so the machine lists are read a second apart.
     class Fly < MapEventSource
       # A second between two machine lists keeps to Fly's one request a second for listing machines.
@@ -19,7 +20,7 @@ module Integrations
 
         def events(_payload, headers:) = []
 
-        def limits = "Firefight reads each app's machines every 5 minutes, so an app changing reaches the map within about 6 minutes. An " \
+        def limits = "Firefight reads each app's machines and newest release every 5 minutes, so an app changing reaches the map within about 6 minutes. An " \
                      "organization with more than #{BUDGET} apps is read #{BUDGET} apps at a time, so a change there can take longer. A change " \
                      "to an app's certificates or Managed Postgres clusters reaches the map at each hourly sweep."
 
@@ -80,16 +81,27 @@ module Integrations
           [ nil, nil ]
         end
 
-        # What the map shows of an app, from its status and its machines' states and when each last changed. nil when
-        # its machines could not be read.
+        # What the map shows of an app, from its status, its machines' states and when each last changed, and its newest
+        # release's version and status, so a deploy starting, finishing or failing is heard before its machines move. nil
+        # when its machines could not be read. A release list Fly does not answer leaves the release out.
         def fingerprint(api, app)
           machines = api.machines(app["name"]).select { |machine| Packs::Fly.app_machine?(machine) }
           parts = machines.map { |machine| [ machine["id"], machine["state"], machine["updated_at"] ].join(":") }.sort
-          Digest::SHA256.hexdigest([ app["status"], *parts ].to_json).first(16)
+          Digest::SHA256.hexdigest([ app["status"], *parts, release_of(api, app["name"]) ].compact.to_json).first(16)
         rescue Integrations::RateLimited
           raise
         rescue FlyApi::NotFound
           "gone"
+        rescue FlyApi::Error
+          nil
+        end
+
+        # The newest release as its version and status (FlyApi#releases, GraphQL releasesUnprocessed), or nil.
+        def release_of(api, name)
+          release = api.releases(name, limit: 1).first
+          release && "release:#{release['version']}:#{release['status']}"
+        rescue Integrations::RateLimited
+          raise
         rescue FlyApi::Error
           nil
         end
