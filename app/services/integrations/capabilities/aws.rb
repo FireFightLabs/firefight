@@ -6,12 +6,14 @@ module Integrations
     # CPUUtilization and MemoryUtilization for an ECS service, Invocations (each run of the function, its requests),
     # Errors, Duration and Throttles for a Lambda function, CPUUtilization, NetworkIn and NetworkOut for an EC2 instance,
     # and CPUUtilization, DatabaseConnections (its client network connections), FreeableMemory and FreeStorageSpace for an
-    # RDS database. RDS reports the memory and storage left rather than used, and its charts say so. Run history is an
-    # ECS service's deployments, which keep when each started and finished, a CodeBuild project's builds, a CodePipeline
-    # pipeline's executions, a CodeDeploy deployment group's deployments, a CloudFormation stack's operations, an App
-    # Runner service's operations and an Elastic Beanstalk environment's deploys. One run asked by its id is read with
-    # its steps. A Lambda version keeps only when it was made. A CodeBuild project's logs are its builds' logs, read as
-    # the build stream, of the build asked for or the newest.
+    # RDS database. RDS reports the memory and storage left rather than used, and its charts say so. A restart of an EC2
+    # instance or an RDS database is a reboot. Run history is an ECS service's deployments, which keep when each started
+    # and finished, a CodeBuild project's builds, a CodePipeline pipeline's executions, a CodeDeploy deployment group's
+    # deployments, a CloudFormation stack's operations, an App Runner service's operations and an Elastic Beanstalk
+    # environment's deploys. One run asked by its id is read with its steps. A Lambda function's runs are the last update
+    # of its code or settings, of which Lambda keeps only the newest and says when it started and how it stands, and its
+    # published versions, which keep when each was made. A CodeBuild project's logs are its builds' logs, read as the
+    # build stream, of the build asked for or the newest.
     #
     # An App Runner service and an Elastic Beanstalk environment are services on the map beside ECS's, told apart by their
     # ARN. They answer status, deploys and run history, and a request Firefight cannot make of them is refused in words.
@@ -27,10 +29,10 @@ module Integrations
         LOGS => [ PACK::SERVICE, PACK::FUNCTION, PACK::DATABASE, PACK::PROJECT ],
         METRICS => [ PACK::SERVICE, PACK::FUNCTION, PACK::INSTANCE, PACK::DATABASE ],
         DEPLOYS => [ PACK::SERVICE, PACK::FUNCTION ],
-        HISTORY => [ PACK::SERVICE, PACK::PROJECT, RELEASES::PIPELINE, RELEASES::DEPLOYMENT_GROUP, RELEASES::STACK ],
+        HISTORY => [ PACK::SERVICE, PACK::FUNCTION, PACK::PROJECT, RELEASES::PIPELINE, RELEASES::DEPLOYMENT_GROUP, RELEASES::STACK ],
         STATUS => [ PACK::SERVICE, PACK::FUNCTION, PACK::INSTANCE, PACK::DATABASE, PACK::PROJECT ],
         ROLLBACK => [ PACK::SERVICE, PACK::FUNCTION, RELEASES::PIPELINE, RELEASES::DEPLOYMENT_GROUP, RELEASES::STACK ],
-        RESTART => [ PACK::SERVICE ],
+        RESTART => [ PACK::SERVICE, PACK::INSTANCE, PACK::DATABASE ],
         SCALE => [ PACK::SERVICE ]
       }.freeze
       SEARCH_LOGS = "search_logs".freeze
@@ -46,16 +48,19 @@ module Integrations
         RELEASES::PIPELINE => RELEASES::ROLLBACK_PIPELINE_STAGE, RELEASES::DEPLOYMENT_GROUP => RELEASES::STOP_CODEDEPLOY_DEPLOYMENT,
         RELEASES::STACK => RELEASES::CANCEL_STACK_UPDATE
       }.freeze
+      REBOOTS = { PACK::INSTANCE => "reboot_instance", PACK::DATABASE => "reboot_database" }.freeze
       TOOLS = {
         LOGS => [ SEARCH_LOGS, BUILD_LOG ], METRICS => "cloudwatch_metrics", DEPLOYS => [ DEPLOYMENTS, *PLATFORM_HISTORIES.values ],
         HISTORY => [ DEPLOYMENTS, BUILDS, *HISTORIES.values, *PLATFORM_HISTORIES.values ], STATUS => [ "describe_resource", PLATFORMS::DESCRIBE_APP ],
-        ROLLBACK => [ "rollback_deployment", RELEASES::STOP_SERVICE_DEPLOYMENT, *ROLLBACKS.values ], RESTART => "restart_service", SCALE => "scale_service"
+        ROLLBACK => [ "rollback_deployment", RELEASES::STOP_SERVICE_DEPLOYMENT, *ROLLBACKS.values ], RESTART => [ "restart_service", *REBOOTS.values ],
+        SCALE => "scale_service"
       }.freeze
       # Each tool answers one capability for one resource, so an agent holding the capability is not offered it as well.
       # cloudwatch_metrics reads every metric AWS documents for each kind, beyond the ones a capability names, build_log
-      # reads any build of a project by its id, and stop_service_deployment and stop_codedeploy_deployment also stop
-      # without rolling back, so they stay offered as they are.
-      WRAPPED = TOOLS.values.flatten.uniq.excluding(TOOLS[METRICS], BUILD_LOG, RELEASES::STOP_SERVICE_DEPLOYMENT, RELEASES::STOP_CODEDEPLOY_DEPLOYMENT).freeze
+      # reads any build of a project by its id, stop_service_deployment and stop_codedeploy_deployment also stop without
+      # rolling back, and reboot_database also fails a Multi-AZ database over, so they stay offered as they are.
+      WRAPPED = TOOLS.values.flatten.uniq.excluding(TOOLS[METRICS], BUILD_LOG, RELEASES::STOP_SERVICE_DEPLOYMENT, RELEASES::STOP_CODEDEPLOY_DEPLOYMENT,
+                                                    REBOOTS[PACK::DATABASE]).freeze
       METRIC_MAP = {
         PACK::SERVICE => { "cpu" => "CPUUtilization", "memory" => "MemoryUtilization" },
         PACK::FUNCTION => { "requests" => "Invocations", "invocations" => "Invocations", "errors" => "Errors", "duration" => "Duration",
@@ -72,6 +77,9 @@ module Integrations
       # task definition revision, which rollback_deployment takes or refuses as before.
       SERVICE_DEPLOYMENT = /#{PACK::Releases::SERVICE_DEPLOYMENT_ARN.source}|\A(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{16,}\z/
 
+      # A restart reaches more than services, so the details say which.
+      def self.phrase(key) = key == RESTART ? "restart an ECS service or reboot an EC2 instance or an RDS database" : super
+
       def self.route(key, resource, given, tool: nil, settings: nil)
         arn = resource.external_id
         platform = PLATFORMS.platform_of(arn)
@@ -86,7 +94,7 @@ module Integrations
         when STATUS then Route.new(tool_name: tool_for(STATUS), arguments: { "resource" => arn })
         when HISTORY then history(resource, given)
         when ROLLBACK then rollback(resource, given)
-        when RESTART then Route.new(tool_name: TOOLS[RESTART], arguments: { "resource" => arn })
+        when RESTART then Route.new(tool_name: REBOOTS.fetch(resource.kind, tool_for(RESTART)), arguments: { "resource" => arn })
         when SCALE then Route.new(tool_name: TOOLS[SCALE], arguments: { "resource" => arn, "desired_count" => instances(given) })
         end
       end

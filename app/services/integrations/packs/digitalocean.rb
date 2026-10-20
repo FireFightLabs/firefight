@@ -1,8 +1,9 @@
 module Integrations
   module Packs
     # DigitalOcean for one team per environment: its App Platform apps, Droplets and managed databases, their logs,
-    # metrics and deployments, read with a personal access token the workspace creates in DigitalOcean. Rolling an app
-    # back, restarting it, scaling one of its components and rebooting a Droplet are the only tools that change anything.
+    # metrics, deployments, job runs and events, read with a personal access token the workspace creates in DigitalOcean.
+    # Rolling an app back and keeping or undoing that, restarting, redeploying or scaling it, cancelling a deployment or a
+    # job run, and rebooting a Droplet are the only tools that change anything.
     # Every path, parameter and answer is the one in DigitalOcean's OpenAPI specification (digitalocean/openapi).
     class Digitalocean < NativePack
       # The environment row's credentials, which only this pack reads.
@@ -94,6 +95,10 @@ module Integrations
       RESOURCE = { "type" => "string", "description" => "An App Platform app, a Droplet or a managed database, by name or id, as list_resources shows it" }.freeze
       APP = { "type" => "string", "description" => "An App Platform app, by name or id, as list_resources shows it" }.freeze
       COMPONENT = { "type" => "string", "description" => "One component of the app, by its name in the app spec, as describe_resource shows it" }.freeze
+      # The newest of a Droplet's actions describe_resource shows.
+      DROPLET_ACTIONS = 10
+
+      include AppOperations
 
       tool :list_resources,
            summary: "Lists the App Platform apps, Droplets and managed databases in the account.",
@@ -106,23 +111,26 @@ module Integrations
            summary: "Shows how one app, Droplet or database is set up and how it is doing now.",
            description: "How one app, Droplet or database is set up and how it stands now. An app: its active and in-progress " \
                         "deployments, whether it is pinned by a rollback, each component's instances, size, source and health, " \
-                        "and its domains. A Droplet: status, size, image, region and addresses. A database: engine, version, " \
-                        "status, nodes, size, storage and maintenance window. Never secrets or connection details",
+                        "its domains and the alerts set up on it. A Droplet: status, size, image, region, addresses and its " \
+                        "latest actions, such as reboots, resizes and power cycles. A database: engine, version, status, nodes, " \
+                        "size, storage and maintenance window. Never secrets or connection details",
            params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
            read_only: true
 
       tool :app_logs,
            summary: "Searches an App Platform app's run, build or deploy logs.",
            description: "Log lines of an App Platform app's active deployment, or of any one deployment by its id, such as one " \
-                        "that failed, newest first, at most #{LOG_LIMIT}. type picks run logs (what the app prints), build, deploy, " \
-                        "or RUN_RESTARTED for instances that crashed or restarted. Filter by text or a regular expression, and to " \
-                        "one component",
+                        "that failed or one still building, newest first, at most #{LOG_LIMIT}. type picks run logs (what the app " \
+                        "prints), build, deploy, or RUN_RESTARTED for instances that crashed or restarted. job_invocation reads one " \
+                        "run of a job instead. Filter by text or a regular expression, and to one component",
            params_schema: {
              "type" => "object",
              "properties" => {
                "resource" => APP, "component" => COMPONENT.merge("description" => "#{COMPONENT['description']} (optional, every component)"),
                "deployment" => { "type" => "string", "description" => "One deployment, by its id, as list_deployments or deploy_history " \
                                                                        "shows it, with every line it logged unless a time is asked (optional, the active one)" },
+               "job_invocation" => { "type" => "string", "description" => "One run of a job, by the id deploy_history shows, with every line " \
+                                                                           "it logged unless a time is asked. type is then left out (optional)" },
                "type" => { "type" => "string", "enum" => LOG_TYPES, "description" => "Which logs (optional, #{DEFAULT_LOG_TYPE})" },
                "text" => { "type" => "string", "description" => "Only lines containing this text (optional)" },
                "regex" => { "type" => "string", "description" => "Only lines matching this regular expression (optional)" },
@@ -149,16 +157,16 @@ module Integrations
            read_only: true
 
       tool :deploy_history,
-           summary: "Lists an app's recent builds and releases with how long each took.",
-           description: "An App Platform app's recent deployments, each a build and its release, with its phase, when it started " \
-                        "and finished and how long it took, and how long finished ones usually take",
+           summary: "Lists an app's recent builds, releases and job runs with how long each took.",
+           description: "An App Platform app's recent deployments, each a build and its release, and the runs of its jobs, with " \
+                        "each one's phase, when it started and finished and how long it took, and how long finished ones usually take",
            params_schema: {
              "type" => "object",
              "properties" => {
                "resource" => APP,
-               "name" => { "type" => "string", "description" => "Only runs of this kind, deploy (optional)" },
-               "run" => { "type" => "string", "description" => "Only this deployment, by its id, with each step, the component it " \
-                                                                "ran for and where it failed (optional)" },
+               "name" => { "type" => "string", "description" => "Only runs of this kind, deploy or job, or of one job by its name (optional)" },
+               "run" => { "type" => "string", "description" => "Only this deployment, with each step, the component it ran for and " \
+                                                                "where it failed, or this job run, by its id (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many deployments (optional, #{DEPLOYMENT_LIMIT})" }
              },
              "required" => [ "resource" ]
@@ -185,8 +193,9 @@ module Integrations
       tool :rollback_app,
            summary: "Rolls an App Platform app back to an earlier deployment.",
            description: "Put an App Platform app back on an earlier deployment, by the id list_deployments shows. DigitalOcean " \
-                        "pins the app to it, so no new deployment goes out, not even on a push, until someone commits or " \
-                        "reverts the rollback in the control panel",
+                        "checks first that it can, and a deployment it cannot go back to is refused with why. It pins the app " \
+                        "to that deployment, so no new deployment goes out, not even on a push, until the rollback is kept " \
+                        "with commit_rollback or undone with revert_rollback",
            params_schema: {
              "type" => "object",
              "properties" => {
@@ -242,7 +251,7 @@ module Integrations
 
       tool :api_read,
            summary: "Reads any other DigitalOcean resource, such as load balancers or clusters.",
-           description: "Anything else DigitalOcean's API reads that the other tools do not cover, such as an app's alerts, " \
+           description: "Anything else DigitalOcean's API reads that the other tools do not cover, such as an app's " \
                         "domains or one deployment's progress, load balancers, volumes, Kubernetes clusters, firewalls, VPCs, " \
                         "a database's configuration, replicas or backups, or the account's projects. A GET to a path of the API " \
                         "(https://#{DigitaloceanApi::API_HOST}), written as the API reference the digitalocean_api skill names " \
@@ -255,7 +264,7 @@ module Integrations
         [
           CredentialField.new(key: API_TOKEN, label: "Personal access token", secret: true, placeholder: "dop_v1_...",
                               hint: "A DigitalOcean personal access token with the account:read, app:read, droplet:read, database:read and " \
-                                    "monitoring:read scopes, and billing:read for Halon to watch spend. For Halon to roll back, restart or scale apps and reboot Droplets, add app:update and droplet:update. " \
+                                    "monitoring:read scopes, and billing:read for Halon to watch spend. For Halon to roll back, restart, redeploy or scale apps, cancel their deployments and job runs, and reboot Droplets, add app:update and droplet:update. " \
                                     "Make it as a dedicated user, such as Firefight, so changes do not show as a teammate and the connection keeps working when someone leaves.")
         ]
       end
@@ -290,33 +299,38 @@ module Integrations
         resource = find_resource(environment_row, arguments["resource"])
         lines = case resource[:kind]
         when KIND_APP then app_lines(environment_row, resource)
-        when KIND_DROPLET then droplet_lines(api(environment_row).droplet(resource[:id]))
+        when KIND_DROPLET then droplet_lines(api(environment_row).droplet(resource[:id])) + droplet_action_lines(api(environment_row), resource)
         else database_lines(api(environment_row).database(resource[:id]))
         end
         Telemetry.result(lines.compact.join("\n"), link: link_of(environment_row, resource))
       end
 
-      # One deployment's logs are read whole unless a time is asked, since a failed build may be hours old. The signed
-      # addresses DigitalOcean answers with are read here and never shown.
+      # One deployment's or job run's logs are read whole unless a time is asked, since a failed build may be hours old.
+      # The archived files and, while a deployment builds or serves, what its live address holds now are read together.
+      # The signed addresses DigitalOcean answers with are read here and never shown.
       def app_logs(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"], only: KIND_APP)
         type = arguments["type"].presence || DEFAULT_LOG_TYPE
         fail!("type must be one of #{LOG_TYPES.join(', ')}.") unless LOG_TYPES.include?(type)
         deployment = arguments["deployment"].to_s.strip.presence
-        timed = deployment.nil? || arguments.values_at("minutes", "start", "end").any?(&:present?)
+        invocation = arguments["job_invocation"].to_s.strip.presence
+        timed = (deployment.nil? && invocation.nil?) || arguments.values_at("minutes", "start", "end").any?(&:present?)
         started, ended = Capabilities::Answers.range(arguments)
         limit = Capabilities::Answers.limit(arguments, LOG_LIMIT)
         pattern = regex(arguments["regex"])
         api = api(environment_row)
-        raw = known_deployment(resource, deployment) do
-          api.log_urls(resource[:id], type: type, component: arguments["component"].presence, deployment: deployment).flat_map { |url| api.log_file(url).lines }
+        text, unread = if invocation
+          job = job_of_invocation(api, resource, invocation, arguments["component"].to_s.strip.presence)
+          known(resource, "job run #{invocation}") { log_text(api, api.job_invocation_logs(resource[:id], job, invocation)) }
+        else
+          known(resource, "deployment #{deployment}") { log_text(api, api.logs(resource[:id], type: type, component: arguments["component"].presence, deployment: deployment)) }
         end
-        lines = raw.filter_map { |line| log_line(line, ended) }
-                   .select { |line| (!timed || line.at.between?(started, ended)) && matches?(line.text, arguments, pattern) }
-                   .sort_by(&:at).reverse.first(limit)
-        asked = logs_asked(resource, arguments["component"].presence, type, deployment, (timed ? [ started, ended ] : nil))
-        Telemetry.result(Telemetry.logs_text(lines, asked: asked, limit: limit),
-                         link: deployment ? deployment_link(environment_row, resource[:id], deployment) : link_of(environment_row, resource))
+        lines = text.lines.filter_map { |line| log_line(line, ended) }
+                    .select { |line| (!timed || line.at.between?(started, ended)) && matches?(line.text, arguments, pattern) }
+                    .sort_by(&:at).reverse.first(limit)
+        asked = logs_asked(resource, arguments["component"].presence, invocation ? "job run #{invocation} logs" : "#{type} logs", deployment, (timed ? [ started, ended ] : nil))
+        said = [ Telemetry.logs_text(lines, asked: asked, limit: limit), unread ].compact.join("\n")
+        Telemetry.result(said, link: deployment ? deployment_link(environment_row, resource[:id], deployment) : link_of(environment_row, resource))
       end
 
       def list_deployments(environment_row:, arguments:)
@@ -352,6 +366,15 @@ module Integrations
       }.freeze
       # The log type that holds what a top step did, by a word in its name.
       STEP_LOGS = { "build" => "BUILD", "deploy" => "DEPLOY" }.freeze
+      # What run history calls a deployment, and a job's run before the job's name.
+      DEPLOY_RUN = "deploy".freeze
+      JOB_RUN = "job".freeze
+      # A job invocation's phases (app_job_invocation) in Firefight's words. A run skipped never ran.
+      JOB_PHASES = {
+        "unknown" => Capabilities::History::QUEUED, "pending" => Capabilities::History::QUEUED, "running" => Capabilities::History::RUNNING,
+        "succeeded" => Capabilities::History::SUCCEEDED, "failed" => Capabilities::History::FAILED, "canceled" => Capabilities::History::CANCELLED,
+        "skipped" => Capabilities::History::CANCELLED
+      }.freeze
 
       # A deployment from created_at to when its last step ended (progress.steps, ended_at), or to when its phase last
       # changed (phase_last_updated_at) when it gives no steps. One deployment asked by its id is read on its own, with
@@ -360,9 +383,11 @@ module Integrations
         resource = find_resource(environment_row, arguments["resource"], only: KIND_APP)
         return one_deployment(environment_row, resource, arguments["run"].to_s.strip) if arguments["run"].present?
 
-        deployments = api(environment_row).deployments(resource[:id], limit: Capabilities::Answers.limit(arguments, DEPLOYMENT_LIMIT))
-        runs = deployments.map { |deployment| history_run(environment_row, resource, deployment) }
-        Capabilities::History.result(runs, what: resource[:name], link: link_of(environment_row, resource), name: arguments["name"])
+        api = api(environment_row)
+        limit = Capabilities::Answers.limit(arguments, DEPLOYMENT_LIMIT)
+        runs = api.deployments(resource[:id], limit: limit).map { |deployment| history_run(environment_row, resource, deployment) }
+        runs += api.job_invocations(resource[:id], limit: limit).map { |invocation| job_run(environment_row, resource, invocation) } unless arguments["name"].to_s.strip.casecmp?(DEPLOY_RUN)
+        Capabilities::History.result(runs, what: resource[:name], link: link_of(environment_row, resource), name: arguments["name"], limit: limit)
       end
 
       def resource_metrics(environment_row:, arguments:)
@@ -403,11 +428,30 @@ module Integrations
         deployment = arguments["deployment"].to_s.strip
         fail!("Say which deployment to go back to, by the id list_deployments shows.") if deployment.empty?
 
-        made = change { api(environment_row).rollback(resource[:id], deployment) }
-        Telemetry.result("#{resource[:name]} is rolling back to deployment #{deployment}, as new deployment #{made.dig('deployment', 'id') || 'unknown'}. " \
-             "DigitalOcean pins the app to it, so no new deployment goes out, not even on a push, until someone commits or reverts " \
-             "the rollback in the control panel.", link: link_of(environment_row, resource))
+        api = api(environment_row)
+        checked = change { api.validate_rollback(resource[:id], deployment) }
+        unless checked["valid"]
+          fail!("DigitalOcean cannot roll #{resource[:name]} back to deployment #{deployment}: " \
+                "#{Sentence.clean(condition_words(checked['error']) || 'it gave no reason')}.")
+        end
+
+        made = change { api.rollback(resource[:id], deployment) }
+        warnings = Array(checked["warnings"]).filter_map { |warning| condition_words(warning) }
+        Telemetry.result([ "#{resource[:name]} is rolling back to deployment #{deployment}, as new deployment #{made.dig('deployment', 'id') || 'unknown'}.",
+                           ("DigitalOcean warned: #{warnings.map { |words| Sentence.clean(words) }.join('. ')}." if warnings.any?),
+                           "DigitalOcean pins the app to it, so no new deployment goes out, not even on a push, until the rollback is kept " \
+                           "with commit_rollback or undone with revert_rollback." ].compact.join(" "), link: link_of(environment_row, resource))
       end
+
+      # A rollback condition (app_rollback_validation_condition) as words, with the components it names.
+      def condition_words(condition)
+        return if condition.blank?
+
+        words = Sentence.clean(condition["message"].presence || condition["code"].to_s).presence
+        components = Array(condition["components"])
+        words && "#{words}#{" (#{components.join(', ')})" if components.any?}"
+      end
+      private :condition_words
 
       def restart_app(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"], only: KIND_APP)
@@ -425,7 +469,9 @@ module Integrations
       # replaces the app's spec with what it is sent. update_all_source_versions stays off, so no new code goes out.
       def scale_app(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"], only: KIND_APP)
-        count = Integer(arguments["instances"], exception: false)
+        given = arguments["instances"]
+        # Integer() truncates a Float, so a fraction is refused rather than rounded down.
+        count = given.is_a?(Float) && !(given.finite? && given == given.floor) ? nil : Integer(given, exception: false)
         fail!("instances must be a whole number, 1 or more.") unless count && count >= 1
 
         spec = api(environment_row).app(resource[:id])["spec"].to_h.deep_dup
@@ -471,6 +517,29 @@ module Integrations
           gaps << ResourceMap::Gap.new(text: Sentence.join("The #{KIND_NAMES.fetch(kind)}s could not be read", error), kinds: LISTED_KINDS.fetch(kind))
         end
         ResourceMap::Snapshot.new(resources: resources, links: links + attached_links(resources), gaps: gaps, uses: @uses, endpoints: @endpoints)
+      end
+
+      # One app read again after it changed (MapEventSources::Digitalocean), with its domains, repositories and settings.
+      # The databases are read only to link the ones it attaches. An app DigitalOcean no longer holds is gone. Anything
+      # else is swept in full.
+      def map_refresh(environment_row, scope)
+        return unless scope.kind == ResourceMap::KIND_SERVICE && scope.external_id.present?
+
+        api = api(environment_row)
+        account = scope.account.presence || account_of(api)
+        app = begin
+          api.app(scope.external_id)
+        rescue DigitaloceanApi::NotFound
+          return ResourceMap::Snapshot.new(resources: [], gone: [ [ PROVIDER_KEY, account, ResourceMap::KIND_SERVICE, scope.external_id ] ])
+        end
+        resources = []
+        links = []
+        @uses = []
+        @endpoints = []
+        @attached = []
+        map_app(environment_row, app, account, resources, links)
+        databases = api.databases.items.map { |row| found(environment_row, KIND_DATABASE, row["id"], row["name"], account) }
+        ResourceMap::Snapshot.new(resources: resources, links: links + attached_links(resources + databases), gaps: [], uses: @uses)
       end
 
       # What normal looks like for its apps, Droplets and MySQL databases, one metrics read each. Instances are averaged,
@@ -786,8 +855,45 @@ module Integrations
           ("Live at #{app['live_url']}" if app["live_url"]),
           "Components:",
           *components(app["spec"]).map { |component| component_line(component, health[component["name"]]) },
-          domain_lines(app)
+          domain_lines(app),
+          *alert_lines(api, resource)
         ]
+      end
+
+      # The alerts set up on an app and its components, each its rule, threshold and window, and how many places it is
+      # sent. A Slack webhook's address works as a password, so only the count is said.
+      def alert_lines(api, resource)
+        alerts = api.alerts(resource[:id])
+        return [ "Alerts: none set up" ] if alerts.empty?
+
+        [ "Alerts:", *alerts.map { |alert| alert_line(alert) } ]
+      rescue Integrations::RateLimited
+        raise
+      rescue DigitaloceanApi::Error => error
+        [ Sentence.join("Alerts: DigitalOcean did not answer with them", error) ]
+      end
+
+      def alert_line(alert)
+        spec = alert["spec"].to_h
+        threshold = [ spec["operator"], spec["value"], ("over #{spec['window']}" if spec["window"].present?) ].compact.join(" ").presence
+        sent = [ ("#{Array(alert['emails']).size} emails" if Array(alert["emails"]).any?),
+                 ("#{Array(alert['slack_webhooks']).size} Slack channels" if Array(alert["slack_webhooks"]).any?) ].compact
+        [ "- #{spec['rule']}", threshold, ("on #{alert['component_name']}" if alert["component_name"].present?), alert["phase"],
+          ("disabled" if spec["disabled"]), ("sent to #{sent.join(' and ')}" if sent.any?) ].compact.join(", ")
+      end
+
+      # A Droplet's newest actions, each its type, status and when it started and ended.
+      def droplet_action_lines(api, resource)
+        actions = api.droplet_actions(resource[:id], limit: DROPLET_ACTIONS)
+        return [ "Actions: none" ] if actions.empty?
+
+        [ "Latest actions, newest first:", *actions.map do |action|
+          "- #{action['type']} #{action['status']}, started #{action['started_at']}#{", ended #{action['completed_at']}" if action['completed_at']}"
+        end ]
+      rescue Integrations::RateLimited
+        raise
+      rescue DigitaloceanApi::Error => error
+        [ Sentence.join("Actions: DigitalOcean did not answer with them", error) ]
       end
 
       def component_line(component, health)
@@ -830,8 +936,14 @@ module Integrations
         ]
       end
 
+      # A deployment by its id, or else a job run, since the two share one kind of id.
       def one_deployment(environment_row, resource, id)
-        deployment = known_deployment(resource, id) { api(environment_row).deployment(resource[:id], id) }
+        api = api(environment_row)
+        deployment = begin
+          api.deployment(resource[:id], id)
+        rescue DigitaloceanApi::NotFound
+          return one_job_run(environment_row, resource, id)
+        end
         run = history_run(environment_row, resource, deployment).with(parts: steps_of(environment_row, resource, deployment))
         Capabilities::History.result([ run ], what: resource[:name], link: deployment_link(environment_row, resource[:id], deployment["id"] || id))
       end
@@ -840,7 +952,7 @@ module Integrations
         status = Capabilities::History.status(deployment["phase"], DEPLOYMENT_PHASES)
         commits = Array(deployment["services"]).filter_map { |service| "#{service['name']} #{service['source_commit_hash'].to_s.first(12)}" if service["source_commit_hash"].present? }
         Capabilities::History::Run.new(
-          id: deployment["id"], name: "deploy", status: status, started_at: Telemetry.parse_time(deployment["created_at"]),
+          id: deployment["id"], name: DEPLOY_RUN, status: status, started_at: Telemetry.parse_time(deployment["created_at"]),
           finished_at: (deployment_ended_at(deployment) if Capabilities::History::FINISHED.include?(status)),
           url: (deployment_link(environment_row, resource[:id], deployment["id"]).url if deployment["id"].present?),
           detail: [ deployment["cause"].presence, ("commits #{commits.join(', ')}" if commits.any?) ].compact.join(", ").presence
@@ -876,15 +988,38 @@ module Integrations
         )
       end
 
-      # A deployment DigitalOcean does not hold for the app is said in words rather than as its 404.
-      def known_deployment(resource, deployment)
+      # A deployment or job run DigitalOcean does not hold for the app is said in words rather than as its 404.
+      def known(resource, what)
         yield
       rescue DigitaloceanApi::NotFound
-        fail!("#{resource[:name]} has no deployment #{deployment}. deploy_history lists its recent ones.")
+        fail!("#{resource[:name]} has no #{what}. deploy_history lists its recent ones.")
       end
 
-      def logs_asked(resource, component, type, deployment, range)
-        [ "#{type} logs of #{resource[:name]}", (" (#{component})" if component), (" deployment #{deployment}" if deployment),
+      # The archived files and what the live address holds now, as one text, with a sentence when the live address could
+      # not be read while the files were.
+      def log_text(api, where)
+        text = where[:historic].map { |url| api.log_file(url) }.join
+        return [ text, nil ] unless where[:live]
+
+        [ text + api.live_log(where[:live]), nil ]
+      rescue Integrations::RateLimited
+        raise
+      rescue DigitaloceanApi::Error => error
+        raise if where[:historic].empty? || text.nil?
+
+        [ text, Sentence.join("The live log could not be read, so only the archived lines are here", error) ]
+      end
+
+      # The job a run belongs to, as asked or as DigitalOcean says, since its logs are read under the job's name.
+      def job_of_invocation(api, resource, invocation, asked)
+        return asked if asked
+
+        known(resource, "job run #{invocation}") { api.job_invocation(resource[:id], invocation)["job_name"].presence } ||
+          fail!("DigitalOcean did not say which job run #{invocation} belongs to. Name it as component.")
+      end
+
+      def logs_asked(resource, component, what, deployment, range)
+        [ "#{what} of #{resource[:name]}", (" (#{component})" if component), (" deployment #{deployment}" if deployment),
           (" from #{range.first.utc.iso8601} to #{range.last.utc.iso8601}" if range) ].compact.join
       end
 

@@ -26,14 +26,17 @@ module Integrations
         RenderApi.any_instance.stubs(:key_values).with("tea-1").returns(Integrations::Pages::Read.new(items: [
           { "id" => "red-1", "name" => "cache", "status" => "available", "plan" => "starter", "dashboardUrl" => "https://dashboard.render.com/r/red-1" }
         ], complete: true))
+        RenderApi.any_instance.stubs(:workflows).with("tea-1").returns(Integrations::Pages::Read.new(items: [], complete: true))
         RenderApi.any_instance.stubs(:env_vars).returns(Integrations::Pages::Read.new(items: [], complete: true))
         RenderApi.any_instance.stubs(:env_groups).returns([])
       end
 
-      test "the key and workspace are stored trimmed, and only the restart, rollback and scale change anything" do
+      test "the key and workspace are stored trimmed, and only the fixes, deploys and suspending change anything" do
         assert_equal "rnd_key", ConnectionSettings.of(@row.reload).credential(Render::API_KEY)
         assert_nil @row.credentials_hash[Render::WORKSPACE], "the workspace is a connect field, not a credential"
-        assert_equal %w[restart_service rollback_deploy scale_service], Render.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[restart_service rollback_deploy scale_service trigger_cron_run cancel_cron_run cancel_job run_job run_task cancel_task_run cancel_deploy trigger_deploy turn_off_autodeploy set_autodeploy set_autoscaling suspend_service resume_service],
+                     Render.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[cancel_deploy cancel_cron_run cancel_job cancel_task_run], IntegrationProvider.find(Render::PROVIDER_KEY).stopping_tools
       end
 
       test "a wrong key or workspace is said on the form before anything is saved" do
@@ -58,6 +61,7 @@ module Integrations
         RenderApi.any_instance.stubs(:service).raises(RenderApi::NotFound, "Render answered 404")
         RenderApi.any_instance.stubs(:key_value).raises(RenderApi::NotFound, "Render answered 404")
         RenderApi.any_instance.stubs(:postgres).raises(RenderApi::NotFound, "Render answered 404")
+        RenderApi.any_instance.stubs(:workflow).raises(RenderApi::NotFound, "Render answered 404")
         RenderApi.any_instance.stubs(:postgres).with("dpg-2").returns(
           "id" => "dpg-2", "name" => "orders", "status" => "available", "version" => "16", "owner" => { "id" => "tea-1" },
           "dashboardUrl" => "https://dashboard.render.com/d/dpg-2"
@@ -169,7 +173,7 @@ module Integrations
         assert_match "cannot restart a Key Value instance", assert_raises(NativePack::Error) { call(:restart_service, "resource" => "cache") }.message
 
         RenderApi.any_instance.expects(:rollback).with("srv-web", "dep-1").returns("id" => "dep-3")
-        assert_match "Render is rolling web back to deploy dep-1, as deploy dep-3. Autodeploy is still on", call(:rollback_deploy, "resource" => "web", "deploy" => "dep-1")
+        assert_match "Render is rolling web back to deploy dep-1, as deploy dep-3. Autodeploy is left as it is, so while it is on the next commit to its branch deploys again. turn_off_autodeploy keeps the rollback.", call(:rollback_deploy, "resource" => "web", "deploy" => "dep-1")
 
         RenderApi.any_instance.stubs(:service).returns("serviceDetails" => { "autoscaling" => { "enabled" => true } })
         RenderApi.any_instance.expects(:scale).never

@@ -90,6 +90,7 @@
               "RunInstances", "StartInstances", "StopInstances", "TerminateInstances", "ModifyInstanceAttribute", "CreateTags", "DeleteTags",
               "CreateService", "UpdateService", "DeleteService", "TagResource", "UntagResource",
               { "prefix": "CreateFunction" }, { "prefix": "UpdateFunctionCode" }, { "prefix": "UpdateFunctionConfiguration" },
+              { "prefix": "PublishVersion" }, { "prefix": "UpdateAlias" },
               { "prefix": "DeleteFunction" }, { "prefix": "TagResource" }, { "prefix": "UntagResource" },
               "CreateDBInstance", "CreateDBInstanceReadReplica", "RestoreDBInstanceFromDBSnapshot", "RestoreDBInstanceToPointInTime",
               "ModifyDBInstance", "RebootDBInstance", "StartDBInstance", "StopDBInstance", "PromoteReadReplica", "DeleteDBInstance",

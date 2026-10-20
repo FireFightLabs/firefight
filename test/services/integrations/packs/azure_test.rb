@@ -10,6 +10,7 @@ module Integrations
       APP_ID = "#{GROUP}/Microsoft.App/containerApps/api".freeze
       SQL_ID = "#{GROUP}/Microsoft.Sql/servers/shop-sql/databases/orders".freeze
       PG_ID = "#{GROUP}/Microsoft.DBforPostgreSQL/flexibleServers/catalog".freeze
+      REGISTRY_ID = "#{GROUP}/Microsoft.ContainerRegistry/registries/acme".freeze
       PLAN_ID = "#{GROUP}/Microsoft.Web/serverfarms/shop-plan".freeze
       ENVIRONMENT_ID = "#{GROUP}/Microsoft.App/managedEnvironments/shop-env".freeze
       FIELDS = { Azure::TENANT => "contoso.onmicrosoft.com", Azure::CLIENT => "22222222-2222-3333-4444-555555555555",
@@ -47,6 +48,7 @@ module Integrations
         AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/flexibleServers") }.returns(pages([
           { "id" => PG_ID, "name" => "catalog", "location" => "westeurope", "sku" => { "name" => "Standard_D2ds_v4" }, "properties" => { "state" => "Ready", "version" => "16" } }
         ]))
+        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.ContainerRegistry/registries") }.returns(pages([]))
         AzureApi.any_instance.stubs(:post).with { |path, *| path.end_with?("/config/appsettings/list", "/config/connectionstrings/list") }.returns({ "properties" => {} })
         AzureApi.any_instance.stubs(:get).with(WEB_ID, Azure::WEB_VERSION).returns(SITE)
         AzureApi.any_instance.stubs(:get).with(PLAN_ID, Azure::WEB_VERSION).returns(PLAN)
@@ -165,7 +167,7 @@ module Integrations
 
         assert_match "2026-10-03T09:00:00Z, succeeded, active, by ana, \"Fix checkout\", deployment abc123\nDeployment slots, which rollback_app swaps with production: staging (running).",
                      call(:list_deployments, "resource" => "storefront")
-        assert_match "2026-10-03T09:00:00Z, api--v2, active, health healthy, running running, 2 replicas, 100% of traffic, image acme.azurecr.io/api:v2",
+        assert_match "2026-10-03T09:00:00Z, api--v2, active, provisioning unknown, health healthy, running running, 2 replicas, 100% of traffic, image acme.azurecr.io/api:v2",
                      call(:list_deployments, "resource" => "api")
       end
 
@@ -191,7 +193,8 @@ module Integrations
         AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{APP_ID}/revisions" }.returns(pages([
           { "name" => "api--v1", "properties" => { "createdTime" => "2026-10-02T09:00:00Z", "active" => false, "provisioningState" => "Deprovisioned", "trafficWeight" => 0 } },
           { "name" => "api--v2", "properties" => { "createdTime" => "2026-10-03T09:00:00Z", "active" => true, "provisioningState" => "Provisioned", "trafficWeight" => 80 } },
-          { "name" => "api--v3", "properties" => { "createdTime" => "2026-10-03T10:00:00Z", "active" => true, "provisioningState" => "Provisioning" } }
+          { "name" => "api--v3", "properties" => { "createdTime" => "2026-10-03T10:00:00Z", "active" => true, "provisioningState" => "Failed",
+                                                   "provisioningError" => "Container api failed to start: image acme.azurecr.io/api:v3 not found" } }
         ]))
 
         site = Azure.new(@integration).call("list_deployments", environment_row: @row, arguments: { "resource" => "storefront" })
@@ -201,10 +204,12 @@ module Integrations
         assert_match "2026-10-03T10:00:00Z, succeeded, active, deployment storefront/def456", site["content"].sole["text"]
 
         app = Azure.new(@integration).call("list_deployments", environment_row: @row, arguments: { "resource" => "api" })
-        assert_equal [ [ "api--v3", "running", nil, Time.utc(2026, 10, 3, 10) ], [ "api--v2", "succeeded", true, Time.utc(2026, 10, 3, 9) ],
+        assert_equal [ [ "api--v3", "failed", nil, Time.utc(2026, 10, 3, 10) ], [ "api--v2", "succeeded", true, Time.utc(2026, 10, 3, 9) ],
                        [ "api--v1", "succeeded", false, Time.utc(2026, 10, 2, 9) ] ],
                      Capabilities::Deploys.deploys_of(app).map { |deploy| [ deploy.id, deploy.status, deploy.live, deploy.started_at ] }
-        assert_match "2026-10-03T09:00:00Z, api--v2, active, health , running , 0 replicas, 80% of traffic", app["content"].sole["text"]
+        assert_match "2026-10-03T09:00:00Z, api--v2, active, provisioning provisioned, health , running , 0 replicas, 80% of traffic", app["content"].sole["text"]
+        assert_match "api--v3, active, provisioning failed, provisioning error: Container api failed to start: image acme.azurecr.io/api:v3 not found",
+                     app["content"].sole["text"]
       end
 
       LOG = { "value" => [
@@ -255,7 +260,9 @@ module Integrations
 
       test "a rollback swaps a slot the app has, or sends a Container App's traffic to an earlier revision, activating it first" do
         AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{WEB_ID}/slots" }.returns(pages([ { "name" => "storefront/staging" } ]))
-        AzureApi.any_instance.expects(:post).with("#{WEB_ID}/slotsswap", Azure::WEB_VERSION, { "targetSlot" => "staging", "preserveVnet" => true }).returns({})
+        AzureApi.any_instance.stubs(:post).with("#{WEB_ID}/slotsdiffs", Azure::WEB_VERSION, { "targetSlot" => "staging", "preserveVnet" => true }).returns("value" => [])
+        AzureApi.any_instance.expects(:start).with("#{WEB_ID}/slotsswap", Azure::WEB_VERSION, { "targetSlot" => "staging", "preserveVnet" => true })
+                .returns(Http::Answer.new(status: 200, body: {}))
         assert_match "To undo, swap staging with production again.", call(:rollback_app, "resource" => "storefront", "to" => "staging")
         assert_match "has no slot called canary", assert_raises(Integrations::Error) { call(:rollback_app, "resource" => "storefront", "to" => "canary") }.message
 
@@ -266,6 +273,107 @@ module Integrations
             body.dig("properties", "configuration", "ingress", "targetPort") == 8080
         end.returns({})
         assert_match "Before, it went 100% to api--v2.", call(:rollback_app, "resource" => "api", "to" => "api--v1")
+      end
+
+      test "a slot swap names the settings that differ, a secret's by name only, and is followed until Azure says how it ended" do
+        AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{WEB_ID}/slots" }.returns(pages([ { "name" => "storefront/staging" } ]))
+        AzureApi.any_instance.stubs(:post).with("#{WEB_ID}/slotsdiffs", Azure::WEB_VERSION, { "targetSlot" => "staging", "preserveVnet" => true }).returns("value" => [
+          { "properties" => { "settingType" => "AppSetting", "settingName" => "STRIPE_KEY", "valueInCurrentSlot" => "sk_live_1", "valueInTargetSlot" => "sk_test_2",
+                              "level" => "Warning", "diffRule" => "SettingsWillBeModifiedInDestination", "description" => "sk_live_1 becomes sk_test_2" } },
+          { "properties" => { "settingType" => "General", "settingName" => "alwaysOn", "valueInCurrentSlot" => "true", "valueInTargetSlot" => "false",
+                              "level" => "Information", "diffRule" => "SettingsWillBeModifiedInDestination" } }
+        ])
+
+        preview = call(:slot_differences, "resource" => "storefront", "slot" => "staging")
+        assert_match "STRIPE_KEY, appsetting: warning, SettingsWillBeModifiedInDestination", preview
+        assert_match "alwaysOn, general (production true, slot false): information, SettingsWillBeModifiedInDestination", preview
+        assert_no_match "sk_live_1", preview
+        assert_no_match "sk_test_2", preview
+        assert_match "has no slot called canary", assert_raises(Integrations::Error) { call(:slot_differences, "resource" => "storefront", "slot" => "canary") }.message
+        assert_match "Deployment slots are an App Service or Function app's", assert_raises(Integrations::Error) { call(:slot_differences, "resource" => "api", "slot" => "x") }.message
+
+        operation = "https://management.azure.com/subscriptions/#{SUBSCRIPTION}/providers/Microsoft.Web/locations/westeurope/operationResults/op-1"
+        AzureApi.any_instance.stubs(:start).returns(Http::Answer.new(status: 202, body: {}, headers: { "azure-asyncoperation" => operation }))
+        Azure.any_instance.stubs(:pause)
+        AzureApi.any_instance.stubs(:operation).with(operation).returns(Http::Answer.new(status: 200, body: { "status" => "InProgress" }))
+                                               .then.returns(Http::Answer.new(status: 200, body: { "status" => "Succeeded" }))
+        swapped = call(:rollback_app, "resource" => "storefront", "to" => "staging")
+        assert_match "Azure swapped slot staging with storefront's production", swapped
+        assert_match "Settings that differed between the slots:\n  STRIPE_KEY", swapped
+        assert_no_match "sk_live_1", swapped
+
+        AzureApi.any_instance.stubs(:operation).with(operation)
+                                               .returns(Http::Answer.new(status: 200, body: { "status" => "Failed", "error" => { "message" => "Swap timed out warming up staging" } }))
+        assert_match "Azure could not swap slot staging with storefront's production: Swap timed out warming up staging.",
+                     assert_raises(Integrations::Error) { call(:rollback_app, "resource" => "storefront", "to" => "staging") }.message
+
+        AzureApi.any_instance.stubs(:operation).with(operation).returns(Http::Answer.new(status: 202, body: {}))
+        assert_match "Azure is still swapping slot staging with storefront's production after #{Azure::SWAP_WAIT} seconds",
+                     call(:rollback_app, "resource" => "storefront", "to" => "staging")
+
+        AzureApi.any_instance.stubs(:operation).with(operation).raises(AzureApi::Error, "Azure answered 503: Service Unavailable")
+        unknown = call(:rollback_app, "resource" => "storefront", "to" => "staging")
+        assert_match "is still swapping", unknown, "a read of the swap that failed says nothing of how it ends"
+        assert_match "Azure could not be asked how it stands: Azure answered 503: Service Unavailable.", unknown
+        assert_match "Do not swap again until it ends", unknown
+
+        AzureApi.any_instance.stubs(:post).with("#{WEB_ID}/slotsdiffs", Azure::WEB_VERSION, { "targetSlot" => "staging", "preserveVnet" => true })
+                .raises(AzureApi::Forbidden, "Azure answered 403: AuthorizationFailed")
+        AzureApi.any_instance.stubs(:operation).with(operation).returns(Http::Answer.new(status: 200, body: { "status" => "Succeeded" }))
+        swapped_unread = call(:rollback_app, "resource" => "storefront", "to" => "staging")
+        assert_match "Azure swapped slot staging", swapped_unread
+        assert_match "Reading them needs Microsoft.Web/sites/slotsdiffs/Action", swapped_unread
+        assert_match "needs Microsoft.Web/sites/slotsdiffs/Action",
+                     assert_raises(Integrations::Error) { call(:slot_differences, "resource" => "storefront", "slot" => "staging") }.message
+
+        AzureApi.any_instance.stubs(:post).with("#{WEB_ID}/slotsdiffs", Azure::WEB_VERSION, { "targetSlot" => "staging", "preserveVnet" => true })
+                .raises(AzureApi::Error, "Azure answered 500: Internal Server Error")
+        swapped_anyway = call(:rollback_app, "resource" => "storefront", "to" => "staging")
+        assert_match "Azure swapped slot staging", swapped_anyway, "a read the swap does not need never holds the rollback back"
+        assert_match "The settings that differ between the slots could not be read: Azure answered 500", swapped_anyway
+      end
+
+      test "a container registry goes on the map with its ACR Tasks runs as run history, one run read by its id and its log read from where Azure keeps it" do
+        registry = { "id" => REGISTRY_ID, "name" => "acme", "location" => "westeurope", "sku" => { "name" => "Standard" },
+                     "properties" => { "provisioningState" => "Succeeded", "loginServer" => "acme.azurecr.io" } }
+        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.ContainerRegistry/registries") }.returns(pages([ registry ]))
+        AzureApi.any_instance.stubs(:get).with(REGISTRY_ID, Azure::REGISTRY_VERSION).returns(registry)
+        runs = [
+          { "name" => "ca1", "properties" => { "runId" => "ca1", "status" => "Succeeded", "runType" => "QuickBuild", "createTime" => "2026-10-03T09:00:00Z",
+                                               "startTime" => "2026-10-03T09:00:05Z", "finishTime" => "2026-10-03T09:02:05Z",
+                                               "outputImages" => [ { "repository" => "api", "tag" => "v2" } ] } },
+          { "name" => "ca2", "properties" => { "runId" => "ca2", "status" => "Failed", "task" => "build-api", "runType" => "AutoBuild", "createTime" => "2026-10-03T10:00:00Z",
+                                               "startTime" => "2026-10-03T10:00:05Z", "finishTime" => "2026-10-03T10:01:05Z", "runErrorMessage" => "failed during run, err: exit status 1" } }
+        ]
+        AzureApi.any_instance.stubs(:get).with("#{REGISTRY_ID}/runs", Azure::RUNS_VERSION, anything).returns("value" => runs)
+
+        found = @pack.map_of(@row).resources.find { |resource| resource.external_id == REGISTRY_ID }
+        assert_equal [ ResourceMap::KIND_BUILD_SERVICE, "acme", "succeeded", "acme.azurecr.io" ], [ found.kind, found.name, found.status, found.details["login_server"] ]
+
+        result = Azure.new(@integration).call("list_registry_runs", environment_row: @row, arguments: { "resource" => "acme" })
+        assert_equal [ [ "ca2", "build-api", "failed", 60 ], [ "ca1", "quickbuild", "succeeded", 120 ] ],
+                     Capabilities::History.runs_of(result).map { |run| [ run.id, run.name, run.status, run.seconds ] }
+        assert_match "failed during run, err: exit status 1", Capabilities::History.runs_of(result).first.detail
+        assert_match "pushed api:v2", Capabilities::History.runs_of(result).last.detail
+
+        AzureApi.any_instance.stubs(:get).with("#{REGISTRY_ID}/runs/ca2", Azure::RUNS_VERSION).returns(runs.last)
+        assert_equal [ "ca2" ], Capabilities::History.runs_of(Azure.new(@integration).call("list_registry_runs", environment_row: @row,
+                                                                                            arguments: { "resource" => "acme", "run" => "ca2" })).map(&:id)
+        AzureApi.any_instance.stubs(:get).with("#{REGISTRY_ID}/runs/nope", Azure::RUNS_VERSION).raises(AzureApi::NotFound, "Azure answered 404: not found")
+        assert_match "acme has no run nope", assert_raises(Integrations::Error) { call(:list_registry_runs, "resource" => "acme", "run" => "nope") }.message
+
+        AzureApi.any_instance.expects(:post).with("#{REGISTRY_ID}/runs/ca2/listLogSasUrl", Azure::RUNS_VERSION).returns("logLink" => "https://acme.blob.core.windows.net/logs/ca2.log?sig=x")
+        Http.expects(:download).with("https://acme.blob.core.windows.net/logs/ca2.log?sig=x", has_entries(provider_key: "azure"))
+            .returns("Step 1/3 : FROM node:22\nnpm ERR! missing script: build\n")
+        log = call(:registry_run_log, "resource" => "acme", "run" => "ca2", "text" => "ERR")
+        assert_match "Log of run ca2 of acme, failed.\n1 lines:\nnpm ERR! missing script: build", log
+        AzureApi.any_instance.stubs(:post).with("#{REGISTRY_ID}/runs/ca2/listLogSasUrl", Azure::RUNS_VERSION).raises(AzureApi::Forbidden, "Azure answered 403: AuthorizationFailed")
+        assert_match "needs Microsoft.ContainerRegistry/registries/runs/listLogSasUrl/action",
+                     assert_raises(Integrations::Error) { call(:registry_run_log, "resource" => "acme", "run" => "ca2") }.message
+
+        assert_match "acme is a container registry. Firefight reads its ACR Tasks runs with list_registry_runs",
+                     assert_raises(Integrations::Error) { call(:restart_resource, "resource" => "acme") }.message
+        assert_match "ACR Tasks runs are a container registry's", assert_raises(Integrations::Error) { call(:list_registry_runs, "resource" => "storefront") }.message
       end
 
       test "a Container App in single revision mode is not rolled back by traffic, and says what to do instead" do

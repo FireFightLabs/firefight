@@ -976,6 +976,39 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     ENV["APP_HOST"] = previous
   end
 
+  test "Azure's Event Grid is turned on beside its activity log, says plainly what access is missing, and turning it off keeps the log read" do
+    integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "azure", name: "Azure", slug: "azure")
+    row = integration.integration_environments.create!
+    previous = ENV["APP_HOST"]
+    ENV["APP_HOST"] = "firefight.example.com"
+    grid = Integrations::MapEventSources::Azure
+    Integrations::MapEvents.prepare!(row)
+    assert_nil row.reload.map_events_webhook_id, "Event Grid is never turned on without a person"
+
+    toggle = live_toggle("Azure")
+    assert toggle["turnsOn"]
+    assert_match "needs the EventGrid EventSubscription Contributor role", toggle["words"]
+    assert_match "reads Azure's activity log every 5 minutes", row.live_updates.reason
+
+    grid.stubs(:register).raises(Integrations::Error, "The service principal may not subscribe. Give it the EventGrid EventSubscription Contributor role")
+    patch live_updates_integration_url(integration), params: { environment_row_id: row.id, on: true }
+    assert_match "Give it the EventGrid EventSubscription Contributor role", flash[:alert]
+    assert_nil row.reload.map_events_refused_at, "the activity log is not held back"
+
+    grid.stubs(:register).returns(Integrations::MapEventSource::Webhook.new(id: { "s" => "/x" }.to_json, secret: "k", scopes: [ "s" ]))
+    patch live_updates_integration_url(integration), params: { environment_row_id: row.id, on: true }
+    assert_equal "Live updates are on. Changes Azure sends now reach the map.", flash[:notice]
+
+    assert_match "The activity log is still read every 5 minutes.", live_toggle("Azure")["words"]
+    grid.expects(:remove).once
+    patch live_updates_integration_url(integration), params: { environment_row_id: row.id, on: false }
+    assert_equal "Live updates are off. Firefight removed its webhook from Azure.", flash[:notice]
+    assert row.reload.live_updates.on, "the activity log is still read"
+    assert_match "reads Azure's activity log every 5 minutes", row.live_updates.reason
+  ensure
+    ENV["APP_HOST"] = previous
+  end
+
   test "a member cannot turn live updates on" do
     integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "livehook", name: "Live hook", slug: "livehook")
     row = integration.integration_environments.create!

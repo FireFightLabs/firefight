@@ -155,7 +155,7 @@ module Integrations
           api(environment_row).approve_rollout(target.project, target.location, target.pipeline, release, name)
           Telemetry.result("Approved rollout #{name} of release #{release}, so Cloud Deploy deploys it to #{rollout['targetId']}. " \
                            "To stop it, cancel the rollout, and roll #{target.pipeline} #{rollout['targetId']} back to undo what it deployed.",
-                           link: page_link(environment_row, target.project, target.type))
+                           link: resource_link(environment_row, target))
         end
 
         # The phase named, or the first one still waiting, of a rollout in progress. A phase already going or done is refused.
@@ -174,13 +174,13 @@ module Integrations
 
           api(environment_row).advance_rollout(target.project, target.location, target.pipeline, release, name, phase["id"])
           Telemetry.result("Rollout #{name} of release #{release} is starting phase #{phase['id']} on #{rollout['targetId']}. " \
-                           "Roll #{target.pipeline} #{rollout['targetId']} back to undo it.", link: page_link(environment_row, target.project, target.type))
+                           "Roll #{target.pipeline} #{rollout['targetId']} back to undo it.", link: resource_link(environment_row, target))
         end
 
         def list_rollouts(environment_row:, arguments:)
           target = deploy_target(environment_row, arguments["resource"])
           what = "the rollouts of #{display_name(target)}"
-          link = page_link(environment_row, target.project, target.type)
+          link = resource_link(environment_row, target)
           if arguments["run"].present?
             release, rollout = rollout_of(environment_row, target, arguments["run"])
             job_runs = api(environment_row).job_runs(target.project, target.location, target.pipeline, release, short(rollout["name"]))
@@ -220,7 +220,7 @@ module Integrations
           to = wanted || made || "the last release that succeeded there"
           Telemetry.result("Cloud Deploy is rolling #{display_name(target)} back to #{to} as rollout #{id}. " \
                            "#{before ? "Before, it ran release #{before}, so to undo, promote #{before} to #{target.target_id} again." : 'It had no rollout before to promote again.'}",
-                           link: page_link(environment_row, target.project, target.type))
+                           link: resource_link(environment_row, target))
         end
 
         def cancel_rollout(environment_row:, arguments:)
@@ -233,7 +233,7 @@ module Integrations
 
           api(environment_row).cancel_rollout(target.project, target.location, target.pipeline, release, name)
           Telemetry.result("Cloud Deploy is cancelling rollout #{name} of release #{release} to #{rollout['targetId']}. What it already deployed stays, " \
-                           "so roll #{target.pipeline} #{rollout['targetId']} back to undo that.", link: page_link(environment_row, target.project, target.type))
+                           "so roll #{target.pipeline} #{rollout['targetId']} back to undo that.", link: resource_link(environment_row, target))
         end
 
         private
@@ -366,7 +366,7 @@ module Integrations
           scope = [ "resource.type=#{quote(BUILD_LOG)}", "(#{builds.map { |build| "resource.labels.build_id=#{quote(short(build))}" }.join(' OR ')})" ]
           started, ended = run_window(arguments) { rollout }
           read_lines(environment_row, target, scope, started, ended, arguments, [ "rollout #{release}/#{name}", step && "job #{step}" ].compact,
-                     page_link(environment_row, target.project, target.type))
+                     resource_link(environment_row, target))
         end
 
         # The project's delivery pipelines and each one's stages in every region Cloud Deploy serves it in. A project that

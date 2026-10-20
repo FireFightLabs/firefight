@@ -115,6 +115,23 @@ class Api::V1::MapEventsControllerTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
+  test "a provider that confirms its address first is answered as it asks, only with the connection's secret, and nothing is kept" do
+    integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "azure", name: "Azure", slug: "azuregrid")
+    row = integration.integration_environments.create!
+    row.give_map_events_token!
+    row.update!(map_events_secret: "grid-key")
+    body = [ { "id" => "v1", "eventType" => Integrations::MapEventSources::Azure::VALIDATION, "data" => { "validationCode" => "512d38b6" } } ].to_json
+
+    post api_v1_map_events_path(row.map_events_token), params: body, headers: { "Content-Type" => "application/json" }
+    assert_response :unauthorized
+
+    post api_v1_map_events_path(row.map_events_token), params: body,
+                                                        headers: { "Content-Type" => "application/json", Integrations::MapEventSources::Azure::KEY_HEADER => "grid-key" }
+    assert_response :ok
+    assert_equal({ "validationResponse" => "512d38b6" }, response.parsed_body)
+    assert_not ResourceMap::ReceivedEvent.exists?(integration_environment: row)
+  end
+
   test "an address sent too many deliveries in a minute is told to slow down" do
     ActiveSupport::Cache::NullStore.any_instance.stubs(:increment).returns(601)
     body, headers = live_delivery([ change("e1", at: 1.minute.ago) ], secret: "whsec")

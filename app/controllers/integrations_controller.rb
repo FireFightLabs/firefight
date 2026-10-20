@@ -320,7 +320,7 @@ class IntegrationsController < InertiaController
   def turn_live_updates_on(row)
     Integrations::MapEvents.turn_on!(row)
     state = row.reload.live_updates
-    return redirect_to integrations_path, notice: "Live updates are on. Changes #{@integration.name} sends now reach the map." if state.on
+    return redirect_to integrations_path, notice: "Live updates are on. Changes #{@integration.name} sends now reach the map." if state.on && row.map_events_webhook_id.present?
 
     redirect_to integrations_path, alert: state.reason
   end

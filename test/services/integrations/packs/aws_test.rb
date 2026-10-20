@@ -34,8 +34,8 @@ module Integrations
         assert_nil regions.refusal(%w[cn-north-1 cn-northwest-1])
         assert_match "Regions can only be", regions.refusal(%w[mars-north-1])
         assert_equal "Regions is required.", regions.refusal([])
-        assert_equal %w[rollback_deployment restart_service scale_service stop_service_deployment stop_pipeline_execution rollback_pipeline_stage
-                        stop_codedeploy_deployment cancel_stack_update], Aws.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[rollback_deployment restart_service reboot_instance reboot_database scale_service stop_service_deployment stop_pipeline_execution
+                        rollback_pipeline_stage stop_codedeploy_deployment cancel_stack_update], Aws.tool_definitions.reject(&:read_only).map(&:name)
         assert Aws.credential_fields.find { |field| field.key == Aws::SECRET_ACCESS_KEY }.secret
       end
 
@@ -118,7 +118,7 @@ module Integrations
         assert_no_match "hunter2", text
         assert_no_match "arn:aws:secretsmanager", text
         assert_match "2026-10-01T12:00:00Z (service web) is unable to consistently start tasks successfully.", text
-        assert text.end_with?("https://eu-west-1.console.aws.amazon.com/ecs/v2?region=eu-west-1")
+        assert text.end_with?("https://eu-west-1.console.aws.amazon.com/ecs/v2/clusters/prod/services/web/health?region=eu-west-1")
       end
 
       test "a Lambda function is described with its state and aliases, and its environment variables are only named" do
@@ -134,7 +134,7 @@ module Integrations
         assert_match "Environment variables: API_TOKEN", text
         assert_no_match "sk_live_123", text
         assert_match "Aliases:\n  live points at version 12 with 10% to 13", text
-        assert text.end_with?("https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#/functions")
+        assert text.end_with?("https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#/functions/checkout")
       end
 
       test "an EC2 instance is described with its status checks and an RDS database with its storage, pending changes and events" do
@@ -320,6 +320,7 @@ module Integrations
         AwsApi.any_instance.stubs(:all).with { |_service, _region, operation, *| operation == :list_versions_by_function }
                     .returns([ [ { version: "$LATEST" }, { version: "11", last_modified: "2026-09-30" }, { version: "12", last_modified: "2026-10-01", description: "Retry payments" } ], false ])
         answer(:list_aliases, aliases: [ { name: "live", function_version: "12" } ])
+        answer(:get_function_configuration, revision_id: "rev-9", last_update_status: "Successful", last_modified: "2026-10-01T11:00:00.000+0000")
 
         text = call(:list_deployments, "resource" => FUNCTION_ARN)
 
@@ -355,8 +356,9 @@ module Integrations
 
       test "a Lambda function rolls back by moving its alias, and one with several aliases is told to name it" do
         answer(:list_aliases, aliases: [ { name: "live", function_version: "12" } ])
-        AwsApi.any_instance.expects(:call).with { |_service, _region, operation, params| operation == :update_alias && params == { function_name: "checkout", name: "live", function_version: "11" } }
-                    .returns({})
+        AwsApi.any_instance.expects(:call).with do |_service, _region, operation, params|
+          operation == :update_alias && params == { function_name: "checkout", name: "live", function_version: "11", routing_config: { additional_version_weights: {} } }
+        end.returns({})
 
         assert_match "checkout's alias live now points at version 11 in place of 12. Undo by pointing it back at 12.", call(:rollback_deployment, "resource" => FUNCTION_ARN, "to" => "11")
 
@@ -365,6 +367,66 @@ module Integrations
         assert_match "has no alias beta", refusal(:rollback_deployment, "resource" => FUNCTION_ARN, "to" => "beta:11")
         answer(:list_aliases, aliases: [])
         assert_match "has no alias, so there is no traffic to move back", refusal(:rollback_deployment, "resource" => FUNCTION_ARN, "to" => "11")
+      end
+
+      test "a Lambda rollback takes off a weighted canary split, and an alias already on the version with a split is still rolled back" do
+        answer(:list_aliases, aliases: [ { name: "live", function_version: "12", routing_config: { additional_version_weights: { "13" => 0.1 } } } ])
+        AwsApi.any_instance.expects(:call).with do |_service, _region, operation, params|
+          operation == :update_alias && params[:function_version] == "12" && params[:routing_config] == { additional_version_weights: {} }
+        end.returns({})
+
+        text = call(:rollback_deployment, "resource" => FUNCTION_ARN, "to" => "12")
+
+        assert_match "checkout's alias live now points at version 12 in place of 12 with 10% to version 13, so every request reaches it.", text
+        assert_match "Undo by pointing it back at 12 and setting its weighted routing to 10% to version 13 again.", text
+      end
+
+      test "a Lambda function's runs are its last update of $LATEST and its published versions, each with its own page, and one is read by its id" do
+        AwsApi.any_instance.stubs(:all).with { |_service, _region, operation, *| operation == :list_versions_by_function }
+                    .returns([ [ { version: "$LATEST" }, { version: "12", last_modified: "2026-10-01T10:00:00.000+0000", code_sha_256: "abcdef0123456789" } ], false ])
+        answer(:list_aliases, aliases: [ { name: "live", function_version: "12" } ])
+        AwsApi.any_instance.stubs(:call).with { |_service, _region, operation, params| operation == :get_function_configuration && params[:qualifier].nil? }
+                    .returns(revision_id: "rev-9", last_update_status: "Failed", last_update_status_reason_code: "ImageAccessDenied",
+                             last_update_status_reason: "Lambda does not have permission to access the ECR image.", last_modified: "2026-10-02T09:00:00.000+0000")
+
+        result = @pack.call("list_deployments", environment_row: @row, arguments: { "resource" => FUNCTION_ARN })
+        update, version = Capabilities::History.runs_of(result)
+
+        assert_equal [ "rev-9", "failed", Time.utc(2026, 10, 2, 9), nil ], [ update.id, update.status, update.started_at, update.finished_at ]
+        assert_match "ImageAccessDenied: Lambda does not have permission to access the ECR image.", update.detail
+        assert_equal "https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#/functions/checkout", update.url
+        assert_equal [ "12", "succeeded", "https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#/functions/checkout/versions/12" ],
+                     [ version.id, version.status, version.url ]
+        assert_match "Last update of $LATEST at 2026-10-02T09:00:00.000+0000: failed, Lambda does not have permission", result["content"].sole["text"]
+
+        assert_equal "rev-9", Capabilities::History.runs_of(@pack.call("list_deployments", environment_row: @row, arguments: { "resource" => FUNCTION_ARN, "run" => "rev-9" })).sole.id
+        assert_match "Lambda keeps only its newest update of $LATEST, rev-9", refusal(:list_deployments, "resource" => FUNCTION_ARN, "run" => "rev-8")
+
+        AwsApi.any_instance.stubs(:call).with { |_service, _region, operation, params| operation == :get_function_configuration && params[:qualifier] == "12" }
+                    .returns(version: "12", last_modified: "2026-10-01T10:00:00.000+0000")
+        assert_equal [ "12", "succeeded" ], Capabilities::History.runs_of(@pack.call("list_deployments", environment_row: @row, arguments: { "resource" => FUNCTION_ARN, "run" => "12" }))
+                                                                       .sole.then { |run| [ run.id, run.status ] }
+        AwsApi.any_instance.stubs(:call).with { |_service, _region, operation, params| operation == :get_function_configuration && params[:qualifier] == "40" }
+                    .raises(AwsApi::NotFound, "AWS answered ResourceNotFoundException")
+        assert_match "checkout has no version 40", refusal(:list_deployments, "resource" => FUNCTION_ARN, "run" => "40")
+
+        AwsApi.any_instance.stubs(:all).with { |_service, _region, operation, *| operation == :list_versions_by_function }.returns([ [ { version: "$LATEST" } ], false ])
+        only = @pack.call("list_deployments", environment_row: @row, arguments: { "resource" => FUNCTION_ARN })
+        assert_equal [ "rev-9" ], Capabilities::History.runs_of(only).map(&:id), "a function with no versions still has its last update"
+        assert_match "checkout has no published versions, so it runs $LATEST", only["content"].sole["text"]
+      end
+
+      test "an EC2 instance and an RDS database are rebooted, a database failing over only when asked, and each tool takes only its own kind" do
+        AwsApi.any_instance.expects(:call).with(:ec2, "eu-west-1", :reboot_instances, instance_ids: [ "i-0abc" ]).returns(return: true)
+        assert_match "EC2 is rebooting i-0abc. It stays running and keeps its addresses and disks", call(:reboot_instance, "resource" => INSTANCE_ARN)
+
+        AwsApi.any_instance.expects(:call).with(:rds, "eu-west-1", :reboot_db_instance, db_instance_identifier: "orders", force_failover: false).returns(db_instance: {})
+        assert_match "RDS is rebooting orders. Its connections drop until it is available again", call(:reboot_database, "resource" => DATABASE_ARN)
+        AwsApi.any_instance.expects(:call).with(:rds, "eu-west-1", :reboot_db_instance, db_instance_identifier: "orders", force_failover: true).returns(db_instance: {})
+        assert_match "by failing over to its standby", call(:reboot_database, "resource" => DATABASE_ARN, "failover" => true)
+
+        assert_match "only EC2 instances are rebooted with reboot_instance", refusal(:reboot_instance, "resource" => DATABASE_ARN)
+        assert_match "only RDS databases are rebooted with reboot_database", refusal(:reboot_database, "resource" => SERVICE_ARN)
       end
 
       test "a restart forces a new deployment and a scale sets the count, each saying how to undo it" do
@@ -439,12 +501,15 @@ module Integrations
         snapshot = @pack.map_of(@row)
 
         found = snapshot.resources.index_by(&:external_id)
-        assert_equal [ ResourceMap::KIND_SERVICE, ACCOUNT, "web", "degraded", "https://eu-west-1.console.aws.amazon.com/ecs/v2?region=eu-west-1" ],
+        assert_equal [ ResourceMap::KIND_SERVICE, ACCOUNT, "web", "degraded", "https://eu-west-1.console.aws.amazon.com/ecs/v2/clusters/prod/services/web/health?region=eu-west-1" ],
                      found[SERVICE_ARN].then { |resource| [ resource.kind, resource.account, resource.name, resource.status, resource.url ] }
         assert_equal({ "region" => "eu-west-1", "type" => "FARGATE", "instances" => 2, "cluster" => "prod", "task_definition" => "web:42" }, found[SERVICE_ARN].details)
         assert_equal [ ResourceMap::KIND_FUNCTION, "active" ], found[FUNCTION_ARN].then { |resource| [ resource.kind, resource.status ] }
         assert_equal [ ResourceMap::KIND_VIRTUAL_MACHINE, "bastion", "t3.micro" ], found[INSTANCE_ARN].then { |resource| [ resource.kind, resource.name, resource.details["type"] ] }
         assert_equal [ ResourceMap::KIND_DATABASE, "postgres 16.4" ], found[DATABASE_ARN].then { |resource| [ resource.kind, resource.details["engine"] ] }
+        assert_equal "https://eu-west-1.console.aws.amazon.com/ec2/home?region=eu-west-1#InstanceDetails:instanceId=i-0abc", found[INSTANCE_ARN].url
+        assert_equal "https://eu-west-1.console.aws.amazon.com/rds/home?region=eu-west-1#database:id=orders;is-cluster=false", found[DATABASE_ARN].url
+        assert_equal "https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#/functions/checkout", found[FUNCTION_ARN].url
         assert_equal [ ResourceMap::KIND_BUILD_SERVICE, "web-build", "failed", { "region" => "eu-west-1", "type" => "LINUX_CONTAINER", "source" => "GITHUB" },
                        "https://eu-west-1.console.aws.amazon.com/codesuite/codebuild/#{ACCOUNT}/projects/web-build/history?region=eu-west-1" ],
                      found[PROJECT_ARN].then { |resource| [ resource.kind, resource.name, resource.status, resource.details, resource.url ] }

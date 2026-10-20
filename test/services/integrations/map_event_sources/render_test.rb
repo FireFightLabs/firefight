@@ -67,7 +67,7 @@ module Integrations
 
       test "registering adds a webhook for the events the map reads, beside one at another address that it leaves alone" do
         RenderApi.any_instance.stubs(:webhooks).with("tea-1").returns(Pages::Read.new(items: [ webhook("whk-theirs", "https://example.com/hook") ], complete: true))
-        RenderApi.any_instance.expects(:enable_webhook).never
+        RenderApi.any_instance.expects(:update_webhook).never
         RenderApi.any_instance.expects(:create_webhook).with("tea-1", name: Render::WEBHOOK_NAME, url: URL, events: Render::EVENTS)
                   .returns(webhook("whk-ours", URL).merge("secret" => SECRET))
 
@@ -79,15 +79,41 @@ module Integrations
       test "a webhook Firefight registered before at this address is taken back, and switched on again if Render switched it off" do
         RenderApi.any_instance.stubs(:webhooks).returns(Pages::Read.new(items: [ webhook("whk-ours", URL, enabled: false) ], complete: true))
         RenderApi.any_instance.expects(:create_webhook).never
-        RenderApi.any_instance.expects(:enable_webhook).with("whk-ours").returns(webhook("whk-ours", URL))
+        RenderApi.any_instance.expects(:update_webhook).with("whk-ours", events: Render::EVENTS).returns(webhook("whk-ours", URL))
 
         assert_equal Render::Webhook.new(id: { "tea-1" => "whk-ours" }.to_json, secret: SECRET, scopes: [ "tea-1" ]), Render.register(@row, url: URL)
+      end
+
+      test "a webhook registered before an event type joined is registered again with it, and one sending every type is left as it is" do
+        before = webhook("whk-ours", URL).merge("eventFilter" => Render::MAP_EVENTS.first(5))
+        RenderApi.any_instance.stubs(:webhooks).returns(Pages::Read.new(items: [ before ], complete: true))
+        assert Render.register_again?(@row, url: URL)
+        RenderApi.any_instance.expects(:update_webhook).with("whk-ours", events: Render::EVENTS).returns(webhook("whk-ours", URL))
+        Render.register(@row, url: URL)
+
+        RenderApi.any_instance.stubs(:webhooks).returns(Pages::Read.new(items: [ webhook("whk-ours", URL) ], complete: true))
+        assert_not Render.register_again?(@row, url: URL)
+        RenderApi.any_instance.stubs(:webhooks).returns(Pages::Read.new(items: [ webhook("whk-ours", URL).merge("eventFilter" => Render::EVENTS) ], complete: true))
+        assert_not Render.register_again?(@row, url: URL)
+        RenderApi.any_instance.stubs(:webhooks).returns(Pages::Read.new(items: [], complete: true))
+        assert Render.register_again?(@row, url: URL), "one Render no longer has is registered again"
+      end
+
+      test "a cron run, a one-off job, an instance that failed or a deploy wakes a watch, and only what the map shows is read again" do
+        %w[cron_job_run_started cron_job_run_ended job_run_ended server_failed image_pull_failed deploy_ended build_started].each do |type|
+          assert Render.wakes?(SAMPLE.merge("type" => type), headers: {}), type
+        end
+        assert_not Render.wakes?(SAMPLE.merge("type" => "plan_changed"), headers: {})
+        assert_not Render.wakes?(SAMPLE.merge("type" => "server_failed", "data" => {}), headers: {})
+        assert_empty Render.events(SAMPLE.merge("type" => "server_failed"), headers: {})
+        assert_equal ResourceMap::KIND_DATABASE, Render.events(SAMPLE.merge("type" => "postgres_upgrade_failed"), headers: {}).sole.scope.kind
+        assert_includes Render::EVENTS, "cron_job_run_ended"
       end
 
       test "a workspace whose plan has no room for a webhook is told why, and its own webhook is never touched" do
         RenderApi.any_instance.stubs(:webhooks).returns(Pages::Read.new(items: [ webhook("whk-theirs", "https://example.com/hook") ], complete: true))
         RenderApi.any_instance.stubs(:create_webhook).raises(RenderApi::Refused, "Render answered 400: webhook limit reached")
-        RenderApi.any_instance.expects(:enable_webhook).never
+        RenderApi.any_instance.expects(:update_webhook).never
 
         refusal = assert_raises(MapEventSource::Refused) { Render.register(@row, url: URL) }
 
