@@ -433,6 +433,7 @@ check_status_page:
         - GitHub
         - GitLab
         - Bitbucket
+        - Azure DevOps
         - CircleCI
         - New Relic
         - Datadog
