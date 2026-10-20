@@ -54,6 +54,7 @@ module Integrations
           GithubApp.stubs(:get).with("/repos/acme/web/deployments/5/statuses?per_page=1", token: "ghs_token")
                    .returns([ { "state" => "inactive", "log_url" => "https://github.com/acme/web/actions/runs/41/job/9" } ])
           GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/41", token: "ghs_token").returns(workflow_run(41))
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/jobs/9", token: "ghs_token").returns("id" => 9, "run_id" => 41)
           GithubApp.expects(:act).with("/repos/acme/web/actions/jobs/9/rerun", {}, token: "ghs_token").returns({})
 
           text = @pack.redeploy(environment_row: @row, arguments: { "repo" => "acme/web", "deployment" => 5 })["content"].first["text"]
@@ -65,6 +66,23 @@ module Integrations
                    .returns([ { "state" => "success", "target_url" => "https://github.com/acme/web/actions/runs/41" } ])
           GithubApp.expects(:act).with("/repos/acme/web/actions/runs/41/rerun", {}, token: "ghs_token").returns({})
           assert_includes @pack.redeploy(environment_row: @row, arguments: { "repo" => "acme/web", "deployment" => 5 })["content"].first["text"], "every job of the run that made it"
+        end
+
+        test "a run that built another commit, or a job of another run, is never run again for a deployment" do
+          GithubApp.stubs(:get).with("/repos/acme/web/deployments/5", token: "ghs_token").returns(deployment(5, "production"))
+          GithubApp.stubs(:get).with("/repos/acme/web/deployments/5/statuses?per_page=1", token: "ghs_token")
+                   .returns([ { "state" => "success", "log_url" => "https://github.com/acme/web/actions/runs/41/job/9" } ])
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/jobs/9", token: "ghs_token").returns("id" => 9, "run_id" => 40)
+          GithubApp.expects(:act).never
+
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/41", token: "ghs_token").returns(workflow_run(41).merge("head_sha" => "c" * 40))
+          assert_match "which built #{'c' * 12} rather than #{'b' * 12}", assert_raises(Integrations::PolicyRefusal) {
+            @pack.redeploy(environment_row: @row, arguments: { "repo" => "acme/web", "deployment" => 5 })
+          }.message
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/41", token: "ghs_token").returns(workflow_run(41))
+          assert_match "job 9, which is not part of run 41", assert_raises(Integrations::PolicyRefusal) {
+            @pack.redeploy(environment_row: @row, arguments: { "repo" => "acme/web", "deployment" => 5 })
+          }.message
         end
 
         test "a deployment no GitHub Actions run made is refused, saying the system that made it deploys it again" do

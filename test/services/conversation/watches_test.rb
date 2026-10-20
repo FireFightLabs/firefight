@@ -505,6 +505,10 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     )
     assert_equal [ [ "deployment to production", Chat::Watch::Step::PART_HELD ] ],
                  Conversation::Watches.part_states(History::Run.new(id: "deployment-5", name: "deployment to production", status: History::WAITING, started_at: started))
+    paused = History::Run.new(id: "7", name: "pipeline on main", status: History::WAITING, started_at: started, parts: [ built ])
+    assert_equal [ [ "build", Chat::Watch::Step::PART_PASSED ], [ "pipeline on main", Chat::Watch::Step::PART_HELD ] ], Conversation::Watches.part_states(paused),
+                 "a run held while none of its steps says so keeps its steps and is said held by its own name"
+    assert_equal "pipeline on main waiting for someone to approve or start it, 1 of 1 done", Conversation::Watches.run_summary(paused)
     assert_equal Chat::Watch::STATUS_ACTIVE, watch.reload.status
   end
 

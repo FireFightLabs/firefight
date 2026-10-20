@@ -564,14 +564,16 @@ module Conversation::Watches
 
   PARTS_NAMED = 2
 
-  # Each job or step in the words its progress is said in. A run held as a whole, with no jobs or steps to say it of,
-  # is said by its own name, so a deploy waiting for approval is heard rather than looking queued.
+  # Each job or step in the words its progress is said in. A run held while none of its jobs or steps says so is said by
+  # its own name beside them, so a deploy waiting for approval is heard rather than looking queued.
   def self.part_states(run)
     parts = Array(run.parts).map { |part| [ part.name.to_s, PART_STATES.fetch(part.status, Chat::Watch::Step::PART_WAITING) ] }
-    return parts unless parts.empty? && run.status == Integrations::Capabilities::History::WAITING
+    return parts unless run.status == Integrations::Capabilities::History::WAITING && parts.none? { |_name, state| state == Chat::Watch::Step::PART_HELD }
 
-    [ [ run.name.to_s.presence || "The run", Chat::Watch::Step::PART_HELD ] ]
+    parts + [ [ held_name(run), Chat::Watch::Step::PART_HELD ] ]
   end
+
+  def self.held_name(run) = run.name.to_s.presence || "The run"
 
   # Where a run stands in a few words, for its row on the card, such as "build-images running, 4 of 7 done", rather than
   # every job it holds.
@@ -582,6 +584,7 @@ module Conversation::Watches
 
     running = parts.select { |part| part.status == history::RUNNING }.map(&:name)
     held = parts.select { |part| part.status == history::WAITING }.map(&:name)
+    held = [ held_name(run) ] if held.empty? && run.status == history::WAITING
     done = parts.count { |part| part.status == history::SUCCEEDED }
     [ ("#{held.first(PARTS_NAMED).join(', ')} #{Chat::Watch::Step::PART_HELD}" if held.any?), ("#{running.first(PARTS_NAMED).join(', ')} running" if running.any?),
       "#{done} of #{parts.size} done" ].compact.join(", ")

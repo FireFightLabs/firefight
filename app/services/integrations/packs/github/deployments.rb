@@ -59,7 +59,15 @@ module Integrations
                            "That system deploys #{commit} again."
             end
 
+            # A status's log is only an address its writer gave, so the run must have built this commit, and the job be the run's.
             run = GithubApp.get("/repos/#{repo}/actions/runs/#{run_id}", token: token)
+            unless run["head_sha"].to_s.casecmp?(deployment["sha"].to_s)
+              fail_policy! "The #{named} names run #{run_id}, which built #{run['head_sha'].to_s[0, 12]} rather than #{commit}, so running it again " \
+                           "would not deploy #{commit}. Firefight ran nothing."
+            end
+            if job_id && GithubApp.get("/repos/#{repo}/actions/jobs/#{job_id}", token: token)["run_id"].to_s != run_id
+              fail_policy! "The #{named} names job #{job_id}, which is not part of run #{run_id}, so Firefight ran nothing."
+            end
             fail! "Run #{run_id}, which made the #{named}, is still #{run['status']}, so it cannot run again until it finishes." unless run["status"] == Actions::COMPLETED
 
             what = if job_id

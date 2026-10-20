@@ -105,7 +105,7 @@ module Integrations
                    "represented_as" => arguments["represented_as"].to_s.strip.presence }.compact
           answer = changing("#{decision} the #{named}") { gitlab.post("#{GitlabApi.project(repo)}/deployments/#{deployment['id']}/approval", body) }
           Telemetry.result("#{decision == 'approve' ? 'Approved' : 'Rejected'} the #{named}#{" as #{answer['user'].to_h['username']}" if answer.is_a?(Hash) && answer['user']}. " \
-                           "#{decision == 'approve' ? 'Its job goes on once every approval rule has its approvals' : 'Its job does not run'}.",
+                           "#{decision == 'approve' ? 'Its job goes on once every approval rule has its approvals. A manual job still waits to be started, which play_job does' : 'Its job does not run'}.",
                            link: link(deployment.dig("deployable", "web_url") || gitlab.web_url(repo, "-", "environments")))
         end
 

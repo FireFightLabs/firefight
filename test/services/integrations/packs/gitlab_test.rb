@@ -322,7 +322,7 @@ module Integrations
                  .returns("user" => { "username" => "firefight-bot" }, "status" => "approved")
 
         assert_includes call(:approve_deployment, "repo" => "acme/platform/web", "deployment" => 9, "decision" => "approve", "comment" => "Fix verified"),
-                        "Approved the deployment 9 of #{'a' * 12} to production as firefight-bot. Its job goes on once every approval rule has its approvals."
+                        "Approved the deployment 9 of #{'a' * 12} to production as firefight-bot. Its job goes on once every approval rule has its approvals. A manual job still waits to be started, which play_job does."
         assert_match "not waiting for approval", assert_raises(Integrations::PolicyRefusal) {
           call(:approve_deployment, "repo" => "acme/platform/web", "deployment" => 8, "decision" => "approve")
         }.message
