@@ -689,7 +689,9 @@ module Integrations
         item = begin
           refreshed_item(api(environment_row), target)
         rescue AzureApi::NotFound
-          return ResourceMap::Snapshot.new(resources: [], gone: [ [ PROVIDER_KEY, subscription, KINDS.fetch(target.type), target.id ] ])
+          # A change sent as it happened names the resource in its own casing, and the map keeps it as Resource Manager lists it.
+          kept = ResourceMap::Resource.where(integration_environment: environment_row).where("lower(external_id) = ?", target.id.downcase).pick(:external_id)
+          return ResourceMap::Snapshot.new(resources: [], gone: [ [ PROVIDER_KEY, subscription, KINDS.fetch(target.type), kept || target.id ] ])
         end
         reading = MapReading.new(SettingsReading.new(workspace: environment_row.integration.workspace, gaps: [], stopped: []))
         map_item(environment_row, subscription, item, reading)

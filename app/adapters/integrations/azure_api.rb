@@ -89,6 +89,8 @@ module Integrations
 
     def put(path, api_version, body) = arm(Net::HTTP::Put, path, api_version, body)
 
+    def delete(path, api_version) = arm(Net::HTTP::Delete, path, api_version, nil)
+
     # Every page of a Resource Manager list, following nextLink up to PAGE_LIMIT pages, as a Pages::Read that says
     # whether it holds all of it.
     def list(path, api_version, query = {})
