@@ -33,7 +33,7 @@ module Integrations
           pack.tool STOP_DEPLOYMENT,
                     summary: "Stops a service's running deployment, so it serves nothing.",
                     description: "Stop the replicas of a service's deployment that runs, by its id or the one serving now. The service serves " \
-                                 "nothing until restart_deployment starts it again or a new deployment goes live",
+                                 "nothing until redeploy_deployment builds it again or a new deployment goes live",
                     params_schema: deployment_schema("The deployment to stop, by its id (optional, the one serving now, even when a newer one is queued or failed)"),
                     read_only: false
 
@@ -79,7 +79,7 @@ module Integrations
           end
 
           api(environment_row).stop(deployment["id"])
-          Telemetry.result("Railway is stopping deployment #{deployment['id']} of #{resource[:name]}. It serves nothing until restart_deployment starts " \
+          Telemetry.result("Railway is stopping deployment #{deployment['id']} of #{resource[:name]}. It serves nothing until redeploy_deployment builds " \
                            "it again or a new deployment goes live.", link: link(environment_row, resource))
         end
 

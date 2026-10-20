@@ -69,7 +69,7 @@ module Integrations
         own_deployment("dep-2", "status" => "SUCCESS")
         RailwayApi.any_instance.expects(:stop).with("dep-2").returns(true)
 
-        assert_match "Railway is stopping deployment dep-2 of web. It serves nothing until restart_deployment starts it again or a new deployment goes live.",
+        assert_match "Railway is stopping deployment dep-2 of web. It serves nothing until redeploy_deployment builds it again or a new deployment goes live.",
                      call(:stop_deployment, "resource" => "web")
       end
 
