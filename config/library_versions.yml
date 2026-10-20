@@ -703,8 +703,8 @@ skills:
     version: 1
     digest: 29d3a52348e4297a8cbbf762844fc17d1d8c45f4087e28f18516dd7f92281784
   render_fixes:
-    version: 3
-    digest: e8e527ae7c0f5e514831490344281308877c8584e56656554a819b785573d0d0
+    version: 4
+    digest: 974c9b6e796b01190c84188494110d54c220e89c31afa2380f9e765d96c4ffbe
   render_http_errors:
     version: 1
     digest: 4108c329f6db09180f47399559b21252cfcc2d589b4a97b8e9410f7f4412fb0d

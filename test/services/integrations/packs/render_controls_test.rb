@@ -82,7 +82,7 @@ module Integrations
         RenderApi.any_instance.stubs(:service).with("srv-web").returns("id" => "srv-web", "autoDeployTrigger" => "commit")
         RenderApi.any_instance.expects(:update_autodeploy).with("srv-web", "off").returns({})
 
-        result = @pack.call("set_autodeploy", environment_row: @row, arguments: { "resource" => "web", "trigger" => "off" })
+        result = @pack.call("turn_off_autodeploy", environment_row: @row, arguments: { "resource" => "web" })
         assert_match "Autodeploy of web is now off. It was on each commit.", result["content"].sole["text"]
         assert_equal({ "before" => "commit" }, result.dig(Telemetry::STRUCTURED, Telemetry::FACTS))
 
@@ -91,10 +91,11 @@ module Integrations
           @integration.tools.create!(name: definition.name, description: definition.description, read_only: definition.read_only, enabled: true,
                                      params_schema: definition.params_schema)
         end
-        tool = @integration.tools.find_by!(name: "set_autodeploy")
+        tool = @integration.tools.find_by!(name: "turn_off_autodeploy")
         assert SafeChanges.tool?(tool)
         undo = SafeChanges.inverse(tool, { "resource" => "web", "trigger" => "off" }, result)
         assert_equal [ "set_autodeploy", { "resource" => "web", "trigger" => "commit" } ], [ undo.tool.name, undo.arguments ]
+        assert_not SafeChanges.tool?(@integration.tools.find_by!(name: "set_autodeploy")), "turning autodeploy on or dropping its checks asks"
 
         assert_match "already on each commit", error(:set_autodeploy, "resource" => "web", "trigger" => "commit")
         assert_match "trigger must be commit, checksPass or off", error(:set_autodeploy, "resource" => "web", "trigger" => "never")

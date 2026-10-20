@@ -937,10 +937,11 @@ providers:
     scaling_note: "A service counts the instances it runs, which autoscaling moves too."
     history: firefight
     stopping_tools: [cancel_deploy, cancel_cron_run, cancel_job, cancel_task_run]
-    # Autodeploy decides only when Render deploys on its own, and its undo sets the trigger it had again.
-    safe_tools: [set_autodeploy]
+    # Turning autodeploy off takes nothing out of a deploy's way, and its undo sets the trigger it had again. Turning it
+    # on or dropping its checks is set_autodeploy, which asks.
+    safe_tools: [turn_off_autodeploy]
     undo_tools:
-      set_autodeploy: { tool: set_autodeploy, arguments: { resource: resource, trigger: result.before } }
+      turn_off_autodeploy: { tool: set_autodeploy, arguments: { resource: resource, trigger: result.before } }
     # A one-off job runs any command with every secret its service holds, so a person is asked about each one.
     access_tools: [run_job]
   - key: railway

@@ -12,6 +12,7 @@ module Integrations
         SUSPEND = "suspend_service".freeze
         RESUME = "resume_service".freeze
         SET_AUTODEPLOY = "set_autodeploy".freeze
+        TURN_OFF_AUTODEPLOY = "turn_off_autodeploy".freeze
         SET_AUTOSCALING = "set_autoscaling".freeze
         # When Render deploys a service on its own (spec, autoDeployTrigger): each commit to its branch, each commit once
         # its checks pass, or never. The answer names the one before as a fact, which its undo sets again.
@@ -64,11 +65,18 @@ module Integrations
                     },
                     read_only: false
 
+          pack.tool TURN_OFF_AUTODEPLOY,
+                    summary: "Turns a service's autodeploy off, so a new commit does not deploy on its own.",
+                    description: "Turn off Render's autodeploy for a service, so a commit to its branch no longer deploys on its own. " \
+                                 "Do it after a rollback so the next commit does not deploy the bad code again. Undo sets back what it was",
+                    params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
+                    read_only: false
+
           pack.tool SET_AUTODEPLOY,
-                    summary: "Turns a service's autodeploy off or on.",
+                    summary: "Sets whether a service deploys each commit on its own, once its checks pass, or never.",
                     description: "Set when Render deploys a service on its own: commit deploys each commit to its branch, checksPass " \
-                                 "each commit once its checks pass, and off never. Turn it off after a rollback so the next commit does " \
-                                 "not deploy the bad code again, and back on once the fix is in",
+                                 "each commit once its checks pass, and off never. Use it to turn autodeploy back on once the fix is in. " \
+                                 "Turning it on or dropping the checks lets commits deploy with less in the way, so a person is asked",
                     params_schema: {
                       "type" => "object",
                       "properties" => {
@@ -155,7 +163,12 @@ module Integrations
           Telemetry.result("Render is resuming #{resource[:name]}. Its events show when it is up again.", link: link(resource))
         end
 
-        # The trigger it had is the answer's before fact, so the undo the registry declares sets it back.
+        # Only ever turns autodeploy off, which takes nothing out of a deploy's way, so it is safe. The trigger it had is the
+        # answer's before fact, so the undo the registry declares sets it back through set_autodeploy.
+        def turn_off_autodeploy(environment_row:, arguments:)
+          set_autodeploy(environment_row: environment_row, arguments: arguments.merge("trigger" => AUTODEPLOY_OFF))
+        end
+
         def set_autodeploy(environment_row:, arguments:)
           resource = find_resource(environment_row, arguments["resource"])
           unless DEPLOYING.include?(resource[:type])

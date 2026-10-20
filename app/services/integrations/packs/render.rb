@@ -216,7 +216,7 @@ module Integrations
            summary: "Rolls a service back to an earlier deploy.",
            description: "Put a service back on an earlier deploy, by the deploy id list_deployments shows. Render puts that " \
                         "build back live without building again, while it still keeps the build. Autodeploy is left as it is, so " \
-                        "while it is on the next commit deploys again. set_autodeploy with trigger off keeps the rollback",
+                        "while it is on the next commit deploys again. turn_off_autodeploy keeps the rollback",
            params_schema: {
              "type" => "object",
              "properties" => {
@@ -579,7 +579,7 @@ module Integrations
         started = api(environment_row).rollback(resource[:id], deploy)
         Telemetry.result("Render is rolling #{resource[:name]} back to deploy #{deploy}#{", as deploy #{started['id']}" if started['id']}. " \
                          "Autodeploy is left as it is, so while it is on the next commit to its branch deploys again. " \
-                         "set_autodeploy with trigger off keeps the rollback.", link: link(resource))
+                         "turn_off_autodeploy keeps the rollback.", link: link(resource))
       end
 
       def scale_service(environment_row:, arguments:)
