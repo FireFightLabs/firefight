@@ -1326,8 +1326,13 @@ module Integrations
         slot!(api, target, slot)
         differences = begin
           slot_difference_lines(slot_differences_of(api, target, slot))
+        rescue Integrations::RateLimited
+          raise
         rescue NativePack::Error => error
           unread = " #{error.message}"
+          []
+        rescue AzureApi::Error => error
+          unread = " #{Sentence.join('The settings that differ between the slots could not be read', error)}"
           []
         end
         started = api.start("#{target.id}/slotsswap", WEB_VERSION, { "targetSlot" => slot, "preserveVnet" => true })

@@ -325,6 +325,12 @@ module Integrations
         assert_match "Reading them needs Microsoft.Web/sites/slotsdiffs/Action", swapped_unread
         assert_match "needs Microsoft.Web/sites/slotsdiffs/Action",
                      assert_raises(Integrations::Error) { call(:slot_differences, "resource" => "storefront", "slot" => "staging") }.message
+
+        AzureApi.any_instance.stubs(:post).with("#{WEB_ID}/slotsdiffs", Azure::WEB_VERSION, { "targetSlot" => "staging", "preserveVnet" => true })
+                .raises(AzureApi::Error, "Azure answered 500: Internal Server Error")
+        swapped_anyway = call(:rollback_app, "resource" => "storefront", "to" => "staging")
+        assert_match "Azure swapped slot staging", swapped_anyway, "a read the swap does not need never holds the rollback back"
+        assert_match "The settings that differ between the slots could not be read: Azure answered 500", swapped_anyway
       end
 
       test "a container registry goes on the map with its ACR Tasks runs as run history, one run read by its id and its log read from where Azure keeps it" do

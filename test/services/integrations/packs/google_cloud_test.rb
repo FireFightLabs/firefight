@@ -374,6 +374,14 @@ module Integrations
         assert_match "orders, a Cloud SQL POSTGRES_16 instance in us-central1, runnable", call(:describe_resource, "resource" => "orders")
       end
 
+      test "a Compute Engine instance and a GKE cluster open their own console pages" do
+        found = @pack.map_of(@row).resources.index_by(&:kind)
+
+        assert_equal "https://console.cloud.google.com/compute/instancesDetail/zones/us-central1-a/instances/worker-1?project=acme-prod",
+                     found[ResourceMap::KIND_VIRTUAL_MACHINE].url
+        assert_equal "https://console.cloud.google.com/kubernetes/clusters/details/europe-west1/apps/details?project=acme-prod", found[ResourceMap::KIND_CLUSTER].url
+      end
+
       test "the project goes on the map with the addresses its services serve, and a product it cannot read takes nothing away" do
         GoogleCloudApi.any_instance.stubs(:compute_instances).raises(GoogleCloudApi::Forbidden, "Google Cloud answered 403: Compute Engine API has not been used")
 
