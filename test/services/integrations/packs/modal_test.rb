@@ -17,6 +17,7 @@ module Integrations
                                             created_at: Time.utc(2026, 9, 1).to_f)
         ModalApi.any_instance.stubs(:deployed).with("inference", "main").returns(Proto::AppGetByDeploymentNameResponse.new(app_id: APP_ID, lifecycle: lifecycle))
         ModalApi.any_instance.stubs(:lifecycle).with(APP_ID).returns(lifecycle)
+        ModalApi.any_instance.stubs(:apps).with("main").returns([ Proto::AppListResponse::AppListItem.new(app_id: APP_ID, description: "inference") ])
         summary = Proto::AppGetInfoResponse::FunctionInfoSummary.new(gpu_config: [ Proto::GPUConfig.new(count: 1, gpu_type: "H100") ],
                                                                      schedule: Proto::Schedule.new(cron: Proto::Schedule::Cron.new(cron_string: "0 * * * *")))
         ModalApi.any_instance.stubs(:info).with(APP_ID).returns(Proto::AppGetInfoResponse.new(
@@ -202,6 +203,17 @@ module Integrations
         assert_match "generate in inference now scales with min_containers 2, scaledown_window 300. The next deployment of inference puts back what its code says.", text
         assert_match "Say what to change", assert_raises(NativePack::Error) { call(:update_autoscaler, "app" => "inference", "function" => "generate") }.message
         assert_match "whole number", assert_raises(NativePack::Error) { call(:update_autoscaler, "app" => "inference", "function" => "generate", "max_containers" => -1) }.message
+      end
+
+      test "describing, rolling back or rolling over an app another environment holds is refused as Firefight's rule before Modal is asked" do
+        ModalApi.any_instance.stubs(:apps).with("main").returns([])
+        ModalApi.any_instance.expects(:rollback).never
+        ModalApi.any_instance.expects(:rollover).never
+        ModalApi.any_instance.expects(:containers).never
+
+        assert_match "inference is not in main", assert_raises(PolicyRefusal) { call(:describe_app, "app" => APP_ID) }.message
+        assert_match "inference is not in main", assert_raises(PolicyRefusal) { call(:rollback_app, "app" => APP_ID, "version" => "v5") }.message
+        assert_match "inference is not in main", assert_raises(PolicyRefusal) { call(:rollover_app, "app" => APP_ID) }.message
       end
 
       test "an app Modal does not know is said in words that point at list_apps" do

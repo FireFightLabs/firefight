@@ -218,7 +218,7 @@ module Integrations
       end
 
       def describe_app(environment_row:, arguments:)
-        app_id = find_app(environment_row, arguments["app"]).first
+        app_id = app_in_environment(environment_row, arguments["app"]).first
         answer = api(environment_row).info(app_id)
         app = answer.info
         lifecycle = app.lifecycle
@@ -290,7 +290,7 @@ module Integrations
 
       # The CLI refuses either change for an app that is not deployed, and so does this, before anything is sent.
       def rollback_app(environment_row:, arguments:)
-        app_id, app = find_deployed(environment_row, arguments["app"])
+        app_id, app = find_deployed(environment_row, arguments["app"], in_environment: true)
         asked = arguments["version"].to_s.strip
         match = asked.match(VERSION)
         fail!("version must be a version number such as v5, as deployment_history shows it.") if asked.present? && match.nil?
@@ -307,7 +307,7 @@ module Integrations
       end
 
       def rollover_app(environment_row:, arguments:)
-        app_id, app = find_deployed(environment_row, arguments["app"])
+        app_id, app = find_deployed(environment_row, arguments["app"], in_environment: true)
         answer = api(environment_row).rollover(app_id)
         Telemetry.result("#{app} is rolling over to fresh containers on the same version. Running containers finish what they " \
                          "hold, then stop.#{warnings(answer)}", link: change_link(environment_row, answer, app_id))
@@ -426,8 +426,8 @@ module Integrations
         fail!("No app #{wanted} in this Modal workspace. list_apps shows what there is.")
       end
 
-      # An app stop_app reaches only when the connection's environment lists it, since an app id names it in any
-      # environment the token reaches.
+      # An app describe_app, rollback_app, rollover_app and stop_app reach only when the connection's environment lists it,
+      # since an app id names it in any environment the token reaches.
       def app_in_environment(environment_row, asked)
         app_id, app = find_app(environment_row, asked)
         return [ app_id, app ] if api(environment_row).apps(environment(environment_row)).any? { |listed| listed.app_id == app_id }
@@ -443,8 +443,8 @@ module Integrations
           fail!("No container #{wanted} is running in #{environment(environment_row).presence || 'the default environment'}. list_containers shows those that are.")
       end
 
-      def find_deployed(environment_row, asked)
-        app_id, app = find_app(environment_row, asked)
+      def find_deployed(environment_row, asked, in_environment: false)
+        app_id, app = in_environment ? app_in_environment(environment_row, asked) : find_app(environment_row, asked)
         state = api(environment_row).lifecycle(app_id).app_state
         fail!("#{app} is #{state_of(state)}, not deployed, so Modal cannot change it this way.") unless state == DEPLOYED
 
