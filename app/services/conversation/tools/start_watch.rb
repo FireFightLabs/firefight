@@ -29,7 +29,7 @@ class Conversation::Tools::StartWatch < RubyLLM::Tool
       "failed_when" => { "type" => "string", "description" => "What in the read's answer means it failed, such as status failure or crashed (optional)" },
       "goal" => { "type" => "string", "description" => "Keep checking until this holds: the question in plain words, such as every instance of web runs " \
                                                        "the new version, or the error rate stays under 1% for ten minutes. A tool whose answer is a run history, " \
-                                                       "such as a provider's workflow runs, is judged by the run's own status, the run its run argument " \
+                                                       "such as a provider's job runs, is judged by the run's own status, the run its run argument " \
                                                        "names or the one that starts around now. Any other read is judged by a model over its recent " \
                                                        "readings, with done_when and failed_when as what to look for, on each reading that changed and " \
                                                        "every few minutes on one that did not (optional)" },
