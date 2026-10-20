@@ -73,17 +73,17 @@ skills:
     version: 1
     digest: c6a0c91e6719f0e0f5fd76bd23d3e12484cded2407daaf0a02b8c36944ffe32e
   bitbucket_changes:
-    version: 1
-    digest: 97780b4781b88e661d429b9a8ca38f9462f444c15c5805060c12c710e2757ced
+    version: 2
+    digest: 656df295d87d7a01c74afc0d6ae49cbd1a70608a07b5116289f468fb7e7c78a7
   bitbucket_code:
     version: 1
     digest: bda7ce564050d686c96fc478119fdb2c7077d899549fa7230bb849f6b80a4470
   bitbucket_failing_pipeline:
-    version: 1
-    digest: 66c90526d4165210ea52a66ab0eb421152418723037413c0d29ab95c5347d8a0
+    version: 2
+    digest: 786e010569ac48fc56ebaac5a5b13b845cb105b902f2d73e02e5fea54b816dc1
   bitbucket_rerun:
-    version: 1
-    digest: c5255d59d4b3b8935b2d11f8ee53b408e5b38624c1a11846fafc9974dd11a7ce
+    version: 2
+    digest: 87fd8bc7674174c782e40400ed8bac540c845dc2f33e52dc21bbb126af21f8c1
   bitbucket_triage:
     version: 1
     digest: ef6e825ce6a1164bc68f27ae445321b05cd6f2e4cecd5506f49dc93da2212d8b
@@ -96,9 +96,15 @@ skills:
   checking_a_page:
     version: 1
     digest: b25f7b5655c7651ad756a4c595456afd1314012006b3aee9f78263ddbf99d974
+  circleci_api:
+    version: 2
+    digest: 40fcd72357ff6ae7532e556bb470c7c8e30503ae099f524af7573a6887cc8314
   circleci_breaking_change:
     version: 1
     digest: 5869e6eca40caead65de98ce33e7ebce4de4d29e38fbbc1896afd6906d55a21e
+  circleci_deploys:
+    version: 3
+    digest: 65e3b296b9bdd170d5ba34defa3a056972320a24c7563806ac60836567a7d384
   circleci_failing_build:
     version: 1
     digest: ad4f27000eed2c8ce5f01949cefb199ab76af5d8e3c0aad548c622fc0e02ebd4
@@ -106,11 +112,11 @@ skills:
     version: 1
     digest: 7b40f68e7b76ba55d33db994dbe260cd584865a595495cddb49ad8850cb267e3
   circleci_rerun:
-    version: 1
-    digest: 57d687df796c4bfe42f02609ed76a2fd27649963668232405f1a0702ff827a81
+    version: 2
+    digest: 8711669f3325659f0ce395e9f38655593e8a6a0c83f14fce16980c57defb7e5a
   circleci_triage:
-    version: 1
-    digest: beb66516bc9f93825a087b0bd38e23e01a11e5976195753d3b90c25acd62bbfc
+    version: 3
+    digest: 5a774546dda56cf18a66e6e5d952afc087951f09ac1a6b917acf324ed378648c
   clickhouse_failing_queries:
     version: 1
     digest: 616a37c95fe7fe654351784b473ded2704bf25eea3df42fbd90dd334094ed758
@@ -141,6 +147,9 @@ skills:
   cloudflare_cost:
     version: 1
     digest: f6fc53a3a68668063e63b450bd40affe24cc51679526f3aa43dbc213a57ab20f
+  cloudflare_deploys:
+    version: 2
+    digest: cfd1c59793100f295e94d4c9ae11c47acb5d96f214deac1d4e7d71ece2bd5379
   cloudflare_dns:
     version: 1
     digest: ab6dadc9db8096e5ca3681fb28ae8328af6a883adf63292aa01e573d0aa2de2a
@@ -166,8 +175,11 @@ skills:
     version: 1
     digest: 15253511256a7d374488e555a853dcc4884ba2978de5faa5466286ca21975a0a
   convex_triage:
+    version: 2
+    digest: b6b8df95ac37cc7e296bf494b8e0ee34ace51551c128c734cd82e34eb7390a90
+  convex_usage:
     version: 1
-    digest: 12638f3c62eab9a11aea70768306c0acc53e7eeaba1f1b7dc107a711c92007cd
+    digest: 0dd81206788ed179a15758e02c2244527e92cc17c58679d19e5f35d97b11809c
   cost_trends:
     version: 1
     digest: 4091c5791c06ad1d07802bcae35d574956222aa4e59de0cba07f32031984664c
@@ -253,23 +265,23 @@ skills:
     version: 1
     digest: 9f76a3140d2eeabd80f0a6df8f656d123fc9a733b8af4d4ae4b771dcbe9a9593
   fly_api:
-    version: 1
-    digest: 29bf2e7c6656e38cf5d9a616039ae8013059737d763fd5ea27bc74e14cc02bbc
+    version: 2
+    digest: 4642b3e60f853bf070fd1449abace251eaa9ee8477aa530fee2acd56cf1f71da
   fly_crashes:
-    version: 1
-    digest: 9b4d57b40aa4a59ea74caa4ff40079a6c987dd50ed3d2054a4d8e6e368ebeb38
+    version: 2
+    digest: d67a9a951c5fec00e5b88b2e4fe1410520489625d4ba68ec94b5ae29a2a9fb89
   fly_deploys:
     version: 1
     digest: c1683760866d592974ea1e88a55950809c2f4a30cf57638f8f163eb849bd510c
   fly_fixes:
-    version: 1
-    digest: bfbbd821cfcdb4ad570a0f7210fe7d140f7ef33debfd65eef80c7a6d4b5757d2
+    version: 4
+    digest: 4f55e7c9d8a46b6759b2a7bf6fed172b572460c87186731ab1cd87657a19dbdb
   fly_proxy_errors:
-    version: 1
-    digest: 9dea8308f9f3d42a6b05f13c77c858bec11d0d7a00b2b71858c50695fd8aea5e
+    version: 2
+    digest: 1787ff4c2df1e30506df84126a00e0e4a5e418e83e5cbbcadefbb11126d66fe9
   fly_triage:
-    version: 1
-    digest: d31f92b87392ba804aa0744c87ca87dfa20d09cc52a1c4cf7b4283abf2291f3f
+    version: 2
+    digest: f5f5f829a55521ee165148985c7933ba36a0a8545fe148591247b51759272819
   github_actions_secrets:
     version: 1
     digest: 021a960118860dd617e68dffd93b31974a10c54df6e2764e8dab8bca66a2c789
@@ -283,8 +295,8 @@ skills:
     version: 1
     digest: 112c6c879c255a6827c841a5af43b4c119741c69140839c5185ae06d1c308004
   github_deploys:
-    version: 1
-    digest: 14a8a02116aef8ea39ddf29b17e0150f28b7249a1eb908d538fd8791bf944d03
+    version: 2
+    digest: 92de81aaaa1dbfda5e4eb63621fd3f9dd0c0e5ec93923a8421a3a3974c03e80d
   github_failing_build:
     version: 1
     digest: 75ba62caf6c7d5e813efd3131e0c56911ed1a25931d0d1091aa502f16e4d55b8
@@ -301,8 +313,8 @@ skills:
     version: 1
     digest: 0470ab64bcc912cc0ea4b61e347a8b270399d03320c16ac0e6b6b880b543202e
   github_rerun:
-    version: 1
-    digest: a43abc5287ad855289da66fabcdb458ebc6cad2ff5f37067dc8dca04869b5a2e
+    version: 2
+    digest: 4376593f977b8bd62dcb1d6c949f4a29b5b09b354576a7a3a138e66b55a35a91
   github_security:
     version: 1
     digest: d9a349bd363fbf0a02314d14d1a34eee422ecd51555a67c4d2589524945163c9
@@ -310,11 +322,11 @@ skills:
     version: 1
     digest: 2008644e4bd397eb66dd14b51cef81202d8bdfac10a96343014748e6d8880c1e
   gitlab_api:
-    version: 1
-    digest: cdd792d0fbde9ea6e59e8d55a3303ce5e6b3d17ea30960f02de15ca3986b2cb3
+    version: 2
+    digest: 3c6faefd9d54c3691b534960908f671691752da2099c3f5969796d152530100a
   gitlab_changes:
-    version: 1
-    digest: 9a4739895a43e363348c35ae4b6b33ae175856a6e616f43b89c634894c029a84
+    version: 2
+    digest: 8a052ff4d8363273c3303bf1bd51fc1e67477b7821bef3c84c59ad6524081ec7
   gitlab_code:
     version: 1
     digest: 1152e67567c960582e95115687c27f284e9a5e97cf39cee1be21a96297b7f2d1
@@ -322,8 +334,8 @@ skills:
     version: 1
     digest: 53e06107f44978cebb3546926154acb1e2953db9115ddf0f08632efed1abab93
   gitlab_rerun:
-    version: 1
-    digest: ac9334948dd73ed0ca1ed7f4e158bfebe45a71900d3cf0a1c62587d05c11575a
+    version: 2
+    digest: 6a78f21639914b2d7fb7dc007d9f68c832cb237a0e01c34d24d9a77f41032766
   gitlab_triage:
     version: 1
     digest: 2157e2b657c0b5df847cabd55b6e1c715e7fe22583eb048716d1bd6773b3eadb
@@ -468,6 +480,9 @@ skills:
   modal_cold_starts:
     version: 1
     digest: 060f30cff6a4a94aa8e443acd3839f7709398d355ea01db58c3963e59f4a8d67
+  modal_containers:
+    version: 1
+    digest: 62ebb1ddb6b28b2c930a5b88efccdc3f85894b60048e21dea3982b183119b9fb
   modal_crashes:
     version: 1
     digest: 55c760b316d00e68faf904d30e6a750db0b270c86bf796a4ded1e9e6e88918cd
@@ -502,8 +517,8 @@ skills:
     version: 1
     digest: a4f2d49c10399a5a35dd2a5bf2193ed52525ce48b467b72de9cdc8f74a0dc50b
   netlify_deploys:
-    version: 1
-    digest: 9a9437d30c6506204ec9970735959b91ac4ccfb36fed3df808ccd30affdbdca9
+    version: 2
+    digest: e3c959887bea3efecb2b69c3e60106f79550732438389400b434ac8e10c1a052
   netlify_domains:
     version: 1
     digest: fdba2259f4efd4c19a73a065ae7554dde12fe89fc58e15de6fe7fc1499dcad11
@@ -511,8 +526,8 @@ skills:
     version: 1
     digest: 675a1deaccdb338674e8c59024f0c5ac0b921151ca24dcd31df0893fce1f9a1a
   netlify_wrong_version:
-    version: 1
-    digest: 94ea37badd7b15fb69aa4669955d1fcc6bb1e61e340a0f958edf14a87da12542
+    version: 2
+    digest: e594ba1c177facd6c5961cee966ea1b4f4ea42495d1bd1c0e86ab7967d1da27f
   newrelic_errors:
     version: 1
     digest: 7077a1fa5d5381cf66491d0fdabe2a7600738ec509ea6a432859e49f0351b370
@@ -832,20 +847,23 @@ skills:
     version: 1
     digest: 1baeafdfd1b458ff150681dbb2e9757a18ef294b6d5fbde9ea8677b82c82a2b8
   vercel_build_failures:
+    version: 2
+    digest: 3414293b55ea954939cd94db623315640561189ed067a320457c49ad3b77e8d9
+  vercel_ci:
     version: 1
-    digest: dec40e1dfc7c30622ff68c9ea0382d401555567024d83b1995c55aaed308f5ac
+    digest: c2cc98006ee463838217b9e9483bf28bca39ec8bb33bfd3ec244f1e0c1579d64
   vercel_cost:
     version: 1
     digest: b6932e2c8da1fc114cecb4295c646fcf7dda92cd7ae2d9d160f068542dbce581
   vercel_fixes:
-    version: 1
-    digest: cf4cae565e1e4f17e2032c77eb2ec909a7a69e1f6a969043b0bceae00bd74e53
+    version: 2
+    digest: 78e8ff483193d0eed9e1c02e8255890b8ac1e379c14400cf35ac48bc78defdf9
   vercel_function_errors:
-    version: 1
-    digest: f28b71d6bd6adc60c217de204ba5346cafb26af9428390a329fb31b005911a46
+    version: 2
+    digest: 22e8d378f5bf297b8c6afff8993396d0e6d92bd7820fa9ad24aaf3524fa3c39c
   vercel_triage:
-    version: 1
-    digest: fb7d67a8c0baf4847a6c80d558e2d93bec4c6ee0451b05fddd0539384bcc640d
+    version: 3
+    digest: 7fb20a7434de2ccc612533df7b8f5334c5a36f5c76a6754ede241f0d86d912f2
   watching:
     version: 1
     digest: e733afae606f41061583f9053e7b6057a49905ba198f3f355297355e064e8290

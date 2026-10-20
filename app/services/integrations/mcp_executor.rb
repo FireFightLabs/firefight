@@ -19,15 +19,20 @@ module Integrations
       SecretReads.refuse!(tool, arguments)
       within = QUICK_READ if quick_read?(tool)
       rules = Redactions.rules(tool.integration.provider)
+      named = provider.named_tools
+      named = nil unless named&.handles?(tool.name)
+      remote_name, sent = named ? named.call_for(tool.name, arguments) : [ tool.remote_name, arguments ]
       result = begin
-        client_for(tool.integration, environment_row, within: within).call_tool(name: tool.remote_name, arguments: arguments)
+        client_for(tool.integration, environment_row, within: within).call_tool(name: remote_name, arguments: sent)
       rescue Integrations::Error => error
         # The server's own words reach the model and the chat as an answer does, so they lose credentials the same way.
         raise error.exception(Redactions.message(error.message, **rules))
       end
       kept = Redactions.apply(ToolResult.normalize(result), **rules)
+      kept = named.present(tool.name, arguments, kept) if named
       kept = ApiIndex.hinted(kept, tool.integration.provider, tool.name, arguments, failed: failed?(tool, kept))
-      SourceLinks.attach(kept, settings: ConnectionSettings.of(environment_row), tool_name: tool.name, arguments: arguments)
+      # A named tool's answer is linked by the general call it made, which the provider's links know.
+      SourceLinks.attach(kept, settings: ConnectionSettings.of(environment_row), tool_name: named ? remote_name : tool.name, arguments: sent)
     rescue TimedOut
       raise unless within
 

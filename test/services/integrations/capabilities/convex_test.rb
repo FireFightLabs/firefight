@@ -32,9 +32,11 @@ class Integrations::Capabilities::ConvexTest < ActiveSupport::TestCase
     end
   end
 
-  test "the capabilities wrap the pack's tools, so Halon is offered each once, and the details say what it can do" do
+  test "the capabilities wrap the pack's reads, so Halon is offered each once, and the details say what it can do" do
     adapter = Integrations::Capabilities::Convex
-    assert Integrations::Packs::Convex.tool_definitions.map(&:name).all? { |name| adapter.wraps?(name) }
+    wrapped, own = Integrations::Packs::Convex.tool_definitions.map(&:name).partition { |name| adapter.wraps?(name) }
+    assert_equal %w[deployment_status search_logs function_errors recent_pushes], wrapped
+    assert_equal %w[usage pause_deployment unpause_deployment], own, "no capability asks these, so they stay offered as they are"
     assert_match "read its logs, see what was deployed, check how a resource stands, and read its errors for anything Convex runs",
                  Integrations::Capabilities.halon_sentence(Integrations::Packs::Convex::PROVIDER_KEY, "Convex")
   end

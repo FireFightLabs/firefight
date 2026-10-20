@@ -22,7 +22,7 @@ module Integrations
         settings = ConnectionSettings.of(@row.reload)
         assert_equal [ "acme", "bb-token" ], [ settings.field(Bitbucket::WORKSPACE), settings.credential(Bitbucket::TOKEN) ]
         assert_equal [ Bitbucket::TOKEN ], Bitbucket.credential_fields.map(&:key)
-        assert_equal %w[run_tests rerun_pipeline run_pipeline cancel_pipeline], Bitbucket.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[run_tests rerun_pipeline run_pipeline cancel_pipeline redeploy], Bitbucket.tool_definitions.reject(&:read_only).map(&:name)
       end
 
       test "the connect form says what is wrong with a token or workspace before anything is saved" do
@@ -242,10 +242,72 @@ module Integrations
         assert_equal [ [ "9", "running", nil ], [ "8", "succeeded", 600 ], [ "7", "failed", 600 ] ], runs.map { |run| [ run.number, run.status, run.seconds ] }
         assert_equal [ "pipeline on main", "release" ], runs.first(2).map(&:name)
         assert_equal 600, result["structuredContent"]["usual_seconds"]
-        assert_equal "https://bitbucket.org/acme/web/commits/#{HEAD}", runs.second.url
+        assert_equal "https://bitbucket.org/acme/web/pipelines/results/8", runs.second.url
       end
 
-      test "a pipeline's steps say how each ended, linked to the commit it built" do
+      test "a paused or halted pipeline waits for a person rather than running, and says so" do
+        paused = pipeline(9, nil).merge("state" => { "name" => "IN_PROGRESS", "stage" => { "name" => "PAUSED" } }, "completed_on" => nil)
+        halted = pipeline(8, nil).merge("state" => { "name" => "IN_PROGRESS", "stage" => { "name" => "HALTED" } }, "completed_on" => nil)
+        BitbucketApi.any_instance.stubs(:get).with("#{REPO}/pipelines", { "sort" => "-created_on", "target.branch" => nil, "pagelen" => 20 })
+                    .returns("values" => [ paused, halted ])
+
+        runs = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web" }))
+
+        assert_equal [ Capabilities::History::WAITING ] * 2, runs.map(&:status)
+        assert_includes runs.first.detail, "paused, waiting for someone to run its manual step or let its deployment go on in Bitbucket"
+      end
+
+      test "a name no pipeline has reads the deployments as runs, and one is read back by its id" do
+        deployments
+        BitbucketApi.any_instance.stubs(:get).with("#{REPO}/pipelines", { "sort" => "-created_on", "target.branch" => nil, "pagelen" => 100 })
+                    .returns("values" => [ pipeline(7, "SUCCESSFUL") ])
+
+        runs = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web", "name" => "staging" }))
+        followed = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web", "run" => "deployment-{d3}" })).sole
+
+        assert_equal [ [ "deployment-{d3}", "deployment to Staging", Capabilities::History::SUCCEEDED, "https://bitbucket.org/acme/web/pipelines/results/7" ] ],
+                     runs.map { |run| [ run.id, run.name, run.status, run.url ] }
+        assert_equal [ "deployment-{d3}", "7 by Ana" ], [ followed.id, followed.detail ]
+      end
+
+      test "an earlier deployment is deployed again by running the pipeline that made it on its commit, and tags are listed newest first" do
+        uuid = "{aaaaaaaa-0000-0000-0000-000000000001}"
+        get("#{REPO}/deployments/#{ERB::Util.url_encode(uuid)}", deployment(uuid, "{prod}", BASE, "2026-10-01T10:00:00Z"))
+        made = pipeline(7, "SUCCESSFUL").merge("target" => { "type" => "pipeline_ref_target", "ref_type" => "branch", "ref_name" => "main",
+                                                               "commit" => { "type" => "commit", "hash" => BASE }, "selector" => { "type" => "custom", "pattern" => "deploy" } })
+        BitbucketApi.any_instance.stubs(:get).with("#{REPO}/pipelines", { "target.commit.hash" => BASE, "pagelen" => 30 }).returns("values" => [ pipeline(6, "FAILED"), made ])
+        BitbucketApi.any_instance.expects(:post).with("#{REPO}/pipelines/", {
+          "target" => { "type" => "pipeline_ref_target", "ref_type" => "branch", "ref_name" => "main", "commit" => { "type" => "commit", "hash" => BASE },
+                        "selector" => { "type" => "custom", "pattern" => "deploy" } }
+        }).returns(pipeline(12, nil).merge("uuid" => "{new}"))
+        BitbucketApi.any_instance.stubs(:get).with("#{REPO}/refs/tags", { "sort" => "-target.date", "pagelen" => 20, "q" => 'name ~ "v1"' })
+                    .returns("values" => [ { "name" => "v1.2.0", "target" => { "hash" => HEAD, "date" => "2026-10-01T00:00:00Z" }, "message" => "Spring\n" } ])
+
+        text = body(call(:redeploy, "repo" => "acme/web", "deployment" => uuid))
+
+        assert_match "Deploying the deployment #{uuid} of #{BASE[0, 12]} again as pipeline 12 ({new}), running pipeline 7 again on main", text
+        assert text.end_with?("https://bitbucket.org/acme/web/pipelines/results/12")
+        assert_includes body(call(:list_tags, "repo" => "acme/web", "name" => "v1")), "  v1.2.0  #{HEAD[0, 12]}  2026-10-01T00:00:00Z  Spring"
+      end
+
+      test "a pipeline runs on one commit, alone with a custom pipeline, and a step's test reports are read" do
+        BitbucketApi.any_instance.expects(:post).with("#{REPO}/pipelines/", {
+          "target" => { "type" => "pipeline_commit_target", "commit" => { "type" => "commit", "hash" => BASE }, "selector" => { "type" => "custom", "pattern" => "deploy" } }
+        }).returns(pipeline(13, nil))
+        assert_match "Started pipeline 13 (#{PIPELINE}) commit #{BASE[0, 12]} in acme/web, the custom pipeline deploy.",
+                     body(call(:run_pipeline, "repo" => "acme/web", "commit" => BASE, "custom" => "deploy"))
+        assert_equal "commit must be a commit's hash", assert_raises(NativePack::Error) { call(:run_pipeline, "repo" => "acme/web", "commit" => "main") }.message
+
+        get("#{REPO}/pipelines/#{ERB::Util.url_encode(PIPELINE)}", pipeline(7, "FAILED"))
+        step = "#{REPO}/pipelines/#{ERB::Util.url_encode(PIPELINE)}/steps/#{ERB::Util.url_encode(STEP)}"
+        get("#{step}/test_reports", { "number_of_failed_test_cases" => 1 })
+        get("#{step}/test_reports/test_cases", { "values" => [ { "name" => "checkout pays", "status" => "FAILED" } ] })
+        text = body(call(:step_test_reports, "repo" => "acme/web", "pipeline" => PIPELINE, "step" => STEP))
+        assert_includes text, "Test reports of a step of pipeline 7 in acme/web:"
+        assert_includes text, "checkout pays"
+      end
+
+      test "a pipeline's steps say how each ended, linked to the pipeline's page, each step too" do
         get("#{REPO}/pipelines/#{ERB::Util.url_encode(PIPELINE)}", pipeline(7, "FAILED"))
         list("#{REPO}/pipelines/#{PIPELINE}/steps", [ step("Build", "SUCCESSFUL"), step("Test", "FAILED") ])
 
@@ -253,7 +315,10 @@ module Integrations
 
         assert_match "Pipeline 7 in acme/web, failed, on main", text
         assert_match "Test  failed  42s  step #{STEP}", text
-        assert text.end_with?("https://bitbucket.org/acme/web/commits/#{HEAD}")
+        assert text.end_with?("https://bitbucket.org/acme/web/pipelines/results/7")
+        get("#{REPO}/pipelines/#{ERB::Util.url_encode(PIPELINE)}", pipeline(7, "FAILED"))
+        run = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web", "run" => PIPELINE })).sole
+        assert_equal "https://bitbucket.org/acme/web/pipelines/results/7", run.parts.last.url
       end
 
       test "without a step the log is the newest failed step's, its end filtered as asked" do
@@ -266,7 +331,7 @@ module Integrations
 
         assert_match "Step Test of pipeline 7 in acme/web, failed, on main", text
         assert_match "Its log, 1 lines:\nPG::ConnectionBad", text
-        assert text.end_with?("https://bitbucket.org/acme/web/commits/#{HEAD}")
+        assert text.end_with?("https://bitbucket.org/acme/web/pipelines/results/7")
       end
 
       test "no failed step is said, with where it looked" do
@@ -317,7 +382,7 @@ module Integrations
 
         assert_match "Started pipeline 8 ({new}) in acme/web, running pipeline 7 again on main at #{HEAD[0, 12]}, every step from the start. " \
                      "pipeline_steps with its uuid, or ci_status, follows it.", text
-        assert text.end_with?("https://bitbucket.org/acme/web/commits/#{HEAD}")
+        assert text.end_with?("https://bitbucket.org/acme/web/pipelines/results/8")
       end
 
       test "a pull request's pipeline runs again on the same pull request" do
@@ -357,8 +422,8 @@ module Integrations
         BitbucketApi.any_instance.expects(:post).with("#{REPO}/pipelines/", { "target" => { "type" => "pipeline_ref_target", "ref_type" => "tag", "ref_name" => "v1.2.0" } })
                     .returns(pipeline(10, nil))
         assert_match "on v1.2.0 in acme/web, the pipeline that matches it.", body(call(:run_pipeline, "repo" => "acme/web", "ref" => "v1.2.0", "ref_type" => "tag"))
-        BitbucketApi.any_instance.expects(:post).returns(pipeline(11, nil).merge("target" => { "ref_name" => "main" }))
-        assert_match "had not named the commit it builds yet, so there is no link.", body(call(:run_pipeline, "repo" => "acme/web"))
+        BitbucketApi.any_instance.expects(:post).returns(pipeline(11, nil).merge("build_number" => nil))
+        assert_match "Bitbucket had not numbered the pipeline yet, so there is no link to its page.", body(call(:run_pipeline, "repo" => "acme/web"))
         assert_equal "ref_type must be one of branch, tag", assert_raises(NativePack::Error) { call(:run_pipeline, "repo" => "acme/web", "ref_type" => "bookmark") }.message
       end
 

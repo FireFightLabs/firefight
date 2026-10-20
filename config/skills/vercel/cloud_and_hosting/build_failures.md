@@ -2,6 +2,7 @@
 name: vercel_build_failures
 when: A Vercel deployment failed, was canceled or is stuck building, or a change never went live
 tools: [recent_deploys, deployment_logs, resource_status]
+references: [deploy/deployment-checks.md, cli/deployment.md]
 ---
 A deployment that fails never takes production traffic, so the site keeps serving the deployment before it. The question is why the new one failed and whether anything else is wrong.
 

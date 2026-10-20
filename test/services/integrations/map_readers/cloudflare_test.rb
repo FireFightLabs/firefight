@@ -18,7 +18,7 @@ module Integrations
           { "name" => "app.firefight.app", "type" => "CNAME", "content" => "web.code.run", "proxied" => true },
           { "name" => "firefight.app", "type" => "TXT", "content" => "v=spf1" }
         ] },
-        %r{workers/scripts"} => { "items" => [ { "id" => "edge-api" } ] },
+        %r{workers/scripts"} => { "items" => [ { "id" => "edge-api", "tag" => "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d" } ] },
         %r{/workers/scripts/" \+ encodeURIComponent} => [ { "name" => "edge-api", "bindings" => [ { "type" => "r2_bucket", "bucket_name" => "uploads" },
                                                                                                   { "type" => "queue", "queue_name" => "emails" } ] } ],
         %r{workers/domains} => { "items" => [ { "hostname" => "edge.firefight.app", "service" => "edge-api" } ] },
@@ -58,6 +58,10 @@ module Integrations
         assert_includes links, [ "grafana.firefight.app", ResourceMap::RELATION_PROTECTED_BY, "a1" ]
         assert_includes links, [ "lb.firefight.app", ResourceMap::RELATION_SERVED_BY, "lb1" ]
         assert_includes links, [ "lb1", ResourceMap::RELATION_USES, "p1" ]
+
+        worker = snapshot.resources.find { |found| found.name == "edge-api" }
+        assert_match %r{\Ahttps://dash\.cloudflare\.com/[^/]+/workers/services/view/edge-api/production\z}, worker.url, "a Worker links to its own page"
+        assert_equal({ "tag" => "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d" }, worker.details, "Workers Builds names it by its tag")
         assert_includes links, [ "p1", ResourceMap::RELATION_USES, "web.code.run" ]
       end
 

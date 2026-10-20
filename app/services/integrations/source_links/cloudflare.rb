@@ -17,6 +17,9 @@ module Integrations
       REQUESTED_PATH = /path["']?\s*:\s*[`'"]([^`'"]+)[`'"]/
       # A Pages project and one of its deployments have their own pages, which a read of either opens.
       PAGES_PATH = %r{\A/accounts/[^/]+/pages/projects/(?<project>[a-z0-9-]+)(?:/deployments/(?<deployment>\h[\h-]*))?(?:/|\z)}
+      # A Worker has its own page, and its deployments and versions are on its Deployments tab, as Cloudflare's docs link
+      # them (/:account/workers/services/view/:worker/production/deployments).
+      WORKER_PATH = %r{\A/accounts/[^/]+/workers/scripts/(?<worker>[a-z0-9_-]+)(?:/(?<section>deployments|versions))?(?:/|\z)}
 
       # By the API path's segments after /zones/<id> or /accounts/<id>, the dashboard page that shows them.
       ZONE_PAGES = {
@@ -26,7 +29,9 @@ module Integrations
       }.freeze
       ACCOUNT_PAGES = {
         "r2" => "r2/overview", "d1" => "workers/d1", "storage" => "workers/kv/namespaces", "queues" => "workers/queues",
-        "cfd_tunnel" => "tunnels", "workers" => "workers-and-pages", "pages" => "workers-and-pages", "audit_logs" => "audit-log"
+        "cfd_tunnel" => "tunnels", "workers" => "workers-and-pages", "pages" => "workers-and-pages", "audit_logs" => "audit-log",
+        # A build's path names the Worker only by its tag, so it links to the list the Worker is in.
+        "builds" => "workers-and-pages"
       }.freeze
 
       def initialize(_settings); end
@@ -42,7 +47,7 @@ module Integrations
         account = account(asked, paths.first, text)
         path = case scope
         when "zones" then ZONE_PAGES[section] && [ account, one(text, "zone_name") || ZONE, ZONE_PAGES[section] ]
-        when "accounts" then pages(account, paths.first) || (ACCOUNT_PAGES[section] && [ account, ACCOUNT_PAGES[section] ])
+        when "accounts" then pages(account, paths.first) || worker(account, paths.first) || (ACCOUNT_PAGES[section] && [ account, ACCOUNT_PAGES[section] ])
         end
         return unless path
 
@@ -54,6 +59,11 @@ module Integrations
       def pages(account, path)
         found = path.match(PAGES_PATH)
         found && [ account, "pages", "view", found[:project], found[:deployment] ].compact
+      end
+
+      def worker(account, path)
+        found = path.match(WORKER_PATH)
+        found && [ account, "workers", "services", "view", found[:worker], "production", ("deployments" if found[:section]) ].compact
       end
 
       # A fully known page opens directly. Otherwise Cloudflare's own deep link asks the person for what is missing.

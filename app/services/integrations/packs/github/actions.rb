@@ -4,9 +4,9 @@ module Integrations
       # A repository's GitHub Actions, through the REST API's workflow runs, jobs and job logs (the actions paths of
       # github/rest-api-description), and what each deployment environment last received. A job that names an
       # environment writes a GitHub deployment, so deploys from Actions are read as deployments. The App needs Actions read.
-      # Rerunning a run, starting a workflow by hand and canceling a run are changes (actions/runs/{run_id}/rerun,
-      # rerun-failed-jobs and cancel, actions/workflows/{workflow_id}/dispatches), so they go through
-      # the gateway as writes and need Actions read and write.
+      # Rerunning a run or one job, starting a workflow by hand and canceling a run are changes (actions/runs/{run_id}/rerun,
+      # rerun-failed-jobs, cancel and force-cancel, actions/jobs/{job_id}/rerun, actions/workflows/{workflow_id}/dispatches),
+      # so they go through the gateway as writes and need Actions read and write.
       module Actions
         RUN_LIMIT = 10
         MAX_RUNS = 50
@@ -31,13 +31,16 @@ module Integrations
         NUMBER_INPUT = "number".freeze
         FOLLOW = "workflow_jobs with its run_id, or ci_status, follows it".freeze
         HISTORY_LIMIT = 20
-        # A name filter is applied to GitHub's newest runs, so more are read to find enough of that workflow.
-        HISTORY_CANDIDATES = 100
+        # A name is matched against the repository's workflows, and at most this many of them have their runs read.
+        WORKFLOWS_READ = 5
+        WAITING = "waiting".freeze
+        ACTION_REQUIRED = "action_required".freeze
         # A run's status, or its conclusion once completed, in Firefight's words (the status and conclusion enums of a
-        # workflow run in github/rest-api-description). action_required waits for someone to approve it.
+        # workflow run in github/rest-api-description). waiting holds for an environment's protection rules, and
+        # action_required for someone to approve running it, so both wait on a person.
         HISTORY_STATUSES = {
-          "requested" => Capabilities::History::QUEUED, "queued" => Capabilities::History::QUEUED, "waiting" => Capabilities::History::QUEUED,
-          "pending" => Capabilities::History::QUEUED, "action_required" => Capabilities::History::QUEUED,
+          "requested" => Capabilities::History::QUEUED, "queued" => Capabilities::History::QUEUED, WAITING => Capabilities::History::WAITING,
+          "pending" => Capabilities::History::QUEUED, ACTION_REQUIRED => Capabilities::History::WAITING,
           "in_progress" => Capabilities::History::RUNNING,
           "success" => Capabilities::History::SUCCEEDED, "neutral" => Capabilities::History::SUCCEEDED, "skipped" => Capabilities::History::SUCCEEDED,
           "failure" => Capabilities::History::FAILED, "timed_out" => Capabilities::History::FAILED, "startup_failure" => Capabilities::History::FAILED,
@@ -68,12 +71,16 @@ module Integrations
           pack.tool :ci_runs,
                     summary: "Lists recent CI runs with how long each took compared with the usual time.",
                     description: "A repository's GitHub Actions runs, newest first, each with its workflow, status, when it started and " \
-                                 "finished and how long it took, and how long finished runs usually take",
+                                 "finished and how long it took, and how long finished runs usually take. A run waiting for an " \
+                                 "approval says so. A name no workflow has, such as production, reads the repository's deployments as runs",
                     params_schema: Code.object_schema({
                       "repo" => Code::REPO,
-                      "name" => { "type" => "string", "description" => "Only runs of a workflow whose name contains this, such as release (optional)" },
+                      "name" => { "type" => "string", "description" => "Only runs of a workflow whose name or file contains this, such as release, or else deployments to an environment it names (optional)" },
                       "branch" => { "type" => "string", "description" => "Only runs for this branch (optional)" },
-                      "run" => { "type" => "string", "description" => "Only this run, by its id, with each job and the step it failed at (optional)" },
+                      "status" => { "type" => "string", "enum" => RUN_STATUSES, "description" => "Only runs in this status or with this outcome, such as failure or waiting (optional)" },
+                      "event" => { "type" => "string", "description" => "Only runs started by this event, such as push, schedule or workflow_dispatch (optional)" },
+                      "run" => { "type" => "string", "description" => "Only this run, by its id, with each job and the step it failed at, or a deployment by the id this answer gives it (optional)" },
+                      "attempt" => { "type" => "integer", "description" => "With run, which attempt of it to read, 1 for the first, when it was run again (optional, the latest)" },
                       "limit" => { "type" => "integer", "description" => "At most this many (optional, #{HISTORY_LIMIT})" }
                     }, %w[repo]),
                     read_only: true
@@ -134,10 +141,23 @@ module Integrations
                     }, %w[repo workflow]),
                     read_only: false
 
+          pack.tool :rerun_job,
+                    summary: "Reruns one job of a finished workflow run and the jobs that depend on it.",
+                    description: "Run one job of a finished GitHub Actions workflow run again, with the jobs that depend on it, on the same " \
+                                 "commit. For one flaky job, or to deploy again from a run's deploy job",
+                    params_schema: Code.object_schema({
+                      "repo" => Code::REPO, "job_id" => { "type" => "integer", "description" => "The job's id, as workflow_jobs shows it" }
+                    }, %w[repo job_id]),
+                    read_only: false
+
           pack.tool :cancel_workflow,
                     summary: "Cancels a queued or running workflow run.",
-                    description: "Cancel a GitHub Actions workflow run that is queued or running, such as a deploy that should not go out",
-                    params_schema: Code.object_schema({ "repo" => Code::REPO, "run_id" => run_id }, %w[repo run_id]),
+                    description: "Cancel a GitHub Actions workflow run that is queued or running, such as a deploy that should not go out. " \
+                                 "force stops a run that a plain cancel did not stop",
+                    params_schema: Code.object_schema({
+                      "repo" => Code::REPO, "run_id" => run_id,
+                      "force" => { "type" => "boolean", "description" => "Stop every job at once, also those whose if condition holds, such as always(). Only for a run a plain cancel did not stop (optional)" }
+                    }, %w[repo run_id]),
                     read_only: false
         end
 
@@ -163,16 +183,33 @@ module Integrations
           runs.map { |run| run_line(run) }.join("\n")
         end
 
-        # GitHub gives a workflow run no completion time, so a finished run ended when it last changed, its updated_at.
+        # GitHub gives a workflow run no completion time, so a finished run ended when it last changed, its updated_at. A
+        # name is matched against the workflows and their runs are read from each one's own list, so a rare workflow is
+        # found however many runs others made since. A name no workflow has reads the deployments, named for their environment.
         def ci_runs(environment_row:, arguments:)
           repo = repo_argument(arguments)
-          return one_run(repo, GithubApp.installation_token(environment_row), arguments["run"]) if arguments["run"].present?
+          token = GithubApp.installation_token(environment_row)
+          asked = arguments["run"].to_s.strip
+          return one_deployment(repo, token, asked.delete_prefix(DEPLOYMENT_RUN)) if asked.start_with?(DEPLOYMENT_RUN)
+          return one_run(repo, token, asked, arguments["attempt"]) if asked.present?
 
           limit = whole_number_argument(arguments, "limit", HISTORY_LIMIT, HISTORY_LIMIT)
+          status = arguments["status"].presence
+          fail! "status must be one of #{RUN_STATUSES.join(', ')}" if status && RUN_STATUSES.exclude?(status)
+
+          query = { "branch" => arguments["branch"].presence, "status" => status, "event" => arguments["event"].presence, "per_page" => limit }
+          link = actions_link("https://github.com/#{repo}/actions")
           name = arguments["name"].to_s.strip.presence
-          query = { "branch" => arguments["branch"].presence, "per_page" => name ? HISTORY_CANDIDATES : limit }
-          runs = runs_of(repo, GithubApp.installation_token(environment_row), query).map { |run| history_run(run) }
-          Capabilities::History.result(runs, what: "GitHub Actions in #{repo}", link: actions_link("https://github.com/#{repo}/actions"), name: name, limit: limit)
+          return Capabilities::History.result(runs_of(repo, token, query).map { |run| history_run(run) }, what: "GitHub Actions in #{repo}", link: link, limit: limit) unless name
+
+          workflows = named_workflows(repo, token, name)
+          if workflows.empty?
+            return Capabilities::History.result(deployment_runs(repo, token, limit, name), what: "deployments in #{repo}, since no workflow is named #{name}",
+                                                link: actions_link(repo_page(repo, "deployments")), name: name, limit: limit)
+          end
+
+          runs = workflows.flat_map { |workflow| workflow_runs_of(repo, workflow, token, query).map { |run| named_run(history_run(run), workflow, name) } }
+          Capabilities::History.result(runs, what: "#{workflows.map { |workflow| workflow['name'] }.to_sentence} in #{repo}", link: link, limit: limit)
         end
 
         def workflow_jobs(environment_row:, arguments:)
@@ -263,16 +300,42 @@ module Integrations
           Telemetry.result("Started #{name} on #{ref} in #{repo}#{given}, as run #{run}. #{FOLLOW}.", link: actions_link(started["html_url"]))
         end
 
+        def rerun_job(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          id = Integer(arguments["job_id"].to_s, exception: false)
+          fail! "job_id must be a whole number" unless id&.positive?
+
+          token = GithubApp.installation_token(environment_row)
+          job = GithubApp.get("/repos/#{repo}/actions/jobs/#{id}", token: token)
+          named = "#{job['workflow_name']} / #{job['name']} (job #{id}) in #{repo}"
+          fail! "#{named} is still #{job['status']}, so it cannot run again until it finishes." unless job["status"] == COMPLETED
+
+          run = GithubApp.get("/repos/#{repo}/actions/runs/#{job['run_id']}", token: token)
+          unless run["status"] == COMPLETED
+            fail! "Run #{job['run_id']} of #{named} is still #{run['status']}, and GitHub runs a job again only once its whole run finished. cancel_workflow stops it."
+          end
+
+          changing("run job #{id} in #{repo} again") { GithubApp.act("/repos/#{repo}/actions/jobs/#{id}/rerun", {}, token: token) }
+          Telemetry.result("#{named} runs again with the jobs that depend on it, on #{job['head_branch']} at #{job['head_sha'].to_s[0, 12]}. " \
+                           "workflow_jobs with run_id #{job['run_id']}, or ci_status, follows it.", link: actions_link(run["html_url"]))
+        end
+
         def cancel_workflow(environment_row:, arguments:)
           repo = repo_argument(arguments)
           id = run_id_argument(arguments)
+          force = ActiveModel::Type::Boolean.new.cast(arguments["force"]) || false
           token = GithubApp.installation_token(environment_row)
           run = GithubApp.get("/repos/#{repo}/actions/runs/#{id}", token: token)
           fail! "#{run_name(run, repo)} already finished, #{outcome(run)}, so there is nothing to cancel." if run["status"] == COMPLETED
 
-          changing("cancel #{repo} run #{id}") { GithubApp.act("/repos/#{repo}/actions/runs/#{id}/cancel", token: token) }
-          Telemetry.result("Canceling #{run_name(run, repo)} on #{run['head_branch']} at #{run['head_sha'].to_s[0, 12]}. A job or step whose if " \
-                           "condition holds, such as always(), keeps running, and GitHub stops the rest within 5 minutes. #{FOLLOW}.", link: actions_link(run["html_url"]))
+          changing("#{'force ' if force}cancel #{repo} run #{id}") { GithubApp.act("/repos/#{repo}/actions/runs/#{id}/#{force ? 'force-cancel' : 'cancel'}", token: token) }
+          where = "#{run_name(run, repo)} on #{run['head_branch']} at #{run['head_sha'].to_s[0, 12]}"
+          words = if force
+            "Force canceling #{where}. GitHub stops every job, also those whose if condition holds, such as always()."
+          else
+            "Canceling #{where}. A job or step whose if condition holds, such as always(), keeps running, and GitHub stops the rest within 5 minutes."
+          end
+          Telemetry.result("#{words} #{FOLLOW}.", link: actions_link(run["html_url"]))
         end
 
         # Whoever triggered the run, matched to a member by the public address GitHub shows for them. A run a bot started
@@ -300,25 +363,71 @@ module Integrations
                                                                           "on this installation for that. #{Asking::GRANT_WHERE}")
         end
 
-        def history_run(run)
+        # held names the environments a waiting run waits on, when they were read.
+        def history_run(run, held: nil)
           status = Capabilities::History.status(outcome(run), HISTORY_STATUSES)
+          attempt = run["run_attempt"].to_i > 1 ? ", attempt #{run['run_attempt']}" : ""
           Capabilities::History::Run.new(
             id: run["id"].to_s, number: run["run_number"]&.to_s, name: run["name"], status: status,
             started_at: Telemetry.parse_time(run["run_started_at"] || run["created_at"]),
             finished_at: (Telemetry.parse_time(run["updated_at"]) if Capabilities::History::FINISHED.include?(status)),
-            url: run["html_url"], detail: "#{run['head_branch']} at #{run['head_sha'].to_s[0, 12]}, #{run['event']}"
+            url: run["html_url"], detail: "#{run['head_branch']} at #{run['head_sha'].to_s[0, 12]}, #{run['event']}#{attempt}#{waiting_words(run, held)}"
           )
         end
 
+        def waiting_words(run, held)
+          case outcome(run)
+          when WAITING
+            on = held.present? ? " to #{held.to_sentence}" : ""
+            ", waiting for approval to deploy#{on}, pending_deployments names who may give it"
+          when ACTION_REQUIRED then ", waiting for someone with write access to approve running it"
+          else ""
+          end
+        end
+
         # One run with its jobs, each failed one with the step it failed at and its log read by job_log, so a watch hears
-        # the first job that failed while the run still goes.
-        def one_run(repo, token, given)
+        # the first job that failed while the run still goes. An attempt reads that try of a run that ran again.
+        def one_run(repo, token, given, attempt = nil)
           id = Integer(given.to_s.strip.delete_prefix("#"), exception: false)
           fail! "run must be the run's id, a whole number" unless id&.positive?
 
-          run = GithubApp.get("/repos/#{repo}/actions/runs/#{id}", token: token)
-          parts = jobs_of(repo, id, token).map { |job| history_part(repo, job) }
-          Capabilities::History.result([ history_run(run).with(parts: parts) ], what: "GitHub Actions in #{repo}", link: actions_link(run["html_url"]))
+          tried = attempt.presence && Integer(attempt.to_s, exception: false)
+          fail! "attempt must be a whole number, 1 for the first" if attempt.present? && !tried&.positive?
+
+          run = GithubApp.get("/repos/#{repo}/actions/runs/#{id}#{"/attempts/#{tried}" if tried}", token: token)
+          jobs = tried ? attempt_jobs_of(repo, id, tried, token) : jobs_of(repo, id, token)
+          parts = jobs.map { |job| history_part(repo, job) }
+          what = "GitHub Actions in #{repo}#{", attempt #{tried} of run #{id}" if tried}"
+          Capabilities::History.result([ history_run(run, held: held_on(repo, run, token)).with(parts: parts) ], what: what, link: actions_link(run["html_url"]))
+        end
+
+        # The environments a run waiting on protection rules is held by, or nil when it is not waiting or GitHub would not say.
+        def held_on(repo, run, token)
+          return unless outcome(run) == WAITING
+
+          Array(GithubApp.get("/repos/#{repo}/actions/runs/#{run['id']}/pending_deployments", token: token)).filter_map { |pending| pending.dig("environment", "name") }
+        rescue GithubApp::Error
+          nil
+        end
+
+        # The workflows whose name or file holds text, as a person may name either.
+        def named_workflows(repo, token, text)
+          wanted = text.downcase
+          workflows = Array(GithubApp.get("/repos/#{repo}/actions/workflows?per_page=100", token: token)["workflows"])
+          workflows.select { |workflow| workflow["name"].to_s.downcase.include?(wanted) || File.basename(workflow["path"].to_s).downcase.include?(wanted) }.first(WORKFLOWS_READ)
+        end
+
+        # A run of a workflow found by its file is named with the file too, so a watch following that name finds it.
+        def named_run(run, workflow, name)
+          run.called?(name) ? run : run.with(name: "#{run.name} (#{File.basename(workflow['path'].to_s)})")
+        end
+
+        def workflow_runs_of(repo, workflow, token, query)
+          Array(GithubApp.get("/repos/#{repo}/actions/workflows/#{workflow['id']}/runs?#{query.compact.to_query}", token: token)["workflow_runs"])
+        end
+
+        def attempt_jobs_of(repo, run_id, attempt, token)
+          Array(GithubApp.get("/repos/#{repo}/actions/runs/#{run_id}/attempts/#{attempt}/jobs?#{{ 'per_page' => 100 }.to_query}", token: token)["jobs"])
         end
 
         def history_part(repo, job)
