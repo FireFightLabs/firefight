@@ -3,10 +3,11 @@ module Integrations
     # Vercel for the teams an environment reads, one, several or every one its token can reach, or the token's own account
     # when the team connect field (a scope) is left empty. A call reaches one team, the one it names or the one its
     # project lives in (Integrations::Scopes), and a listing named none lists every team. It reads their projects, the
-    # projects' deployments and their build and runtime logs, with an access token a person creates in Vercel. Every
-    # tool reads, except the rollback and promotion Halon uses to apply fixes. Paths, parameters and answers are the ones
-    # in Vercel's OpenAPI spec (openapi.vercel.sh), and how a rollback or promotion is asked follows Vercel's own CLI
-    # (vercel/vercel, packages/cli/src/commands).
+    # projects' deployments, their build and runtime logs, rolling releases and the team's Vercel CI runs, with an access
+    # token a person creates in Vercel. Every tool reads, except the rollback, promotion, cancel, redeploy and rolling
+    # release steps Halon uses to apply fixes. Paths, parameters and answers are the ones in Vercel's OpenAPI spec
+    # (openapi.vercel.sh), and how a rollback, promotion or redeploy is asked follows Vercel's own CLI (vercel/vercel,
+    # packages/cli/src/commands).
     # Vercel's remote MCP server only accepts the AI clients Vercel has approved, so Firefight reaches its API directly.
     class Vercel < NativePack
       # The environment row's credentials, which only this pack reads.
@@ -36,6 +37,33 @@ module Integrations
       COMMIT_SHA = %w[githubCommitSha gitlabCommitSha bitbucketCommitSha].freeze
       COMMIT_MESSAGE = %w[githubCommitMessage gitlabCommitMessage bitbucketCommitMessage].freeze
       COMMIT_REF = %w[githubCommitRef gitlabCommitRef bitbucketCommitRef].freeze
+
+      CI_LIMIT = 20
+      CI_LIMIT_MAX = 100
+
+      # The metrics query_metrics reads, each a Vercel Observability metric with an aggregation and, for errors, a filter on
+      # its HTTP status, by Vercel's own names (vercel.com/docs/cli/metrics, Available metrics and Filter). Requests are
+      # what Vercel's CDN served, the rest what the project's functions did.
+      Metric = Data.define(:title, :unit, :metric, :aggregation, :filter)
+      REQUEST = "vercel.request.count".freeze
+      INVOCATION = "vercel.function_invocation".freeze
+      METRICS = {
+        "requests" => Metric.new(title: "Requests", unit: "requests", metric: REQUEST, aggregation: "sum", filter: nil),
+        "http_4xx" => Metric.new(title: "4xx responses", unit: "requests", metric: REQUEST, aggregation: "sum", filter: "httpStatus ge 400 and httpStatus lt 500"),
+        "http_5xx" => Metric.new(title: "5xx responses", unit: "requests", metric: REQUEST, aggregation: "sum", filter: "httpStatus ge 500"),
+        "invocations" => Metric.new(title: "Function invocations", unit: "invocations", metric: "#{INVOCATION}.count", aggregation: "sum", filter: nil),
+        "duration" => Metric.new(title: "Function duration", unit: "ms", metric: "#{INVOCATION}.function_duration_ms", aggregation: "avg", filter: nil),
+        "latency_p95" => Metric.new(title: "Function time to first byte, 95th percentile", unit: "ms", metric: "#{INVOCATION}.ttfb_ms", aggregation: "p95", filter: nil),
+        "cpu_time" => Metric.new(title: "Function active CPU time", unit: "ms", metric: "#{INVOCATION}.function_cpu_time_ms", aggregation: "sum", filter: nil),
+        "memory" => Metric.new(title: "Function peak memory", unit: "MB", metric: "#{INVOCATION}.peak_memory_mb", aggregation: "max", filter: nil)
+      }.freeze
+      DEFAULT_METRICS = %w[requests http_5xx invocations duration].freeze
+      PRODUCTION_FILTER = "environment eq 'production'".freeze
+      # The bucket Vercel's CLI picks for a range, the finest it allows (packages/cli/src/commands/metrics/time-utils.ts).
+      GRANULARITIES = [ [ 1.hour, { "minutes" => 1 } ], [ 2.hours, { "minutes" => 5 } ], [ 12.hours, { "minutes" => 15 } ],
+                        [ 3.days, { "hours" => 1 } ], [ 30.days, { "hours" => 4 } ] ].freeze
+      COARSEST = { "days" => 1 }.freeze
+      OBSERVABILITY_PLUS = "Vercel answers these metrics only for a Pro or Enterprise team with Observability Plus".freeze
 
       RESOURCE = { "type" => "string", "description" => "A project in the team, by name or id, as list_resources shows it" }.freeze
       DEPLOYMENT = { "type" => "string", "description" => "A deployment of the project, by its id (dpl_...) or its URL, as list_deployments shows it" }.freeze
@@ -140,6 +168,114 @@ module Integrations
              "required" => %w[resource deployment]
            },
            read_only: false
+
+      tool :cancel_deployment,
+           summary: "Stops a project's deployment that is still building.",
+           description: "Stop a deployment of a project while it is queued or building, such as one from the wrong branch or one " \
+                        "known to be broken, so it never goes live. A deployment that is ready, failed or canceled cannot be " \
+                        "canceled, and a canceled one cannot be started again, so redeploy_deployment builds it anew",
+           params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE, "deployment" => DEPLOYMENT }, "required" => %w[resource deployment] },
+           read_only: false
+
+      tool :redeploy_deployment,
+           summary: "Builds an earlier deployment of a project again, with the same settings.",
+           description: "Build a deployment of a project again as a new deployment, with its settings and environment variables " \
+                        "as they are now, for the same target: production for a production one, or a preview. Use it for a build " \
+                        "that failed for a passing reason, or after a setting was fixed. latest_commit builds the branch's newest " \
+                        "commit instead of the deployment's own. A production one goes live when ready, unless the project was " \
+                        "rolled back or runs rolling releases",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => RESOURCE, "deployment" => DEPLOYMENT,
+               "latest_commit" => { "type" => "boolean", "description" => "Build the branch's newest commit rather than the deployment's (optional, false)" }
+             },
+             "required" => %w[resource deployment]
+           },
+           read_only: false
+
+      tool :query_metrics,
+           summary: "Charts a project's requests, errors and function time from Vercel Observability.",
+           description: "Metrics of one project over time from Vercel Observability: requests its CDN served and how many were " \
+                        "4xx and 5xx, its function invocations, their average duration, the time to first byte 95% of " \
+                        "invocations stayed within, their active CPU time and peak memory. Production only unless asked " \
+                        "otherwise. Returns min, average, max and latest for each, and the person sees each metric as a chart. " \
+                        "Vercel answers only for a team with Observability Plus",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => RESOURCE,
+               "metrics" => { "type" => "array", "items" => { "type" => "string", "enum" => METRICS.keys },
+                              "description" => "Which metrics (optional, #{DEFAULT_METRICS.join(', ')})" },
+               "all_environments" => { "type" => "boolean", "description" => "Previews too, not only production (optional, false)" },
+               **Capabilities::RANGE
+             },
+             "required" => [ "resource" ]
+           },
+           read_only: true
+
+      tool :rolling_release,
+           summary: "Shows a project's rolling release, its stages and the traffic the new deployment gets.",
+           description: "A project's rolling release: whether it is active, aborted or complete, the deployment being rolled out " \
+                        "and the one it replaces, the stage it is at with the share of production traffic the new one gets, " \
+                        "whether the next stage waits for approval or moves on its own, and the stages after it",
+           params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
+           read_only: true
+
+      tool :advance_rolling_release,
+           summary: "Moves a project's rolling release on to its next stage.",
+           description: "Move a project's active rolling release on to its next stage, giving the new deployment the larger " \
+                        "share of production traffic that stage names. When the next stage is the last, the new deployment " \
+                        "serves all production traffic and the rolling release ends. abort_rolling_release goes back",
+           params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
+           read_only: false
+
+      tool :complete_rolling_release,
+           summary: "Sends all of a project's production traffic to the deployment being rolled out.",
+           description: "End a project's active rolling release by sending all production traffic to the deployment being " \
+                        "rolled out, skipping the stages left. rollback_deployment to the one it replaced goes back",
+           params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
+           read_only: false
+
+      tool :abort_rolling_release,
+           summary: "Stops a project's rolling release, sending all traffic back to the deployment it replaced.",
+           description: "Stop a project's active rolling release and send all production traffic back to the deployment it was " \
+                        "replacing, through an instant rollback to it, as Vercel documents for stopping one. Afterwards new " \
+                        "deployments no longer go live on their own until one is promoted with promote_deployment",
+           params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
+           read_only: false
+
+      tool :ci_runs,
+           summary: "Lists the team's Vercel CI runs, or one run with its jobs.",
+           description: "The team's Vercel CI runs, newest first, each with its repository, branch and commit, its status, when it " \
+                        "started and finished and how long it took, and how long finished ones usually take. run reads one by " \
+                        "its id with each job as a part, its outcome and why it failed, and ci_job_log reads a job's log",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "repository" => { "type" => "string", "description" => "Only runs of this repository, as owner/name (optional)" },
+               "branch" => { "type" => "string", "description" => "Only runs of this branch (optional)" },
+               "name" => { "type" => "string", "description" => "Only runs whose repository contains this (optional)" },
+               "run" => { "type" => "string", "description" => "Only this run, by its id, with its jobs (optional)" },
+               "limit" => { "type" => "integer", "description" => "At most this many runs (optional, #{CI_LIMIT}, at most #{CI_LIMIT_MAX})" }
+             }
+           },
+           read_only: true
+
+      tool :ci_job_log,
+           summary: "Shows the log of one job of a Vercel CI run.",
+           description: "The log lines of one job of a Vercel CI run, newest last, as ci_runs names the run and the job",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "run" => { "type" => "string", "description" => "The run's id, as ci_runs shows it" },
+               "job" => { "type" => "string", "description" => "The job, by its id or name as ci_runs shows it" },
+               "text" => { "type" => "string", "description" => "Only lines containing this text (optional)" },
+               "limit" => { "type" => "integer", "description" => "At most this many lines, the last ones (optional, #{LOG_LIMIT})" }
+             },
+             "required" => %w[run job]
+           },
+           read_only: true
 
       tool :api_read,
            summary: "Reads any other Vercel detail, such as project settings, domains or firewall rules.",
@@ -279,15 +415,43 @@ module Integrations
       }.freeze
 
       # A deployment from when it started building (buildingAt, or createdAt before it did) to when it was ready (ready),
-      # each in milliseconds (spec, getDeployments). A failed one keeps no end.
+      # each in milliseconds (spec, getDeployments). The list gives a failed or canceled one no end, so the newest few of
+      # those are read one by one for when their build failed (buildErrorAt) or was canceled (canceledAt). A name of
+      # production or preview is asked of Vercel as the target, so the other kind cannot crowd the list.
       def deploy_history(environment_row:, arguments:)
         project = find_project(environment_row, arguments["resource"])
         return one_deployment(environment_row, project, arguments["run"]) if arguments["run"].present?
 
-        deployments = api(environment_row).deployments(project["id"], limit: Capabilities::Answers.limit(arguments, DEPLOYMENT_LIMIT))
-        runs = deployments.map { |deployment| history_run(deployment) }
+        deployments = api(environment_row).deployments(project["id"], limit: Capabilities::Answers.limit(arguments, DEPLOYMENT_LIMIT), target: target_named(arguments["name"]))
+        runs = with_ends(environment_row, deployments).map { |deployment| history_run(deployment) }
         Capabilities::History.result(runs, what: project["name"], link: project_link(environment_row, project), name: arguments["name"])
       end
+
+      # How many failed or canceled deployments of one list are read again for their end.
+      ENDS_READ = 5
+      ENDED = %w[READY ERROR CANCELED].freeze
+      ENDED_WITHOUT_READY = %w[ERROR CANCELED].freeze
+
+      def target_named(name)
+        asked = name.to_s.downcase
+        [ PRODUCTION, PREVIEW_TARGET ].find { |target| asked.include?(target) }
+      end
+      private :target_named
+
+      # The list's deployments, the newest few that failed or were canceled read whole. One Vercel will not read keeps no end.
+      def with_ends(environment_row, deployments)
+        ended = deployments.select { |deployment| ENDED_WITHOUT_READY.include?((deployment["readyState"] || deployment["state"]).to_s.upcase) }.first(ENDS_READ)
+        read = ended.to_h do |deployment|
+          id = deployment["uid"] || deployment["id"]
+          [ id, api(environment_row).deployment(id) ]
+        rescue Integrations::RateLimited
+          raise
+        rescue VercelApi::Error
+          [ id, deployment ]
+        end
+        deployments.map { |deployment| read[deployment["uid"] || deployment["id"]]&.merge(deployment) { |_key, whole, listed| whole.nil? ? listed : whole } || deployment }
+      end
+      private :with_ends
 
       def deployment_logs(environment_row:, arguments:)
         project = find_project(environment_row, arguments["resource"])
@@ -333,6 +497,131 @@ module Integrations
           "Vercel is pointing the production domains of #{project['name']} at #{deployment['id']}, and new production deployments go live on their own again."
         end
         Telemetry.result("#{done} describe_resource shows how the promotion went.", link: project_link(environment_row, project))
+      end
+
+      # Only a deployment of the project that has not ended, since Vercel cancels one only while it builds (spec,
+      # cancelDeployment).
+      def cancel_deployment(environment_row:, arguments:)
+        project = find_project(environment_row, arguments["resource"])
+        deployment = find_deployment(environment_row, project, arguments["deployment"], required: true)
+        state = (deployment["readyState"] || deployment["state"]).to_s.upcase
+        if ENDED.include?(state)
+          fail! "#{deployment['id']} of #{project['name']} is #{state.downcase} already, so there is nothing to cancel. redeploy_deployment builds it again."
+        end
+
+        canceled = api(environment_row).cancel_deployment(deployment["id"])
+        Telemetry.result("Vercel stopped the build of #{deployment['id']} for #{project['name']}, which is now " \
+                         "#{(canceled['readyState'] || 'canceled').to_s.downcase} and never goes live. redeploy_deployment builds it again.",
+                         link: inspector_link(canceled) || inspector_link(deployment) || project_link(environment_row, project))
+      end
+
+      # Whoever made the deployment a cancel would stop, as Vercel names them. Vercel gives a username and no address, and
+      # a deployment made by an app, integration or Vercel itself has nobody to ask.
+      def owner_of(tool_name, environment_row:, arguments:)
+        return super unless tool_name == "cancel_deployment"
+
+        project = find_project(environment_row, arguments["resource"])
+        deployment = find_deployment(environment_row, project, arguments["deployment"], required: true)
+        creator = deployment["creator"].to_h
+        return if creator["username"].blank? || [ nil, "user" ].exclude?(creator["type"])
+
+        Owner.new(name: creator["username"], role: Owner::ROLE_STARTED, what: "deployment #{deployment['id']} of #{project['name']}")
+      end
+
+      def redeploy_deployment(environment_row:, arguments:)
+        project = find_project(environment_row, arguments["resource"])
+        deployment = find_deployment(environment_row, project, arguments["deployment"], required: true)
+        latest = ActiveModel::Type::Boolean.new.cast(arguments["latest_commit"]) == true
+        made = api(environment_row).redeploy(deployment, latest_commit: latest)
+        id = made["id"] || made["uid"]
+        target = deployment["target"].presence || PREVIEW_TARGET
+        source = latest ? "the newest commit of its branch" : deployment["id"]
+        Telemetry.result("Vercel is building #{id} for #{project['name']}, a #{target} deployment from #{source}. " \
+                         "deploy_history with run #{id} follows it.", link: inspector_link(made) || project_link(environment_row, project))
+      end
+
+      # One query per metric, scoped to the project under the team that owns it (accountId on the project).
+      def query_metrics(environment_row:, arguments:)
+        project = find_project(environment_row, arguments["resource"])
+        started, ended = Capabilities::Answers.range(arguments)
+        asked = Array(arguments["metrics"]).map(&:to_s) & METRICS.keys
+        asked = DEFAULT_METRICS if asked.empty?
+        production = !ActiveModel::Type::Boolean.new.cast(arguments["all_environments"])
+        charts = asked.map { |name| metric_chart(environment_row, project, name, started, ended, production) }
+        where = production ? "production" : "every environment"
+        Telemetry.result("#{project['name']}, #{where}\n#{Telemetry.charts_text(charts)}", charts: charts, link: observability_link(environment_row, project))
+      rescue VercelApi::PlanLimited, VercelApi::Refused => error
+        fail! Sentence.join("Vercel did not read the metrics of #{project ? project['name'] : 'this project'}", error, after: OBSERVABILITY_PLUS)
+      end
+
+      def rolling_release(environment_row:, arguments:)
+        project = find_project(environment_row, arguments["resource"])
+        release = api(environment_row).rolling_release(project["id"])
+        link = project_link(environment_row, project)
+        return Telemetry.result("#{project['name']} has had no rolling release.", link: link) unless release.is_a?(Hash)
+
+        Telemetry.result(rolling_lines(project, release).compact.join("\n"), link: link)
+      end
+
+      # The stage after the active one, as approveRollingReleaseStage takes it.
+      def advance_rolling_release(environment_row:, arguments:)
+        project, release = active_rolling_release(environment_row, arguments)
+        following = release["nextStage"] || fail!("The rolling release of #{project['name']} is at its last stage. complete_rolling_release ends it.")
+        answer = api(environment_row).approve_rolling_stage(project["id"], next_index: following["index"], canary_id: release.dig("canaryDeployment", "id"))
+        now = answer.is_a?(Hash) ? answer["rollingRelease"] : nil
+        said = if following["isFinalStage"] || now.is_a?(Hash) && now["state"] == ROLLING_COMPLETE
+          "#{release.dig('canaryDeployment', 'id')} now serves all production traffic of #{project['name']}, and the rolling release is complete."
+        else
+          "The rolling release of #{project['name']} moved to stage #{following['index'] + 1}, #{following['targetPercentage']}% of production traffic to #{release.dig('canaryDeployment', 'id')}."
+        end
+        Telemetry.result("#{said} abort_rolling_release goes back to #{release.dig('currentDeployment', 'id')} while it is active.", link: project_link(environment_row, project))
+      end
+
+      def complete_rolling_release(environment_row:, arguments:)
+        project, release = active_rolling_release(environment_row, arguments)
+        canary = release.dig("canaryDeployment", "id")
+        api(environment_row).complete_rolling_release(project["id"], canary_id: canary)
+        Telemetry.result("#{canary} now serves all production traffic of #{project['name']}, and the rolling release is complete. " \
+                         "rollback_deployment to #{release.dig('currentDeployment', 'id')} goes back.", link: project_link(environment_row, project))
+      end
+
+      # Vercel stops a rolling release through an instant rollback to the deployment it replaces (docs, rolling-releases,
+      # Stopping a rolling release with the API or SDK).
+      def abort_rolling_release(environment_row:, arguments:)
+        project, release = active_rolling_release(environment_row, arguments)
+        base = release.dig("currentDeployment", "id") || fail!("Vercel names no deployment the rolling release of #{project['name']} replaces, so there is nothing to go back to.")
+        api(environment_row).rollback(project["id"], base, description: "Rolling release stopped")
+        Telemetry.result("Vercel is sending all production traffic of #{project['name']} back to #{base}, which stops the rolling release of " \
+                         "#{release.dig('canaryDeployment', 'id')}. New deployments no longer go live on their own until one is promoted with promote_deployment.",
+                         link: project_link(environment_row, project))
+      end
+
+      def ci_runs(environment_row:, arguments:)
+        return one_ci_run(environment_row, arguments["run"].to_s.strip) if arguments["run"].present?
+
+        limit = [ Capabilities::Answers.limit(arguments, CI_LIMIT), CI_LIMIT_MAX ].min
+        answer = api(environment_row).ci_invocations(limit: limit, repository: arguments["repository"].presence, branch: arguments["branch"].presence)
+        repositories = answer["repositories"].to_h
+        runs = Array(answer["invocations"]).map { |invocation| ci_run(invocation, repositories) }
+        Capabilities::History.result(runs, what: "Vercel CI", link: team_link(environment_row), name: arguments["name"])
+      end
+
+      def ci_job_log(environment_row:, arguments:)
+        run = arguments["run"].to_s.strip.presence || fail!("Say which run, by the id ci_runs shows.")
+        tree = ci_tree(environment_row, run)
+        wanted = arguments["job"].to_s.strip
+        job = Array(tree["jobs"]).find { |each| [ each.dig("definition", "jobDefinitionId"), each.dig("definition", "name") ].include?(wanted) } ||
+              fail!("Run #{run} has no job #{wanted}. ci_runs with run #{run} lists its jobs.")
+        attempt = job.dig("run", "attempt") || fail!("Job #{wanted} of run #{run} has not started, so it has no log yet.")
+        lines = api(environment_row).ci_job_logs(run, attempt: tree.dig("invocation", "attempt"), job_definition_id: job.dig("definition", "jobDefinitionId"), run_attempt: attempt)
+        kept = lines.filter_map do |line|
+          next unless wanted?(line["message"], arguments)
+
+          Telemetry::LogLine.new(at: millis(line["timestamp"]) || Time.current, source: line["level"].to_s, text: line["message"])
+        end
+        limit = Capabilities::Answers.limit(arguments, LOG_LIMIT)
+        text = Telemetry.logs_text(kept.last(limit).reverse, asked: "job #{job.dig('definition', 'name')} of run #{run}", limit: kept.size > limit ? limit : limit + 1)
+        Telemetry.result(text, link: team_link(environment_row))
       end
 
       # A GET the read guard let through (ReadGuards::Vercel), always in the team the call reaches, since the client names
@@ -624,13 +913,146 @@ module Integrations
         Capabilities::History::Run.new(
           id: deployment["uid"] || deployment["id"], name: "#{deployment['target'] || 'preview'} deploy",
           status: Capabilities::History.status(deployment["readyState"] || deployment["state"], DEPLOYMENT_STATES),
-          started_at: millis(deployment["buildingAt"] || deployment["createdAt"] || deployment["created"]), finished_at: millis(deployment["ready"]),
+          started_at: millis(deployment["buildingAt"] || deployment["createdAt"] || deployment["created"]), finished_at: ended_at(deployment),
           url: deployment["inspectorUrl"],
           detail: [ ("#{sha.first(12)} #{meta(deployment, COMMIT_MESSAGE).to_s.lines.first.to_s.strip}".strip if sha), error_words(deployment) ].compact.join(", ").presence
         )
       end
 
       def error_words(deployment) = [ deployment["errorCode"], deployment["errorMessage"] ].compact.join(": ").presence
+
+      # A deployment ends when it is ready, or for one that failed or was canceled, when its build failed or it was canceled,
+      # which only a deployment read by its id gives (spec, getDeployment buildErrorAt and canceledAt).
+      def ended_at(deployment)
+        state = (deployment["readyState"] || deployment["state"]).to_s.upcase
+        millis(deployment["ready"] || (deployment["buildErrorAt"] || deployment["canceledAt"] if ENDED_WITHOUT_READY.include?(state)))
+      end
+
+      # Vercel names the value of each row by the metric and aggregation with dots and slashes as underscores, as its CLI
+      # reads it (packages/cli/src/commands/metrics/output.ts, getRollupColumnName).
+      def metric_chart(environment_row, project, name, started, ended, production)
+        metric = METRICS.fetch(name)
+        filter = [ metric.filter, (PRODUCTION_FILTER if production) ].compact
+        body = {
+          "scope" => { "type" => "project", "ownerId" => project["accountId"], "projectIds" => [ project["id"] ] },
+          "metric" => metric.metric, "aggregation" => metric.aggregation,
+          "startTime" => started.utc.iso8601, "endTime" => ended.utc.iso8601, "granularity" => granularity_for(ended - started),
+          "filter" => (filter.size > 1 ? filter.map { |each| "(#{each})" }.join(" and ") : filter.first)
+        }.compact
+        column = "#{metric.metric}_#{metric.aggregation}".tr("./", "__")
+        rows = Array(api(environment_row).observability_query(body)["data"])
+        points = rows.filter_map do |row|
+          at = Telemetry.parse_time(row["timestamp"])
+          value = Float(row[column].to_s, exception: false)
+          [ at, value ] if at && value&.finite?
+        end
+        Telemetry::Chart.new(title: "#{metric.title} of #{project['name']}", unit: metric.unit, from: started, to: ended,
+                             series: [ Telemetry::Series.new(label: project["name"], points: points.sort_by(&:first)) ],
+                             link: observability_link(environment_row, project)&.url)
+      end
+
+      def granularity_for(range) = GRANULARITIES.find { |most, _granularity| range <= most }&.last || COARSEST
+
+      # Vercel documents no address for a project's Observability page, so metrics link the project's own page, where
+      # Observability is in its sidebar (docs, observability).
+      def observability_link(environment_row, project) = project_link(environment_row, project)
+
+      ROLLING_ACTIVE = "ACTIVE".freeze
+      ROLLING_COMPLETE = "COMPLETE".freeze
+
+      # The project's rolling release, refused in words unless one is active.
+      def active_rolling_release(environment_row, arguments)
+        project = find_project(environment_row, arguments["resource"])
+        release = api(environment_row).rolling_release(project["id"])
+        unless release.is_a?(Hash) && release["state"] == ROLLING_ACTIVE
+          fail! "#{project['name']} has no rolling release in progress#{", its last one is #{release['state'].to_s.downcase}" if release.is_a?(Hash)}. rolling_release shows it."
+        end
+
+        [ project, release ]
+      end
+
+      def rolling_lines(project, release)
+        canary = release["canaryDeployment"].to_h
+        current = release["currentDeployment"].to_h
+        stage = release["activeStage"]
+        [
+          "Rolling release of #{project['name']}: #{release['state'].to_s.downcase}#{', paused' if release['substate'] == 'PAUSED'}, " \
+          "#{release['advancementType'] == 'manual-approval' ? 'each stage waits for approval' : 'stages move on their own'}",
+          ("Rolling out #{canary['id']}, #{canary['readyState'].to_s.downcase}" if canary.any?),
+          ("Replacing #{current['id']}" if current.any?),
+          (stage ? "At stage #{stage['index'] + 1} of #{Array(release['stages']).size}, #{release['currentCanaryPercentage'] || stage['targetPercentage']}% of production traffic to the new deployment" : nil),
+          (stage_line("Next", release["nextStage"]) if release["nextStage"]),
+          ("Started #{millis(release['startedAt'])&.iso8601}, last changed #{millis(release['updatedAt'])&.iso8601}" if release["startedAt"]),
+          ("Queued to roll out next: #{release['queuedDeploymentId']}" if release["queuedDeploymentId"].present?)
+        ]
+      end
+
+      def stage_line(label, stage)
+        timing = if stage["requireApproval"] then "waits for approval"
+        elsif stage["duration"] then "moves on after #{stage['duration'].to_i / 60} minutes"
+        end
+        "#{label}: stage #{stage['index'] + 1}, #{stage['targetPercentage']}% of traffic#{", #{timing}" if timing}#{', the last' if stage['isFinalStage']}"
+      end
+
+      # Vercel CI's invocation statuses and conclusions (spec, listVercelCiInvocations status, completed.conclusion and
+      # runConclusion.result) in Firefight's words.
+      CI_RESULTS = {
+        "succeeded" => Capabilities::History::SUCCEEDED, "failed" => Capabilities::History::FAILED, "skipped" => Capabilities::History::CANCELLED,
+        "cached" => Capabilities::History::SUCCEEDED
+      }.freeze
+      CI_FAILED = %w[bootstrapping_failed jobs_on_hive_failed].freeze
+      CI_SKIPPED = "skipped".freeze
+      CI_NEW = "new".freeze
+
+      def ci_status(invocation)
+        result = invocation.dig("completed", "conclusion") || invocation.dig("runConclusion", "result")
+        return Capabilities::History.status(result, CI_RESULTS) if invocation["completed"].is_a?(Hash) && result
+        return Capabilities::History::FAILED if CI_FAILED.include?(invocation["status"])
+        return Capabilities::History::CANCELLED if invocation["status"] == CI_SKIPPED
+        return Capabilities::History::QUEUED if invocation["status"] == CI_NEW
+
+        Capabilities::History::RUNNING
+      end
+
+      def ci_run(invocation, repositories)
+        repository = repositories[invocation["repositoryKey"]].to_h
+        named = [ repository["owner"], repository["name"] ].compact.join("/").presence || invocation["repositoryKey"]
+        Capabilities::History::Run.new(
+          id: invocation["invocationId"], name: "CI #{named}", status: ci_status(invocation),
+          started_at: millis(invocation.dig("bootstrappingStarted", "startedAt") || invocation["createdAt"]),
+          finished_at: millis(invocation.dig("completed", "completedAt")),
+          detail: [ ("#{invocation['ref']} at #{invocation['commitSha'].to_s.first(12)}" if invocation["ref"].present?), ("attempt #{invocation['attempt']}" if invocation["attempt"].to_i > 1),
+                    invocation.dig("bootstrappingFailed", "reason"), invocation.dig("skipped", "reason") ].compact.join(", ").presence
+        )
+      end
+
+      def ci_tree(environment_row, run)
+        api(environment_row).ci_invocation_tree(run)
+      rescue VercelApi::NotFound
+        fail! "Vercel CI has no run #{run} in this team. ci_runs lists its runs."
+      end
+
+      # One run read by its id with each job as a part, its log read by ci_job_log.
+      def one_ci_run(environment_row, run)
+        tree = ci_tree(environment_row, run)
+        parts = Array(tree["jobs"]).map do |job|
+          job_run = job["run"].to_h
+          conclusion = job_run.dig("completed", "conclusion").to_h
+          status = if conclusion["result"] then Capabilities::History.status(conclusion["result"], CI_RESULTS)
+          elsif job_run["started"] then Capabilities::History::RUNNING
+          else Capabilities::History::QUEUED
+          end
+          Capabilities::History::Part.new(
+            id: job.dig("definition", "jobDefinitionId"), name: job.dig("definition", "name"), status: status,
+            started_at: millis(job_run.dig("started", "startedAt")), finished_at: millis(job_run.dig("completed", "completedAt")),
+            detail: conclusion["reason"].presence,
+            log: { Capabilities::History::LOG_TOOL => "ci_job_log",
+                   Capabilities::History::LOG_ARGUMENTS => { "run" => run, "job" => job.dig("definition", "jobDefinitionId") } }
+          )
+        end
+        found = ci_run(tree["invocation"].to_h, tree["repositories"].to_h).with(parts: parts)
+        Capabilities::History.result([ found ], what: "Vercel CI", link: team_link(environment_row))
+      end
 
       # One deployment read by its id (spec, getDeployment), with its build and, where the project runs them, its checks as
       # parts. The build's log is read for this deployment by deployment_logs, never the newest one's.
@@ -660,7 +1082,7 @@ module Integrations
                    ("out of memory" if deployment["oomReport"].present?) ].compact.join(", ").presence
         Capabilities::History::Part.new(
           id: "#{id}/build", name: "build", status: Capabilities::History.status(deployment["readyState"] || deployment["state"], DEPLOYMENT_STATES),
-          started_at: millis(deployment["buildingAt"] || deployment["createdAt"]), finished_at: millis(deployment["ready"]),
+          started_at: millis(deployment["buildingAt"] || deployment["createdAt"]), finished_at: ended_at(deployment),
           url: deployment["inspectorUrl"], detail: detail,
           log: { Capabilities::History::LOG_TOOL => "deployment_logs",
                  Capabilities::History::LOG_ARGUMENTS => { "resource" => project["id"], "deployment" => id, "type" => BUILD } }

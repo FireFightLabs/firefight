@@ -52,8 +52,22 @@ module Integrations
         secret = @row.reload.map_events_secret
         assert_equal 64, secret.size
         assert_equal [ Netlify::ALL_SITES, secret ], [ webhook.id, webhook.secret ]
-        assert_equal %w[site-1 site-2].flat_map { |site| Netlify::EVENTS.map { |event| [ site, event, URL, secret ] } }, made
-        assert_equal %w[deploy_created deploy_restored deploy_building deploy_failed], Netlify::EVENTS
+        offered = %w[deploy_created deploy_restored deploy_building deploy_failed]
+        assert_equal %w[site-1 site-2].flat_map { |site| offered.map { |event| [ site, event, URL, secret ] } }, made
+        assert_equal offered + Netlify::DEPLOY_REQUESTS, Netlify::EVENTS
+      end
+
+      test "a deploy waiting for approval, accepted or rejected gets a hook where the plan offers it, and wakes a watch without touching the map" do
+        NetlifyApi.any_instance.stubs(:hook_types).returns([ { "name" => "url", "events" => Netlify::EVENTS, "restricted_events" => [] } ])
+        NetlifyApi.any_instance.stubs(:hooks).returns([])
+        made = []
+        NetlifyApi.any_instance.stubs(:create_hook).with { |site, **options| made << [ site, options[:event] ] }.returns({})
+
+        Netlify.register(@row, url: URL)
+
+        assert_equal %w[site-1 site-2].flat_map { |site| Netlify::DEPLOY_REQUESTS.map { |event| [ site, event ] } }, made.select { |_site, event| event.start_with?("deploy_request") }
+        assert Netlify.wakes?(deploy.merge("state" => "pending_review"), headers: { "x-netlify-event" => "deploy_request_pending" })
+        assert_empty Netlify.events(deploy, headers: { "x-netlify-event" => "deploy_request_accepted" })
       end
 
       test "registering again takes back Firefight's hooks at this address, turning on one Netlify disabled, and adds only what is missing" do
