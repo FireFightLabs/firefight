@@ -1,6 +1,6 @@
 ---
 name: render_api
-when: A question about Render that the other Render tools do not answer, such as a service's jobs, disks, custom domains, environment groups, blueprints, projects, one deploy by its id, or anything else Render's API reads, and finding out whether Render's API offers a read at all
+when: A question about Render that the other Render tools do not answer, such as a service's disks, custom domains, environment groups, blueprints, projects, one deploy by its id, or anything else Render's API reads, and finding out whether Render's API offers a read at all
 tools: [api_read, list_resources]
 ---
 `api_read` sends a GET to any path of Render's public API and answers what Render said. It only reads, so it never needs the person's go ahead and works while investigating and watching. Changes go through the restart, rollback and scale tools in render_fixes, never through this.

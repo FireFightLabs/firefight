@@ -48,7 +48,7 @@ module Integrations
         def list_executions(environment_row:, arguments:)
           target = job_target(environment_row, arguments["resource"])
           what = "the executions of #{target.name}"
-          link = page_link(environment_row, target.project, TYPE_JOB)
+          link = resource_link(environment_row, target)
           if arguments["run"].present?
             execution = execution_of(environment_row, target, arguments["run"])
             tasks = api(environment_row).execution_tasks(target.project, target.location, target.name, short(execution["name"])).items
@@ -221,7 +221,7 @@ module Integrations
           scope = [ "resource.type=#{quote(JOB_LOG)}", "resource.labels.job_name=#{quote(target.name)}", "resource.labels.location=#{quote(target.location)}",
                     ("labels.#{quote(EXECUTION_LABEL)}=#{quote(run)}" if run), ("labels.#{quote(TASK_LABEL)}=#{quote(step)}" if step) ].compact
           read_lines(environment_row, target, scope, started, ended, arguments, [ run && "execution #{run}", step && "task #{step}" ].compact,
-                     page_link(environment_row, target.project, TYPE_JOB))
+                     resource_link(environment_row, target))
         end
 
         # The range asked, or with none the run's own time, a minute either side, from what the block reads of it.

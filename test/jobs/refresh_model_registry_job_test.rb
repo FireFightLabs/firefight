@@ -17,6 +17,7 @@ class RefreshModelRegistryJobTest < ActiveSupport::TestCase
     FirefightAi.stubs(:priced?).with("priceless-one").returns(false)
     FirefightAi.stubs(:context_window).returns(200_000)
     Rails.logger.stubs(:info)
+    Rails.logger.stubs(:warn)
     Rails.logger.expects(:warn).with { |line| JSON.parse(line)["models"] == [ "priceless-one" ] }
 
     RefreshModelRegistryJob.perform_now
@@ -27,9 +28,25 @@ class RefreshModelRegistryJobTest < ActiveSupport::TestCase
     FirefightAi.stubs(:priced?).returns(true)
     FirefightAi.stubs(:context_window).returns(nil)
     Rails.logger.stubs(:info)
+    Rails.logger.stubs(:warn)
     Rails.logger.expects(:warn).with { |line| JSON.parse(line)["event"] == "ai.models_without_context_window" }
 
     RefreshModelRegistryJob.perform_now
+  end
+
+  test "a provider's off-peak dates running out are named from 45 days before, so next year's are added in time" do
+    FirefightAi.stubs(:refresh_models!).returns(1722)
+    FirefightAi.stubs(:priced?).returns(true)
+    FirefightAi.stubs(:context_window).returns(200_000)
+    Rails.logger.stubs(:info)
+    warned = []
+    Rails.logger.stubs(:warn).with { |line| warned << JSON.parse(line) }
+
+    travel_to(Time.utc(2026, 11, 1)) { RefreshModelRegistryJob.perform_now }
+    assert_empty warned, "the year's dates are listed and its end is far enough away"
+
+    travel_to(Time.utc(2026, 11, 20)) { RefreshModelRegistryJob.perform_now }
+    assert_equal [ { "event" => "ai.peak_pricing_dates_ending", "providers" => [ { "provider" => "deepseek", "known_through" => "2026-12-31" } ] } ], warned
   end
 
   test "every environment refreshes the registry, since nothing else fills the table" do

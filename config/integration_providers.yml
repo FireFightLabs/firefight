@@ -721,7 +721,7 @@ providers:
     color: "#0080ff"
     status_page: { url: https://status.digitalocean.com, feed: statuspage }
     hosts: [ api.digitalocean.com, digitaloceanspaces.com, ondigitalocean.app ]
-    description: Logs, metrics and deployments of App Platform apps, Droplets and managed databases, and rollbacks, restarts and scaling when you allow it.
+    description: Logs, metrics, deployments, job runs and events of App Platform apps, Droplets and managed databases, and rollbacks, restarts, redeploys, cancelling and scaling when you allow it.
     site: https://cloud.digitalocean.com
     server_url: ""
     kind: native
@@ -732,6 +732,7 @@ providers:
     scaling: firefight
     scaling_note: "An app counts the instances its services and workers run. An app with a component that scales on its own has no one count, so it shows none."
     history: firefight
+    stopping_tools: [cancel_deployment, cancel_job_run, cancel_autoscaling]
   - key: netlify
     name: Netlify
     category: Cloud and hosting
@@ -782,7 +783,7 @@ providers:
     color: "#1a1b1f"
     status_page: { url: https://status.trigger.dev, feed: page }
     hosts: [ api.trigger.dev, trigger.dev ]
-    description: Task runs, logs, errors and deployments of a Trigger.dev environment, and promoting an earlier version when you allow it.
+    description: Task runs, logs, errors, queues and deployments of a Trigger.dev environment, and promoting an earlier version, cancelling and replaying runs, pausing queues and resolving errors when you allow it.
     site: https://cloud.trigger.dev
     server_url: ""
     kind: native
@@ -792,6 +793,15 @@ providers:
     scaling: none
     scaling_note: "It runs each task on demand and says no count of copies."
     history: firefight
+    stopping_tools: [cancel_run, bulk_cancel_runs, abort_bulk_action]
+    mitigation_tools: [pause_queue, pause_concurrency_limit]
+    safe_tools: [resolve_error, ignore_error, unresolve_error]
+    safe_until_outside_tools: [ignore_error]
+    undo_tools:
+      resolve_error: { tool: unresolve_error, arguments: { error: result.error } }
+      ignore_error: { tool: unresolve_error, arguments: { error: result.error } }
+      pause_queue: { tool: resume_queue, arguments: { queue: result.queue } }
+      pause_concurrency_limit: { tool: resume_concurrency_limit, arguments: { limit: result.limit } }
     connect_fields:
       - { key: project, label: Project ref, placeholder: proj_..., pattern: 'proj_[a-z0-9]+', allowed: "proj_ followed by lowercase letters and numbers",
           hint: "The project's ref, starting with proj_, as in your trigger.config.ts. Links to runs use it." }
@@ -937,7 +947,7 @@ providers:
     color: "#000000"
     status_page: { url: https://status.render.com, feed: statuspage }
     hosts: [ api.render.com, onrender.com ]
-    description: Logs, metrics, deploys and events of the services and datastores in your Render workspaces, and restarts, rollbacks and scaling when you allow it.
+    description: Logs, metrics, deploys, events and runs of the services, cron jobs, one-off jobs, datastores and workflows in your Render workspaces, and restarts, rollbacks, scaling, autoscaling, autodeploy, deploys and suspending when you allow it.
     server_url: ""
     kind: native
     connect_with: api_token
@@ -949,6 +959,14 @@ providers:
     scaling: firefight
     scaling_note: "A service counts the instances it runs, which autoscaling moves too."
     history: firefight
+    stopping_tools: [cancel_deploy, cancel_cron_run, cancel_job, cancel_task_run]
+    # Turning autodeploy off takes nothing out of a deploy's way, and its undo sets the trigger it had again. Turning it
+    # on or dropping its checks is set_autodeploy, which asks.
+    safe_tools: [turn_off_autodeploy]
+    undo_tools:
+      turn_off_autodeploy: { tool: set_autodeploy, arguments: { resource: resource, trigger: result.before } }
+    # A one-off job runs any command with every secret its service holds, so a person is asked about each one.
+    access_tools: [run_job]
   - key: railway
     name: Railway
     category: Cloud and hosting
@@ -956,7 +974,7 @@ providers:
     color: "#0b0d0e"
     status_page: { url: https://status.railway.com, feed: page }
     hosts: [ backboard.railway.com, railway.app, up.railway.app ]
-    description: Logs, metrics and deployments of the services in your Railway projects, and restarts, rollbacks and scaling when you allow it.
+    description: Logs, metrics, traces, deployments and cron runs of the services in your Railway projects and their PR environments, and restarts, rollbacks, scaling and deployment changes when you allow it.
     server_url: ""
     site: https://railway.com
     kind: native
@@ -971,6 +989,7 @@ providers:
     scaling: firefight
     scaling_note: "A service counts the replicas it is set to run."
     history: firefight
+    stopping_tools: [cancel_deployment, stop_deployment]
   - key: fly
     name: Fly.io
     category: Cloud and hosting

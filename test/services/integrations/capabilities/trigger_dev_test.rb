@@ -7,7 +7,7 @@ class Integrations::Capabilities::TriggerDevTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: PACK::PROVIDER_KEY, name: "Trigger.dev", slug: "trigger")
     @row = integration.integration_environments.create!(credentials: { PACK::API_KEY => "tr_prod_sk_x", PACK::PROJECT => "proj_acme" }.to_json)
-    Integrations::Capabilities::TriggerDev::TOOLS.values.each do |name|
+    Integrations::Capabilities::TriggerDev::TOOLS.values.flatten.each do |name|
       integration.tools.create!(name: name, description: name, read_only: name != "promote_deployment", enabled: true, params_schema: { "type" => "object" })
     end
     ResourceMap::Resource.create!(workspace: @workspace, provider: PACK::PROVIDER_KEY, account: "proj_acme", kind: ResourceMap::KIND_JOB,
@@ -50,6 +50,18 @@ class Integrations::Capabilities::TriggerDevTest < ActiveSupport::TestCase
     assert_not adapter.wraps?("list_runs")
     assert_not adapter.wraps?("run_details")
     assert_match "roll a resource back", Integrations::Capabilities.halon_sentence(PACK::PROVIDER_KEY, PACK::PROVIDER)
+  end
+
+  test "run history asked for deploys, or for a deployment by its id, is the environment's deployments" do
+    deploys = resolve(Integrations::Capabilities::HISTORY, "resource" => "send-email", "name" => "deploy", "limit" => 5)
+    assert_equal [ "deploy_history", { "limit" => 5 } ], [ deploys.tool.name, deploys.arguments ]
+
+    one = resolve(Integrations::Capabilities::HISTORY, "resource" => "send-email", "run" => "deployment_9")
+    assert_equal [ "deploy_history", { "run" => "deployment_9" } ], [ one.tool.name, one.arguments ]
+    assert_not Integrations::Capabilities::TriggerDev.wraps?("deploy_history")
+
+    task_named_deploy = resolve(Integrations::Capabilities::HISTORY, "resource" => "send-email", "name" => "deploy-notifier")
+    assert_equal "list_runs", task_named_deploy.tool.name, "a task whose name holds deploy is still its runs"
   end
 
   private

@@ -1,0 +1,444 @@
+module Integrations
+  module Packs
+    class Render < NativePack
+      # The runs Render keeps apart from deploys: a cron job's scheduled runs, which Render keeps only as the
+      # cron_job_run_started and cron_job_run_ended events of the cron job (spec, serviceEvent, no list of runs), a service's
+      # one-off jobs (GET /services/{serviceId}/jobs, render.com/docs/one-off-jobs), and a workflow's task runs (GET
+      # /task-runs, render.com/docs/workflows). Each is run history, and a run named by its id has a part whose log is read
+      # for it alone where Render's logs can be filtered to it (GET /logs, resource a job's id, taskRun a task run's), and
+      # otherwise over the time it ran.
+      module Runs
+        CRON_RUNS = "cron_runs".freeze
+        JOB_RUNS = "job_runs".freeze
+        TASK_RUNS = "task_runs".freeze
+        History = Capabilities::History
+
+        CRON_EVENTS = %w[cron_job_run_started cron_job_run_ended].freeze
+        JOB_ENDED = "job_run_ended".freeze
+        # Render's events default to the last hour (spec, startTime), so a cron job's runs are read from this far back,
+        # one page of its run events.
+        CRON_DAYS = 30
+        CRON_EVENT_LIMIT = 100
+        # A cron job's run statuses (spec, Cron Job Run Ended, status), a one-off job's (spec, GET
+        # /services/{serviceId}/jobs, status) and a task run's (spec, GET /task-runs/{taskRunId}, status), in Firefight's
+        # words. A paused task run waits on something and has not ended.
+        CRON_STATUSES = { "pending" => History::QUEUED, "successful" => History::SUCCEEDED, "unsuccessful" => History::FAILED,
+                          "canceled" => History::CANCELLED }.freeze
+        JOB_STATUSES = { "pending" => History::QUEUED, "running" => History::RUNNING, "succeeded" => History::SUCCEEDED,
+                         "failed" => History::FAILED, "canceled" => History::CANCELLED }.freeze
+        TASK_STATUSES = { "pending" => History::QUEUED, "running" => History::RUNNING, "paused" => History::RUNNING,
+                          "completed" => History::SUCCEEDED, "succeeded" => History::SUCCEEDED, "failed" => History::FAILED,
+                          "canceled" => History::CANCELLED }.freeze
+        CRON_RUN = "cron run".freeze
+        ONE_OFF_JOB = "one-off job".freeze
+        # Render runs one-off jobs from web services, private services, background workers and cron jobs
+        # (render.com/docs/one-off-jobs).
+        JOB_TYPES = [ WEB_SERVICE, PRIVATE_SERVICE, BACKGROUND_WORKER, CRON_JOB ].freeze
+        COMMAND_SHOWN = 80
+        TRIGGER_CRON_RUN = "trigger_cron_run".freeze
+        CANCEL_CRON_RUN = "cancel_cron_run".freeze
+        CANCEL_JOB = "cancel_job".freeze
+        RUN_JOB = "run_job".freeze
+        # A plan's id, as Render's CLI takes it (render-oss/cli, render jobs create --plan-id plan-srv-006).
+        PLAN_ID = /\Aplan-[a-z]+-\d+\z/
+        RUN_TASK = "run_task".freeze
+        CANCEL_TASK_RUN = "cancel_task_run".freeze
+        # A task is run by its slug, the workflow's then the task's name (spec, POST /task-runs, task).
+        TASK_SLUG = "%<workflow>s/%<task>s".freeze
+
+        def self.included(pack)
+          pack.tool CRON_RUNS,
+                    summary: "Lists a cron job's recent runs and how each ended.",
+                    description: "A Render cron job's runs of the last #{CRON_DAYS} days, newest first, each with its status, when it " \
+                                 "started and finished, how long it took and why a failed one failed, and how long finished runs usually " \
+                                 "take. Name a run to read it with how to read its log",
+                    params_schema: {
+                      "type" => "object",
+                      "properties" => {
+                        "resource" => RESOURCE,
+                        "name" => { "type" => "string", "description" => "Only runs whose kind contains this, cron run (optional)" },
+                        "run" => { "type" => "string", "description" => "Only this run, by its id (optional)" },
+                        "limit" => { "type" => "integer", "description" => "At most this many runs (optional, #{History::LIMIT})" }
+                      },
+                      "required" => [ "resource" ]
+                    },
+                    read_only: true
+
+          pack.tool JOB_RUNS,
+                    summary: "Lists a service's one-off jobs and how each ended.",
+                    description: "A Render service's one-off jobs, newest first, each with its status, its command, when it started and " \
+                                 "finished and how long it took, and how long finished ones usually take. A one-off job runs a command " \
+                                 "once on a copy of the service, such as a migration. Name a job to read it with why it failed and how to read its log",
+                    params_schema: {
+                      "type" => "object",
+                      "properties" => {
+                        "resource" => RESOURCE,
+                        "name" => { "type" => "string", "description" => "Only runs whose kind contains this, one-off job (optional)" },
+                        "run" => { "type" => "string", "description" => "Only this job, by its id, such as job-... (optional)" },
+                        "limit" => { "type" => "integer", "description" => "At most this many jobs (optional, #{History::LIMIT})" }
+                      },
+                      "required" => [ "resource" ]
+                    },
+                    read_only: true
+
+          pack.tool TASK_RUNS,
+                    summary: "Lists a workflow's recent task runs and how each went.",
+                    description: "A Render workflow's task runs, newest first, each named by its task, with its status, when it started " \
+                                 "and finished and how long it took, and how long finished ones usually take. Name a run to read it with " \
+                                 "each attempt and each task it started, the error a failed one gave, and how to read each one's log",
+                    params_schema: {
+                      "type" => "object",
+                      "properties" => {
+                        "resource" => { "type" => "string", "description" => "The workflow, by name or id, as list_resources shows it" },
+                        "name" => { "type" => "string", "description" => "Only runs of tasks whose name contains this (optional)" },
+                        "run" => { "type" => "string", "description" => "Only this task run, by its id (optional)" },
+                        "limit" => { "type" => "integer", "description" => "At most this many runs (optional, #{History::LIMIT})" }
+                      },
+                      "required" => [ "resource" ]
+                    },
+                    read_only: true
+
+          resource_only = { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] }
+          pack.tool TRIGGER_CRON_RUN,
+                    summary: "Starts a cron job's run now, cancelling one already running.",
+                    description: "Run a Render cron job now, outside its schedule. Render cancels a run of it already going first. " \
+                                 "Follow it with run_history on the cron job",
+                    params_schema: resource_only, read_only: false
+
+          pack.tool CANCEL_CRON_RUN,
+                    summary: "Cancels the run of a cron job that is going now.",
+                    description: "Cancel the run of a Render cron job that is going now. Its next scheduled run still starts",
+                    params_schema: resource_only, read_only: false
+
+          pack.tool CANCEL_JOB,
+                    summary: "Cancels a one-off job that is still running.",
+                    description: "Cancel a Render one-off job that is still pending or running, by its id as run_history with name job shows it. What it " \
+                                 "already did stays done",
+                    params_schema: {
+                      "type" => "object",
+                      "properties" => { "resource" => RESOURCE, "job" => { "type" => "string", "description" => "The job, by its id, such as job-..." } },
+                      "required" => %w[resource job]
+                    },
+                    read_only: false
+
+          pack.tool RUN_JOB,
+                    summary: "Runs a command once as a one-off job on a copy of a service.",
+                    description: "Run a command once on a copy of a Render web service, private service, background worker or cron job, " \
+                                 "with its code and environment, such as a migration or a script that repairs data. It runs with every " \
+                                 "secret the service holds, so a person is asked every time. Follow it with run_history with name job",
+                    params_schema: {
+                      "type" => "object",
+                      "properties" => {
+                        "resource" => RESOURCE,
+                        "command" => { "type" => "string", "description" => "The exact command to run, such as bin/rails db:migrate. Never a secret" },
+                        "plan" => { "type" => "string", "description" => "The plan to run it on, by its id, such as plan-srv-006 (optional, the service's own)" }
+                      },
+                      "required" => %w[resource command]
+                    },
+                    read_only: false
+
+          pack.tool RUN_TASK,
+                    summary: "Starts a run of a workflow's task with its input.",
+                    description: "Start a run of a task of a Render workflow, by the task's name as describe_resource lists it, with " \
+                                 "the input its function takes. Follow it with run_history on the workflow",
+                    params_schema: {
+                      "type" => "object",
+                      "properties" => {
+                        "resource" => { "type" => "string", "description" => "The workflow, by name or id, as list_resources shows it" },
+                        "task" => { "type" => "string", "description" => "The task's name" },
+                        "input" => { "description" => "The task's arguments, a list by position or an object by name, never a secret (optional, none)" }
+                      },
+                      "required" => %w[resource task]
+                    },
+                    read_only: false
+
+          pack.tool CANCEL_TASK_RUN,
+                    summary: "Cancels a workflow's task run that is still going.",
+                    description: "Cancel a Render task run that is still going, by its id as run_history on the workflow shows it. What it already did stays done",
+                    params_schema: {
+                      "type" => "object",
+                      "properties" => {
+                        "resource" => { "type" => "string", "description" => "The workflow, by name or id, as list_resources shows it" },
+                        "run" => { "type" => "string", "description" => "The task run, by its id" }
+                      },
+                      "required" => %w[resource run]
+                    },
+                    read_only: false
+        end
+
+        def trigger_cron_run(environment_row:, arguments:)
+          resource = cron_job!(environment_row, arguments)
+          run = api(environment_row).trigger_cron_run(resource[:id]).to_h
+          started = run["id"] ? "run #{run['id']}" : "a run"
+          Telemetry.result("Render started #{started} of #{resource[:name]}, cancelling any run of it already going. Follow it with run_history on the cron job.",
+                           link: link(resource))
+        end
+
+        def cancel_cron_run(environment_row:, arguments:)
+          resource = cron_job!(environment_row, arguments)
+          going = cron_run_list(resource, recent_cron_events(environment_row, resource)).select { |run| run.status == History::RUNNING }.max_by(&:started_at)
+          fail! "No run of #{resource[:name]} is going now, so there is nothing to cancel. run_history on the cron job lists its runs." unless going
+
+          api(environment_row).cancel_cron_run(resource[:id])
+          Telemetry.result("Render is cancelling run #{going.id} of #{resource[:name]}, going since #{going.started_at.utc.iso8601}. Its next scheduled run still starts.",
+                           link: link(resource))
+        end
+
+        def cancel_job(environment_row:, arguments:)
+          resource = find_resource(environment_row, arguments["resource"])
+          id = arguments["job"].to_s.strip
+          fail! "Say which one-off job, by the id run_history with name job shows." if id.empty?
+
+          job = job_of(environment_row, resource, id)
+          if History::FINISHED.include?(History.status(job["status"], JOB_STATUSES))
+            fail! "One-off job #{id} of #{resource[:name]} already ended as #{job['status']}, so there is nothing to cancel."
+          end
+
+          cancelled = api(environment_row).cancel_job(resource[:id], id).to_h
+          Telemetry.result("Render is cancelling one-off job #{id} of #{resource[:name]}, now #{cancelled['status'] || 'canceled'}. What it already did stays done.",
+                           link: link(resource))
+        end
+
+        # Render documents no page of a job of its own, so the answer links the service's.
+        def run_job(environment_row:, arguments:)
+          resource = find_resource(environment_row, arguments["resource"])
+          unless JOB_TYPES.include?(resource[:type])
+            fail! "#{resource[:name]} is a #{TYPE_WORDS.fetch(resource[:type])}, and Render runs one-off jobs from web services, private " \
+                  "services, background workers and cron jobs."
+          end
+          command = arguments["command"].to_s.strip
+          fail! "Say the exact command to run." if command.empty?
+          fail_policy!("The command holds what looks like a secret, and Firefight never sends a credential through Render's API.") if secret_shaped?(command)
+          plan = arguments["plan"].to_s.strip.presence
+          fail! "plan must be a Render plan id, such as plan-srv-006." if plan && !plan.match?(PLAN_ID)
+
+          job = api(environment_row).create_job(resource[:id], command, plan_id: plan).to_h
+          Telemetry.result("Started one-off job #{job['id']} on #{resource[:name]} running #{command}, now #{job['status'] || 'pending'}. " \
+                           "Follow it with run_history with name job and run #{job['id']}.", link: link(resource))
+        end
+
+        def run_task(environment_row:, arguments:)
+          resource = workflow!(environment_row, arguments)
+          input = arguments["input"].nil? ? [] : arguments["input"]
+          fail!("input must be a list of arguments or an object of names to values.") unless input.is_a?(Array) || input.is_a?(Hash)
+          fail_policy!("input holds what looks like a secret, and Firefight never sends a credential through Render's API.") if secret_shaped?(input)
+
+          api = api(environment_row)
+          name = arguments["task"].to_s.strip
+          tasks = api.tasks(resource[:id]).items.filter_map { |task| task["name"].presence }
+          fail! "#{resource[:name]} has no task #{name}. Its tasks are #{tasks.to_sentence.presence || 'none yet'}." unless tasks.include?(name)
+          slug = api.workflow(resource[:id])["slug"].presence || fail!("Render did not say #{resource[:name]}'s slug, which a task is run by.")
+
+          run = api.run_task(format(TASK_SLUG, workflow: slug, task: name), input).to_h
+          Telemetry.result("Started task run #{run['id']} of #{name} on #{resource[:name]}, now #{run['status'] || 'pending'}. Follow it with run_history on the workflow.",
+                           link: link(resource))
+        end
+
+        def cancel_task_run(environment_row:, arguments:)
+          resource = workflow!(environment_row, arguments)
+          api = api(environment_row)
+          id = arguments["run"].to_s.strip
+          fail! "Say which task run, by the id run_history on the workflow shows." if id.empty?
+
+          found = begin
+            api.task_run(id)
+          rescue RenderApi::NotFound
+            fail! "#{resource[:name]} has no task run #{id}. run_history on the workflow lists its runs."
+          end
+          tasks = task_names(api, resource)
+          same_workflow!(resource, tasks, found, id)
+          if History::FINISHED.include?(History.status(found["status"], TASK_STATUSES))
+            fail! "Task run #{id} already ended as #{found['status']}, so there is nothing to cancel."
+          end
+
+          api.cancel_task_run(id)
+          Telemetry.result("Render is cancelling task run #{id} of #{resource[:name]}. What it already did stays done.", link: link(resource))
+        end
+
+        def cron_runs(environment_row:, arguments:)
+          resource = find_resource(environment_row, arguments["resource"])
+          fail! "#{resource[:name]} is a #{TYPE_WORDS.fetch(resource[:type])}, and only a cron job has scheduled runs." unless resource[:type] == CRON_JOB
+
+          runs = cron_run_list(resource, recent_cron_events(environment_row, resource))
+          limit = Capabilities::Answers.limit(arguments, History::LIMIT)
+          return History.result(runs, what: resource[:name], link: link(resource), name: arguments["name"], limit: limit) if arguments["run"].blank?
+
+          run = runs.find { |each| each.named?(arguments["run"]) } ||
+                fail!("#{resource[:name]} had no run #{arguments['run']} in the last #{CRON_DAYS} days. run_history on the cron job lists its runs.")
+          History.result([ run.with(parts: [ run_part(run, "run", "resource" => resource[:id], "type" => "app") ]) ], what: resource[:name], link: link(resource))
+        end
+
+        def job_runs(environment_row:, arguments:)
+          resource = find_resource(environment_row, arguments["resource"])
+          unless JOB_TYPES.include?(resource[:type])
+            fail! "#{resource[:name]} is a #{TYPE_WORDS.fetch(resource[:type])}, and Render runs one-off jobs from web services, private " \
+                  "services, background workers and cron jobs."
+          end
+          return one_job(environment_row, resource, arguments["run"].to_s.strip) if arguments["run"].present?
+
+          limit = Capabilities::Answers.limit(arguments, History::LIMIT)
+          runs = api(environment_row).jobs(resource[:id], limit: limit).map { |job| job_run(resource, job) }
+          History.result(runs, what: "the one-off jobs of #{resource[:name]}", link: link(resource), name: arguments["name"], limit: limit)
+        end
+
+        def task_runs(environment_row:, arguments:)
+          resource = find_resource(environment_row, arguments["resource"])
+          fail! "#{resource[:name]} is a #{TYPE_WORDS.fetch(resource[:type])}, and only a workflow has task runs." unless resource[:type] == WORKFLOW
+
+          api = api(environment_row)
+          tasks = task_names(api, resource)
+          return one_task_run(api, resource, tasks, arguments["run"].to_s.strip) if arguments["run"].present?
+
+          limit = Capabilities::Answers.limit(arguments, History::LIMIT)
+          runs = api.task_runs(resource[:id], limit: limit).map { |run| task_run(resource, run, tasks) }
+          History.result(runs, what: resource[:name], link: link(resource), name: arguments["name"], limit: limit)
+        end
+
+        private
+
+        def cron_job!(environment_row, arguments)
+          resource = find_resource(environment_row, arguments["resource"])
+          fail! "#{resource[:name]} is a #{TYPE_WORDS.fetch(resource[:type])}, and only a cron job has runs to start or cancel." unless resource[:type] == CRON_JOB
+
+          resource
+        end
+
+        def workflow!(environment_row, arguments)
+          resource = find_resource(environment_row, arguments["resource"])
+          fail! "#{resource[:name]} is a #{TYPE_WORDS.fetch(resource[:type])}, and only a workflow has task runs." unless resource[:type] == WORKFLOW
+
+          resource
+        end
+
+        def recent_cron_events(environment_row, resource)
+          api(environment_row).events(resource[:id], "type" => CRON_EVENTS, "startTime" => CRON_DAYS.days.ago.utc.iso8601,
+                                                     "endTime" => Time.current.utc.iso8601, "limit" => CRON_EVENT_LIMIT)
+        end
+
+        # A task run counts as the workflow's only when its task is one of the workflow's. Render's task run names no
+        # workflow (spec, GET /task-runs/{taskRunId}), so a task list that could not be read refuses rather than lets it by.
+        def same_workflow!(resource, tasks, found, id)
+          fail! "The tasks of #{resource[:name]} could not be read, so task run #{id} cannot be told to be its own. Try again." if tasks.empty?
+          fail! "Task run #{id} belongs to another workflow, not #{resource[:name]}." unless tasks.key?(found["taskId"])
+        end
+
+        def secret_shaped?(input) = Chat::SecretFree::SECRET_PATTERNS.values.any? { |pattern| input.to_json.match?(pattern) }
+
+        # A cron run from its start and end events, by the run's id. A run whose start fell before the events read is left
+        # out, since when it began is not known.
+        def cron_run_list(resource, events)
+          events.group_by { |event| event.dig("details", "cronJobRunId") }.filter_map do |id, pair|
+            started = pair.find { |event| event["type"] == CRON_EVENTS.first }
+            ended = pair.find { |event| event["type"] == CRON_EVENTS.last }
+            next if id.blank? || started.nil?
+
+            details = ended&.dig("details") || {}
+            by = details.dig("user", "email")
+            History::Run.new(
+              id: id, name: CRON_RUN, status: ended ? History.status(details["status"], CRON_STATUSES) : History::RUNNING,
+              started_at: Telemetry.parse_time(started["timestamp"]), finished_at: Telemetry.parse_time(ended&.dig("timestamp")), url: resource[:url],
+              detail: [ failure_words(details["reason"]), ("started by #{by}" if by.present?) ].compact.join(", ").presence
+            )
+          end
+        end
+
+        def job_run(resource, job, reason: nil)
+          command = job["startCommand"].to_s.lines.first.to_s.strip
+          History::Run.new(
+            id: job["id"], name: ONE_OFF_JOB, status: History.status(job["status"], JOB_STATUSES),
+            started_at: Telemetry.parse_time(job["startedAt"] || job["createdAt"]), finished_at: Telemetry.parse_time(job["finishedAt"]),
+            url: resource[:url], detail: [ (command.truncate(COMMAND_SHOWN) if command.present?), reason ].compact.join(", ").presence
+          )
+        end
+
+        # One job, with why it ended from its job_run_ended event, and its log read by the job's own id.
+        def one_job(environment_row, resource, id)
+          api = api(environment_row)
+          job = begin
+            api.job(resource[:id], id)
+          rescue RenderApi::NotFound
+            fail! "#{resource[:name]} has no one-off job #{id}. run_history with name job lists its jobs."
+          end
+          run = job_run(resource, job, reason: job_reason(api, resource, job))
+          History.result([ run.with(parts: [ run_part(run, "job", "resource" => resource[:id], "job" => job["id"]) ]) ],
+                         what: "the one-off jobs of #{resource[:name]}", link: link(resource))
+        end
+
+        def job_reason(api, resource, job)
+          from = Telemetry.parse_time(job["createdAt"]) || Time.current
+          to = Telemetry.parse_time(job["finishedAt"]) || Time.current
+          events = api.events(resource[:id], "type" => [ JOB_ENDED ], "startTime" => (from - PHASE_MARGIN).utc.iso8601,
+                                             "endTime" => (to + PHASE_MARGIN).utc.iso8601, "limit" => PHASE_EVENT_LIMIT)
+          failure_words(events.find { |event| event.dig("details", "jobId") == job["id"] }&.dig("details", "reason"))
+        rescue Integrations::RateLimited
+          raise
+        rescue RenderApi::Error
+          nil
+        end
+
+        # The workflow's tasks by id, so each run is named by its task. A list Render refuses leaves runs named by task id.
+        def task_names(api, resource)
+          api.tasks(resource[:id]).items.to_h { |task| [ task["id"], task["name"].presence || task["id"] ] }
+        rescue Integrations::RateLimited
+          raise
+        rescue RenderApi::Error
+          {}
+        end
+
+        def task_run(resource, run, tasks)
+          retries = run["retries"].to_i
+          History::Run.new(
+            id: run["id"], name: tasks.fetch(run["taskId"], run["taskId"]), status: History.status(run["status"], TASK_STATUSES),
+            started_at: Telemetry.parse_time(run["startedAt"]), finished_at: Telemetry.parse_time(run["completedAt"]), url: resource[:url],
+            detail: [ run["error"].presence, ("retried #{retries} #{'time'.pluralize(retries)}" if retries.positive?),
+                      ("started by task run #{run['parentTaskRunId']}" if run["parentTaskRunId"].present? && run["parentTaskRunId"] != run["id"]) ].compact.join(", ").presence
+          )
+        end
+
+        # One task run with each attempt and each task run it started, each read in the workflow's log for that run alone. A
+        # run of another workflow's task is refused.
+        def one_task_run(api, resource, tasks, id)
+          found = begin
+            api.task_run(id)
+          rescue RenderApi::NotFound
+            fail! "#{resource[:name]} has no task run #{id}. run_history on the workflow lists its runs."
+          end
+          same_workflow!(resource, tasks, found, id)
+
+          run = task_run(resource, found, tasks)
+          attempts = Array(found["attempts"]).map do |attempt|
+            part = History::Part.new(
+              id: "attempt-#{attempt['attempt']}", name: "attempt #{attempt['attempt'].to_i + 1}", status: History.status(attempt["status"], TASK_STATUSES),
+              started_at: Telemetry.parse_time(attempt["startedAt"]), finished_at: Telemetry.parse_time(attempt["completedAt"]), url: resource[:url],
+              detail: attempt["error"].presence
+            )
+            part.with(log: log_ref(part, "resource" => resource[:id], "task_run" => found["id"]))
+          end
+          # Render lists a tree by its root, so the runs this one started are those of its tree whose parent it is.
+          root = found["rootTaskRunId"].presence || found["id"]
+          started = api.child_task_runs(root).select { |child| child["parentTaskRunId"] == found["id"] && child["id"] != found["id"] }
+          children = started.map do |child|
+            sub = task_run(resource, child, tasks)
+            part = History::Part.new(id: sub.id, name: "#{sub.name} (task run #{sub.id})", status: sub.status, started_at: sub.started_at,
+                                     finished_at: sub.finished_at, url: resource[:url], detail: child["error"].presence)
+            part.with(log: log_ref(part, "resource" => resource[:id], "task_run" => child["id"]))
+          end
+          History.result([ run.with(parts: attempts + children) ], what: resource[:name], link: link(resource))
+        end
+
+        def run_part(run, name, arguments)
+          part = History::Part.new(id: run.id, name: name, status: run.status, started_at: run.started_at, finished_at: run.finished_at,
+                                   url: run.url, detail: run.detail)
+          part.with(log: log_ref(part, arguments))
+        end
+
+        # How a part's log is read: search_logs over the time it ran, a little past its end, as Render stamps lines on its
+        # own clock.
+        def log_ref(part, arguments)
+          window = { "start" => part.started_at&.utc&.iso8601, "end" => (part.finished_at && (part.finished_at + PHASE_MARGIN).utc.iso8601) }
+          { History::LOG_TOOL => "search_logs", History::LOG_ARGUMENTS => arguments.merge(window).compact }
+        end
+      end
+    end
+  end
+end

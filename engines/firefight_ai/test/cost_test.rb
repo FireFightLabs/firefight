@@ -57,4 +57,21 @@ class FirefightAi::CostTest < ActiveSupport::TestCase
     assert_equal 5_000_000, FirefightAi.cost_micros("claude-opus-5-5", provider: "anthropic", input: 1_000_000, output: 0, cache_write: 1_000_000, cache_write_by_ttl: {}),
                  "no split prices every write at the registry's write price, as before"
   end
+
+  # The price a code fix's budget is charged and the ledger keeps, for a call on DeepSeek's own API.
+  test "a DeepSeek call costs twice as much at peak hours as off-peak" do
+    off_peak = FirefightAi.cost_micros("deepseek-flash", provider: "deepseek", input: 1_000_000, output: 1_000_000, cache_read: 500_000,
+                                                         at: Time.utc(2026, 10, 20, 12, 0))
+    peak = FirefightAi.cost_micros("deepseek-flash", provider: "deepseek", input: 1_000_000, output: 1_000_000, cache_read: 500_000,
+                                                     at: Time.utc(2026, 10, 20, 7, 0))
+
+    # 500k plain input at $0.15, 500k cache reads at $0.003, a million output at $0.60.
+    assert_equal 75_000 + 1_500 + 600_000, off_peak
+    assert_equal 2 * off_peak, peak
+
+    travel_to(Time.utc(2026, 10, 20, 7, 0)) do
+      assert_equal peak, FirefightAi.cost_micros("deepseek-flash", provider: "deepseek", input: 1_000_000, output: 1_000_000, cache_read: 500_000),
+                   "priced at the hour it is asked, when no time is given"
+    end
+  end
 end
