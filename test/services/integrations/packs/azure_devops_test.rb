@@ -370,11 +370,13 @@ module Integrations
       end
 
       test "the general read keeps to the projects the connection reads, refuses a run's log, and links the page it read" do
-        AzureDevopsApi.any_instance.expects(:read).with("/Shop/_apis/policy/configurations", {}).returns("value" => [ { "id" => 1 } ])
-        assert_match PROJECT_WEB, call(:api_read, "path" => "/Shop/_apis/policy/configurations")
+        AzureDevopsApi.any_instance.expects(:read).with("/Shop/_apis/policy/configurations", {}).returns([ { "value" => [ { "id" => 1 } ] }, "next-page" ])
+        text = call(:api_read, "path" => "/Shop/_apis/policy/configurations")
+        assert_match PROJECT_WEB, text
+        assert_includes text, "Read the next page with continuationToken next-page in query.", "the token a list gives in its header reaches the model"
 
-        AzureDevopsApi.any_instance.expects(:read).with("/_apis/projects", {}).returns("value" => [])
-        call(:api_read, "path" => "/_apis/projects")
+        AzureDevopsApi.any_instance.expects(:read).with("/_apis/projects", {}).returns([ { "value" => [] }, nil ])
+        assert_not_includes call(:api_read, "path" => "/_apis/projects"), "next page"
 
         assert_match "reads Shop only", assert_raises(PolicyRefusal) { call(:api_read, "path" => "/Other/_apis/git/repositories") }.message
         assert_match "Read it with job_log", assert_raises(PolicyRefusal) { call(:api_read, "path" => "/Shop/_apis/build/builds/7/logs/3") }.message

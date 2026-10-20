@@ -401,8 +401,9 @@ module Integrations
         fail_policy!(outside) if outside
 
         azure = api(environment_row)
-        answer = azure.read(path, query)
+        answer, continuation = azure.read(path, query)
         text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::AzureDevops.secret?(path), webhooks: ReadGuards::AzureDevops.webhooks?(path))
+        text += "\nMore follow. Read the next page with #{AzureDevopsApi::CONTINUATION_PARAM} #{continuation} in query." if continuation
         page = (answer.dig("_links", "web", "href") if answer.is_a?(Hash) && answer["_links"].is_a?(Hash) && answer.dig("_links", "web").is_a?(Hash))
         page ||= answer["webUrl"] if answer.is_a?(Hash) && answer["webUrl"].is_a?(String)
         page ||= project_page(azure, named) if named

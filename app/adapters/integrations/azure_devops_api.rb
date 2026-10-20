@@ -52,8 +52,11 @@ module Integrations
     def get(path, query = {}) = call(Net::HTTP::Get, path, query)
 
     # Any GET of the API, by its path after the organization, for the general read (Integrations::ApiReads), which checks
-    # the path before it gets here.
-    def read(path, query) = get(path, query)
+    # the path before it gets here. Returns the answer and the continuation token a list gives in its header, or nil.
+    def read(path, query)
+      answer = call(Net::HTTP::Get, path, query, with_status: true)
+      [ answer.body, answer.header(CONTINUATION).to_s.presence ]
+    end
 
     # A list's values, reading on from each page's continuation token up to pages. Returns the values and whether more
     # were left.
