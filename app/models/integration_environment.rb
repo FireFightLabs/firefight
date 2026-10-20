@@ -120,6 +120,16 @@ class IntegrationEnvironment < ApplicationRecord
     nil
   end
 
+  # Changes a field the connection's details let a person change after connecting (IntegrationProvider::ConnectField,
+  # editable). Left empty, an optional field is cleared. Answers why the value cannot be kept, or nil once it is.
+  def edit_field!(field, value)
+    refusal = field.refusal(value)
+    return refusal if refusal
+
+    update!(base_config: base_config.to_h.merge(FIELDS_KEY => fields.merge(field.key => field.value_of(value)).compact_blank))
+    nil
+  end
+
   # Sets what the connection reads at its provider, the scopes its connect form chose (IntegrationProvider::ConnectField,
   # scope), one, several, or ConnectField::ALL. Each must be one the credential can read now. Answers why they cannot be
   # chosen, or nil once they are kept.

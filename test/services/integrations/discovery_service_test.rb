@@ -13,6 +13,29 @@ module Integrations
       @integration.integration_environments.create!(credentials: { authorization: "Bearer x" }.to_json)
     end
 
+    test "a pack's tools beside a remote server join a connection made before, without asking the server, keeping its own tools as they were" do
+      @integration.update!(provider: "planetscale", settings: { "server_url" => "https://mcp.pscale.dev/mcp/planetscale" })
+      McpClient.any_instance.stubs(:tools_list).returns([ { "name" => "planetscale_get_branch", "description" => "A branch" } ])
+      DiscoveryService.sync!(@integration)
+      @integration.tools.find_by!(name: "planetscale_get_branch").update!(enabled: false)
+      McpClient.any_instance.expects(:tools_list).never
+
+      DiscoveryService.add_firefight_tools!(@integration)
+
+      tools = @integration.tools.reload.index_by(&:name)
+      assert_not tools.fetch("planetscale_get_branch").enabled?, "an admin's choice is kept"
+      assert_nil tools.fetch("planetscale_get_branch").removed_at, "a server's tool is never taken as gone"
+      assert tools.fetch("planetscale_get_branch").read_only?
+      assert tools.fetch("planetscale_list_deploy_requests").then { |tool| tool.enabled? && tool.read_only? && tool.removed_at.nil? }
+      assert_not tools.fetch("planetscale_revert_deploy_request").read_only?
+      stale = @integration.tools.create!(name: "planetscale_old_tool", description: "Gone", read_only: true, enabled: true, params_schema: {},
+                                         spec: { Provider::FIREFIGHT_TOOL => true })
+      DiscoveryService.add_firefight_tools!(@integration)
+      assert stale.reload.removed_at, "one of Firefight's own tools no longer offered is taken as gone"
+      assert_nil tools.fetch("planetscale_get_branch").reload.removed_at
+      assert_empty DiscoveryService.add_firefight_tools!(@integration.tap { |each| each.update!(provider: "newrelic") })
+    end
+
     test "a tool the provider's entry names as read only is a read, whatever the server says" do
       @integration.update!(provider: "cloudflare", settings: { "server_url" => "https://mcp.cloudflare.com/mcp" })
       McpClient.any_instance.stubs(:tools_list).returns([

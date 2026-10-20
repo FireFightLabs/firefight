@@ -1,11 +1,11 @@
 ---
 name: planetscale_query_errors
 when: Finding which queries fail on a PlanetScale database, and why
-tools: [planetscale_list_organizations, planetscale_list_databases, planetscale_list_query_error_patterns, planetscale_list_query_error_executions, planetscale_get_postgres_logs]
+tools: [planetscale_list_organizations, planetscale_list_databases, search_errors, planetscale_list_query_error_patterns, planetscale_list_query_error_executions, planetscale_get_postgres_logs]
 references: [postgres/mvcc-transactions.md, mysql/deadlocks.md, mysql/row-locking-gotchas.md]
 ---
 1. When the person did not name the database, find its organization with `planetscale_list_organizations` and the database with `planetscale_list_databases`. Production is usually the main branch.
-2. Call `planetscale_list_query_error_patterns` for the production branch and the window. Each error comes with how often it happened and when it was last seen.
+2. Call `search_errors` for the database, or `planetscale_list_query_error_patterns` for the production branch, over the window. Each error comes with how often it happened, when it was last seen and its fingerprint. Either reads at most 25 hours.
 3. For the pattern that matches what was reported, call `planetscale_list_query_error_executions` with its `error_fingerprint` to see the failing statements, their tables and the full error.
 4. Read the error:
    - A deadlock or a serialization failure means two transactions fought over the same rows. It is usually solved in the code by locking rows in the same order or retrying.

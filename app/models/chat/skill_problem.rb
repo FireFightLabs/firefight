@@ -5,9 +5,10 @@ class Chat::SkillProblem < ApplicationRecord
 
   # A provider skill names the provider's tools. A connected server can drop or rename one, so each provider skill is
   # checked against the tools its provider still offers on any connection, and what is gone is recorded for whoever
-  # runs Firefight. A native pack's tools are in this repository, and a test holds its skills to them.
+  # runs Firefight. A native pack's tools are in this repository, and a test holds its skills to them. A pack beside a
+  # remote server is checked with the server's tools, since its skills name both.
   def self.check!
-    skills = Chat::Skill.all.reject { |skill| skill.firefight? || Integrations::NativePack.for(skill.source) }
+    skills = Chat::Skill.all.reject { |skill| skill.firefight? || Integrations::NativePack.for(skill.source)&.beside_server? == false }
     offered = Hash.new { |known, provider| known[provider] = offered_by(provider) }
     missing = skills.to_h { |skill| [ skill.name, skill.tools - offered[skill.source] - [ ResourceMap::READ_TOOL ] ] }.reject { |_skill, tools| tools.empty? }
 

@@ -453,6 +453,40 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_match "could not be reached", flash[:alert]
   end
 
+  test "a PlanetScale service token's id is added and cleared from the connection's details, each said in a toast, and the token never sent back" do
+    integration = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "planetscale", name: "PlanetScale",
+                                                  settings: { "server_url" => "https://mcp.pscale.dev/mcp/planetscale" })
+    row = integration.integration_environments.create!(credentials: IntegrationEnvironment.token_credentials("Bearer pscale_tkn_secret"))
+    Integrations::ConnectionRefresh.expects(:run!).with(integration).twice.returns(true)
+
+    patch edit_field_integration_url(integration), params: { environment_row_id: row.id, key: "service_token_id", value: " tok123 " }
+    assert_equal "PlanetScale's service token ID was saved.", flash[:notice]
+    assert_equal "tok123", row.reload.fields["service_token_id"]
+
+    get integrations_url, headers: inertia_headers
+    edits = inertia_props["integrations"].find { |each| each["id"] == integration.id }["environments"].sole["edits"]
+    assert_equal [ { "key" => "service_token_id", "label" => "Service token ID", "value" => "tok123" } ],
+                 edits.map { |edit| edit.slice("key", "label", "value") }
+    assert_not_includes response.body, "pscale_tkn_secret"
+
+    patch edit_field_integration_url(integration), params: { environment_row_id: row.id, key: "service_token_id", value: "" }
+    assert_equal "PlanetScale's service token ID was cleared.", flash[:notice]
+    assert_nil row.reload.fields["service_token_id"]
+  end
+
+  test "a field the provider does not let a person change after connecting is refused, and a member changes none" do
+    integration = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "planetscale", name: "PlanetScale",
+                                                  settings: { "server_url" => "https://mcp.pscale.dev/mcp/planetscale" })
+    row = integration.integration_environments.create!
+
+    patch edit_field_integration_url(integration), params: { environment_row_id: row.id, key: "server_url", value: "https://elsewhere.example" }
+    assert_equal "PlanetScale has no such setting to change.", flash[:alert]
+
+    sign_in(users(:bob), @workspace)
+    patch edit_field_integration_url(integration), params: { environment_row_id: row.id, key: "service_token_id", value: "tok123" }
+    assert_nil row.reload.fields["service_token_id"]
+  end
+
   test "retargeting refuses an entry that is not one of this workspace's environments" do
     complete_oauth_flow
     row = @workspace.integrations.find_by!(provider: "linear").integration_environments.sole
