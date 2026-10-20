@@ -5,8 +5,9 @@ module Integrations
     # listing named none lists every workspace. Read with a token through Bitbucket's REST API (2.0, its OpenAPI description at
     # api.bitbucket.org/swagger.json): pull requests, commits, deployments, pipelines and their steps, and files.
     # Bitbucket has no blame in its API, so blame runs git in the run's sandbox, where reading code by search, definition,
-    # history and language server happens too (CodeHost::Code). The pipelines tools live in Bitbucket::Pipelines. Every
-    # tool only reads but the sandbox's test runner and the ones that run, rerun or stop a pipeline.
+    # history and language server happens too (CodeHost::Code). The pipelines tools live in Bitbucket::Pipelines, and
+    # deployments and tags in Bitbucket::Deployments. Every tool only reads but the sandbox's test runner and the ones that
+    # run, rerun or stop a pipeline or run one again for a deployment.
     class Bitbucket < NativePack
       # The environment row's credentials, which only this pack reads.
       WORKSPACE = "workspace".freeze
@@ -22,6 +23,7 @@ module Integrations
       include Code
       include Pipelines
       include CiConfig
+      include Deployments
 
       REPO_FORMAT = %r{\A[\w.\-]+/[\w.\-]+\z}
       WORKSPACE_FORMAT = /\A[\w.\-]+\z/
@@ -33,6 +35,8 @@ module Integrations
       MAX_DEPLOYMENTS = 50
       # Bitbucket's deployments list takes no filter or order, so this many pages are read and ordered here.
       DEPLOYMENT_PAGES = 3
+      # A deployment read as a run carries this before its uuid, so ci_runs tells it from a pipeline's.
+      DEPLOYMENT_RUN = "deployment-".freeze
       # A deployment's outcome, or its state while it has none, in Firefight's words.
       DEPLOYMENT_STATUSES = {
         "undeployed" => Capabilities::History::QUEUED, "in_progress" => Capabilities::History::RUNNING,
@@ -281,8 +285,10 @@ module Integrations
         return Capabilities::Deploys.with_deploys("No deployments recorded for #{repo}#{" in #{named}" if named.present?}.", []) if deployments.empty?
 
         # Each line links the pipeline that made the release, the address Bitbucket gives it. The deployments list has none.
+        # Each is kept as a deploy and as a run, so a watch follows one as it follows a pipeline.
         shown = deployments.first(limit)
-        Capabilities::Deploys.with_deploys(shown.map { |deployment| deployment_line(deployment) }.join("\n"), shown.map { |deployment| deploy_of(deployment) })
+        result = Capabilities::Deploys.with_deploys(shown.map { |deployment| deployment_line(deployment) }.join("\n"), shown.map { |deployment| deploy_of(deployment) })
+        Capabilities::RunHistory.with_runs(result, shown.map { |deployment| deployment_run(deployment) })
       end
 
       def merged_pull_requests(environment_row:, arguments:)
@@ -563,9 +569,9 @@ module Integrations
 
       def link(url) = url.present? ? Telemetry::Link.new(provider: PROVIDER, url: url) : nil
 
-      # Bitbucket's API gives a file, a pipeline and a step no page of their own, and its docs publish none, so a result
-      # about one links the commit it was read at or built, at the address the API gives a commit (links.html.href, such
-      # as bitbucket.org/<workspace>/<repository>/commits/<hash> in its examples).
+      # Bitbucket's API gives a file no page of its own, so a result about one links the commit it was read at, at the
+      # address the API gives a commit (links.html.href, such as bitbucket.org/<workspace>/<repository>/commits/<hash> in
+      # its examples). A pipeline links its results page (Pipelines#pipeline_link).
       def commit_link(repo, commit) = link([ @site, repo, "commits", commit ].join("/"))
 
       # The commit a ref names, so a file is read and linked at a commit rather than a moving branch.
