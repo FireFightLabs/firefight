@@ -25,7 +25,7 @@ class MoveDeepseekV4FlashChoicesToV41FlashTest < ActiveSupport::TestCase
     @other_override = @workspace.ai_model_overrides.create!(purpose: AiPurpose::POSTMORTEM, model: "deepseek-v4-flash", provider: "azure")
   end
 
-  test "chats, accounts and overrides on DeepSeek V4 Flash move to V4.1 Flash under each provider's own name, and move back" do
+  test "chats, accounts and overrides on DeepSeek V4 Flash move to V4.1 Flash under each provider's own name, and stay there on a rollback" do
     migrate(:up)
 
     assert_equal [ "deepseek-flash", "deepseek/deepseek-v4.1-flash", "deepseek/deepseek-v4-pro" ], [ @direct_chat, @openrouter_chat, @other_chat ].map { |chat| chat.reload.chosen_model }
@@ -36,9 +36,9 @@ class MoveDeepseekV4FlashChoicesToV41FlashTest < ActiveSupport::TestCase
 
     migrate(:down)
 
-    assert_equal [ "deepseek-v4-flash", "deepseek/deepseek-v4-flash" ], [ @direct_chat.reload.chosen_model, @openrouter_chat.reload.chosen_model ]
-    assert_equal({ "main" => "deepseek-v4-pro", "fast" => "deepseek-v4-flash" }, @direct.reload.models)
-    assert_equal "deepseek-v4-flash", @override.reload.model
+    assert_equal [ "deepseek-flash", "deepseek/deepseek-v4.1-flash" ], [ @direct_chat.reload.chosen_model, @openrouter_chat.reload.chosen_model ]
+    assert_equal({ "main" => "deepseek-v4-pro", "fast" => "deepseek-flash" }, @direct.reload.models)
+    assert_equal "deepseek-flash", @override.reload.model
   end
 
   private

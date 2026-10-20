@@ -291,6 +291,18 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     assert_equal [ 10_000, 10_000 ], spent.call(Time.utc(2026, 10, 20, 12, 0))
   end
 
+  test "a turn counts against the budget what the ledger kept for it, even when the busy hour ended in between" do
+    AiProviders.stubs(:price_factor).returns(2).then.returns(1)
+    chat = FakeChat.new([ llm_reply(content: "done", cost: 0.01) ])
+
+    travel_to(Time.utc(2026, 10, 20, 9, 0)) do
+      outcome = run_loop(chat, provider: "deepseek", model: "deepseek-flash")
+
+      assert_equal 20_000, outcome.spent_micros
+      assert_equal 20_000, Inference.where(workspace: @workspace, provider: "deepseek", created_at: Time.current).sum(:cost_micros)
+    end
+  end
+
   test "small replies add up to what they cost, not a cent each" do
     chat = FakeChat.new(Array.new(10) { |index| tool_reply("call_#{index}", cost: 0.003) } + [ llm_reply(content: "x") ])
 

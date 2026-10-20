@@ -49,6 +49,10 @@ module AiProviders
       peak?(at.utc) ? multiplier : 1
     end
 
+    # The last day the off-peak dates are known for, the end of the last year they list. Past it a holiday is priced as
+    # any other day, so the next year's dates have to be added before then (RefreshModelRegistryJob says so).
+    def dates_known_through = off_peak_dates.empty? ? nil : Date.new(off_peak_dates.map(&:last).max.year, 12, 31)
+
     private
 
     def peak?(at)

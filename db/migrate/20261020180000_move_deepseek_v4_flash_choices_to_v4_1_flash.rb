@@ -20,7 +20,9 @@ class MoveDeepseekV4FlashChoicesToV41Flash < ActiveRecord::Migration[8.1]
 
   def up = rename(RENAMES)
 
-  def down = rename(RENAMES.transform_values(&:invert))
+  # A rollback leaves every row on V4.1 Flash, since the rows this moved cannot be told apart from those that chose it
+  # themselves, and putting those back on a retired model would undo a choice nobody asked to undo.
+  def down; end
 
   private
 

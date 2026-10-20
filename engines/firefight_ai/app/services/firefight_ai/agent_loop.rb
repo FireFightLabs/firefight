@@ -305,7 +305,8 @@ module FirefightAi
     # hands the run to a backup when one is set up.
     def generate
       holding = @hold_history
-      reply = Inference.track(tracked) { with_context_last(holding: holding) { @chat.step(&streamer) } }.first
+      reply, row = Inference.track(tracked) { with_context_last(holding: holding) { @chat.step(&streamer) } }
+      @billed = [ reply, row.cost_micros ]
       hold_history if holding
       reply
     rescue RubyLLM::ContextLengthExceededError
@@ -390,7 +391,8 @@ module FirefightAi
       llm = @chat.to_llm
       llm.with_tool_options(choice: :none)
       @nudge.call(Room::HANDOVER)
-      note = Inference.track(tracked) { with_context_last { @chat.step } }.first
+      note, row = Inference.track(tracked) { with_context_last { @chat.step } }
+      @billed = [ note, row.cost_micros ]
       record_turn(note) if note
       note&.content.to_s
     ensure
@@ -517,9 +519,15 @@ module FirefightAi
 
     def record_turn(message)
       @turns += 1
-      @purse.add(FirefightAi.billed_micros(message.cost, provider: @choice.provider_name))
+      @purse.add(billed_for(message))
       @room.saw(message)
       report_turn
+    end
+
+    # What the ledger kept for the reply, so the purse and the ledger agree even when a busy hour ends between the two.
+    def billed_for(message)
+      reply, micros = @billed
+      reply.equal?(message) ? micros : FirefightAi.billed_micros(message.cost, provider: @choice.provider_name)
     end
 
     # A tool that ran helpers spent from the purse without a turn of the loop's own, so the caller hears it at once.
