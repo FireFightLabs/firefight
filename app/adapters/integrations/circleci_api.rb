@@ -66,8 +66,14 @@ module Integrations
     # A workflow as v2 has it, with its project slug, pipeline number and who started it (v2 getWorkflowById).
     def workflow_summary(id) = get(V2, "/workflow/#{Http.segment(id)}")
 
-    # A workflow's jobs, every page (v3 GET /jobs with filter[workflow_id]).
-    def jobs(workflow_id) = pages(V3, "/jobs", { "filter[workflow_id]" => workflow_id }).items
+    # A workflow's jobs, every page (v3 GET /jobs with filter[workflow_id]). A list longer than MAX_PAGES is refused rather
+    # than read in part, so a failed job past the cut is never missed in silence.
+    def jobs(workflow_id)
+      read = pages(V3, "/jobs", { "filter[workflow_id]" => workflow_id })
+      raise Error, "CircleCI listed more jobs than Firefight reads at once for workflow #{workflow_id}, so they were not read in part." if read.incomplete?
+
+      read.items
+    end
 
     # A workflow's jobs as v2 has them, with each approval job's approval_request_id (v2 listWorkflowJobs).
     def workflow_jobs(workflow_id) = Array(get(V2, "/workflow/#{Http.segment(workflow_id)}/job")["items"])
