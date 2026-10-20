@@ -69,7 +69,8 @@ class SubdomainRouterTest < ActiveSupport::TestCase
 
   # A page added outside the listed prefixes works everywhere but production, where this router runs.
   test "every page the app serves outside the API is allowed on the app subdomain" do
-    paths = Rails.application.routes.routes.filter_map { |route| route.path.spec.to_s.sub("(.:format)", "") }
+    # Internal routes are a library's development tools, such as Inertia's devtools, and answer nowhere else.
+    paths = Rails.application.routes.routes.reject(&:internal).filter_map { |route| route.path.spec.to_s.sub("(.:format)", "") }
     # Stand-ins a test draws for pages that live outside this repo, such as the hosted credits checkout, are never served.
     served = paths.reject { |path| path.start_with?("/api/v1", "/up", "/assets", "/*", "/test/") || %w[/404 /422 /500].include?(path) }
     blocked = served.reject { |path| SubdomainRouter.new(nil).send(:allowed?, "app", path.gsub(/:\w+/, "x")) }
