@@ -275,20 +275,24 @@ providers:
     color: "#343434"
     status_page: { url: https://status.circleci.com, feed: statuspage }
     hosts: [ circleci.com ]
-    description: Read pipelines, workflows and failing jobs with their logs and tests, and rerun a workflow when you allow it.
-    # CircleCI's cloud runs in one place, and its hosted server is the one address its docs give.
+    description: Runs, workflows and failing jobs with their logs and tests, and what each project deployed, and rerun, cancel, approve, run a pipeline or roll back when you allow it.
+    # CircleCI's cloud runs in one place. Its hosted MCP server, the one address its docs give, stays offered as "Use an MCP
+    # server instead", though it cannot run a pipeline, approve a held job, read deploys or roll back.
     server_url: https://mcp.circleci.com/v1/mcp
     site: https://app.circleci.com
+    kind: native
+    connect_with: api_token
     # Personal API tokens are the only tokens API v2 and the MCP server take
     # (circleci.com/docs/guides/toolkit/api-developers-guide, circleci.com/docs/guides/toolkit/connecting-to-the-circleci-mcp-server).
     token: { hint: "Use a personal API token. Make it as a dedicated user, such as Firefight, so changes do not show as a teammate and the connection keeps working when someone leaves." }
     # The tools its server's published list marks as reads (test/fixtures/files/circleci_mcp_tools.txt says where it came from).
     read_only_tools: [hello, list_runs, get_run, list_workflows, get_workflow, list_jobs, get_job, get_job_logs, list_artifacts, list_job_tests]
     source_links: firefight
-    map: none
-    history: none
-    history_note: "CircleCI's hosted server documents its tools by name only, not what list_runs answers, so when a run started and finished cannot be read with confidence. The code host that holds the repository answers how long its runs take."
-    map_note: "It builds and tests code that its host puts on the map and runs nothing of its own."
+    map: firefight
+    scaling: none
+    scaling_note: "It builds, tests and deploys code, which runs no copies of a service."
+    history: firefight
+    stopping_tools: [cancel_workflow]
     # What a person reads beside each tool, by the name Firefight gives it (Integrations::ToolSummaries).
     tool_summaries:
       cancel_workflow: "Cancels a running workflow."
@@ -3639,7 +3643,7 @@ providers:
     color: "#3ecf8e"
     status_page: { url: https://status.supabase.com, feed: statuspage }
     hosts: [ supabase.co, supabase.com, pooler.supabase.com ]
-    description: Read-only queries, project state and Edge Functions for a Supabase database, and resetting a preview branch when you allow it.
+    description: Read-only queries, project health, metrics, branch runs and Edge Functions for a Supabase database, and resetting a preview branch, restarting a project or restoring it to a moment when you allow it.
     server_url: https://mcp.supabase.com/mcp
     site: https://supabase.com/dashboard
     connect_fields:
@@ -3669,8 +3673,7 @@ providers:
     map: firefight
     scaling: none
     scaling_note: "It holds databases rather than services that run copies."
-    history: none
-    history_note: "Its server lists migrations by version and name without when they ran, and offers no branch action runs, the only runs Supabase times."
+    history: firefight
     setting_words: [SUPABASE]
     # What a person reads beside each tool, by the name Firefight gives it (Integrations::ToolSummaries).
     tool_summaries:
@@ -3717,11 +3720,19 @@ providers:
     color: "#000000"
     status_page: { url: https://www.planetscalestatus.com, feed: statuspage }
     hosts: [ psdb.cloud, planetscale.com, pg.psdb.cloud ]
-    description: Read-only queries, branch schemas and Insights for a PlanetScale database.
+    description: Read-only queries, branch schemas, Insights, metrics and deploy requests for a PlanetScale database, and reverting a deploy or resizing a branch when you allow it.
     server_url: https://mcp.pscale.dev/mcp/planetscale
     # A service token belongs to the organization, and the hosted server takes its secret alone as Bearer, refusing
-    # <id>:<secret> (planetscale.com/docs/mcp/service-token).
-    token: { hint: "Use a service token from your organization's settings, so the connection is not one person's. Paste its secret alone after Bearer, without its id." }
+    # <id>:<secret> (planetscale.com/docs/mcp/service-token). PlanetScale's API takes <id>:<secret>
+    # (planetscale.com/docs/api/reference/service-tokens), so the id is asked beside it for what Firefight reads and
+    # changes through the API (Integrations::Packs::Planetscale). A sign-in reaches the API as it is.
+    token: { hint: "Use a service token from your organization's settings, so the connection is not one person's. Paste its secret alone after Bearer, without its id, and put its id in Service token ID." }
+    connect_fields:
+      - key: service_token_id
+        label: Service token ID
+        hint: With a service token, its id from your organization's settings, which lets Firefight read deploy requests and add its webhooks. Leave it empty when you sign in.
+        optional: true
+        editable: true
     # The tools its server's published list marks as reads (test/fixtures/files/planetscale_mcp_tools.txt says where it came from).
     read_only_tools: [planetscale_list_organizations, planetscale_list_databases, planetscale_list_branches, planetscale_get_organization,
                       planetscale_get_database, planetscale_get_branch, planetscale_get_branch_schema, planetscale_execute_read_query,
@@ -3734,8 +3745,9 @@ providers:
     map: firefight
     scaling: none
     scaling_note: "It holds databases rather than services that run copies."
-    history: none
-    history_note: "Its server reads branches and their logs and offers no deploy requests, the only runs PlanetScale times."
+    history: firefight
+    # Cancelling a queued deploy request stops a schema change someone opened.
+    stopping_tools: [planetscale_cancel_deploy_request]
     setting_words: [PLANETSCALE, PSCALE]
     # What a person reads beside each tool, by the name Firefight gives it (Integrations::ToolSummaries).
     tool_summaries:

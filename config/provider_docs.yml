@@ -642,6 +642,17 @@ netlify_api:
     Copyright Netlify.
   endpoints: api
 
+# CircleCI's API v2 description says it is MIT. Its v3 description states no licence, so the circleci_api skill sends Halon
+# to v3's reference on CircleCI's own site.
+circleci_api:
+  provider: circleci
+  api: https://circleci.com/api/v2/openapi.json
+  format: openapi
+  license: |
+    Written from CircleCI's API v2 description (https://circleci.com/api/v2/openapi.json), which is licensed under the MIT
+    License. Copyright CircleCI.
+  endpoints: api
+
 # Fly.io's Machines API description says it is Apache 2.0, as Fly.io's documentation is.
 fly_api:
   provider: fly

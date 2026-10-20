@@ -8,7 +8,7 @@ class Integrations::Capabilities::PlanetscaleTest < ActiveSupport::TestCase
     planetscale = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "planetscale", name: "PlanetScale", slug: "planetscale",
                                                   settings: { "server_url" => "https://mcp.pscale.dev/mcp/planetscale" })
     @row = planetscale.integration_environments.create!
-    Capabilities::Planetscale::TOOLS.each_value do |name|
+    Capabilities::Planetscale::TOOLS.values.flatten.uniq.each do |name|
       planetscale.tools.create!(name: name, description: name, read_only: true, enabled: true, params_schema: { "type" => "object" })
     end
     record(engine: "postgresql")
@@ -52,6 +52,59 @@ class Integrations::Capabilities::PlanetscaleTest < ActiveSupport::TestCase
     ResourceMap.record!(@row, ResourceMap::Snapshot.new(resources: [ found(ResourceMap::KIND_DATABASE, "shop") ]))
 
     assert_match "name its branch, such as shop/main", unroutable(Capabilities::STATUS, "resource" => "shop")
+  end
+
+  test "run history is a database's deploy requests, a branch's into it, one by its number, or a branch's changes" do
+    database = resolve(Capabilities::HISTORY, "resource" => "shop")
+    assert_equal [ "planetscale_list_deploy_requests", { "organization" => "acme", "database" => "shop" } ], [ database.tool.name, database.arguments ]
+    branch = resolve(Capabilities::HISTORY, "resource" => "shop/main", "limit" => 5)
+    assert_equal({ "organization" => "acme", "database" => "shop", "into_branch" => "main", "limit" => 5 }, branch.arguments)
+    one = resolve(Capabilities::HISTORY, "resource" => "shop/main", "run" => "#7")
+    assert_equal [ "planetscale_get_deploy_request", { "organization" => "acme", "database" => "shop", "number" => "7" } ], [ one.tool.name, one.arguments ]
+    assert_equal "planetscale_list_deploy_requests", resolve(Capabilities::HISTORY, "resource" => "shop", "name" => "schema change").tool.name
+    assert_equal "planetscale_list_branch_changes", resolve(Capabilities::HISTORY, "resource" => "shop", "name" => "branch changes").tool.name
+    changes = resolve(Capabilities::HISTORY, "resource" => "shop", "name" => "resize")
+    assert_equal [ "planetscale_list_branch_changes", { "organization" => "acme", "database" => "shop", "branch" => "main" } ], [ changes.tool.name, changes.arguments ]
+
+    run = Capabilities::History::Run.new(id: "7", number: 7, name: "deploy request", status: Capabilities::History::SUCCEEDED,
+                                         started_at: Time.zone.parse("2026-10-20T09:00:00Z"), finished_at: Time.zone.parse("2026-10-20T09:06:00Z"))
+    answered = Capabilities::RunHistory.with_runs(Integrations::Telemetry.result("Latest", link: nil), [ run ])
+    assert_match "1 recent runs of the deploy requests of shop, newest first. Finished ones usually take 6 minutes", database.present_result(answered)["content"].sole["text"]
+  end
+
+  test "deploys are the deploy requests deployed, and a rollback reverts one by its number" do
+    assert_equal({ "organization" => "acme", "database" => "shop", "into_branch" => "main", "state" => "deployed" },
+                 resolve(Capabilities::DEPLOYS, "resource" => "shop/main").arguments)
+    rollback = resolve(Capabilities::ROLLBACK, "resource" => "shop/main", "to" => "#7")
+    assert_equal [ "planetscale_revert_deploy_request", { "organization" => "acme", "database" => "shop", "number" => 7 } ], [ rollback.tool.name, rollback.arguments ]
+    assert_match "say its number", unroutable(Capabilities::ROLLBACK, "resource" => "shop", "to" => "main")
+  end
+
+  test "a Postgres branch scales by its cluster size and replicas, and a Vitess one is sent to the tool that names a keyspace" do
+    call = resolve(Capabilities::SCALE, "resource" => "shop", "plan" => "PS_80", "instances" => 3)
+    assert_equal [ "planetscale_resize_branch", { "organization" => "acme", "database" => "shop", "branch" => "main", "cluster_size" => "PS_80", "replicas" => 3 } ],
+                 [ call.tool.name, call.arguments ]
+    assert_match "naming the keyspace", unroutable_after(-> { record(engine: "mysql") }, Capabilities::SCALE, "resource" => "shop", "plan" => "PS_80")
+  end
+
+  test "metrics read the branch's own series by the engine's names, one chart a metric and a series a pod" do
+    call = resolve(Capabilities::METRICS, "resource" => "shop", "metrics" => %w[cpu disk], "minutes" => 90)
+    assert_equal({ "organization" => "acme", "database" => "shop", "branch" => "main", "view" => "series", "include_points" => true, "period" => "3h",
+                   "metrics" => %w[planetscale_primary_pods_cpu_util_percentages planetscale_volume_usage_percentages] }, call.arguments)
+    body = { "series" => [ { "metric" => "planetscale_primary_pods_cpu_util_percentages", "labels" => { "pod" => "pg-0" }, "points" => [ [ 1_760_950_800, 41.5 ], [ 1_760_950_860, 63.0 ] ] } ] }
+    result = call.present_result({ "content" => [ { "type" => "text", "text" => body.to_json } ] })
+    chart = result.dig(Integrations::Telemetry::STRUCTURED, Integrations::Telemetry::CHARTS).sole
+    assert_equal [ "cpu of shop", "%", "pg-0" ], [ chart["title"], chart["unit"], chart["series"].sole["label"] ]
+    assert_match "does not keep network_in", unroutable(Capabilities::METRICS, "resource" => "shop", "metrics" => [ "network_in" ])
+  end
+
+  test "errors are the branch's failing queries by error, over at most a day" do
+    call = resolve(Capabilities::ERRORS, "resource" => "shop/main", "text" => "deadlock", "minutes" => 60)
+    assert_equal({ "organization" => "acme", "database" => "shop", "branch" => "main", "limit" => 25, "period" => "1h", "query" => "deadlock" }, call.arguments)
+    body = { "patterns" => [ { "error_fingerprint" => "f1", "error_message" => "Deadlock found", "error_count" => 12, "started_at" => "2026-10-20T09:00:00Z" } ] }
+    text = call.present_result({ "content" => [ { "type" => "text", "text" => body.to_json } ] })["content"].first["text"]
+    assert_match "12 times, last 2026-10-20T09:00:00Z: Deadlock found (fingerprint f1)", text
+    assert_match "at most 25 hours", unroutable(Capabilities::ERRORS, "resource" => "shop", "minutes" => 2000)
   end
 
   test "PlanetScale's own tools stay offered" do

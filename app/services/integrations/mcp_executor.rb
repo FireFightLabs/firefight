@@ -6,6 +6,14 @@ module Integrations
     # Its answer is the same whoever relays it, so relayed changes nothing. A connection made with Firefight's own app
     # whose installation stopped answers why instead of calling the server (Installations.refusal), as a native one does.
     def self.call(tool:, environment_row:, arguments:, box_key: nil, progress: nil, request: nil, relayed: false)
+      provider = Provider.for(tool.integration.provider)
+      if provider.runs_beside?(tool)
+        refused = provider.beside_refusal(tool, ConnectionSettings.of(environment_row))
+        raise PolicyRefusal, refused if refused
+
+        return NativeExecutor.call(tool: tool, environment_row: environment_row, arguments: arguments)
+      end
+
       refused = Installations.refusal(environment_row, tool)
       return { "content" => [ { "type" => "text", "text" => refused } ], "isError" => true } if refused
       SecretReads.refuse!(tool, arguments)
@@ -54,19 +62,28 @@ module Integrations
 
     # Names are sanitized into action-key-safe form, spec keeps the server's own name for the call. A server's readOnlyHint
     # is its own claim, so a remote tool reads only when the registry lists it (IntegrationProvider::Entry#reads?) or an
-    # admin marks it.
+    # admin marks it. The tools Firefight adds beside the server's (Provider#firefight_tools) join them. Should the server
+    # later list a tool of the same name, Firefight's is kept, since its own calls to it are written for its arguments.
     def self.tool_definitions(integration)
+      beside = firefight_tool_definitions(integration)
       environment_row = integration.resolve_environment(nil) || integration.integration_environments.enabled.first
 
-      client_for(integration, environment_row).tools_list.map do |remote|
+      remote = client_for(integration, environment_row).tools_list.map do |listed|
         ToolDefinition.new(
-          name: local_name(remote["name"]),
-          description: remote["description"],
-          params_schema: remote["inputSchema"] || {},
+          name: local_name(listed["name"]),
+          description: listed["description"],
+          params_schema: listed["inputSchema"] || {},
           read_only: false,
-          spec: { "tool_name" => remote["name"] }
+          spec: { "tool_name" => listed["name"] }
         )
       end
+      remote.reject { |definition| beside.any? { |own| own.name == definition.name } } + beside
+    end
+
+    # The tools Firefight adds to this connection beside its server's, read with the connection's settings.
+    def self.firefight_tool_definitions(integration)
+      environment_row = integration.resolve_environment(nil) || integration.integration_environments.enabled.first
+      Provider.for(integration.provider).firefight_tools(environment_row && ConnectionSettings.of(environment_row))
     end
 
     # The name Firefight gives a server's tool, such as query_logs for a tool the server calls query-logs.
