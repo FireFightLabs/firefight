@@ -1,11 +1,12 @@
 module Integrations
   module Packs
     # Render for the workspaces an environment reads, one, several or every one its API key can read (the workspace
-    # connect field, a scope). It reads their services, Postgres databases and Key Value instances, and their logs,
-    # metrics, deploys and events, with the API key a person creates in Render. A call reaches one workspace, the one it
-    # names or the one its resource lives in (Integrations::Scopes), and a listing named none lists every workspace.
-    # Every tool reads, except the restart, rollback and scale Halon uses to apply fixes. Paths, parameters and answers
-    # are the ones in Render's OpenAPI spec (api-docs.render.com/openapi/render-public-api-1.json).
+    # connect field, a scope). It reads their services, Postgres databases, Key Value instances and workflows, and their
+    # logs, metrics, deploys, events and runs (Runs), with the API key a person creates in Render. A call reaches one
+    # workspace, the one it names or the one its resource lives in (Integrations::Scopes), and a listing named none lists
+    # every workspace. Every tool reads, except the restart, rollback and scale Halon uses to apply fixes and the deploy
+    # and suspend changes (Controls). Paths, parameters and answers are the ones in Render's OpenAPI spec
+    # (api-docs.render.com/openapi/render-public-api-1.json).
     class Render < NativePack
       # The environment row's credentials, which only this pack reads.
       API_KEY = "api_key".freeze
@@ -22,18 +23,26 @@ module Integrations
       STATIC_SITE = "static_site".freeze
       POSTGRES = "postgres".freeze
       KEY_VALUE = "key_value".freeze
+      # A workflow runs tasks on demand (render.com/docs/workflows), read from /workflows rather than /services.
+      WORKFLOW = "workflow".freeze
       KINDS = {
         WEB_SERVICE => ResourceMap::KIND_SERVICE, PRIVATE_SERVICE => ResourceMap::KIND_SERVICE, BACKGROUND_WORKER => ResourceMap::KIND_SERVICE,
         CRON_JOB => ResourceMap::KIND_JOB, STATIC_SITE => ResourceMap::KIND_SITE, POSTGRES => ResourceMap::KIND_DATABASE,
-        KEY_VALUE => ResourceMap::KIND_DATABASE
+        KEY_VALUE => ResourceMap::KIND_DATABASE, WORKFLOW => ResourceMap::KIND_WORKFLOW
       }.freeze
       TYPE_WORDS = {
         WEB_SERVICE => "web service", PRIVATE_SERVICE => "private service", BACKGROUND_WORKER => "background worker",
-        CRON_JOB => "cron job", STATIC_SITE => "static site", POSTGRES => "Postgres database", KEY_VALUE => "Key Value instance"
+        CRON_JOB => "cron job", STATIC_SITE => "static site", POSTGRES => "Postgres database", KEY_VALUE => "Key Value instance",
+        WORKFLOW => "workflow"
       }.freeze
       DATASTORES = [ POSTGRES, KEY_VALUE ].freeze
+      # What has no deploys or service events of its own.
+      NOT_SERVICES = [ *DATASTORES, WORKFLOW ].freeze
       # The kinds a Render service is on the map as, by its type.
-      SERVICE_KINDS = KINDS.except(*DATASTORES).values.uniq.freeze
+      SERVICE_KINDS = KINDS.except(*NOT_SERVICES).values.uniq.freeze
+      # A workflow's page, as Render's CLI opens it (render-oss/cli, pkg/dashboard/dashboard.go, wf on the default
+      # dashboard address in pkg/config/config.go). Render's API gives a workflow no dashboardUrl.
+      WORKFLOW_PAGE = "https://dashboard.render.com/wf/%<id>s".freeze
       # Render scales web services, private services and background workers (render.com/docs/scaling).
       SCALABLE = [ WEB_SERVICE, PRIVATE_SERVICE, BACKGROUND_WORKER ].freeze
       # The restart endpoint is not supported for cron jobs (spec, POST /services/{serviceId}/restart), and a static
@@ -54,8 +63,11 @@ module Integrations
       # Each metric a tool takes, the endpoint that answers it and what it applies to. HTTP metrics are kept for web
       # services only and active connections for datastores only (spec, paths /metrics/*). Latency is a quantile of a web
       # service's requests (/metrics/http-latency, quantile) and disk usage its persistent disk's (/metrics/disk-usage).
-      Metric = Data.define(:path, :title, :applies, :query) do
-        def initialize(query: {}, **) = super
+      # The CPU and memory limits are what the plan allows, instances how many a service ran, replication lag how many
+      # seconds a Postgres replica is behind, and bandwidth what a web service or static site sent, read without a
+      # resolution, which its endpoint does not take (spec, GET /metrics/bandwidth).
+      Metric = Data.define(:path, :title, :applies, :query, :resolution) do
+        def initialize(query: {}, resolution: true, **) = super
       end
       COMPUTE = [ WEB_SERVICE, PRIVATE_SERVICE, BACKGROUND_WORKER, CRON_JOB, *DATASTORES ].freeze
       METRICS = {
@@ -66,11 +78,16 @@ module Integrations
         "http_5xx" => Metric.new(path: "http-requests", title: "5xx responses", applies: [ WEB_SERVICE ], query: { "aggregateBy" => "statusCode" }),
         "active_connections" => Metric.new(path: "active-connections", title: "Active connections", applies: DATASTORES),
         "latency_p95" => Metric.new(path: "http-latency", title: "Latency, 95th percentile", applies: [ WEB_SERVICE ], query: { "quantile" => 0.95 }),
-        "disk" => Metric.new(path: "disk-usage", title: "Disk usage", applies: COMPUTE)
+        "disk" => Metric.new(path: "disk-usage", title: "Disk usage", applies: COMPUTE),
+        "cpu_limit" => Metric.new(path: "cpu-limit", title: "CPU limit", applies: COMPUTE),
+        "memory_limit" => Metric.new(path: "memory-limit", title: "Memory limit", applies: COMPUTE),
+        "instance_count" => Metric.new(path: "instance-count", title: "Instances", applies: SCALABLE),
+        "replication_lag" => Metric.new(path: "replication-lag", title: "Replication lag", applies: [ POSTGRES ]),
+        "bandwidth" => Metric.new(path: "bandwidth", title: "Bandwidth", applies: [ WEB_SERVICE, STATIC_SITE ], resolution: false)
       }.freeze
       STATUS_CLASSES = { "http_4xx" => "4", "http_5xx" => "5" }.freeze
       DEFAULT_METRICS = { WEB_SERVICE => %w[cpu memory requests http_5xx], POSTGRES => %w[cpu memory active_connections],
-                          KEY_VALUE => %w[cpu memory active_connections] }.freeze
+                          KEY_VALUE => %w[cpu memory active_connections], STATIC_SITE => %w[bandwidth] }.freeze
       FALLBACK_METRICS = %w[cpu memory].freeze
       # What a baseline reads. Request counts are left out, since the spec does not say what span each reading counts.
       BASELINE_METRICS = %w[cpu memory active_connections].freeze
@@ -90,10 +107,11 @@ module Integrations
            read_only: true
 
       tool :describe_resource,
-           summary: "Shows how one service or datastore is set up and how it stands now.",
-           description: "How one service or datastore is set up and how it stands now. A service: whether it is suspended and why, " \
-                        "its plan, region, instances or autoscaling, what it runs, its health check path, its latest deploy and " \
-                        "its events of the last day. A datastore: its status, version, plan, disk, high availability and maintenance",
+           summary: "Shows how one service, datastore or workflow is set up and how it stands now.",
+           description: "How one service, datastore or workflow is set up and how it stands now. A service: whether it is suspended " \
+                        "and why, its plan, region, instances or autoscaling, the instances running now, what it runs, its health " \
+                        "check path, its latest deploy and its events of the last day. A datastore: its status, version, plan, disk, " \
+                        "high availability and maintenance. A workflow: what it builds and runs, and its tasks",
            params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
            read_only: true
 
@@ -110,6 +128,8 @@ module Integrations
                "regex" => { "type" => "string", "description" => "Only lines matching this regular expression, in RE2 syntax (optional)" },
                "type" => { "type" => "string", "enum" => LOG_TYPES, "description" => "Which logs (optional, every type)" },
                "deploy" => { "type" => "string", "description" => "Only the time this deploy ran, by its id, when no start is given (optional)" },
+               "job" => { "type" => "string", "description" => "Only this one-off job's lines, by its id as job_runs shows it (optional)" },
+               "task_run" => { "type" => "string", "description" => "A workflow's lines of this task run only, by its id as task_runs shows it (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many lines (optional, #{LOG_LIMIT})" },
                **Capabilities::RANGE
              },
@@ -119,9 +139,10 @@ module Integrations
 
       tool :query_metrics,
            summary: "Shows CPU, memory, disk and request metrics of a service or datastore.",
-           description: "Metrics of one service or datastore over time: CPU, memory and persistent disk usage, and for a web " \
-                        "service requests, 4xx and 5xx responses and the latency 95% of its requests finished within, and for a " \
-                        "datastore its active connections. " \
+           description: "Metrics of one service or datastore over time: CPU, memory and persistent disk usage and the CPU and memory " \
+                        "its plan allows, for a service how many instances ran, for a web service requests, 4xx and 5xx responses, " \
+                        "the latency 95% of its requests finished within and the bandwidth it sent, for a static site its bandwidth, " \
+                        "for a datastore its active connections, and for a Postgres replica how far behind it is. " \
                         "Returns min, average, max and latest per instance, and the person sees each metric as a chart",
            params_schema: {
              "type" => "object",
@@ -221,15 +242,18 @@ module Integrations
            read_only: false
 
       tool :api_read,
-           summary: "Reads other Render data such as jobs, disks, domains and blueprints.",
-           description: "Anything else Render's API reads that the other tools do not cover, such as a service's jobs, disks, " \
+           summary: "Reads other Render data such as disks, domains and blueprints.",
+           description: "Anything else Render's API reads that the other tools do not cover, such as a service's disks, " \
                         "custom domains, environment groups, blueprints, projects or a deploy by its id. A GET to a path of " \
                         "Render's public API (#{RenderApi::API_ROOT}), as the API reference the render_api skill names writes " \
                         "it. A list answers one page: pass limit, at most 100, and the last item's cursor as cursor for the next, " \
                         "and pass ownerId to keep a list to this connection's workspace. Only reads, so it never changes anything. " \
                         "Environment variables and secret files come back as their names",
-           params_schema: ApiReads.path_schema("/services/<service id>/jobs"),
+           params_schema: ApiReads.path_schema("/services/<service id>/custom-domains"),
            read_only: true
+
+      include Runs
+      include Controls
 
       def self.credential_fields
         [
@@ -282,10 +306,11 @@ module Integrations
       def list_resources(environment_row:, arguments:)
         return every_workspace(environment_row) { |pack| pack.list_resources(environment_row: environment_row, arguments: arguments) } if every_scope?(environment_row)
 
-        rows = resources(environment_row).map { |resource| "#{resource[:name]} (#{resource[:id]}), #{TYPE_WORDS.fetch(resource[:type])}, #{resource[:status]}" }
+        rows = resources(environment_row).map { |resource| [ "#{resource[:name]} (#{resource[:id]})", TYPE_WORDS.fetch(resource[:type]), resource[:status] ].compact.join(", ") }
         workspace = ConnectionSettings.of(environment_row).scope_name(workspace_of(environment_row))
         cut = " Only the first #{rows.size} were read, so name a resource by its id to reach the rest." if resources_cut?(environment_row)
-        text = rows.empty? ? "Workspace #{workspace} has no services or datastores." : "Workspace #{workspace}, #{rows.size} services and datastores.#{cut}\n#{rows.join("\n")}"
+        text = rows.empty? ? "Workspace #{workspace} has no services, datastores or workflows." : "Workspace #{workspace}, #{rows.size} services, datastores and workflows.#{cut}\n#{rows.join("\n")}"
+        text = "#{text}\n#{Sentence.join('Workflows could not be read', @workflows_unread)}" if @workflows_unread
         Telemetry.result(text, link: nil)
       end
 
@@ -294,6 +319,7 @@ module Integrations
         lines = case resource[:type]
         when POSTGRES then postgres_lines(environment_row, resource)
         when KEY_VALUE then key_value_lines(environment_row, resource)
+        when WORKFLOW then workflow_lines(environment_row, resource)
         else service_lines(environment_row, resource)
         end
         Telemetry.result(lines.compact.join("\n"), link: link(resource))
@@ -301,14 +327,18 @@ module Integrations
 
       def search_logs(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
-        started, ended = Capabilities::Answers.range(deploy_range(environment_row, resource, arguments))
+        job = job_of(environment_row, resource, arguments["job"]) if arguments["job"].present?
+        task_run = arguments["task_run"].to_s.strip.presence
+        fail! "#{resource[:name]} is not a workflow, and only a workflow has task runs." if task_run && resource[:type] != WORKFLOW
+        started, ended = Capabilities::Answers.range(job ? job_range(job, arguments) : deploy_range(environment_row, resource, arguments))
         limit = Capabilities::Answers.limit(arguments, LOG_LIMIT)
         # A regular expression goes in text between slashes, as Render's log search reads one.
         texts = [ arguments["text"].presence, (arguments["regex"].present? ? "/#{arguments['regex']}/" : nil) ].compact
+        # A one-off job's lines are kept under the job's own id (spec, GET /logs, resource).
         query = {
-          "ownerId" => workspace_of(environment_row), "resource" => resource[:id], "startTime" => started.utc.iso8601,
+          "ownerId" => workspace_of(environment_row), "resource" => job ? job["id"] : resource[:id], "startTime" => started.utc.iso8601,
           "endTime" => ended.utc.iso8601, "direction" => "backward", "limit" => limit, "text" => texts.presence,
-          "type" => arguments["type"].presence_in(LOG_TYPES)
+          "type" => arguments["type"].presence_in(LOG_TYPES), "taskRun" => task_run
         }
         answer = api(environment_row).logs(query)
         lines = Array(answer["logs"]).map do |line|
@@ -339,9 +369,35 @@ module Integrations
       end
       private :deploy_range
 
+      # The one-off job named, only one of this service.
+      def job_of(environment_row, resource, asked)
+        api(environment_row).job(resource[:id], asked.to_s.strip)
+      rescue RenderApi::NotFound
+        fail! "#{resource[:name]} has no one-off job #{asked}. job_runs lists its jobs."
+      end
+      private :job_of
+
+      # A job's lines from when it was made to a little after it finished, when no start is given.
+      def job_range(job, arguments)
+        from = Telemetry.parse_time(job["createdAt"] || job["startedAt"])
+        return arguments if arguments["start"].present? || from.nil?
+
+        to = Telemetry.parse_time(job["finishedAt"])
+        arguments.merge("start" => from.utc.iso8601, "end" => (to && (to + PHASE_MARGIN).utc.iso8601)).compact
+      end
+      private :job_range
+
+      # What has no deploys or service events is refused in words, a datastore or a workflow.
+      def services_only!(resource, why)
+        return unless NOT_SERVICES.include?(resource[:type])
+
+        fail! "#{resource[:name]} is a #{DATASTORES.include?(resource[:type]) ? 'datastore' : 'workflow'}, and #{why}"
+      end
+      private :services_only!
+
       def query_metrics(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
-        fail! "#{resource[:name]} is a static site, and Render keeps no metrics for one." if resource[:type] == STATIC_SITE
+        fail! "#{resource[:name]} is a workflow, and task_runs reads how its runs went." if resource[:type] == WORKFLOW
 
         started, ended = Capabilities::Answers.range(arguments)
         asked = Array(arguments["metrics"]).map(&:to_s) & METRICS.keys
@@ -355,7 +411,7 @@ module Integrations
 
       def list_deployments(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
-        fail! "#{resource[:name]} is a datastore, and only services have deploys." if DATASTORES.include?(resource[:type])
+        services_only!(resource, "only services have deploys.")
 
         deploys = api(environment_row).deploys(resource[:id], limit: Capabilities::Answers.limit(arguments, DEPLOY_LIMIT))
         return Telemetry.result("#{resource[:name]} has no deploys.", link: link(resource)) if deploys.empty?
@@ -392,7 +448,7 @@ module Integrations
       # Each deploy from when it started (startedAt, or createdAt before Render began building it) to finishedAt.
       def deploy_history(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
-        fail! "#{resource[:name]} is a datastore, and only services have deploys." if DATASTORES.include?(resource[:type])
+        services_only!(resource, "only services have deploys.")
         return one_deploy(environment_row, resource, arguments["run"]) if arguments["run"].present?
 
         deploys = api(environment_row).deploys(resource[:id], limit: Capabilities::Answers.limit(arguments, DEPLOY_LIMIT))
@@ -493,7 +549,7 @@ module Integrations
 
       def list_events(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
-        fail! "#{resource[:name]} is a datastore, and Render lists events for services only." if DATASTORES.include?(resource[:type])
+        services_only!(resource, "Render lists events for services only.")
 
         started, ended = Telemetry.range(arguments, default_minutes: EVENT_MINUTES, max_minutes: Capabilities::MAX_MINUTES)
         events = api(environment_row).events(resource[:id], "startTime" => started.utc.iso8601, "endTime" => ended.utc.iso8601,
@@ -516,7 +572,7 @@ module Integrations
 
       def rollback_deploy(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
-        fail! "#{resource[:name]} is a datastore, and only services have deploys to roll back to." if DATASTORES.include?(resource[:type])
+        services_only!(resource, "only services have deploys to roll back to.")
         deploy = arguments["deploy"].to_s.strip
         fail! "Say which deploy to go back to, by the id list_deployments shows." if deploy.empty?
 
@@ -624,7 +680,7 @@ module Integrations
       end
 
       # What a sweep puts on the map for one workspace.
-      MAP_KINDS = [ *SERVICE_KINDS, ResourceMap::KIND_DATABASE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ].freeze
+      MAP_KINDS = [ *SERVICE_KINDS, ResourceMap::KIND_DATABASE, ResourceMap::KIND_WORKFLOW, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ].freeze
 
       def map_of_workspace(environment_row)
         api = api(environment_row)
@@ -639,6 +695,7 @@ module Integrations
           bounded(stores, what, [ ResourceMap::KIND_DATABASE ], gaps)
           stores.items.each { |store| reading.datastore(type, store) }
         end
+        map_workflows(api, account, reading, gaps)
         groups = slowed?(gaps) ? {} : group_env(api, account, services.items.map { |service| service["id"] }, gaps)
         ResourceMap::Snapshot.new(resources: reading.resources, links: reading.links, gaps: gaps, uses: uses_of(environment_row, settings, groups))
       end
@@ -693,6 +750,19 @@ module Integrations
         end
       end
       private :read_service
+
+      # The workspace's workflows with the repository each builds from. A list Render refuses is a gap that holds back no
+      # other kind.
+      def map_workflows(api, account, reading, gaps)
+        workflows = api.workflows(account)
+        bounded(workflows, "workflows", [ ResourceMap::KIND_WORKFLOW ], gaps)
+        workflows.items.each { |workflow| reading.workflow(workflow) }
+      rescue Integrations::RateLimited
+        raise
+      rescue RenderApi::Error => error
+        gaps << ResourceMap::Gap.new(text: Sentence.join("The workflows could not be read", error), kinds: [ ResourceMap::KIND_WORKFLOW ])
+      end
+      private :map_workflows
 
       # A datastore is a Postgres database or a Key Value instance, and its id alone does not say which, so each is asked.
       def refreshed_datastore(api, reading, account, id)
@@ -827,6 +897,15 @@ module Integrations
                                       "engine" => ("Postgres #{store['version']}" if type == POSTGRES) }.compact)
         end
 
+        def workflow(workflow)
+          build = workflow["buildConfig"] || {}
+          details = { "type" => TYPE_WORDS[WORKFLOW], "region" => workflow["region"], "branch" => build["branch"] }.compact
+          page = format(WORKFLOW_PAGE, id: Http.segment(workflow["id"]))
+          found = add(WORKFLOW, workflow.merge("dashboardUrl" => page), status: nil, details: details)
+          repository(found, build["repo"])
+          found
+        end
+
         def domain(service, host)
           found = ResourceMap.domain(host)
           @resources << found
@@ -878,11 +957,11 @@ module Integrations
       def workspace_holding(environment_row, scope)
         reached = ConnectionSettings.of(environment_row).scopes
         on_map = Scopes.holding(environment_row, scope.external_id)
-        owner = on_map.presence || owner_of(environment_row, scope)
+        owner = on_map.presence || workspace_owning(environment_row, scope)
         scoped(owner) if owner && reached.include?(owner)
       end
 
-      def owner_of(environment_row, scope)
+      def workspace_owning(environment_row, scope)
         api = api(environment_row)
         reads = scope.kind == ResourceMap::KIND_DATABASE ? %i[postgres key_value] : %i[service]
         reads.each do |read|
@@ -898,11 +977,24 @@ module Integrations
         @resources ||= begin
           api = api(environment_row)
           workspace = workspace_of(environment_row)
-          reads = [ api.services(workspace), api.postgres_databases(workspace), api.key_values(workspace) ]
+          reads = [ api.services(workspace), api.postgres_databases(workspace), api.key_values(workspace), workflows_read(api, workspace) ]
           @resources_cut = reads.any?(&:incomplete?)
           reads[0].items.map { |service| service_entry(service) } + reads[1].items.map { |database| datastore_entry(database, POSTGRES) } +
-            reads[2].items.map { |store| datastore_entry(store, KEY_VALUE) }
+            reads[2].items.map { |store| datastore_entry(store, KEY_VALUE) } + reads[3].items.map { |workflow| workflow_entry(workflow) }
         end
+      end
+
+      # The workspace's workflows. One Render refuses to list, such as on a workspace without workflows, is said beside
+      # the rest rather than failing the listing.
+      def workflows_read(api, workspace)
+        api.workflows(workspace)
+      rescue RenderApi::Refused => error
+        @workflows_unread = error
+        Pages::Read.new(items: [], complete: true)
+      end
+
+      def workflow_entry(workflow)
+        { id: workflow["id"], name: workflow["name"], type: WORKFLOW, url: format(WORKFLOW_PAGE, id: Http.segment(workflow["id"])), status: nil }
       end
 
       def resources_cut?(environment_row)
@@ -933,7 +1025,7 @@ module Integrations
       def resource_by_id(environment_row, id)
         api = api(environment_row)
         [ [ :service, ->(found) { service_entry(found) } ], [ :postgres, ->(found) { datastore_entry(found, POSTGRES) } ],
-          [ :key_value, ->(found) { datastore_entry(found, KEY_VALUE) } ] ].each do |read, entry|
+          [ :key_value, ->(found) { datastore_entry(found, KEY_VALUE) } ], [ :workflow, ->(found) { workflow_entry(found) } ] ].each do |read, entry|
           found = api.public_send(read, id)
           owner = found["ownerId"].presence || found.dig("owner", "id")
           return owner == workspace_of(environment_row) ? entry.call(found) : nil
@@ -957,7 +1049,7 @@ module Integrations
       def chart(environment_row, resource, name, started, ended, resolution)
         metric = METRICS.fetch(name)
         query = { "resource" => resource[:id], "startTime" => started.utc.iso8601, "endTime" => ended.utc.iso8601,
-                  "resolutionSeconds" => resolution }.merge(metric.query)
+                  "resolutionSeconds" => (resolution if metric.resolution) }.compact.merge(metric.query)
         series = api(environment_row).metrics(metric.path, query)
         series = status_class(series, STATUS_CLASSES[name]) if STATUS_CLASSES.key?(name)
         unit = series.filter_map { |each| each["unit"].presence }.first || "count"
@@ -1010,6 +1102,7 @@ module Integrations
           ([ ("plan #{details['plan']}" if details["plan"]), ("region #{details['region']}" if details["region"]),
              ("runtime #{details['runtime']}" if details["runtime"]) ].compact.join(", ").presence),
           scaling_line(details, autoscaling),
+          (running_line(environment_row, resource) if SCALABLE.include?(service["type"])),
           ("Schedule: #{details['schedule']}, last succeeded #{details['lastSuccessfulRunAt'] || 'never'}" if details["schedule"]),
           source_line(service, commands),
           ("Address: #{details['url']}" if details["url"].present?),
@@ -1026,6 +1119,40 @@ module Integrations
           return "Autoscaling between #{autoscaling['min']} and #{autoscaling['max']} instances on #{criteria.join(' and ').presence || 'no criteria'}"
         end
         "Instances: #{details['numInstances']}" if details.key?("numInstances")
+      end
+
+      # The instances running now, each by its id and when it started, which is what search_logs names a line by.
+      def running_line(environment_row, resource)
+        running = api(environment_row).instances(resource[:id]).sort_by { |instance| instance["createdAt"].to_s }
+        return "Instances running now: none" if running.empty?
+
+        "Instances running now, #{running.size}: #{running.map { |instance| "#{instance['id']} since #{instance['createdAt']}" }.join(', ')}"
+      rescue Integrations::RateLimited
+        raise
+      rescue RenderApi::Error => error
+        Sentence.join("The instances running now could not be read", error)
+      end
+
+      # A workflow as Render's API describes it (spec, GET /workflows/{workflowId}), with its tasks.
+      def workflow_lines(environment_row, resource)
+        api = api(environment_row)
+        workflow = api.workflow(resource[:id])
+        build = workflow["buildConfig"] || {}
+        tasks = begin
+          api.tasks(resource[:id]).items.filter_map { |task| task["name"] }
+        rescue Integrations::RateLimited
+          raise
+        rescue RenderApi::Error => error
+          error
+        end
+        [
+          "#{resource[:name]}, workflow#{", region #{workflow['region']}" if workflow['region']}#{", runtime #{build['runtime']}" if build['runtime']}",
+          ("Builds #{build['repo']}#{", branch #{build['branch']}" if build['branch']}#{", in #{build['rootDir']}" if build['rootDir'].present?}" if build["repo"]),
+          ("Run command: #{workflow['runCommand']}" if workflow["runCommand"].present?),
+          ("Autodeploy: #{workflow['autoDeployTrigger']}" if workflow["autoDeployTrigger"]),
+          (tasks.is_a?(Exception) ? Sentence.join("Its tasks could not be read", tasks) : "Tasks: #{tasks.join(', ').presence || 'none yet'}"),
+          "task_runs reads how its runs went."
+        ]
       end
 
       def source_line(service, commands)

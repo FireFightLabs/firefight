@@ -69,6 +69,30 @@ module Integrations
     # One time series per label set, for metrics such as cpu, memory or http-requests.
     def metrics(name, query) = Array(get("/metrics/#{name}", query))
 
+    # The instances a service runs now, each its id and when it started (spec, GET /services/{serviceId}/instances).
+    def instances(service_id) = Array(get("/services/#{segment(service_id)}/instances"))
+
+    # A service's one-off jobs, newest first, and one by its id (spec, GET /services/{serviceId}/jobs and
+    # /services/{serviceId}/jobs/{jobId}, render.com/docs/one-off-jobs).
+    def jobs(service_id, limit:) = page("/services/#{segment(service_id)}/jobs", "job", "limit" => limit)
+
+    def job(service_id, job_id) = get("/services/#{segment(service_id)}/jobs/#{segment(job_id)}")
+
+    # The workflows of a workspace and one by its id, a workflow's tasks, its task runs newest first, the runs one root
+    # run started, and one task run with its attempts (spec, GET /workflows, /workflows/{workflowId}, /tasks and
+    # /task-runs filtered by workflowId or rootTaskRunId, and /task-runs/{taskRunId}).
+    def workflows(owner_id) = list("/workflows", "workflow", "ownerId" => owner_id)
+
+    def workflow(workflow_id) = get("/workflows/#{segment(workflow_id)}")
+
+    def tasks(workflow_id) = list("/tasks", "task", "workflowId" => workflow_id)
+
+    def task_runs(workflow_id, limit:) = page("/task-runs", "taskRun", "workflowId" => workflow_id, "limit" => limit)
+
+    def child_task_runs(root_run_id) = page("/task-runs", "taskRun", "rootTaskRunId" => root_run_id, "limit" => PAGE_SIZE)
+
+    def task_run(task_run_id) = get("/task-runs/#{segment(task_run_id)}")
+
     def restart_service(service_id) = post("/services/#{segment(service_id)}/restart")
 
     def restart_postgres(postgres_id) = post("/postgres/#{segment(postgres_id)}/restart")
@@ -76,6 +100,23 @@ module Integrations
     def rollback(service_id, deploy_id) = post("/services/#{segment(service_id)}/rollback", "deployId" => deploy_id)
 
     def scale(service_id, instances) = post("/services/#{segment(service_id)}/scale", "numInstances" => instances)
+
+    # Cancels a deploy still in progress, answering it as Render now has it (spec, POST
+    # /services/{serviceId}/deploys/{deployId}/cancel, not for cron jobs).
+    def cancel_deploy(service_id, deploy_id) = post("/services/#{segment(service_id)}/deploys/#{segment(deploy_id)}/cancel")
+
+    # Starts a deploy as body says, with commitId, imageUrl, clearCache or deployMode, answering the deploy, or nil when
+    # Render answers 202 with none (spec, POST /services/{serviceId}/deploys).
+    def trigger_deploy(service_id, body) = post("/services/#{segment(service_id)}/deploys", body)
+
+    # Where a service, a Postgres database and a Key Value instance are suspended and resumed (spec, POST
+    # /services/{serviceId}/suspend, /postgres/{postgresId}/suspend, /key-value/{keyValueId}/suspend and each one's
+    # resume, answering 202 with no body).
+    SUSPENDABLE = { service: "services", postgres: "postgres", key_value: "key-value" }.freeze
+
+    def suspend(kind, id) = post("/#{SUSPENDABLE.fetch(kind)}/#{segment(id)}/suspend")
+
+    def resume(kind, id) = post("/#{SUSPENDABLE.fetch(kind)}/#{segment(id)}/resume")
 
     # The workspace's webhooks, each with its url and secret (spec, GET /webhooks, webhookWithCursor), read only to find one
     # Firefight registered before at the same address.
@@ -87,8 +128,9 @@ module Integrations
     end
 
     # Switches back on a webhook Render switched off after its deliveries kept failing (render.com/docs/webhooks, Delivery
-    # failures and retries), answering it as Render now has it (spec, PATCH /webhooks/{webhookId}).
-    def enable_webhook(webhook_id) = patch("/webhooks/#{segment(webhook_id)}", "enabled" => true)
+    # failures and retries), with the event types named, answering it as Render now has it (spec, PATCH
+    # /webhooks/{webhookId}, enabled and eventFilter).
+    def update_webhook(webhook_id, events:) = patch("/webhooks/#{segment(webhook_id)}", "enabled" => true, "eventFilter" => events)
 
     def delete_webhook(webhook_id) = delete("/webhooks/#{segment(webhook_id)}")
 

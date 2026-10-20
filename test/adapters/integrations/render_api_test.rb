@@ -57,9 +57,10 @@ module Integrations
       end.returns(response(201, { id: "whk-1", secret: "whsec_abc" }))
       assert_equal "whsec_abc", @api.create_webhook("tea-1", name: "Firefight", url: "https://ff.example/hook", events: [ "deploy_ended" ])["secret"]
 
-      Http.expects(:request).with { |uri, request, **| uri.path == "/v1/webhooks/whk-1" && request.is_a?(Net::HTTP::Patch) && JSON.parse(request.body) == { "enabled" => true } }
-          .returns(response(200, { id: "whk-1", enabled: true }))
-      assert @api.enable_webhook("whk-1")["enabled"]
+      Http.expects(:request).with do |uri, request, **|
+        uri.path == "/v1/webhooks/whk-1" && request.is_a?(Net::HTTP::Patch) && JSON.parse(request.body) == { "enabled" => true, "eventFilter" => [ "deploy_ended" ] }
+      end.returns(response(200, { id: "whk-1", enabled: true }))
+      assert @api.update_webhook("whk-1", events: [ "deploy_ended" ])["enabled"]
 
       Http.expects(:request).with { |uri, request, **| uri.path == "/v1/webhooks/whk-1" && request.is_a?(Net::HTTP::Delete) }.returns(stub(code: "204", body: ""))
       assert_equal({}, @api.delete_webhook("whk-1"))
@@ -67,6 +68,37 @@ module Integrations
       Http.expects(:request).with { |uri, *| uri.path == "/v1/webhooks" && URI.decode_www_form(uri.query).include?([ "ownerId", "tea-1" ]) }
           .returns(response(200, [ { cursor: "c1", webhook: { id: "whk-1", url: "https://ff.example/hook" } } ]))
       assert_equal [ "whk-1" ], @api.webhooks("tea-1").items.map { |webhook| webhook["id"] }
+    end
+
+    test "runs, instances, deploy changes and suspending reach the paths the spec gives" do
+      expect_call(Net::HTTP::Get, "/v1/services/srv-1/instances", [ { id: "srv-1-abcde", createdAt: "2026-10-01T10:00:00Z" } ])
+      assert_equal [ "srv-1-abcde" ], @api.instances("srv-1").map { |instance| instance["id"] }
+      expect_call(Net::HTTP::Get, "/v1/services/srv-1/jobs", [ { cursor: "c", job: { id: "job-1" } } ], query: [ "limit", "5" ])
+      assert_equal [ "job-1" ], @api.jobs("srv-1", limit: 5).map { |job| job["id"] }
+      expect_call(Net::HTTP::Get, "/v1/services/srv-1/jobs/job-1", { id: "job-1" })
+      assert_equal "job-1", @api.job("srv-1", "job-1")["id"]
+      expect_call(Net::HTTP::Get, "/v1/task-runs", [ { cursor: "c", taskRun: { id: "trn-1" } } ], query: [ "workflowId", "wfl-1" ])
+      assert_equal [ "trn-1" ], @api.task_runs("wfl-1", limit: 20).map { |run| run["id"] }
+      expect_call(Net::HTTP::Get, "/v1/task-runs", [], query: [ "rootTaskRunId", "trn-1" ])
+      assert_empty @api.child_task_runs("trn-1")
+      expect_call(Net::HTTP::Get, "/v1/task-runs/trn-1", { id: "trn-1" })
+      assert_equal "trn-1", @api.task_run("trn-1")["id"]
+      expect_call(Net::HTTP::Get, "/v1/tasks", [ { cursor: "c", task: { id: "tsk-1", name: "send" } } ], query: [ "workflowId", "wfl-1" ])
+      assert_equal [ "send" ], @api.tasks("wfl-1").items.map { |task| task["name"] }
+      expect_call(Net::HTTP::Get, "/v1/workflows", [ { cursor: "c", workflow: { id: "wfl-1" } } ], query: [ "ownerId", "tea-1" ])
+      assert_equal [ "wfl-1" ], @api.workflows("tea-1").items.map { |workflow| workflow["id"] }
+
+      expect_call(Net::HTTP::Post, "/v1/services/srv-1/deploys/dep-1/cancel", { id: "dep-1", status: "canceled" })
+      assert_equal "canceled", @api.cancel_deploy("srv-1", "dep-1")["status"]
+      expect_call(Net::HTTP::Post, "/v1/services/srv-1/deploys", { id: "dep-2" }, body: { "clearCache" => "clear" })
+      assert_equal "dep-2", @api.trigger_deploy("srv-1", "clearCache" => "clear")["id"]
+      [ [ :service, "/v1/services/srv-1" ], [ :postgres, "/v1/postgres/dpg-1" ], [ :key_value, "/v1/key-value/red-1" ] ].each do |kind, path|
+        id = path.split("/").last
+        Http.expects(:request).with { |uri, request, **| uri.path == "#{path}/suspend" && request.is_a?(Net::HTTP::Post) }.returns(stub(code: "202", body: ""))
+        @api.suspend(kind, id)
+        Http.expects(:request).with { |uri, request, **| uri.path == "#{path}/resume" && request.is_a?(Net::HTTP::Post) }.returns(stub(code: "202", body: ""))
+        @api.resume(kind, id)
+      end
     end
 
     test "not found and a request turned down as it stands are told apart from other refusals" do
@@ -91,6 +123,13 @@ module Integrations
 
     def response(code, body)
       stub(code: code.to_s, body: body.to_json)
+    end
+
+    def expect_call(method, path, answer, query: nil, body: nil)
+      Http.expects(:request).with do |uri, request, **|
+        uri.path == path && request.is_a?(method) && (query.nil? || URI.decode_www_form(uri.query.to_s).include?(query)) &&
+          (body.nil? || JSON.parse(request.body) == body)
+      end.returns(response(200, answer))
     end
   end
 end

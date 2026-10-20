@@ -1,0 +1,17 @@
+require "test_helper"
+require Rails.root.join("db/migrate/20261020100000_sync_render_run_and_change_tools")
+
+class SyncRenderRunAndChangeToolsTest < ActiveSupport::TestCase
+  test "an existing Render connection gets the three run reads and the four changes, and keeps the tools it had as they were" do
+    render = workspaces(:slack_workspace_one).integrations.create!(kind: Integration::KIND_NATIVE, provider: "render", name: "Render", slug: "render")
+    render.tools.create!(name: "list_events", description: "Events", read_only: true, enabled: false, params_schema: { "type" => "object" })
+
+    ActiveRecord::Migration.suppress_messages { SyncRenderRunAndChangeTools.new.up }
+
+    assert render.tools.where(name: %w[cron_runs job_runs task_runs]).all? { |tool| tool.enabled && tool.read_only }
+    changes = render.tools.where(name: %w[cancel_deploy trigger_deploy suspend_service resume_service])
+    assert_equal 4, changes.count
+    assert(changes.none?(&:read_only))
+    assert_not render.tools.find_by!(name: "list_events").enabled, "an admin's choice stays"
+  end
+end

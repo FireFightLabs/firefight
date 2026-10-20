@@ -19,6 +19,7 @@ module Integrations
           RenderApi.any_instance.stubs(:postgres_databases).with(workspace).returns(listed([]))
           RenderApi.any_instance.stubs(:key_values).with(workspace).returns(listed([]))
         end
+        RenderApi.any_instance.stubs(:workflows).returns(listed([]))
         RenderApi.any_instance.stubs(:deploys).returns([])
         RenderApi.any_instance.stubs(:env_vars).returns(listed([]))
         RenderApi.any_instance.stubs(:env_groups).returns([])
