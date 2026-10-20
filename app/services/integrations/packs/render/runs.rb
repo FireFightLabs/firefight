@@ -414,7 +414,10 @@ module Integrations
             )
             part.with(log: log_ref(part, "resource" => resource[:id], "task_run" => found["id"]))
           end
-          children = api.child_task_runs(found["id"]).reject { |child| child["id"] == found["id"] }.map do |child|
+          # Render lists a tree by its root, so the runs this one started are those of its tree whose parent it is.
+          root = found["rootTaskRunId"].presence || found["id"]
+          started = api.child_task_runs(root).select { |child| child["parentTaskRunId"] == found["id"] && child["id"] != found["id"] }
+          children = started.map do |child|
             sub = task_run(resource, child, tasks)
             part = History::Part.new(id: sub.id, name: "#{sub.name} (task run #{sub.id})", status: sub.status, started_at: sub.started_at,
                                      finished_at: sub.finished_at, url: resource[:url], detail: child["error"].presence)

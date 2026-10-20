@@ -108,13 +108,21 @@ module Integrations
                           { "attempt" => 1, "status" => "failed", "startedAt" => "2026-10-01T10:01:10Z", "completedAt" => "2026-10-01T10:02:00Z", "error" => "SMTP refused" } ]
         )
         RenderApi.any_instance.stubs(:child_task_runs).with("trn-1").returns([
-          { "id" => "trn-1", "taskId" => "tsk-1", "status" => "failed" },
-          { "id" => "trn-2", "taskId" => "tsk-2", "status" => "succeeded", "startedAt" => "2026-10-01T10:00:02Z", "completedAt" => "2026-10-01T10:00:09Z" }
+          { "id" => "trn-1", "taskId" => "tsk-1", "status" => "failed", "rootTaskRunId" => "trn-1" },
+          { "id" => "trn-2", "taskId" => "tsk-2", "status" => "succeeded", "startedAt" => "2026-10-01T10:00:02Z", "completedAt" => "2026-10-01T10:00:09Z",
+            "parentTaskRunId" => "trn-1", "rootTaskRunId" => "trn-1" },
+          { "id" => "trn-3", "taskId" => "tsk-2", "status" => "succeeded", "parentTaskRunId" => "trn-2", "rootTaskRunId" => "trn-1" }
         ])
         run = Capabilities::History.runs_of(@pack.call("task_runs", environment_row: @row, arguments: { "resource" => "mailer", "run" => "trn-1" })).sole
-        assert_equal [ [ "attempt 1", "failed" ], [ "attempt 2", "failed" ], [ "render_email (task run trn-2)", "succeeded" ] ], run.parts.map { |part| [ part.name, part.status ] }
+        assert_equal [ [ "attempt 1", "failed" ], [ "attempt 2", "failed" ], [ "render_email (task run trn-2)", "succeeded" ] ], run.parts.map { |part| [ part.name, part.status ] },
+                     "only the runs it started itself, not their own"
         assert_equal({ "resource" => "wfl-1", "task_run" => "trn-1", "start" => "2026-10-01T10:00:00Z", "end" => "2026-10-01T10:02:00Z" }, run.parts.first.log["arguments"])
         assert_equal "trn-2", run.parts.last.log.dig("arguments", "task_run")
+
+        RenderApi.any_instance.stubs(:task_run).with("trn-2").returns("id" => "trn-2", "taskId" => "tsk-2", "status" => "succeeded", "parentTaskRunId" => "trn-1",
+                                                                      "rootTaskRunId" => "trn-1", "attempts" => [])
+        middle = Capabilities::History.runs_of(@pack.call("task_runs", environment_row: @row, arguments: { "resource" => "mailer", "run" => "trn-2" })).sole
+        assert_equal [ "render_email (task run trn-3)" ], middle.parts.map(&:name), "a run deeper in the tree finds what it started through its root"
 
         RenderApi.any_instance.stubs(:task_run).with("trn-x").returns("id" => "trn-x", "taskId" => "tsk-other", "status" => "succeeded")
         assert_match "belongs to another workflow", assert_raises(NativePack::Error) { @pack.call("task_runs", environment_row: @row, arguments: { "resource" => "mailer", "run" => "trn-x" }) }.message
