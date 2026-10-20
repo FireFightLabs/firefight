@@ -152,7 +152,7 @@ module Integrations
         token = ConnectionSettings.of(environment_row).credential(API_TOKEN)
         fail! "This environment has no CircleCI token. Reconnect it on the Integrations page." if token.blank?
 
-        @api ||= CircleciApi.new(token)
+        (@apis ||= {})[environment_row.id] ||= CircleciApi.new(token)
       end
 
       def site(environment_row) = ConnectionSettings.of(environment_row).site
@@ -166,20 +166,21 @@ module Integrations
       # Every project of every organization the token's user belongs to. deep reads what a sweep keeps beside each one,
       # its slug and repository, which a tool call reads only for the project it names.
       def projects_of(environment_row, deep: false)
-        @projects ||= begin
+        @projects ||= {}
+        @deepened ||= Set.new
+        read = @projects[environment_row.id] ||= begin
           known = known_details(environment_row)
           complete = true
           items = api(environment_row).collaborations.flat_map do |organization|
-            read = api(environment_row).projects(organization["id"])
-            complete &&= read.complete
-            read.items.map { |project| project_of(organization, project, known[project["id"].to_s]) }
+            listed = api(environment_row).projects(organization["id"])
+            complete &&= listed.complete
+            listed.items.map { |project| project_of(organization, project, known[project["id"].to_s]) }
           end
           Pages::Read.new(items: items, complete: complete)
         end
-        return @projects unless deep && !@deepened
+        return read unless deep && @deepened.add?(environment_row.id)
 
-        @deepened = true
-        @projects = @projects.with(items: @projects.items.map { |project| deepened(environment_row, project) })
+        @projects[environment_row.id] = read.with(items: read.items.map { |project| deepened(environment_row, project) })
       end
 
       def project_of(organization, project, known)

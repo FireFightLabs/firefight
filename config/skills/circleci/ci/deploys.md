@@ -1,7 +1,7 @@
 ---
 name: circleci_deploys
 when: What a CircleCI project deployed and where, approving a workflow held for a person before a deploy, or rolling a component back to an earlier version
-tools: [list_deploys, ci_status, approve_job, rollback_deploy, rerun_workflow, list_jobs]
+tools: [list_deploys, ci_status, approve_job, rollback_deploy, rerun_workflow, list_jobs, recent_deploys, rollback]
 ---
 1. `list_deploys` lists what a project's components deployed, newest first: each version in each environment, which one is live, when it went out and the workflow that deployed it. A project records deploys only with CircleCI's deploy markers in its config, so an empty answer means none were recorded, not that nothing went out. `recent_deploys` answers the same for the project on the map.
 2. A workflow can hold for a person before a deploy, an approval job that waits on hold. `ci_status` and `list_jobs` show it. `approve_job` lets it carry on, by the workflow's id and the job's name when it holds more than one. An approval cannot be taken back, so approve only when a person asks or a runbook step says to, and say which workflow and what runs after it before they agree.

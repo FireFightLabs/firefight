@@ -1,7 +1,7 @@
 ---
 name: circleci_triage
 when: Any question about builds or tests CircleCI runs, such as whether a branch is failing, why a run failed, or what to rerun
-tools: [list_projects, ci_status, ci_runs, list_runs, get_run, list_workflows, get_workflow, list_jobs, get_job]
+tools: [list_projects, ci_status, ci_runs, list_runs, get_run, list_workflows, get_workflow, list_jobs, get_job, resource_status, run_history, search_logs, recent_deploys, rollback]
 ---
 How CircleCI is reached: its tools chain from a project down to one job. A project is named by its slug, such as gh/acme/web, its name, its id, or the address of the repository it builds, and `list_projects` lists them. Each CircleCI project is on the resource map as a pipeline built from its repository, so `resource_status`, `run_history`, `search_logs` with stream build, `recent_deploys` and `rollback` answer for it by name. `list_runs` lists a project's runs and filters by branch or how they stand. A run's id feeds `get_run` and `list_workflows`, a workflow's id feeds `list_jobs`, and a job's id feeds `get_job`.
 

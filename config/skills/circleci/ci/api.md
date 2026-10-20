@@ -1,7 +1,7 @@
 ---
 name: circleci_api
 when: A question about CircleCI that the other CircleCI tools do not answer, such as a project's schedules, contexts, insights and flaky tests, an organization's settings, and finding out whether CircleCI's API offers a read at all
-tools: [api_read, list_projects]
+tools: [api_read, list_projects, ci_status, ci_runs, get_job_logs]
 references: [api/index.md]
 ---
 `api_read` sends a GET to any path of CircleCI's API and answers what CircleCI said. It only reads, so it never needs the person's go ahead and works while investigating and watching. Rerunning, cancelling, approving, running a pipeline and rolling back go through their own tools, never through this.
