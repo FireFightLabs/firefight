@@ -1,9 +1,10 @@
 module Integrations
   module Packs
-    # Modal for one environment of a workspace: its apps, their logs and deployment history, and the changes Modal's CLI
-    # makes to a deployed app (modal app rollback and rollover, and Function.update_autoscaler), read and made with a
-    # Modal token. Each tool makes the calls the matching command of Modal's open source client makes
-    # (github.com/modal-labs/modal-client, py/modal/cli/app.py and py/modal/_logs.py), through Integrations::ModalApi.
+    # Modal for one environment of a workspace: its apps, their containers, logs and deployment history, and the changes
+    # Modal's CLI makes to an app (modal app rollback, rollover and stop, modal container stop, and
+    # Function.update_autoscaler), read and made with a Modal token. Each tool makes the calls the matching command of
+    # Modal's open source client makes (github.com/modal-labs/modal-client, py/modal/cli/app.py, py/modal/cli/container.py
+    # and py/modal/_logs.py), through Integrations::ModalApi.
     class Modal < NativePack
       # The environment row's credentials, which only this pack reads.
       TOKEN_ID = "token_id".freeze
@@ -44,6 +45,9 @@ module Integrations
         "end" => { "type" => "string", "description" => "End of the range as an ISO 8601 time (optional, now)" }
       }.freeze
       APP = { "type" => "string", "description" => "An app, by its name or its id (ap-...), as list_apps shows it" }.freeze
+      CONTAINER = { "type" => "string", "description" => "A container, by its id (ta-...), as list_containers shows it" }.freeze
+      CONTAINER_LIMIT = 50
+      STOPPED = :APP_STATE_STOPPED
 
       tool :list_apps,
            summary: "Lists the apps in the Modal environment with their state and containers.",
@@ -72,11 +76,20 @@ module Integrations
                "exclude" => { "type" => "string", "description" => "Leave out lines containing this text (optional)" },
                "source" => { "type" => "string", "enum" => SOURCES.keys, "description" => "Which output (optional, all of them)" },
                "function" => { "type" => "string", "description" => "Only this function or server, by its name in describe_app (optional)" },
+               "container" => { "type" => "string", "description" => "Only this container, by its id (ta-...), as list_containers shows it (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many lines (optional, #{LOG_LIMIT})" },
                **RANGE
              },
              "required" => [ "app" ]
            },
+           read_only: true
+
+      tool :list_containers,
+           summary: "Lists the containers running now in the Modal environment, or in one app.",
+           description: "The containers running now in the Modal environment for this connection, newest first, at most " \
+                        "#{CONTAINER_LIMIT}: each one's id, its app and when it started, or that it is still waiting to start. " \
+                        "app_logs takes a container to read only its lines, and stop_container ends one",
+           params_schema: { "type" => "object", "properties" => { "app" => APP.merge("description" => "Only this app's containers, by its name or id (optional)") } },
            read_only: true
 
       tool :deployment_history,
@@ -108,6 +121,28 @@ module Integrations
            summary: "Replaces every container of a Modal app with fresh ones on the same version.",
            description: "Replace every container of a deployed Modal app with fresh ones on the same version, for containers stuck " \
                         "in a bad state or holding a secret or connection that went stale. Old containers finish what they hold first",
+           params_schema: { "type" => "object", "properties" => { "app" => APP }, "required" => [ "app" ] },
+           read_only: false
+
+      tool :stop_container,
+           summary: "Stops one container of a Modal app, which Modal replaces when there is work.",
+           description: "Stop one running container, such as one stuck or using too much memory. The work it was doing is " \
+                        "cancelled and runs again on other containers, unless graceful lets it finish first. Modal starts new " \
+                        "containers as the work needs them",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "container" => CONTAINER,
+               "graceful" => { "type" => "boolean", "description" => "Let a function's container finish the work it holds before it stops (optional, false)" }
+             },
+             "required" => [ "container" ]
+           },
+           read_only: false
+
+      tool :stop_app,
+           summary: "Stops a Modal app for good and ends every container it runs.",
+           description: "Stop a Modal app for good: every container it runs ends at once, its web endpoints and schedules stop, " \
+                        "and it cannot be started again, only deployed anew from its code. Use it only when the app must stop serving",
            params_schema: { "type" => "object", "properties" => { "app" => APP }, "required" => [ "app" ] },
            read_only: false
 
@@ -161,6 +196,15 @@ module Integrations
         [ TOKEN_ID, TOKEN_SECRET ].each { |key| environment_row.store_credential!(key, values[key].to_s.strip) }
       end
 
+      # The environment's apps as modal app list reads them, for the source that follows their changes.
+      def self.listed_apps(environment_row)
+        settings = ConnectionSettings.of(environment_row)
+        token_id, token_secret = settings.credential(TOKEN_ID), settings.credential(TOKEN_SECRET)
+        raise ModalApi::Error, "This environment has no Modal token. Reconnect it on the Integrations page." if token_id.nil? || token_secret.nil?
+
+        ModalApi.new(token_id, token_secret).apps(settings.field(ENVIRONMENT).to_s)
+      end
+
       def list_apps(environment_row:, arguments:)
         apps = api(environment_row).apps(environment(environment_row)).sort_by { |app| [ -app.n_running_tasks, -app.created_at ] }
         where = environment(environment_row).presence || "the default environment"
@@ -200,8 +244,9 @@ module Integrations
 
         functions = function_names(environment_row, app_id)
         function_id = function_id_of(functions, arguments["function"]) if arguments["function"].present?
+        container = arguments["container"].to_s.strip
         batches = api(environment_row).logs(app_id, since: started, upto: ended, limit: limit, source: SOURCES.fetch(source, :FILE_DESCRIPTOR_UNSPECIFIED),
-                                            search_text: arguments["text"], function_id: function_id)
+                                            search_text: arguments["text"], function_id: function_id, task_id: container)
         lines = batches.flat_map do |batch|
           origin = functions.key(batch.function_id) || batch.task_id
           batch.items.filter_map do |item|
@@ -211,8 +256,25 @@ module Integrations
             Telemetry::LogLine.new(at: Time.zone.at(item.timestamp).utc, source: [ origin, item.container_id.presence ].compact.join(" "), text: text)
           end
         end.sort_by(&:at).reverse
-        asked = "#{app} from #{started.utc.iso8601} to #{ended.utc.iso8601}"
+        asked = "#{app}#{" container #{container}" if container.present?} from #{started.utc.iso8601} to #{ended.utc.iso8601}"
         Telemetry.result(Telemetry.logs_text(lines, asked: asked, limit: limit), link: app_link(environment_row, app_id))
+      end
+
+      # As modal container list shows them, newest first.
+      def list_containers(environment_row:, arguments:)
+        app_id, app = find_app(environment_row, arguments["app"]) if arguments["app"].present?
+        where = environment(environment_row).presence || "the default environment"
+        what = app ? "#{app} in #{where}" : where
+        link = app_link(environment_row, app_id) if app_id
+        containers = api(environment_row).containers(app_id.to_s, environment(environment_row)).sort_by { |task| -task.started_at }
+        return Telemetry.result("No containers are running in #{what}.", link: link) if containers.empty?
+
+        rows = containers.first(CONTAINER_LIMIT).map do |task|
+          [ task.task_id, "app #{task.app_description.presence || task.app_id} (#{task.app_id})",
+            task.started_at.positive? ? "started #{at(task.started_at)}" : "waiting to start since #{at(task.enqueued_at)}" ].join(", ")
+        end
+        shown = containers.size > CONTAINER_LIMIT ? " The newest #{CONTAINER_LIMIT} are shown." : ""
+        Telemetry.result("#{containers.size} containers running in #{what}, newest first.#{shown}\n#{rows.join("\n")}", link: link)
       end
 
       def deployment_history(environment_row:, arguments:)
@@ -249,6 +311,38 @@ module Integrations
         answer = api(environment_row).rollover(app_id)
         Telemetry.result("#{app} is rolling over to fresh containers on the same version. Running containers finish what they " \
                          "hold, then stop.#{warnings(answer)}", link: change_link(environment_row, answer, app_id))
+      end
+
+      # Only a container running in this connection's environment is stopped, so the token's reach into other
+      # environments is never used. The CLI likewise stops only one still running.
+      def stop_container(environment_row:, arguments:)
+        task = running_container(environment_row, arguments["container"])
+        graceful = ActiveModel::Type::Boolean.new.cast(arguments["graceful"]) || false
+        api(environment_row).stop_container(task.task_id, graceful: graceful)
+        how = graceful ? "finishes the work it holds, then stops" : "is stopping, and the work it held runs again on other containers"
+        Telemetry.result("Container #{task.task_id} of #{task.app_description.presence || task.app_id} #{how}. Modal starts new containers " \
+                         "as the work needs them.", link: app_link(environment_row, task.app_id))
+      end
+
+      # As modal app stop does, refused for an app already stopped, saying how many containers it ends.
+      def stop_app(environment_row:, arguments:)
+        app_id, app = find_app(environment_row, arguments["app"])
+        state = api(environment_row).lifecycle(app_id).app_state
+        fail!("#{app} is already stopped, so there is nothing to stop.") if state == STOPPED
+
+        running = api(environment_row).containers(app_id, environment(environment_row)).size
+        api(environment_row).stop_app(app_id)
+        Telemetry.result("#{app} is stopped for good, and the #{running} containers it ran are ending. It cannot be started again, " \
+                         "only deployed anew from its code.", link: app_link(environment_row, app_id))
+      end
+
+      # Whoever deployed the app stop_app would stop. Modal names nobody as having started a container.
+      def owner_of(tool_name, environment_row:, arguments:)
+        return super unless tool_name == "stop_app"
+
+        app_id, app = find_app(environment_row, arguments["app"])
+        deployed_by = api(environment_row).lifecycle(app_id).deployed_by
+        Owner.new(name: deployed_by, role: Owner::ROLE_DEPLOYED, what: "Modal app #{app}") if deployed_by.present?
       end
 
       def update_autoscaler(environment_row:, arguments:)
@@ -330,6 +424,14 @@ module Integrations
         [ app_id, wanted ]
       rescue ModalApi::NotFound
         fail!("No app #{wanted} in this Modal workspace. list_apps shows what there is.")
+      end
+
+      def running_container(environment_row, asked)
+        wanted = asked.to_s.strip
+        fail!("Say which container, by its id. list_containers shows them.") if wanted.empty?
+
+        api(environment_row).containers("", environment(environment_row)).find { |task| task.task_id == wanted } ||
+          fail!("No container #{wanted} is running in #{environment(environment_row).presence || 'the default environment'}. list_containers shows those that are.")
       end
 
       def find_deployed(environment_row, asked)

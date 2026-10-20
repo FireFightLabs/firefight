@@ -19,11 +19,12 @@ module Integrations
         travel_to Time.zone.parse("2026-10-04T12:00:00Z")
       end
 
-      test "the key is stored trimmed, the URL is a field of the form, every tool only reads, and the form refuses a URL Convex does not host" do
+      test "the key is stored trimmed, the URL is a field of the form, only pausing and unpausing change anything, and the form refuses a URL Convex does not host" do
         assert_nil @row.reload.credentials_hash[Convex::DEPLOYMENT_URL]
         assert_equal "prod:happy-animal-123|key", @row.credentials_hash[Convex::DEPLOY_KEY]
         assert_equal [ Convex::DEPLOY_KEY ], Convex.credential_fields.map(&:key)
-        assert Convex.tool_definitions.all?(&:read_only)
+        assert_equal %w[pause_deployment unpause_deployment], Convex.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[pause_deployment], IntegrationProvider.find(Convex::PROVIDER_KEY).mitigation_tools
         assert_match "ends in convex.cloud", Convex.credential_refusal({ Convex::DEPLOY_KEY => "x" }, fields: { Convex::DEPLOYMENT_URL => "http://10.0.0.1" })
         assert_nil Convex.credential_refusal({ Convex::DEPLOY_KEY => "x" }, fields: { Convex::DEPLOYMENT_URL => URL })
         ConvexApi.any_instance.stubs(:deployment_info).raises(ConvexApi::Error, "Convex answered 401: bad key")
@@ -158,6 +159,37 @@ module Integrations
         assert_nil @pack.check_health!(@row).then { nil }
         ConvexApi.any_instance.stubs(:deployment_info).raises(ConvexApi::Error, "Convex answered 401: bad key")
         assert_raises(NativePack::Error) { @pack.check_health!(@row) }
+      end
+
+      test "usage reads each metric today and this month beside its limits, and says when Convex has not loaded it all" do
+        ConvexApi.any_instance.stubs(:current_usage).returns(
+          "seedStatus" => "partial",
+          "metrics" => { "functionCalls" => { "unit" => "calls", "usage" => { "current_day" => 1200.0, "current_month" => 45_000.0 } },
+                         "databaseIoGb" => { "unit" => "GB", "usage" => { "current_day" => 0.25, "current_month" => 3.5 } } }
+        )
+        ConvexApi.any_instance.stubs(:usage_limits).returns([
+          { "id" => "l1", "metric" => "functionCalls", "window" => "month", "limitType" => "disable", "limit" => 50_000, "enabled" => true },
+          { "id" => "l2", "metric" => "functionCalls", "window" => "day", "limitType" => "warning", "limit" => 1000, "enabled" => false }
+        ])
+
+        lines = call(:usage, {}).lines.map(&:strip)
+
+        assert_equal "Usage of happy-animal-123 in the current UTC day and month, with its usage limits.", lines.first
+        assert_match "may be lower than the real total", lines.second
+        assert_equal "databaseIoGb: 0.25 GB today, 3.5 GB this month", lines.third
+        assert_equal "functionCalls: 1200 calls today, 45000 calls this month, limit of 50000 calls a month that stops the deployment, " \
+                     "switched off limit of 1000 calls a day that warns", lines.fourth
+      end
+
+      test "pausing and unpausing call Convex and say what each does, and pausing is undone by starting it again" do
+        ConvexApi.any_instance.expects(:pause).returns({})
+        ConvexApi.any_instance.expects(:unpause).returns({})
+
+        assert_match "happy-animal-123 is paused. Every function call fails", call(:pause_deployment, {})
+        assert_match "happy-animal-123 is unpaused.", call(:unpause_deployment, {})
+        pause = Struct.new(:name).new("pause_deployment")
+        assert_equal Mitigations::STARTS_AGAIN, MitigationReaders::Convex.undo_words(pause, {})
+        assert_not MitigationReaders::Convex.mitigation?(Struct.new(:name).new("unpause_deployment"), {})
       end
 
       private

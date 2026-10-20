@@ -684,7 +684,8 @@ providers:
     color: "#1b1d1a"
     status_page: { url: https://status.modal.com, feed: page }
     hosts: [ modal.run, api.modal.com ]
-    description: Logs, functions and deployment history of your Modal apps, and rolling an app back, rolling over its containers or changing a function's autoscaler when you allow it.
+    description: Logs, functions, containers and deployment history of your Modal apps, and rolling an app back, rolling over or stopping its containers, changing a function's autoscaler or stopping an app when you allow it.
+    stopping_tools: [stop_container, stop_app]
     site: https://modal.com
     server_url: ""
     kind: native
@@ -744,7 +745,9 @@ providers:
     color: "#ee342f"
     status_page: { url: https://status.convex.dev, feed: statuspage }
     hosts: [ convex.cloud, convex.site ]
-    description: Function logs, errors, pushes and state of a Convex deployment.
+    description: Function logs, errors, pushes, usage and state of a Convex deployment, and pausing or unpausing it when you allow it.
+    # Pausing fails every function call until it is unpaused, a stop customers feel for a while.
+    mitigation_tools: [pause_deployment]
     site: https://dashboard.convex.dev
     server_url: ""
     kind: native
