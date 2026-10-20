@@ -306,8 +306,8 @@ module Integrations
         assert_match %r{/services/web\z}, links["api_request"]
         assert_match %r{/project/firefight\z}, links["add_workflow_webhook"]
         assert_match %r{app.northflank.com\z}, links["billing_usage"]
-        assert_match %r{/project/firefight\z}, links["workflow_runs"]
-        assert_match %r{/project/firefight\z}, links["release_flow_runs"]
+        assert_match %r{/project/firefight/environments/workflows/release/runs\z}, links["workflow_runs"]
+        assert_match %r{/project/firefight/pipelines/shop/release-flows/production/runs\z}, links["release_flow_runs"]
         assert_match %r{/project/firefight/addons/db\z}, links["backup_history"]
         %w[template_runs run_template abort_template_run].each { |name| assert_match %r{app.northflank.com/s/account/templates\z}, links[name] }
         %w[template_runs run_template abort_template_run].each { |name| assert_match %r{app.northflank.com/s/account/templates\z}, links[name] }
@@ -629,6 +629,37 @@ module Integrations
         assert_equal "main, c4e4267d46e6", runs.first.detail
         assert_equal 360, result.dig(Telemetry::STRUCTURED, Capabilities::History::USUAL_SECONDS)
         assert_match "only services and jobs have builds", assert_raises(NativePack::Error) { call(:build_history, "resource" => "db") }.message
+      end
+
+      test "a job's builds link to its builds page and each build to its own" do
+        NorthflankApi.any_instance.stubs(:jobs).returns(listed([ { "id" => "nightly", "name" => "Nightly", "jobType" => "cron" } ]))
+        NorthflankApi.any_instance.stubs(:builds).with("firefight", "nightly", limit: 20, kind: "jobs").returns([
+          { "id" => "brave-otter-3", "status" => "SUCCESS", "concluded" => true, "success" => true, "createdAt" => "2026-10-01T09:00:00.000Z",
+            "buildConcludedAt" => Time.utc(2026, 10, 1, 9, 6).to_i }
+        ])
+        NorthflankApi.any_instance.stubs(:build).with("firefight", "jobs", "nightly", "brave-otter-3").returns(
+          "id" => "brave-otter-3", "status" => "FAILURE", "concluded" => true, "createdAt" => "2026-10-01T09:00:00.000Z"
+        )
+
+        listed = @pack.call("build_history", environment_row: @row, arguments: { "resource" => "nightly" })
+        one = Capabilities::History.runs_of(@pack.call("build_history", environment_row: @row, arguments: { "resource" => "nightly", "run" => "brave-otter-3" })).sole
+
+        page = "https://app.northflank.com/t/firefight-labs/project/firefight/jobs/nightly/builds"
+        assert_equal "#{page}/brave-otter-3", Capabilities::History.runs_of(listed).sole.url
+        assert_equal [ "#{page}/brave-otter-3", "failed" ], [ one.url, one.status ]
+        assert_match %r{#{page}\z}, listed["content"].sole["text"].lines.last
+      end
+
+      test "a read of a workflow or a release flow through the API links to its page, down to the run it names" do
+        NorthflankApi.any_instance.stubs(:request).returns({})
+        project = "https://app.northflank.com/t/firefight-labs/project/firefight"
+
+        assert_match %r{#{project}/environments/workflows/release/runs/46\z}, call(:api_request, "method" => "GET", "path" => "workflows/release/runs/46")
+        assert_match %r{#{project}/environments/workflows/release\z}, call(:api_request, "method" => "GET", "path" => "workflows/release")
+        assert_match %r{#{project}/pipelines/shop/release-flows/production/runs/f1\z},
+                     call(:api_request, "method" => "GET", "path" => "pipelines/shop/release-flows/Production/runs/f1")
+        assert_match %r{#{project}/pipelines/shop\z}, call(:api_request, "method" => "GET", "path" => "pipelines/shop")
+        assert_match %r{#{project}\z}, call(:api_request, "method" => "GET", "path" => "workflows")
       end
 
       test "a notification about a service reads that service again with the settings its secret groups give it, and nothing else" do
