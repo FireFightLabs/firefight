@@ -1,7 +1,8 @@
 module Integrations
   # The one line a person reads beside a tool, saying in plain words what it does for them. A tool's description is
   # written for the model, with what to call first and how much it returns, and stays as it is for the model. A native
-  # pack's tool says its summary where it is declared, and a remote server's tool where the registry lists it
+  # pack's tool, or one a pack adds beside a remote server, says its summary where it is declared, and a remote server's
+  # tool where the registry lists it
   # (tool_summaries in config/integration_providers.yml). A tool neither knows, such as one a team's own server
   # offers, shows the first sentence of its description, trimmed to fit.
   module ToolSummaries
@@ -20,11 +21,9 @@ module Integrations
     # What the tool's pack or its provider's registry entry says of it, or nil.
     def declared(tool)
       integration = tool.integration
-      if integration.native?
-        NativePack.for(integration.provider)&.tool_definitions&.find { |definition| definition.name == tool.name }&.summary
-      else
-        IntegrationProvider.find(integration.provider)&.tool_summaries&.[](tool.name)
-      end
+      pack = NativePack.for(integration.provider)
+      own = pack&.tool_definitions&.find { |definition| definition.name == tool.name }&.summary if integration.native? || Provider.for(integration.provider).runs_beside?(tool)
+      own || (IntegrationProvider.find(integration.provider)&.tool_summaries&.[](tool.name) unless integration.native?)
     end
 
     # The first sentence of a description, cut at a word to fit, or nil when there is none.

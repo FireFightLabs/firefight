@@ -25,6 +25,13 @@ module Integrations
       # connection the app made as the app, beside the server's own check, raising Integrations::Error with why it fails.
       def check_app!(_environment_row) = nil
 
+      # A pack whose tools sit beside a remote server's on the same MCP connection, reaching the provider's own API with
+      # the connection's credentials for what its server has no tool for (Integrations::McpExecutor).
+      def beside_server? = false
+
+      # Whether a connection is offered one of the pack's tools, such as no change on a connection made read only.
+      def offers?(_settings, _definition) = true
+
       # Providers that gate access behind installing an app return the URL to send
       # the customer to. nil means no install-first flow.
       def install_url(state:)

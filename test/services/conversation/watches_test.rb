@@ -560,6 +560,63 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert calls.any?
   end
 
+  test "a read tool whose answer is a run history is judged by the run's own status, never by its words or a model" do
+    connect!("northflank", "Northflank", %w[job_runs])
+    Ability::Approval.stubs(:self_approvable_by?).returns(false)
+    Integration::Tool.any_instance.stubs(:callable_by?).returns(true)
+    Investigation.stubs(:unavailable_reason).returns(nil)
+    started = Time.current
+    old = run_of("40", History::SUCCEEDED, 2.days.ago, finished: 2.days.ago + 9.minutes, name: "Nightly")
+    page = "https://app.northflank.com/t/acme/project/shop/jobs/nightly/runs/run-41"
+    runs = ->(*listed) { Integrations::Capabilities::RunHistory.with_runs({ "content" => [ { "type" => "text", "text" => "Latest runs of Nightly." } ] }, listed) }
+    answers("job_runs" => runs.call(old))
+    step = { "label" => "Nightly job", "tool" => "northflank_job_runs", "arguments" => { "job" => "nightly" }, "done_when" => "succeeded" }
+    assert_match "Started Watch", Conversation::Watches.start(@turn, watch_of([ step ], title: "the nightly job"))
+    watch = @conversation.chat.watches.sole
+    followed = watch.steps.sole
+
+    FirefightAi::WatchJudge.any_instance.stubs(:reading).returns(
+      FirefightAi::WatchJudge::Reading.new(state: FirefightAi::Schemas::WatchReading::NOT_STARTED, said: "Not started.", parts: [])
+    )
+    check!(watch)
+    assert_equal Chat::Watch::Step::STATUS_WAITING, followed.reload.status, "a run that finished before the watch is not the one it follows"
+
+    FirefightAi::WatchJudge.any_instance.expects(:reading).never
+    answers("job_runs" => runs.call(run_of("41", History::RUNNING, started, name: "Nightly", url: page), old))
+    check!(watch)
+    assert_equal [ Chat::Watch::Step::STATUS_RUNNING, "run-41", page ], [ followed.reload.status, followed.followed_run_id, followed.run_url ]
+
+    FirefightAi::WatchJudge.any_instance.stubs(:why_failed).returns("The migration exited with code 1.")
+    answers("job_runs" => runs.call(run_of("41", History::FAILED, started, finished: started + 4.minutes, name: "Nightly", url: page)
+                                                .with(detail: "exit code 1"), old))
+    check!(watch)
+
+    assert_equal Chat::Watch::Step::STATUS_FAILED, followed.reload.status
+    assert_equal "The migration exited with code 1. #{page}", followed.reason
+    assert_equal Chat::Watch::STATUS_FAILED, watch.reload.status
+  end
+
+  test "a read tool's run history without the run it follows is never judged by its words, and is handed back when the run never shows up" do
+    connect!("northflank", "Northflank", %w[job_runs])
+    Ability::Approval.stubs(:self_approvable_by?).returns(false)
+    Integration::Tool.any_instance.stubs(:callable_by?).returns(true)
+    Investigation.stubs(:unavailable_reason).returns("unavailable")
+    old = run_of("40", History::SUCCEEDED, 2.days.ago, finished: 2.days.ago + 9.minutes, name: "Nightly")
+    answers("job_runs" => Integrations::Capabilities::RunHistory.with_runs({ "content" => [ { "type" => "text", "text" => "run-40 succeeded" } ] }, [ old ]))
+    step = { "label" => "Nightly job", "tool" => "northflank_job_runs", "arguments" => { "job" => "nightly" }, "done_when" => "succeeded" }
+    Conversation::Watches.start(@turn, watch_of([ step ], title: "the nightly job"))
+    watch = @conversation.chat.watches.sole
+    followed = watch.steps.sole
+
+    2.times { check!(watch) }
+    assert_equal [ Chat::Watch::Step::STATUS_WAITING, "No run of Nightly job has started yet." ], [ followed.reload.status, followed.last_state ]
+
+    travel Chat::Watch::Step::HAND_BACK_AFTER + 1.minute do
+      check!(watch)
+    end
+    assert_equal Chat::Watch::Step::STATUS_REPAIRING, followed.reload.status
+  end
+
   test "a read tool step moves to running once its reading shows the run began, and says each job as it starts or passes, once per check" do
     northflank_api!
     Investigation.stubs(:unavailable_reason).returns(nil)
