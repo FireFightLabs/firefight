@@ -46,6 +46,11 @@ module Integrations
           "RolloutStrategy" => "Rollout", "SecretInheritance" => "Secrets", "LoopData" => "Loop"
         }.freeze
         REFERENCE = "${".freeze
+        # Where Northflank's app keeps a workflow, its release flows and their runs in a project:
+        # environments/workflows/<workflow>/runs/<run> and pipelines/<pipeline>/release-flows/<stage>/runs/<run>.
+        WORKFLOWS_PAGE = "environments".freeze
+        RELEASE_FLOWS = "release-flows".freeze
+        RUNS = "runs".freeze
         PIPELINES_PERMISSION = "Its role needs to read pipelines (Project, Pipelines, General, Read).".freeze
         WORKFLOWS_PERMISSION = "Its role needs to read workflows (Project, Workflows, General, Read).".freeze
 
@@ -91,14 +96,17 @@ module Integrations
           workflow = workflow_named(environment_row, project, arguments["workflow"])
           name = workflow["name"].presence || workflow["id"]
           what = "workflow #{name}"
-          link = project_link(environment_row)
+          page = [ WORKFLOWS_PAGE, KIND_WORKFLOWS, workflow["id"], RUNS ]
+          link = project_link(environment_row, *page)
+          page_of = ->(run) { project_link(environment_row, *page, run["id"])&.url }
           if arguments["run"].present?
             run = api(environment_row).workflow_run(project, workflow["id"], run_id(arguments))
-            return History.result([ release_run(run, name).with(parts: parts_of(run)) ], what: what, link: link)
+            return History.result([ release_run(run, name, url: page_of.call(run)).with(parts: parts_of(run)) ], what: what, link: link)
           end
 
           runs = api(environment_row).workflow_runs(project, workflow["id"], limit: limit(arguments, RUN_LIMIT))
-          History.result(runs.map { |run| release_run(run, name) }, what: what, link: link, name: arguments["name"], limit: limit(arguments, RUN_LIMIT))
+          History.result(runs.map { |run| release_run(run, name, url: page_of.call(run)) }, what: what, link: link, name: arguments["name"],
+                                                                                            limit: limit(arguments, RUN_LIMIT))
         end
 
         def release_flow_runs(environment_row:, arguments:)
@@ -106,10 +114,12 @@ module Integrations
           pipeline = pipeline_named(environment_row, project, arguments["pipeline"])
           stage = stage_of(arguments["stage"])
           name = release_flow_name(pipeline, stage)
-          link = project_link(environment_row)
+          page = [ KIND_PIPELINES, pipeline["id"], RELEASE_FLOWS, stage.downcase, RUNS ]
+          link = project_link(environment_row, *page)
+          page_of = ->(run) { project_link(environment_row, *page, run["id"])&.url }
           if arguments["run"].present?
             run = api(environment_row).release_flow_run(project, pipeline["id"], stage.downcase, run_id(arguments))
-            return History.result([ release_run(run, name).with(parts: parts_of(run)) ], what: "release flow #{name}", link: link)
+            return History.result([ release_run(run, name, url: page_of.call(run)).with(parts: parts_of(run)) ], what: "release flow #{name}", link: link)
           end
 
           runs = begin
@@ -117,7 +127,18 @@ module Integrations
           rescue NorthflankApi::NotFound
             fail! "#{pipeline['name'].presence || pipeline['id']} has no release flow for #{stage}. Each stage that releases has its own."
           end
-          History.result(runs.map { |run| release_run(run, name) }, what: "release flow #{name}", link: link, name: arguments["name"], limit: limit(arguments, RUN_LIMIT))
+          History.result(runs.map { |run| release_run(run, name, url: page_of.call(run)) }, what: "release flow #{name}", link: link, name: arguments["name"],
+                                                                                            limit: limit(arguments, RUN_LIMIT))
+        end
+
+        # The page in Northflank's app of a workflow or a release flow an API path names, down to the run it names, such as
+        # workflows/release/runs/46 or pipelines/shop/release-flows/production/runs/46.
+        def release_page(environment_row, path)
+          kind, id, *rest = path.split("/")
+          return project_link(environment_row, WORKFLOWS_PAGE, kind, id, *(rest.first(2) if rest.first == RUNS)) if kind == KIND_WORKFLOWS
+          return project_link(environment_row, kind, id) unless rest.first == RELEASE_FLOWS && STAGES.any? { |stage| stage.casecmp?(rest.second.to_s) }
+
+          project_link(environment_row, kind, id, RELEASE_FLOWS, rest.second.downcase, *(rest[2, 2] if rest[2] == RUNS))
         end
 
         # The pipeline's own name and the stage, which is how Northflank's dashboard heads a release flow.
@@ -125,14 +146,14 @@ module Integrations
 
         # A run as the list or the details give it, named by what ran it so a watch's name finds it, with its own name and
         # description beside the status words a person needs, such as waiting for an approval. Its own name, such as
-        # release-v0-0-29, is its title, so a watch given that name follows exactly that run.
-        def release_run(run, name)
+        # release-v0-0-29, is its title, so a watch given that name follows exactly that run. url is the run's own page.
+        def release_run(run, name, url: nil)
           status = run["status"].to_s.downcase
           detail = [ run["name"].presence, run["description"].presence, WAITING_WORDS[status] ].compact.join(", ").presence
           History::Run.new(
             id: run["id"].to_s, name: name, title: run["name"].presence, status: History.status(status, RUN_STATUSES),
             started_at: Telemetry.parse_time(run["startedAt"] || run["createdAt"]),
-            finished_at: (Telemetry.parse_time(run["concludedAt"] || run["updatedAt"]) if run["concluded"]), detail: detail
+            finished_at: (Telemetry.parse_time(run["concludedAt"] || run["updatedAt"]) if run["concluded"]), detail: detail, url: url
           )
         end
 

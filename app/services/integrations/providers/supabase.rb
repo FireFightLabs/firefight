@@ -1,9 +1,10 @@
 module Integrations
   module Providers
     # A project's status as Supabase's Management API names it, a branch's as supabase-mcp's branch schema does, and an Edge
-    # Function's as the API's FunctionResponse does (ACTIVE, REMOVED, THROTTLED).
+    # Function's as the API's FunctionResponse does (ACTIVE, REMOVED, THROTTLED). Its pack sits beside the MCP server,
+    # reaching the Management API for action runs, health, metrics, backups and restarts, which the server has no tools for.
     Supabase = Provider.new(
-      key: "supabase", data_writes: "Integrations::DataWrites::Supabase", adapter: "Integrations::Capabilities::Supabase", map_reader: "Integrations::MapReaders::Supabase",
+      key: "supabase", pack: "Integrations::Packs::Supabase", data_writes: "Integrations::DataWrites::Supabase", adapter: "Integrations::Capabilities::Supabase", map_reader: "Integrations::MapReaders::Supabase",
       source_links: "Integrations::SourceLinks::Supabase", map_events: "Integrations::MapEventSources::Supabase",
       status_words: {
         "active_healthy" => "healthy", "active_unhealthy" => "unhealthy", "coming_up" => "starting", "restarting" => "starting",

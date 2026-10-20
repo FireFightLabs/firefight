@@ -8,4 +8,4 @@ references: [postgres/monitoring.md, postgres/ps-insights.md]
 2. Call `planetscale_get_database`. Whether it is Postgres or MySQL decides everything after this. Postgres has server logs and the pg_stat views to query. MySQL on PlanetScale runs on Vitess, and the server log tool does not work for it.
 3. Call `planetscale_list_branches`. Production is usually the main branch. Answer about the branch the application uses, since development branches have their own data and traffic.
 4. Call `planetscale_get_branch` for its state, and whether it has replicas that reads may be served from.
-5. Then load the skill that fits what was reported: planetscale_slow_queries, planetscale_query_errors, planetscale_connections or planetscale_locks.
+5. Then load the skill that fits what was reported: planetscale_slow_queries, planetscale_query_errors, planetscale_connections or planetscale_locks, planetscale_deploy_requests when a schema change may be the cause, and planetscale_branch_changes when CPU, memory or disk run high or the branch was resized.
