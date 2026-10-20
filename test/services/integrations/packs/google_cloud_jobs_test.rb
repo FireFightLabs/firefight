@@ -60,7 +60,7 @@ module Integrations
 
         job = snapshot.resources.find { |resource| resource.external_id == JOB_ID }
         assert_equal [ ResourceMap::KIND_JOB, "nightly", "failed" ], [ job.kind, job.name, job.status ]
-        assert_equal "https://console.cloud.google.com/run/jobs?project=acme-prod", job.url
+        assert_equal "https://console.cloud.google.com/run/jobs/details/us-central1/nightly/executions?project=acme-prod", job.url
         assert_equal({ "type" => "Cloud Run job", "region" => "us-central1", "image" => "us-docker.pkg.dev/acme/etl:v9", "latest_execution" => "nightly-x2k9p",
                        ResourceMap::TAGS => { "team" => "data" } }, job.details)
         assert_includes snapshot.links.map { |link| [ link.from.last, link.to.last, link.relation ] }, [ JOB_ID, "acme-prod:us-central1:orders", ResourceMap::RELATION_USES ]

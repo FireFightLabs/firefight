@@ -36,6 +36,11 @@ module Integrations
   #   limits                                  a sentence saying what live updates do not follow, such as a resource
   #                                           added or its settings changing, which the hourly sweep reads, shown on
   #                                           the connection while they are on
+  #   handshake(payload, headers:)            for a provider that confirms the address it was given before it sends
+  #                                           anything, the answer to a verified delivery that asks for that
+  #                                           confirmation, or nil for any other delivery
+  #   turn_off_words                          for a provider that both polls and registers, what turning its
+  #                                           registration off does, since its change log is still read
   #   installation_of(payload, headers:)      for a provider that sends every connection's changes to one address for its
   #                                           app, the installation they are about, matched to a connection's own
   #                                           (IntegrationEnvironment#installation_id). The delivery is verified with
@@ -154,6 +159,10 @@ module Integrations
       def wakes?(_payload, headers:) = false
 
       def limits = nil
+
+      def handshake(_payload, headers:) = nil
+
+      def turn_off_words = nil
 
       def registers? = respond_to?(:register)
 

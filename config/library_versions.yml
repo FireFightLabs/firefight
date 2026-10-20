@@ -13,8 +13,8 @@ skills:
     version: 1
     digest: 9fdf401a384290cacb0475633a7ee3c39ba17da61163386c521833b7e88b9b25
   aws_lambda:
-    version: 1
-    digest: 99fc51c41464e2b798de076db5fcf77e3f4ce49dd557e1dea93a929ffb81cb1c
+    version: 2
+    digest: 95535944f9acfec430f0df2850e3d0568f1ee9047dc5b706d0f57e83b0570087
   aws_logs_insights:
     version: 1
     digest: 1dd939f1d5cd9471253e885bd70eb98151a2dd1a88c236c6be2431fc3bc765b4
@@ -25,8 +25,8 @@ skills:
     version: 1
     digest: 4bdfda6ce40607fdf13ebc5435d536c25d8e95deb69a0f74578ad5aa81c6be47
   aws_triage:
-    version: 1
-    digest: cdf5150c62cccac7994dfcddb1bb6d1a59ccc760b7a4cafe6368508e9e6f62e2
+    version: 2
+    digest: eb51df303b04a1f0e0253da0405d69d81ed3c90a4e5c60bd35ec2aee6f952f42
   axiom_errors:
     version: 1
     digest: 97135b6d67587160ab338f6a47bd5baf875fa9843bc4875197aad8b253b26a15
@@ -49,8 +49,8 @@ skills:
     version: 1
     digest: 68ed788da3849a3d1445b0803b0baa1465a4680274c4fb3c46b73271ddcc0cdc
   azure_fixes:
-    version: 1
-    digest: c102757f344495f1c28f5340b8137de7ac95e36e3a063a71dd5b0b2cf8b0b745
+    version: 2
+    digest: a55dccac314a7c8733c2f4cc5a26826fff5d935b56fdedabb62e03b00e5f877f
   azure_postgresql:
     version: 1
     digest: 91acbd1510717e9926d87d14e208ee24fa7469d9c24b3a3136240dce0da3fb41
@@ -226,8 +226,8 @@ skills:
     version: 1
     digest: e1bc6f497a4b29cea854847f6fb9f8b36aa16302525b93f83c27439103100e9b
   digitalocean_changes:
-    version: 1
-    digest: ee91e4534d045745b147675dffec0af24f93971237917075dc96fc5f7dfa50b9
+    version: 3
+    digest: 208dde9935a337fce07d2fa83f7d388c85b618091550d161da8854bf51507e9f
   digitalocean_cost:
     version: 1
     digest: fe68af55cc0394079735323c6af913ed35af7e4e7436d1ad0f8c1434556974de
@@ -244,8 +244,8 @@ skills:
     version: 1
     digest: 5ecc5c019f2262a3a938c1f000da977b14a1d000a2691fb28167412193ff13dc
   digitalocean_triage:
-    version: 1
-    digest: 7a2cfe934b97cfc1f737337c32450c90f26e8a49260d65ee41572faa30fee8f1
+    version: 2
+    digest: a79509207c3691340f8bbe76f5846464c9d8c3fc7557b8135eea841b0d7aac4f
   disk_trends:
     version: 1
     digest: eb83610a9ab004f8c8795579643696772c85cb49384db634b48f2cf43d609897
@@ -811,14 +811,14 @@ skills:
     version: 1
     digest: 27fdabb0d935a9a31f09cff4738556cea9a82b3e701bbc4fac8ab12006b7e7d0
   trigger_dev_deploys:
-    version: 1
-    digest: 9d853b9f3872f66514aa97fae5bf96f60414273a5b5dd4f7b8c4c24aea95d6d6
+    version: 2
+    digest: 30782d9486ad0fc63358291bc30e8dd5c9456a09a088c3cc6f8f9b8a894cdec2
   trigger_dev_failing_runs:
-    version: 1
-    digest: 9712cd6f4cf2bbb84bf7ce8b223080d3a8f607d998afc805052ad81d9c8913d4
+    version: 4
+    digest: 7f86bdf8c29c3116ae5895341ee0bf579985f0a1e561d674fe0d24f745fb000d
   trigger_dev_stuck_runs:
-    version: 1
-    digest: c786ff96514b55de72eebb76a2b198d171a8d2ff8fdc5b87da9a4f5c3931fc02
+    version: 3
+    digest: 2972b4693ee2562036817064a6f97680166978c07ef79964258024d84a947633
   trigger_dev_triage:
     version: 1
     digest: 32fd642595098b4a8c045f83ca5b439158b89f49e9c37abeb60ec70a78f538b0

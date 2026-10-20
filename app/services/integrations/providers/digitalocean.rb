@@ -4,6 +4,7 @@ module Integrations
       key: "digitalocean",
       pack: "Integrations::Packs::Digitalocean",
       adapter: "Integrations::Capabilities::Digitalocean",
+      map_events: "Integrations::MapEventSources::Digitalocean",
       read_guard: "Integrations::ReadGuards::Digitalocean",
       # DigitalOcean's own words (digitalocean/openapi): a Droplet's status, a database cluster's status, and an App
       # Platform deployment's phase.

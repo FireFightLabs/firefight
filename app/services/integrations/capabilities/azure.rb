@@ -5,19 +5,25 @@ module Integrations
     # passed on. A rollback swaps an App Service slot or moves a Container App's traffic, whichever the resource is. Run
     # history is an App Service or Function app's deployments, which keep when each started and ended, one read by its id
     # with the steps its log records. Their build stream is a deployment's log. A Container App revision keeps only when
-    # it was made, so it has none.
+    # it was made, so it has none. A container registry's run history is its ACR Tasks runs, one read by its id, and its
+    # logs are a run's log, as the build stream.
     module Azure
       extend Adapter
 
       SERVICE = ResourceMap::KIND_SERVICE
       DATABASE = ResourceMap::KIND_DATABASE
+      REGISTRY = ResourceMap::KIND_BUILD_SERVICE
       SUPPORTS = {
-        LOGS => [ SERVICE, DATABASE ], METRICS => [ SERVICE, DATABASE ], DEPLOYS => [ SERVICE ], HISTORY => [ SERVICE ], STATUS => [ SERVICE, DATABASE ],
+        LOGS => [ SERVICE, DATABASE, REGISTRY ], METRICS => [ SERVICE, DATABASE ], DEPLOYS => [ SERVICE ], HISTORY => [ SERVICE, REGISTRY ],
+        STATUS => [ SERVICE, DATABASE, REGISTRY ],
         ROLLBACK => [ SERVICE ], RESTART => [ SERVICE, DATABASE ], SCALE => [ SERVICE ]
       }.freeze
       DEPLOYMENT_LOG = "deployment_log".freeze
+      REGISTRY_RUNS = "list_registry_runs".freeze
+      REGISTRY_LOG = "registry_run_log".freeze
       TOOLS = {
-        LOGS => [ "search_logs", DEPLOYMENT_LOG ], METRICS => "query_metrics", DEPLOYS => "list_deployments", HISTORY => "list_deployments",
+        LOGS => [ "search_logs", DEPLOYMENT_LOG, REGISTRY_LOG ], METRICS => "query_metrics", DEPLOYS => "list_deployments",
+        HISTORY => [ "list_deployments", REGISTRY_RUNS ],
         STATUS => "describe_resource", ROLLBACK => "rollback_app", RESTART => "restart_resource", SCALE => "scale_app"
       }.freeze
       # Every tool, the changes too, is answered one to one, so Halon is offered the capability and never the tool as well.
@@ -46,6 +52,7 @@ module Integrations
 
       # An app's build logs are its deployments' logs, the one named or the newest.
       def self.logs(resource, given)
+        return registry_logs(resource, given) if resource.kind == REGISTRY
         return Route.new(tool_name: TOOLS[LOGS].first, arguments: { "resource" => resource.external_id }.merge(given.slice(*PASSED))) unless given["stream"] == STREAM_BUILD
         unless SITES.include?(resource.details.to_h[Packs::Azure::TYPE])
           raise Unroutable, "Azure keeps build logs for an App Service or Function app's deployments, and #{resource.name} is not one. Ask for its app logs instead."
@@ -55,15 +62,28 @@ module Integrations
       end
 
       def self.history(resource, given)
+        if resource.kind == REGISTRY
+          arguments = { "resource" => resource.external_id, "run" => given["run"].to_s.strip.presence, "limit" => Answers.limit(given, History::LIMIT) }
+          return Route.new(tool_name: REGISTRY_RUNS, arguments: arguments.compact, present: RunHistory.presenter(resource.name, given))
+        end
         if resource.details.to_h[Packs::Azure::TYPE] == Packs::Azure::TYPE_CONTAINER
           raise Unroutable, "Azure keeps when each revision of #{resource.name} was made, not when it finished rolling out, so it has no run " \
                             "history to time. Ask for its deploys instead."
         end
 
         arguments = { "resource" => resource.external_id, "deployment" => given["run"].to_s.strip.presence, "limit" => Answers.limit(given, History::LIMIT) }
-        Route.new(tool_name: TOOLS[HISTORY], arguments: arguments.compact, present: RunHistory.presenter(resource.name, given))
+        Route.new(tool_name: tool_for(HISTORY), arguments: arguments.compact, present: RunHistory.presenter(resource.name, given))
       end
-      private_class_method :logs, :history
+      # A registry keeps only its runs' logs, the run named or the newest.
+      def self.registry_logs(resource, given)
+        unless given["stream"].in?([ nil, "", STREAM_BUILD ])
+          raise Unroutable, "Azure keeps the logs of #{resource.name}'s ACR Tasks runs, a container registry's builds, so stream must be #{STREAM_BUILD}."
+        end
+
+        run = (given[RUN_ARG].presence || given["deployment"]).to_s.strip.presence
+        Route.new(tool_name: REGISTRY_LOG, arguments: { "resource" => resource.external_id, "run" => run }.compact.merge(given.slice("text", "exclude", "limit")))
+      end
+      private_class_method :logs, :history, :registry_logs
     end
   end
 end
