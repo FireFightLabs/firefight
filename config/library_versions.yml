@@ -256,17 +256,17 @@ skills:
     version: 2
     digest: 4642b3e60f853bf070fd1449abace251eaa9ee8477aa530fee2acd56cf1f71da
   fly_crashes:
-    version: 1
-    digest: 9b4d57b40aa4a59ea74caa4ff40079a6c987dd50ed3d2054a4d8e6e368ebeb38
+    version: 2
+    digest: d67a9a951c5fec00e5b88b2e4fe1410520489625d4ba68ec94b5ae29a2a9fb89
   fly_deploys:
     version: 1
     digest: c1683760866d592974ea1e88a55950809c2f4a30cf57638f8f163eb849bd510c
   fly_fixes:
-    version: 2
-    digest: 9fd6ac2fa909906be46ba35a31ba583b236cbbd242106b1505bbe558ebc3073c
+    version: 3
+    digest: f140d3c627976741b54b5c612557a1df78f3edaea410019ce7caa946fbc31b89
   fly_proxy_errors:
-    version: 1
-    digest: 9dea8308f9f3d42a6b05f13c77c858bec11d0d7a00b2b71858c50695fd8aea5e
+    version: 2
+    digest: 1787ff4c2df1e30506df84126a00e0e4a5e418e83e5cbbcadefbb11126d66fe9
   fly_triage:
     version: 2
     digest: f5f5f829a55521ee165148985c7933ba36a0a8545fe148591247b51759272819
@@ -838,8 +838,8 @@ skills:
     version: 2
     digest: 22e8d378f5bf297b8c6afff8993396d0e6d92bd7820fa9ad24aaf3524fa3c39c
   vercel_triage:
-    version: 2
-    digest: '02887e4c0e827922a452a3ceb4ca84241f12aefe1a8254235fbcb9a3d8a7e348'
+    version: 3
+    digest: 7fb20a7434de2ccc612533df7b8f5334c5a36f5c76a6754ede241f0d86d912f2
   watching:
     version: 1
     digest: e733afae606f41061583f9053e7b6057a49905ba198f3f355297355e064e8290

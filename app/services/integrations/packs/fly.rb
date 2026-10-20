@@ -79,6 +79,22 @@ module Integrations
       STOPPED = "stopped".freeze
       SUSPENDED = "suspended".freeze
       STARTABLE = [ STOPPED, SUSPENDED ].freeze
+      # The CPU sizes fly scale vm takes, with the memory each starts at, and the most memory a CPU of each kind may have
+      # (superfly/fly-go, machine_types.go, MachinePresets and MAX_MEMORY_MB_PER_*). Memory is a multiple of 256 MB on a shared CPU
+      # and 2048 MB on a performance one (docs, machines/guides-examples/machine-sizing).
+      Size = Data.define(:cpu_kind, :cpus, :memory_mb)
+      SHARED = "shared".freeze
+      PERFORMANCE = "performance".freeze
+      SIZES = {
+        **[ 1, 2, 4, 6, 8 ].to_h { |cpus| [ "shared-cpu-#{cpus}x", Size.new(cpu_kind: SHARED, cpus: cpus, memory_mb: cpus * 256) ] },
+        **[ 1, 2, 4, 6, 8, 10, 12, 14, 16 ].to_h { |cpus| [ "performance-#{cpus}x", Size.new(cpu_kind: PERFORMANCE, cpus: cpus, memory_mb: cpus * 2048) ] }
+      }.freeze
+      MEMORY_PER_CPU = { SHARED => 256..2048, PERFORMANCE => 2048..8192 }.freeze
+      MEMORY_STEP = { SHARED => 256, PERFORMANCE => 2048 }.freeze
+      DEFAULT_GROUP = "app".freeze
+      # A standby copies the machine it stands by, so a new machine stands by nothing, as fly scale count clears it.
+      STANDBY_FOR = "FLY_STANDBY_FOR".freeze
+
       # A Managed Postgres cluster's slow queries are Fly's top 20 by total time, over a lookback of at most a week (spec,
       # Postgres_queries_slow range), and its active ones are read per database.
       QUERY_KINDS = %w[slow active].freeze
@@ -241,6 +257,44 @@ module Integrations
            summary: "Sends traffic to a machine of an app again after it was cordoned.",
            description: "Let Fly's proxy send requests to one machine of an app again, after cordon_machine took it out of traffic",
            params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE, "machine" => MACHINE }, "required" => %w[resource machine] },
+           read_only: false
+
+      tool :scale_app,
+           summary: "Adds or removes machines of an app until it runs the number asked for.",
+           description: "Set how many machines an app runs, as fly scale count does. Each new machine is a copy of the group's " \
+                        "newest machine, in its region unless one is named, started and waited on one at a time. Removing " \
+                        "takes stopped machines first, then the newest, each destroyed, so it cannot be started again. A " \
+                        "machine with a volume is not copied, since each needs a volume of its own. An app with more than one " \
+                        "process group takes the group to scale",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => RESOURCE,
+               "instances" => { "type" => "integer", "description" => "How many machines the group should run, 0 or more" },
+               "group" => { "type" => "string", "description" => "The process group, such as app or worker, as describe_resource shows it (optional when the app has one)" },
+               "region" => { "type" => "string", "description" => "Where new machines go, such as iad (optional, the copied machine's region)" }
+             },
+             "required" => %w[resource instances]
+           },
+           read_only: false
+
+      tool :resize_app,
+           summary: "Changes the CPU size or memory of an app's machines, one at a time.",
+           description: "Give an app's machines another size, such as #{SIZES.keys.first(3).join(', ')} or performance-2x, as fly scale vm " \
+                        "does, or another amount of memory, as fly scale memory does, one machine at a time. A running machine " \
+                        "restarts on its new size and is waited on before the next, and a stopped one is changed and left " \
+                        "stopped. Takes every machine of the app, a process group's, or one machine named",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => RESOURCE,
+               "size" => { "type" => "string", "enum" => SIZES.keys, "description" => "The size to run at (optional when memory_mb is given)" },
+               "memory_mb" => { "type" => "integer", "description" => "Memory for each machine in MB, a multiple of 256 on shared CPUs and of 2048 on performance CPUs (optional when size is given)" },
+               "group" => { "type" => "string", "description" => "Only this process group's machines (optional)" },
+               "machine" => MACHINE.merge("description" => "#{MACHINE['description']} (optional, every machine otherwise)")
+             },
+             "required" => [ "resource" ]
+           },
            read_only: false
 
       tool :postgres_queries,
@@ -466,6 +520,43 @@ module Integrations
         api(environment_row).uncordon_machine(resource[:name], machine["id"])
         Telemetry.result("Fly's proxy sends requests to #{machine['id']} of #{resource[:name]} in #{machine['region']} again.",
                          link: link(environment_row, resource, MACHINES_PAGE))
+      end
+
+      # Converges a process group on the count asked, as fly scale count does: new machines copy the group's newest one's
+      # config (spec, Machines_create), and extra ones are destroyed with force (Machines_delete), stopped ones first.
+      def scale_app(environment_row:, arguments:)
+        resource = find_app(environment_row, arguments["resource"])
+        wanted = Integer(arguments["instances"].to_s, exception: false)
+        fail! "Say how many machines the app should run, 0 or more." unless wanted && wanted >= 0
+
+        group, machines = group_machines(environment_row, resource, arguments["group"])
+        have = machines.size
+        named = "#{resource[:name]}#{" (#{group})" if group}"
+        return Telemetry.result("#{named} already runs #{have} machines, so nothing changed.", link: link(environment_row, resource, MACHINES_PAGE)) if wanted == have
+
+        said = wanted > have ? add_machines(environment_row, resource, machines, wanted - have, arguments["region"]) : remove_machines(environment_row, resource, machines, have - wanted)
+        Telemetry.result("Scaling #{named} from #{have} to #{wanted} machines.\n#{said.join("\n")}", link: link(environment_row, resource, MACHINES_PAGE))
+      end
+
+      # A new guest per machine, one at a time (spec, Machines_update with current_version), and a running one waited on
+      # until it starts on it. A machine not running is changed with skip_launch, so it stays as it was.
+      def resize_app(environment_row:, arguments:)
+        resource = find_app(environment_row, arguments["resource"])
+        size = arguments["size"].to_s.strip.presence
+        memory = arguments["memory_mb"].presence && Integer(arguments["memory_mb"].to_s, exception: false)
+        fail! "Say the size, such as shared-cpu-2x, or the memory in MB, or both." if size.nil? && memory.nil?
+        fail! "#{size} is not a size Fly.io offers. It takes #{SIZES.keys.join(', ')}." if size && !SIZES.key?(size)
+        fail! "memory_mb must be a whole number of MB." if arguments["memory_mb"].present? && memory.nil?
+
+        machines = if arguments["machine"].present? then [ named_machine(environment_row, resource, arguments["machine"]) ]
+        else group_machines(environment_row, resource, arguments["group"], every: true).last
+        end
+        fail! "No machine runs #{resource[:name]}, so there is nothing to resize." if machines.empty?
+
+        machines.each { |machine| guest_for(machine, size, memory) }
+        said = one_at_a_time(environment_row, resource, machines, "resized") { |machine| resize_machine(environment_row, resource, machine, size, memory) }
+        asked = [ size, ("#{memory} MB memory" if memory) ].compact.join(" with ")
+        Telemetry.result("Resizing #{resource[:name]} to #{asked}, machine by machine.\n#{said.join("\n")}", link: link(environment_row, resource, MACHINES_PAGE))
       end
 
       # A cluster's slow queries over a lookback, or the queries running now in each database asked (spec,
@@ -1076,6 +1167,108 @@ module Integrations
         end
 
         machines
+      end
+
+      def group_of(machine) = machine.dig("config", "metadata", PROCESS_GROUP).presence || DEFAULT_GROUP
+
+      # The process group asked for and its machines, or the app's one group. An app with several and none named is
+      # refused with the groups, since a count is per group. every takes every machine when no group is named.
+      def group_machines(environment_row, resource, asked, every: false)
+        machines = api(environment_row).machines(resource[:name]).select { |machine| app_machine?(machine) }
+        groups = machines.map { |machine| group_of(machine) }.uniq.sort
+        if asked.present?
+          fail! "#{resource[:name]} has no process group #{asked}. Its groups are #{groups.to_sentence}." unless groups.include?(asked.to_s)
+          return [ asked.to_s, machines.select { |machine| group_of(machine) == asked.to_s } ]
+        end
+        return [ nil, machines ] if every || groups.size <= 1
+
+        fail! "#{resource[:name]} runs more than one process group, #{groups.to_sentence}. Name the group to scale."
+      end
+
+      # Copies of the group's newest machine, started one at a time and each waited on. One that does not come up stops
+      # the rest.
+      def add_machines(environment_row, resource, machines, count, region)
+        template = machines.max_by { |machine| machine["created_at"].to_s }
+        fail! "#{resource[:name]} runs no machine to copy, so add the first one in Fly.io with fly deploy or fly scale count." unless template
+        config = template["config"]
+        fail! "Fly did not say how #{template['id']} is set up, so it cannot be copied." unless config.is_a?(Hash)
+        if Array(config["mounts"]).any?
+          fail! "#{resource[:name]}'s machines each have a volume, and a new one needs a volume of its own, which this does not make. " \
+                "Add machines in Fly.io with fly scale count."
+        end
+
+        copy = config.except("standbys").merge("env" => config["env"].to_h.except(STANDBY_FOR))
+        where = region.to_s.strip.presence || template["region"]
+        said = []
+        count.times do |index|
+          made = api(environment_row).create_machine(resource[:name], config: copy, region: where)
+          if api(environment_row).wait_started(resource[:name], made["id"], version: made["version"])
+            said << "#{made['id']} in #{made['region'] || where}: added, started"
+            next
+          end
+          said << "#{made['id']} in #{made['region'] || where}: added, but not started within #{FlyApi::WAIT_SECONDS} seconds"
+          said << "Stopped there, so #{count - index - 1} more machines were not added. Check #{made['id']} in Fly.io before going on." if index < count - 1
+          break
+        rescue Integrations::RateLimited
+          raise
+        rescue FlyApi::Error => error
+          said << Sentence.join("Machine #{index + 1} of #{count} was not added", error)
+          break
+        end
+        said
+      end
+
+      # Stopped machines go first, then the newest, as the ones least likely to be serving.
+      def remove_machines(environment_row, resource, machines, count)
+        running, idle = machines.partition { |machine| machine["state"] == STARTED }
+        newest_first = ->(list) { list.sort_by { |machine| machine["created_at"].to_s }.reverse }
+        chosen = (newest_first.call(idle) + newest_first.call(running)).first(count)
+        said = []
+        chosen.each do |machine|
+          api(environment_row).destroy_machine(resource[:name], machine["id"])
+          said << "#{machine['id']} in #{machine['region']}: destroyed#{', its volume kept' if Array(machine.dig('config', 'mounts')).any?}"
+        rescue Integrations::RateLimited
+          raise
+        rescue FlyApi::Error => error
+          said << Sentence.join("#{machine['id']} in #{machine['region']}: not destroyed", error)
+          break
+        end
+        said
+      end
+
+      # The guest a machine runs at after the change, refused in words when Fly would not take it.
+      def guest_for(machine, size, memory)
+        guest = machine.dig("config", "guest").to_h
+        preset = SIZES[size]
+        kind = preset&.cpu_kind || guest["cpu_kind"]
+        cpus = preset&.cpus || guest["cpus"].to_i
+        memory_mb = memory || preset&.memory_mb || guest["memory_mb"].to_i
+        range = MEMORY_PER_CPU[kind]
+        fail! "Fly did not say what size #{machine['id']} runs at, so name a size." unless range && cpus.positive?
+
+        least = range.begin * cpus
+        most = range.end * cpus
+        step = MEMORY_STEP.fetch(kind)
+        unless memory_mb.between?(least, most) && (memory_mb % step).zero?
+          fail! "#{cpus} #{kind} CPUs take #{least} to #{most} MB of memory in steps of #{step}, so #{memory_mb} MB does not fit #{machine['id']}."
+        end
+
+        guest.merge("cpu_kind" => kind, "cpus" => cpus, "memory_mb" => memory_mb)
+      end
+
+      def resize_machine(environment_row, resource, machine, size, memory)
+        config = machine["config"]
+        return Skipped.new(reason: "not changed, Fly did not say how it is set up") unless config.is_a?(Hash)
+
+        guest = guest_for(machine, size, memory)
+        return Skipped.new(reason: "already that size") if config["guest"].to_h.slice("cpu_kind", "cpus", "memory_mb") == guest.slice("cpu_kind", "cpus", "memory_mb")
+
+        running = machine["state"] == STARTED
+        updated = api(environment_row).update_machine(resource[:name], machine["id"], config: config.merge("guest" => guest), current_version: machine["version"],
+                                                                                       skip_launch: !running)
+        running ? updated["version"] : Skipped.new(reason: "resized, left #{machine['state']} as it was")
+      rescue FlyApi::Conflict
+        raise FlyApi::Error, "it changed since it was read, such as during a deploy. Check it in Fly.io and resize again"
       end
 
       def named_machine(environment_row, resource, named)

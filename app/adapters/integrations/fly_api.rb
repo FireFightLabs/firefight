@@ -115,8 +115,23 @@ module Integrations
     def uncordon_machine(app_name, machine_id) = machines_post("/apps/#{segment(app_name)}/machines/#{segment(machine_id)}/uncordon")
 
     # The whole config goes back with the change, and current_version makes Fly refuse it if the machine moved on.
-    def update_machine(app_name, machine_id, config:, current_version:)
-      machines_post("/apps/#{segment(app_name)}/machines/#{segment(machine_id)}", "config" => config, "current_version" => current_version)
+    # skip_launch leaves a machine that was not running as it was (spec, UpdateMachineRequest).
+    def update_machine(app_name, machine_id, config:, current_version:, skip_launch: false)
+      body = { "config" => config, "current_version" => current_version, "skip_launch" => (true if skip_launch) }.compact
+      machines_post("/apps/#{segment(app_name)}/machines/#{segment(machine_id)}", body)
+    end
+
+    # A new machine from a config, in a region, started (spec, Machines_create, CreateMachineRequest), as fly scale count
+    # launches one from a machine of the same process group (superfly/flyctl, internal/command/scale/count_machines.go).
+    def create_machine(app_name, config:, region:)
+      machines_post("/apps/#{segment(app_name)}/machines", "config" => config, "region" => region)
+    end
+
+    # Destroys a machine, killing it first when it runs, as fly scale count does with Kill (spec, Machines_delete, force).
+    def destroy_machine(app_name, machine_id)
+      uri = URI.parse("#{MACHINES_ROOT}/apps/#{segment(app_name)}/machines/#{segment(machine_id)}")
+      uri.query = URI.encode_www_form("force" => true)
+      send_request(uri, Net::HTTP::Delete.new(uri))
     end
 
     # Waits until the machine is started, or at most timeout seconds, and answers whether it got there. version is the

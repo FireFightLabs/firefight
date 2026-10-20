@@ -263,7 +263,28 @@ module Integrations
         assert_raises(VercelApi::Error) { @pack.map_refresh(@row, scope) }
       end
 
-      test "Vercel keeps no metrics the API reads, so it has no baselines, and the health check lists a project" do
+      test "metrics are Observability queries of the project under its owner, production's by default, and a team without Observability Plus is told so" do
+        travel_to Time.utc(2026, 10, 20, 12) do
+          VercelApi.any_instance.expects(:observability_query).with do |body|
+            body == { "scope" => { "type" => "project", "ownerId" => "team_1", "projectIds" => [ "prj_1" ] }, "metric" => "vercel.request.count",
+                      "aggregation" => "sum", "startTime" => "2026-10-20T11:00:00Z", "endTime" => "2026-10-20T12:00:00Z",
+                      "granularity" => { "minutes" => 1 }, "filter" => "(httpStatus ge 500) and (environment eq 'production')" }
+          end.returns("data" => [ { "timestamp" => "2026-10-20T11:00:00Z", "vercel_request_count_sum" => 4 },
+                                  { "timestamp" => "2026-10-20T11:01:00Z", "vercel_request_count_sum" => 10 } ])
+
+          result = @pack.call("query_metrics", environment_row: @row, arguments: { "resource" => "shop", "metrics" => [ "http_5xx" ] })
+
+          assert_match "shop, production", result["content"].sole["text"]
+          chart = result.dig(Telemetry::STRUCTURED, Telemetry::CHARTS).sole
+          assert_equal [ "5xx responses of shop", "requests", [ 4.0, 10.0 ] ], [ chart["title"], chart["unit"], chart["series"].sole["points"].map(&:last) ]
+        end
+
+        VercelApi.any_instance.stubs(:observability_query).raises(VercelApi::PlanLimited, "Vercel answered 402: Observability Plus is required")
+        refused = assert_raises(NativePack::Error) { call(:query_metrics, "resource" => "shop") }
+        assert_match "Observability Plus", refused.message
+      end
+
+      test "Vercel's metrics give it no baselines, and the health check lists a project" do
         assert_nil @pack.baselines_of(@row, [], 7.days.ago..Time.current)
         VercelApi.any_instance.stubs(:check!).raises(VercelApi::Error, "Vercel answered 401: invalid token")
         assert_raises(NativePack::Error) { @pack.check_health!(@row) }

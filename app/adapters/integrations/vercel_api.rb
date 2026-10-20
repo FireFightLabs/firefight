@@ -203,6 +203,13 @@ module Integrations
       write(Net::HTTP::Post, "/v13/deployments", body, "forceNew" => 1)
     end
 
+    # One metric of a project over time from Vercel Observability (spec, createObservabilityQuery, POST
+    # /v2/observability/query), asked as Vercel's CLI asks it (vercel/vercel, packages/cli/src/commands/metrics/query.ts):
+    # a project scope under its owner, the metric, an aggregation, the range, a granularity and an OData filter. It answers
+    # data rows by timestamp, each holding the rollup column. Metrics other than Web Analytics and Speed Insights need
+    # Observability Plus (vercel.com/docs/cli/metrics, Feature access).
+    def observability_query(body) = write(Net::HTTP::Post, "/v2/observability/query", body)
+
     # The project's rolling release, active, aborted or completed, or nil before its first (spec, getRollingRelease).
     def rolling_release(project_id) = get("/v1/projects/#{segment(project_id)}/rolling-release")["rollingRelease"]
 

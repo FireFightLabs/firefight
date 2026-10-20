@@ -41,6 +41,30 @@ module Integrations
       CI_LIMIT = 20
       CI_LIMIT_MAX = 100
 
+      # The metrics query_metrics reads, each a Vercel Observability metric with an aggregation and, for errors, a filter on
+      # its HTTP status, by Vercel's own names (vercel.com/docs/cli/metrics, Available metrics and Filter). Requests are
+      # what Vercel's CDN served, the rest what the project's functions did.
+      Metric = Data.define(:title, :unit, :metric, :aggregation, :filter)
+      REQUEST = "vercel.request.count".freeze
+      INVOCATION = "vercel.function_invocation".freeze
+      METRICS = {
+        "requests" => Metric.new(title: "Requests", unit: "requests", metric: REQUEST, aggregation: "sum", filter: nil),
+        "http_4xx" => Metric.new(title: "4xx responses", unit: "requests", metric: REQUEST, aggregation: "sum", filter: "httpStatus ge 400 and httpStatus lt 500"),
+        "http_5xx" => Metric.new(title: "5xx responses", unit: "requests", metric: REQUEST, aggregation: "sum", filter: "httpStatus ge 500"),
+        "invocations" => Metric.new(title: "Function invocations", unit: "invocations", metric: "#{INVOCATION}.count", aggregation: "sum", filter: nil),
+        "duration" => Metric.new(title: "Function duration", unit: "ms", metric: "#{INVOCATION}.function_duration_ms", aggregation: "avg", filter: nil),
+        "latency_p95" => Metric.new(title: "Function time to first byte, 95th percentile", unit: "ms", metric: "#{INVOCATION}.ttfb_ms", aggregation: "p95", filter: nil),
+        "cpu_time" => Metric.new(title: "Function active CPU time", unit: "ms", metric: "#{INVOCATION}.function_cpu_time_ms", aggregation: "sum", filter: nil),
+        "memory" => Metric.new(title: "Function peak memory", unit: "MB", metric: "#{INVOCATION}.peak_memory_mb", aggregation: "max", filter: nil)
+      }.freeze
+      DEFAULT_METRICS = %w[requests http_5xx invocations duration].freeze
+      PRODUCTION_FILTER = "environment eq 'production'".freeze
+      # The bucket Vercel's CLI picks for a range, the finest it allows (packages/cli/src/commands/metrics/time-utils.ts).
+      GRANULARITIES = [ [ 1.hour, { "minutes" => 1 } ], [ 2.hours, { "minutes" => 5 } ], [ 12.hours, { "minutes" => 15 } ],
+                        [ 3.days, { "hours" => 1 } ], [ 30.days, { "hours" => 4 } ] ].freeze
+      COARSEST = { "days" => 1 }.freeze
+      OBSERVABILITY_PLUS = "Vercel answers these metrics only for a Pro or Enterprise team with Observability Plus".freeze
+
       RESOURCE = { "type" => "string", "description" => "A project in the team, by name or id, as list_resources shows it" }.freeze
       DEPLOYMENT = { "type" => "string", "description" => "A deployment of the project, by its id (dpl_...) or its URL, as list_deployments shows it" }.freeze
 
@@ -169,6 +193,26 @@ module Integrations
              "required" => %w[resource deployment]
            },
            read_only: false
+
+      tool :query_metrics,
+           summary: "Charts a project's requests, errors and function time from Vercel Observability.",
+           description: "Metrics of one project over time from Vercel Observability: requests its CDN served and how many were " \
+                        "4xx and 5xx, its function invocations, their average duration, the time to first byte 95% of " \
+                        "invocations stayed within, their active CPU time and peak memory. Production only unless asked " \
+                        "otherwise. Returns min, average, max and latest for each, and the person sees each metric as a chart. " \
+                        "Vercel answers only for a team with Observability Plus",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => RESOURCE,
+               "metrics" => { "type" => "array", "items" => { "type" => "string", "enum" => METRICS.keys },
+                              "description" => "Which metrics (optional, #{DEFAULT_METRICS.join(', ')})" },
+               "all_environments" => { "type" => "boolean", "description" => "Previews too, not only production (optional, false)" },
+               **Capabilities::RANGE
+             },
+             "required" => [ "resource" ]
+           },
+           read_only: true
 
       tool :rolling_release,
            summary: "Shows a project's rolling release, its stages and the traffic the new deployment gets.",
@@ -494,6 +538,20 @@ module Integrations
         source = latest ? "the newest commit of its branch" : deployment["id"]
         Telemetry.result("Vercel is building #{id} for #{project['name']}, a #{target} deployment from #{source}. " \
                          "deploy_history with run #{id} follows it.", link: inspector_link(made) || project_link(environment_row, project))
+      end
+
+      # One query per metric, scoped to the project under the team that owns it (accountId on the project).
+      def query_metrics(environment_row:, arguments:)
+        project = find_project(environment_row, arguments["resource"])
+        started, ended = Capabilities::Answers.range(arguments)
+        asked = Array(arguments["metrics"]).map(&:to_s) & METRICS.keys
+        asked = DEFAULT_METRICS if asked.empty?
+        production = !ActiveModel::Type::Boolean.new.cast(arguments["all_environments"])
+        charts = asked.map { |name| metric_chart(environment_row, project, name, started, ended, production) }
+        where = production ? "production" : "every environment"
+        Telemetry.result("#{project['name']}, #{where}\n#{Telemetry.charts_text(charts)}", charts: charts, link: observability_link(environment_row, project))
+      rescue VercelApi::PlanLimited, VercelApi::Refused => error
+        fail! Sentence.join("Vercel did not read the metrics of #{project ? project['name'] : 'this project'}", error, after: OBSERVABILITY_PLUS)
       end
 
       def rolling_release(environment_row:, arguments:)
@@ -869,6 +927,35 @@ module Integrations
         state = (deployment["readyState"] || deployment["state"]).to_s.upcase
         millis(deployment["ready"] || (deployment["buildErrorAt"] || deployment["canceledAt"] if ENDED_WITHOUT_READY.include?(state)))
       end
+
+      # Vercel names the value of each row by the metric and aggregation with dots and slashes as underscores, as its CLI
+      # reads it (packages/cli/src/commands/metrics/output.ts, getRollupColumnName).
+      def metric_chart(environment_row, project, name, started, ended, production)
+        metric = METRICS.fetch(name)
+        filter = [ metric.filter, (PRODUCTION_FILTER if production) ].compact
+        body = {
+          "scope" => { "type" => "project", "ownerId" => project["accountId"], "projectIds" => [ project["id"] ] },
+          "metric" => metric.metric, "aggregation" => metric.aggregation,
+          "startTime" => started.utc.iso8601, "endTime" => ended.utc.iso8601, "granularity" => granularity_for(ended - started),
+          "filter" => (filter.size > 1 ? filter.map { |each| "(#{each})" }.join(" and ") : filter.first)
+        }.compact
+        column = "#{metric.metric}_#{metric.aggregation}".tr("./", "__")
+        rows = Array(api(environment_row).observability_query(body)["data"])
+        points = rows.filter_map do |row|
+          at = Telemetry.parse_time(row["timestamp"])
+          value = Float(row[column].to_s, exception: false)
+          [ at, value ] if at && value&.finite?
+        end
+        Telemetry::Chart.new(title: "#{metric.title} of #{project['name']}", unit: metric.unit, from: started, to: ended,
+                             series: [ Telemetry::Series.new(label: project["name"], points: points.sort_by(&:first)) ],
+                             link: observability_link(environment_row, project)&.url)
+      end
+
+      def granularity_for(range) = GRANULARITIES.find { |most, _granularity| range <= most }&.last || COARSEST
+
+      # Vercel documents no address for a project's Observability page, so metrics link the project's own page, where
+      # Observability is in its sidebar (docs, observability).
+      def observability_link(environment_row, project) = project_link(environment_row, project)
 
       ROLLING_ACTIVE = "ACTIVE".freeze
       ROLLING_COMPLETE = "COMPLETE".freeze

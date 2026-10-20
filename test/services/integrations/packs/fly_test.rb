@@ -20,7 +20,7 @@ module Integrations
 
       test "the token and organization are stored trimmed, and only the machine changes change anything" do
         assert_equal "FlyV1 fm2_x", ConnectionSettings.of(@row.reload).credential(Fly::API_TOKEN)
-        assert_equal %w[restart_app rollback_release start_app stop_app suspend_app cordon_machine uncordon_machine],
+        assert_equal %w[restart_app rollback_release start_app stop_app suspend_app cordon_machine uncordon_machine scale_app resize_app],
                      Fly.tool_definitions.reject(&:read_only).map(&:name)
       end
 
@@ -235,6 +235,55 @@ module Integrations
         assert_match "sends requests to m2 of web in iad again", call(:uncordon_machine, "resource" => "web", "machine" => "m2")
         assert_equal "web has no machine m9. describe_resource shows its machines.",
                      assert_raises(NativePack::Error) { call(:cordon_machine, "resource" => "web", "machine" => "m9") }.message
+      end
+
+      test "scaling up copies the group's newest machine without its standby, and down destroys stopped machines first, then the newest" do
+        older = machine("m1", "started").merge("created_at" => "2026-10-01T10:00:00Z")
+        newer = machine("m2", "started").merge("created_at" => "2026-10-02T10:00:00Z")
+        newer["config"] = newer["config"].merge("standbys" => [ "m9" ], "env" => { "PORT" => "8080", "FLY_STANDBY_FOR" => "m9" })
+        FlyApi.any_instance.stubs(:machines).returns([ older, newer ])
+        FlyApi.any_instance.expects(:create_machine).with("web", config: has_entries("image" => "registry.fly.io/web:deployment-42", "env" => { "PORT" => "8080" }), region: "ams")
+              .returns("id" => "m3", "region" => "ams", "version" => "v-m3")
+        FlyApi.any_instance.expects(:wait_started).with("web", "m3", version: "v-m3").returns(true)
+
+        assert_match "Scaling web from 2 to 3 machines.\nm3 in ams: added, started", call(:scale_app, "resource" => "web", "instances" => 3, "region" => "ams")
+
+        stopped = machine("m4", "stopped").merge("created_at" => "2026-09-01T10:00:00Z")
+        FlyApi.any_instance.stubs(:machines).returns([ older, newer, stopped ])
+        FlyApi.any_instance.expects(:destroy_machine).with("web", "m4").returns({})
+        FlyApi.any_instance.expects(:destroy_machine).with("web", "m2").returns({})
+        FlyApi.any_instance.expects(:destroy_machine).with("web", "m1").never
+        text = call(:scale_app, "resource" => "web", "instances" => 1)
+        assert_match "m4 in iad: destroyed\nm2 in iad: destroyed", text
+      end
+
+      test "an app with several process groups is scaled by the group named, and a machine with a volume is not copied" do
+        FlyApi.any_instance.stubs(:machines).returns([ machine("m1", "started"), machine("w1", "started", group: "worker") ])
+
+        assert_match "runs more than one process group, app and worker", assert_raises(NativePack::Error) { call(:scale_app, "resource" => "web", "instances" => 2) }.message
+        assert_match "web (worker) already runs 1 machines", call(:scale_app, "resource" => "web", "instances" => 1, "group" => "worker")
+
+        mounted = machine("m1", "started")
+        mounted["config"] = mounted["config"].merge("mounts" => [ { "volume" => "vol_1", "path" => "/data" } ])
+        FlyApi.any_instance.stubs(:machines).returns([ mounted ])
+        FlyApi.any_instance.expects(:create_machine).never
+        assert_match "needs a volume of its own", assert_raises(NativePack::Error) { call(:scale_app, "resource" => "web", "instances" => 2) }.message
+      end
+
+      test "a resize gives each machine the size's CPUs and memory, keeps a stopped one stopped, and refuses memory the size cannot take" do
+        FlyApi.any_instance.stubs(:machines).returns([ machine("m1", "started"), machine("m2", "stopped") ])
+        FlyApi.any_instance.expects(:update_machine).with("web", "m1", config: has_entry("guest", { "cpus" => 2, "cpu_kind" => "performance", "memory_mb" => 4096 }),
+                                                          current_version: "v-m1", skip_launch: false).returns("version" => "v-m1-new")
+        FlyApi.any_instance.expects(:wait_started).with("web", "m1", version: "v-m1-new").returns(true)
+        FlyApi.any_instance.expects(:update_machine).with("web", "m2", has_entry(skip_launch: true)).returns("version" => "v-m2-new")
+
+        text = call(:resize_app, "resource" => "web", "size" => "performance-2x")
+        assert_match "m1 in iad: resized, started again", text
+        assert_match "m2 in iad: resized, left stopped as it was", text
+
+        assert_match "1 shared CPUs take 256 to 2048 MB of memory in steps of 256, so 4096 MB does not fit m1",
+                     assert_raises(NativePack::Error) { call(:resize_app, "resource" => "web", "memory_mb" => 4096) }.message
+        assert_match "not a size Fly.io offers", assert_raises(NativePack::Error) { call(:resize_app, "resource" => "web", "size" => "huge") }.message
       end
 
       test "a cluster's slow queries are read over the range, and its running ones in each of its databases" do

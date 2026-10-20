@@ -901,7 +901,7 @@ providers:
     color: "#000000"
     status_page: { url: https://www.vercel-status.com, feed: statuspage }
     hosts: [ api.vercel.com, vercel.app, vercel.com ]
-    description: Projects, deployments and their build and runtime logs, rolling releases and Vercel CI runs, and rolling back, promoting, canceling or redeploying a deployment, or moving a rolling release on or stopping it, when you allow it.
+    description: Projects, deployments and their build and runtime logs, metrics, rolling releases and Vercel CI runs, and rolling back, promoting, canceling or redeploying a deployment, or moving a rolling release on or stopping it, when you allow it.
     server_url: ""
     site: https://vercel.com
     kind: native
@@ -963,7 +963,7 @@ providers:
     color: "#24175b"
     status_page: { url: https://status.flyio.net, feed: statuspage }
     hosts: [ api.fly.io, fly.dev, fly.io ]
-    description: Logs, metrics, releases and machines of the apps in a Fly.io organization, with a Managed Postgres cluster's slow and running queries, and restarting, rolling back, starting, stopping, suspending or cordoning machines when you allow it.
+    description: Logs, metrics, releases and machines of the apps in a Fly.io organization, with a Managed Postgres cluster's slow and running queries, and restarting, rolling back, scaling, resizing, starting, stopping, suspending or cordoning machines when you allow it.
     server_url: ""
     site: https://fly.io
     kind: native
