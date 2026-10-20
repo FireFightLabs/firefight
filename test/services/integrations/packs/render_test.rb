@@ -34,9 +34,9 @@ module Integrations
       test "the key and workspace are stored trimmed, and only the fixes, deploys and suspending change anything" do
         assert_equal "rnd_key", ConnectionSettings.of(@row.reload).credential(Render::API_KEY)
         assert_nil @row.credentials_hash[Render::WORKSPACE], "the workspace is a connect field, not a credential"
-        assert_equal %w[restart_service rollback_deploy scale_service cancel_deploy trigger_deploy set_autodeploy set_autoscaling suspend_service resume_service],
+        assert_equal %w[restart_service rollback_deploy scale_service trigger_cron_run cancel_cron_run cancel_job run_task cancel_task_run cancel_deploy trigger_deploy set_autodeploy set_autoscaling suspend_service resume_service],
                      Render.tool_definitions.reject(&:read_only).map(&:name)
-        assert_equal [ "cancel_deploy" ], IntegrationProvider.find(Render::PROVIDER_KEY).stopping_tools
+        assert_equal %w[cancel_deploy cancel_cron_run cancel_job cancel_task_run], IntegrationProvider.find(Render::PROVIDER_KEY).stopping_tools
       end
 
       test "a wrong key or workspace is said on the form before anything is saved" do

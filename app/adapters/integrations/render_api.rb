@@ -93,6 +93,21 @@ module Integrations
 
     def task_run(task_run_id) = get("/task-runs/#{segment(task_run_id)}")
 
+    # Starts a run of a cron job now, cancelling one already running, answering the run, and cancels the one running
+    # (spec, POST and DELETE /cron-jobs/{cronJobId}/runs).
+    def trigger_cron_run(cron_job_id) = post("/cron-jobs/#{segment(cron_job_id)}/runs")
+
+    def cancel_cron_run(cron_job_id) = delete("/cron-jobs/#{segment(cron_job_id)}/runs")
+
+    # Cancels a one-off job still running, answering the job (spec, POST /services/{serviceId}/jobs/{jobId}/cancel).
+    def cancel_job(service_id, job_id) = post("/services/#{segment(service_id)}/jobs/#{segment(job_id)}/cancel")
+
+    # Starts a run of a task by its slug, workflow-slug/task-name, with its input, answering the run (spec, POST
+    # /task-runs, 202), and cancels a task run still going (DELETE /task-runs/{taskRunId}, 204).
+    def run_task(slug, input) = post("/task-runs", "task" => slug, "input" => input)
+
+    def cancel_task_run(task_run_id) = delete("/task-runs/#{segment(task_run_id)}")
+
     def restart_service(service_id) = post("/services/#{segment(service_id)}/restart")
 
     def restart_postgres(postgres_id) = post("/postgres/#{segment(postgres_id)}/restart")

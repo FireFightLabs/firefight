@@ -35,6 +35,13 @@ module Integrations
         # (render.com/docs/one-off-jobs).
         JOB_TYPES = [ WEB_SERVICE, PRIVATE_SERVICE, BACKGROUND_WORKER, CRON_JOB ].freeze
         COMMAND_SHOWN = 80
+        TRIGGER_CRON_RUN = "trigger_cron_run".freeze
+        CANCEL_CRON_RUN = "cancel_cron_run".freeze
+        CANCEL_JOB = "cancel_job".freeze
+        RUN_TASK = "run_task".freeze
+        CANCEL_TASK_RUN = "cancel_task_run".freeze
+        # A task is run by its slug, the workflow's then the task's name (spec, POST /task-runs, task).
+        TASK_SLUG = "%<workflow>s/%<task>s".freeze
 
         def self.included(pack)
           pack.tool CRON_RUNS,
@@ -87,6 +94,124 @@ module Integrations
                       "required" => [ "resource" ]
                     },
                     read_only: true
+
+          resource_only = { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] }
+          pack.tool TRIGGER_CRON_RUN,
+                    summary: "Starts a cron job's run now, cancelling one already running.",
+                    description: "Run a Render cron job now, outside its schedule. Render cancels a run of it already going first. " \
+                                 "Follow it with cron_runs",
+                    params_schema: resource_only, read_only: false
+
+          pack.tool CANCEL_CRON_RUN,
+                    summary: "Cancels the run of a cron job that is going now.",
+                    description: "Cancel the run of a Render cron job that is going now. Its next scheduled run still starts",
+                    params_schema: resource_only, read_only: false
+
+          pack.tool CANCEL_JOB,
+                    summary: "Cancels a one-off job that is still running.",
+                    description: "Cancel a Render one-off job that is still pending or running, by its id as job_runs shows it. What it " \
+                                 "already did stays done",
+                    params_schema: {
+                      "type" => "object",
+                      "properties" => { "resource" => RESOURCE, "job" => { "type" => "string", "description" => "The job, by its id, such as job-..." } },
+                      "required" => %w[resource job]
+                    },
+                    read_only: false
+
+          pack.tool RUN_TASK,
+                    summary: "Starts a run of a workflow's task with its input.",
+                    description: "Start a run of a task of a Render workflow, by the task's name as describe_resource lists it, with " \
+                                 "the input its function takes. Follow it with task_runs",
+                    params_schema: {
+                      "type" => "object",
+                      "properties" => {
+                        "resource" => { "type" => "string", "description" => "The workflow, by name or id, as list_resources shows it" },
+                        "task" => { "type" => "string", "description" => "The task's name" },
+                        "input" => { "description" => "The task's arguments, a list by position or an object by name, never a secret (optional, none)" }
+                      },
+                      "required" => %w[resource task]
+                    },
+                    read_only: false
+
+          pack.tool CANCEL_TASK_RUN,
+                    summary: "Cancels a workflow's task run that is still going.",
+                    description: "Cancel a Render task run that is still going, by its id as task_runs shows it. What it already did stays done",
+                    params_schema: {
+                      "type" => "object",
+                      "properties" => {
+                        "resource" => { "type" => "string", "description" => "The workflow, by name or id, as list_resources shows it" },
+                        "run" => { "type" => "string", "description" => "The task run, by its id" }
+                      },
+                      "required" => %w[resource run]
+                    },
+                    read_only: false
+        end
+
+        def trigger_cron_run(environment_row:, arguments:)
+          resource = cron_job!(environment_row, arguments)
+          run = api(environment_row).trigger_cron_run(resource[:id]).to_h
+          started = run["id"] ? "run #{run['id']}" : "a run"
+          Telemetry.result("Render started #{started} of #{resource[:name]}, cancelling any run of it already going. Follow it with cron_runs.",
+                           link: link(resource))
+        end
+
+        def cancel_cron_run(environment_row:, arguments:)
+          resource = cron_job!(environment_row, arguments)
+          api(environment_row).cancel_cron_run(resource[:id])
+          Telemetry.result("Render is cancelling the run of #{resource[:name]} going now. Its next scheduled run still starts.", link: link(resource))
+        end
+
+        def cancel_job(environment_row:, arguments:)
+          resource = find_resource(environment_row, arguments["resource"])
+          id = arguments["job"].to_s.strip
+          fail! "Say which one-off job, by the id job_runs shows." if id.empty?
+
+          job = job_of(environment_row, resource, id)
+          if History::FINISHED.include?(History.status(job["status"], JOB_STATUSES))
+            fail! "One-off job #{id} of #{resource[:name]} already ended as #{job['status']}, so there is nothing to cancel."
+          end
+
+          cancelled = api(environment_row).cancel_job(resource[:id], id).to_h
+          Telemetry.result("Render is cancelling one-off job #{id} of #{resource[:name]}, now #{cancelled['status'] || 'canceled'}. What it already did stays done.",
+                           link: link(resource))
+        end
+
+        def run_task(environment_row:, arguments:)
+          resource = workflow!(environment_row, arguments)
+          input = arguments["input"].nil? ? [] : arguments["input"]
+          fail!("input must be a list of arguments or an object of names to values.") unless input.is_a?(Array) || input.is_a?(Hash)
+          fail_policy!("input holds what looks like a secret, and Firefight never sends a credential through Render's API.") if secret_shaped?(input)
+
+          api = api(environment_row)
+          name = arguments["task"].to_s.strip
+          tasks = api.tasks(resource[:id]).items.filter_map { |task| task["name"].presence }
+          fail! "#{resource[:name]} has no task #{name}. Its tasks are #{tasks.to_sentence.presence || 'none yet'}." unless tasks.include?(name)
+          slug = api.workflow(resource[:id])["slug"].presence || fail!("Render did not say #{resource[:name]}'s slug, which a task is run by.")
+
+          run = api.run_task(format(TASK_SLUG, workflow: slug, task: name), input).to_h
+          Telemetry.result("Started task run #{run['id']} of #{name} on #{resource[:name]}, now #{run['status'] || 'pending'}. Follow it with task_runs.",
+                           link: link(resource))
+        end
+
+        def cancel_task_run(environment_row:, arguments:)
+          resource = workflow!(environment_row, arguments)
+          api = api(environment_row)
+          id = arguments["run"].to_s.strip
+          fail! "Say which task run, by the id task_runs shows." if id.empty?
+
+          found = begin
+            api.task_run(id)
+          rescue RenderApi::NotFound
+            fail! "#{resource[:name]} has no task run #{id}. task_runs lists its runs."
+          end
+          tasks = task_names(api, resource)
+          fail! "Task run #{id} belongs to another workflow, not #{resource[:name]}." if tasks.any? && !tasks.key?(found["taskId"])
+          if History::FINISHED.include?(History.status(found["status"], TASK_STATUSES))
+            fail! "Task run #{id} already ended as #{found['status']}, so there is nothing to cancel."
+          end
+
+          api.cancel_task_run(id)
+          Telemetry.result("Render is cancelling task run #{id} of #{resource[:name]}. What it already did stays done.", link: link(resource))
         end
 
         def cron_runs(environment_row:, arguments:)
@@ -132,6 +257,22 @@ module Integrations
         end
 
         private
+
+        def cron_job!(environment_row, arguments)
+          resource = find_resource(environment_row, arguments["resource"])
+          fail! "#{resource[:name]} is a #{TYPE_WORDS.fetch(resource[:type])}, and only a cron job has runs to start or cancel." unless resource[:type] == CRON_JOB
+
+          resource
+        end
+
+        def workflow!(environment_row, arguments)
+          resource = find_resource(environment_row, arguments["resource"])
+          fail! "#{resource[:name]} is a #{TYPE_WORDS.fetch(resource[:type])}, and only a workflow has task runs." unless resource[:type] == WORKFLOW
+
+          resource
+        end
+
+        def secret_shaped?(input) = Chat::SecretFree::SECRET_PATTERNS.values.any? { |pattern| input.to_json.match?(pattern) }
 
         # A cron run from its start and end events, by the run's id. A run whose start fell before the events read is left
         # out, since when it began is not known.

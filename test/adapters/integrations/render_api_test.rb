@@ -93,6 +93,16 @@ module Integrations
       config = { "enabled" => true, "min" => 1, "max" => 3, "criteria" => { "cpu" => { "enabled" => true, "percentage" => 60 }, "memory" => { "enabled" => false, "percentage" => 70 } } }
       expect_call(Net::HTTP::Put, "/v1/services/srv-1/autoscaling", config, body: config)
       @api.update_autoscaling("srv-1", config)
+      expect_call(Net::HTTP::Post, "/v1/cron-jobs/crn-1/runs", { id: "run-1", status: "pending" })
+      assert_equal "run-1", @api.trigger_cron_run("crn-1")["id"]
+      Http.expects(:request).with { |uri, request, **| uri.path == "/v1/cron-jobs/crn-1/runs" && request.is_a?(Net::HTTP::Delete) }.returns(stub(code: "204", body: ""))
+      @api.cancel_cron_run("crn-1")
+      expect_call(Net::HTTP::Post, "/v1/services/srv-1/jobs/job-1/cancel", { id: "job-1", status: "canceled" })
+      assert_equal "canceled", @api.cancel_job("srv-1", "job-1")["status"]
+      expect_call(Net::HTTP::Post, "/v1/task-runs", { id: "trn-2" }, body: { "task" => "mailer/send", "input" => [ 1 ] })
+      assert_equal "trn-2", @api.run_task("mailer/send", [ 1 ])["id"]
+      Http.expects(:request).with { |uri, request, **| uri.path == "/v1/task-runs/trn-2" && request.is_a?(Net::HTTP::Delete) }.returns(stub(code: "204", body: ""))
+      @api.cancel_task_run("trn-2")
       expect_call(Net::HTTP::Post, "/v1/services/srv-1/deploys/dep-1/cancel", { id: "dep-1", status: "canceled" })
       assert_equal "canceled", @api.cancel_deploy("srv-1", "dep-1")["status"]
       expect_call(Net::HTTP::Post, "/v1/services/srv-1/deploys", { id: "dep-2" }, body: { "clearCache" => "clear" })

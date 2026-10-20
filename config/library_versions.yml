@@ -697,8 +697,8 @@ skills:
     version: 1
     digest: 4108c329f6db09180f47399559b21252cfcc2d589b4a97b8e9410f7f4412fb0d
   render_runs:
-    version: 1
-    digest: e98c5a89f6fea6d99e2f1fa3551e516fc24c863ea37947b974773c3b152decf9
+    version: 2
+    digest: c28043bdda2638d7578a2785d9b1b85225ce49d946ecdee6397aff157497cfdd
   render_triage:
     version: 1
     digest: 68bb1419452e0eb1b1bff809eebb8810ff29a53115f887dc6a7e26c11c1d76a7

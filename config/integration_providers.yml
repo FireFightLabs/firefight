@@ -932,7 +932,7 @@ providers:
     scaling: firefight
     scaling_note: "A service counts the instances it runs, which autoscaling moves too."
     history: firefight
-    stopping_tools: [cancel_deploy]
+    stopping_tools: [cancel_deploy, cancel_cron_run, cancel_job, cancel_task_run]
     # Autodeploy decides only when Render deploys on its own, and its undo sets the trigger it had again.
     safe_tools: [set_autodeploy]
     undo_tools:

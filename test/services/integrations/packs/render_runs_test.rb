@@ -171,7 +171,41 @@ module Integrations
         assert_match "Render does not keep replication_lag for a web service", call(:query_metrics, "resource" => "web", "metrics" => [ "replication_lag" ])
       end
 
+      test "a cron job's run is started and cancelled at the cron job's runs, and only a cron job has them" do
+        RenderApi.any_instance.expects(:trigger_cron_run).with("crn-1").returns("id" => "crn-run-9", "status" => "pending")
+        assert_match "Render started run crn-run-9 of nightly, cancelling any run of it already going.", call(:trigger_cron_run, "resource" => "nightly")
+        RenderApi.any_instance.expects(:cancel_cron_run).with("crn-1").returns({})
+        assert_match "Render is cancelling the run of nightly going now. Its next scheduled run still starts.", call(:cancel_cron_run, "resource" => "nightly")
+        assert_match "only a cron job has runs to start or cancel", error(:trigger_cron_run, "resource" => "web")
+      end
+
+      test "a one-off job still running is cancelled, and one that ended is refused" do
+        RenderApi.any_instance.stubs(:job).with("srv-web", "job-2").returns("id" => "job-2", "status" => "running")
+        RenderApi.any_instance.expects(:cancel_job).with("srv-web", "job-2").returns("id" => "job-2", "status" => "canceled")
+        assert_match "Render is cancelling one-off job job-2 of web, now canceled.", call(:cancel_job, "resource" => "web", "job" => "job-2")
+
+        RenderApi.any_instance.stubs(:job).with("srv-web", "job-1").returns("id" => "job-1", "status" => "succeeded")
+        assert_match "already ended as succeeded", error(:cancel_job, "resource" => "web", "job" => "job-1")
+      end
+
+      test "a task is run by its workflow's slug and its name with its input, a secret is never sent, and a run is cancelled while it goes" do
+        RenderApi.any_instance.stubs(:workflow).with("wfl-1").returns("id" => "wfl-1", "slug" => "mailer-abc")
+        RenderApi.any_instance.expects(:run_task).with("mailer-abc/send_digest", { "day" => "monday" }).returns("id" => "trn-5", "status" => "pending")
+        assert_match "Started task run trn-5 of send_digest on mailer, now pending.", call(:run_task, "resource" => "mailer", "task" => "send_digest", "input" => { "day" => "monday" })
+        assert_match "has no task nope. Its tasks are send_digest and render_email.", error(:run_task, "resource" => "mailer", "task" => "nope")
+        refusal = assert_raises(Integrations::PolicyRefusal) { call(:run_task, "resource" => "mailer", "task" => "send_digest", "input" => [ "ghp_#{'a' * 36}" ]) }
+        assert_match "looks like a secret", refusal.message
+
+        RenderApi.any_instance.stubs(:task_run).with("trn-5").returns("id" => "trn-5", "taskId" => "tsk-1", "status" => "running")
+        RenderApi.any_instance.expects(:cancel_task_run).with("trn-5").returns(nil)
+        assert_match "Render is cancelling task run trn-5 of mailer.", call(:cancel_task_run, "resource" => "mailer", "run" => "trn-5")
+        RenderApi.any_instance.stubs(:task_run).with("trn-1").returns("id" => "trn-1", "taskId" => "tsk-1", "status" => "failed")
+        assert_match "already ended as failed", error(:cancel_task_run, "resource" => "mailer", "run" => "trn-1")
+      end
+
       private
+
+      def error(tool, arguments) = assert_raises(NativePack::Error) { call(tool, arguments) }.message
 
       def listed(items) = Pages::Read.new(items: items, complete: true)
 
