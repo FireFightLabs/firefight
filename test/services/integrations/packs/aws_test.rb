@@ -409,6 +409,11 @@ module Integrations
         AwsApi.any_instance.stubs(:call).with { |_service, _region, operation, params| operation == :get_function_configuration && params[:qualifier] == "40" }
                     .raises(AwsApi::NotFound, "AWS answered ResourceNotFoundException")
         assert_match "checkout has no version 40", refusal(:list_deployments, "resource" => FUNCTION_ARN, "run" => "40")
+
+        AwsApi.any_instance.stubs(:all).with { |_service, _region, operation, *| operation == :list_versions_by_function }.returns([ [ { version: "$LATEST" } ], false ])
+        only = @pack.call("list_deployments", environment_row: @row, arguments: { "resource" => FUNCTION_ARN })
+        assert_equal [ "rev-9" ], Capabilities::History.runs_of(only).map(&:id), "a function with no versions still has its last update"
+        assert_match "checkout has no published versions, so it runs $LATEST", only["content"].sole["text"]
       end
 
       test "an EC2 instance and an RDS database are rebooted, a database failing over only when asked, and each tool takes only its own kind" do

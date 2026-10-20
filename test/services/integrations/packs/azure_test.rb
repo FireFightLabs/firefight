@@ -310,6 +310,21 @@ module Integrations
         AzureApi.any_instance.stubs(:operation).with(operation).returns(Http::Answer.new(status: 202, body: {}))
         assert_match "Azure is still swapping slot staging with storefront's production after #{Azure::SWAP_WAIT} seconds",
                      call(:rollback_app, "resource" => "storefront", "to" => "staging")
+
+        AzureApi.any_instance.stubs(:operation).with(operation).raises(AzureApi::Error, "Azure answered 503: Service Unavailable")
+        unknown = call(:rollback_app, "resource" => "storefront", "to" => "staging")
+        assert_match "is still swapping", unknown, "a read of the swap that failed says nothing of how it ends"
+        assert_match "Azure could not be asked how it stands: Azure answered 503: Service Unavailable.", unknown
+        assert_match "Do not swap again until it ends", unknown
+
+        AzureApi.any_instance.stubs(:post).with("#{WEB_ID}/slotsdiffs", Azure::WEB_VERSION, { "targetSlot" => "staging", "preserveVnet" => true })
+                .raises(AzureApi::Forbidden, "Azure answered 403: AuthorizationFailed")
+        AzureApi.any_instance.stubs(:operation).with(operation).returns(Http::Answer.new(status: 200, body: { "status" => "Succeeded" }))
+        swapped_unread = call(:rollback_app, "resource" => "storefront", "to" => "staging")
+        assert_match "Azure swapped slot staging", swapped_unread
+        assert_match "Reading them needs Microsoft.Web/sites/slotsdiffs/Action", swapped_unread
+        assert_match "needs Microsoft.Web/sites/slotsdiffs/Action",
+                     assert_raises(Integrations::Error) { call(:slot_differences, "resource" => "storefront", "slot" => "staging") }.message
       end
 
       test "a container registry goes on the map with its ACR Tasks runs as run history, one run read by its id and its log read from where Azure keeps it" do
@@ -346,6 +361,9 @@ module Integrations
             .returns("Step 1/3 : FROM node:22\nnpm ERR! missing script: build\n")
         log = call(:registry_run_log, "resource" => "acme", "run" => "ca2", "text" => "ERR")
         assert_match "Log of run ca2 of acme, failed.\n1 lines:\nnpm ERR! missing script: build", log
+        AzureApi.any_instance.stubs(:post).with("#{REGISTRY_ID}/runs/ca2/listLogSasUrl", Azure::RUNS_VERSION).raises(AzureApi::Forbidden, "Azure answered 403: AuthorizationFailed")
+        assert_match "needs Microsoft.ContainerRegistry/registries/runs/listLogSasUrl/action",
+                     assert_raises(Integrations::Error) { call(:registry_run_log, "resource" => "acme", "run" => "ca2") }.message
 
         assert_match "acme is a container registry. Firefight reads its ACR Tasks runs with list_registry_runs",
                      assert_raises(Integrations::Error) { call(:restart_resource, "resource" => "acme") }.message

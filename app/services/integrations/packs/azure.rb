@@ -524,7 +524,11 @@ module Integrations
           newest_registry_runs(environment_row, target, 1).first || fail!("#{target.name} has no ACR Tasks runs.")
         end
         id = run.dig("properties", "runId") || run["name"]
-        address = api(environment_row).post("#{target.id}/runs/#{api(environment_row).segment(id)}/listLogSasUrl", RUNS_VERSION)["logLink"]
+        address = begin
+          api(environment_row).post("#{target.id}/runs/#{api(environment_row).segment(id)}/listLogSasUrl", RUNS_VERSION)["logLink"]
+        rescue AzureApi::Forbidden => error
+          fail!(Sentence.join("Azure would not give run #{id}'s log. Reading it needs Microsoft.ContainerRegistry/registries/runs/listLogSasUrl/action", error))
+        end
         fail!("Azure gave no log for run #{id} of #{target.name}. A run that has not started has none yet.") if address.blank?
 
         text = Http.download(address, provider_key: PROVIDER_KEY, error_class: AzureApi::Error, limit: Http::DOWNLOAD_LIMIT)
@@ -1318,11 +1322,16 @@ module Integrations
       def swap_slot(environment_row, target, slot)
         api = api(environment_row)
         slot!(api, target, slot)
-        differences = slot_difference_lines(slot_differences_of(api, target, slot))
+        differences = begin
+          slot_difference_lines(slot_differences_of(api, target, slot))
+        rescue NativePack::Error => error
+          unread = " #{error.message}"
+          []
+        end
         started = api.start("#{target.id}/slotsswap", WEB_VERSION, { "targetSlot" => slot, "preserveVnet" => true })
         state, reason = follow_operation(api, started)
         undo = "To undo, swap #{slot} with production again."
-        settings = differences.any? ? " Settings that differed between the slots:\n#{differences.join("\n")}" : ""
+        settings = differences.any? ? " Settings that differed between the slots:\n#{differences.join("\n")}" : unread.to_s
         case state
         when Capabilities::History::SUCCEEDED
           "Azure swapped slot #{slot} with #{target.name}'s production, so what #{slot} ran is live and what ran in production is in #{slot}. #{undo}#{settings}"
@@ -1330,8 +1339,10 @@ module Integrations
           fail!(Sentence.join("Azure could not swap slot #{slot} with #{target.name}'s production", reason) +
                 " describe_resource shows what production runs now.")
         else
-          "Azure is still swapping slot #{slot} with #{target.name}'s production after #{SWAP_WAIT} seconds, which can take a few minutes. " \
-            "describe_resource says when the last swap finished. #{undo}#{settings}"
+          asked = " Azure could not be asked how it stands: #{Sentence.clean(reason)}." if reason
+          "Azure is still swapping slot #{slot} with #{target.name}'s production after #{SWAP_WAIT} seconds, which can take a few minutes.#{asked} " \
+            "Do not swap again until it ends, since a second swap puts production back. describe_resource says when the last swap finished. " \
+            "#{undo}#{settings}"
         end
       end
 
@@ -1344,6 +1355,9 @@ module Integrations
       # and how much it matters.
       def slot_differences_of(api, target, slot)
         Array(api.post("#{target.id}/slotsdiffs", WEB_VERSION, { "targetSlot" => slot, "preserveVnet" => true })["value"])
+      rescue AzureApi::Forbidden => error
+        fail!(Sentence.join("The settings that differ between the slots could not be read. Reading them needs Microsoft.Web/sites/slotsdiffs/Action, " \
+                            "which Website Contributor holds", error))
       end
 
       # An app setting's or a connection string's value can be a secret, so only a general setting's values are said.
@@ -1381,7 +1395,8 @@ module Integrations
       rescue AzureApi::Error => error
         raise if error.is_a?(Integrations::RateLimited)
 
-        [ Capabilities::History::FAILED, error.message ]
+        # Azure took the swap, so a read of where it stands that failed says nothing of how it ends.
+        [ Capabilities::History::RUNNING, error.message ]
       end
 
       def pause(seconds) = sleep(seconds)

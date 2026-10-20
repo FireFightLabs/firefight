@@ -271,8 +271,10 @@ module Integrations
              "type" => "object",
              "properties" => {
                "resource" => RESOURCE,
-               "run" => { "type" => "string", "description" => "An ECS service only: just this deployment, by its id or ARN, with its rollout " \
-                                                               "and any rollback, the stage it is in, its circuit breaker and why tasks stopped (optional)" },
+               "run" => { "type" => "string", "description" => "Just one run. For an ECS service, a deployment by its id or ARN, with its rollout " \
+                                                               "and any rollback, the stage it is in, its circuit breaker and why tasks stopped. For a " \
+                                                               "Lambda function, a published version by its number, or the last update of $LATEST by " \
+                                                               "its revision id (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many (optional, #{DEPLOYMENT_LIMIT})" }
              },
              "required" => [ "resource" ]
@@ -1813,7 +1815,11 @@ module Integrations
         pointed = aliases.group_by { |each| each[:function_version] }
         published = versions.reject { |version| version[:version] == "$LATEST" }.sort_by { |version| -version[:version].to_i }.first(limit)
         link = resource_link(entry)
-        return Telemetry.result("#{entry.name} has no published versions, so it runs $LATEST and has nothing to roll back to.", link: link) if published.empty?
+        update = latest_update(environment_row, entry)
+        if published.empty?
+          result = Telemetry.result("#{update_line(update)}\n#{entry.name} has no published versions, so it runs $LATEST and has nothing to roll back to.", link: link)
+          return Capabilities::RunHistory.with_runs(result, [ update_run(entry, update) ], link: link)
+        end
 
         rows = published.map do |version|
           names = Array(pointed[version[:version]]).map { |each| each[:name] }
@@ -1822,7 +1828,6 @@ module Integrations
         end
         how = aliases.size > 1 ? "A rollback takes alias:version, such as #{aliases.first[:name]}:#{published.last[:version]}" : "A rollback takes a version"
         cut = "\nLambda has more versions of #{entry.name} than Firefight reads, so the newest may be missing." if more
-        update = latest_update(environment_row, entry)
         text = "#{update_line(update)}\nLatest #{rows.size} versions of #{entry.name}, newest first. #{how}.\n#{rows.join("\n")}\n#{alias_line(aliases)}#{cut}"
         runs = [ update_run(entry, update), *published.map { |version| version_run(entry, version) } ]
         result = Capabilities::RunHistory.with_runs(Telemetry.result(text, link: link), runs, link: link)

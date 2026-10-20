@@ -3969,9 +3969,10 @@
           CodeBuild project, by its name or ARN as list_resources shows it
       run:
         type: string
-        description: 'An ECS service only: just this deployment, by its id or ARN,
+        description: Just one run. For an ECS service, a deployment by its id or ARN,
           with its rollout and any rollback, the stage it is in, its circuit breaker
-          and why tasks stopped (optional)'
+          and why tasks stopped. For a Lambda function, a published version by its
+          number, or the last update of $LATEST by its revision id (optional)
       limit:
         type: integer
         description: At most this many (optional, 20)

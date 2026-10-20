@@ -81,6 +81,7 @@ module Integrations
       # A deployment ending is no API call, so CloudTrail never records it. Without the stack's ECS Deployment State Change,
       # a service whose deployment started is asked about the statuses ListServiceDeployments names for one still going.
       ROLLOUTS = "ecs_rollouts".freeze
+      ROLLOUT_CALLS = "ecs_rollout_calls".freeze
       ROLLOUT_STARTS = %w[CreateService UpdateService].freeze
       ROLLING = %w[PENDING IN_PROGRESS STOP_REQUESTED ROLLBACK_REQUESTED ROLLBACK_IN_PROGRESS].freeze
       ROLLOUT_LIMIT = 1.day
@@ -176,6 +177,7 @@ module Integrations
           read = 0
           rollouts, ended = rollouts_ended(api, row, kept[ROLLOUTS], now)
           found.concat(ended)
+          seen = (kept[ROLLOUT_CALLS].is_a?(Hash) ? kept[ROLLOUT_CALLS] : {}).reject { |_id, stamp| happened_at(stamp) < now - LAG - MapEventSource::POLL_EVERY }
           regions(row).each do |region|
             from = places[region]&.then { |stamp| Time.iso8601(stamp) }
             if from
@@ -183,7 +185,7 @@ module Integrations
               records, complete = lookup(api, region, from - LAG, now)
               found.concat(records.flat_map { |record| record_events(record) })
               found << busy(region, now) unless complete
-              rollouts.merge!(rollouts_started(records, now)) unless row.map_events_sent_at(region)
+              rollouts.merge!(rollouts_started(records, seen)) unless row.map_events_sent_at(region)
             end
             places[region] = now.utc.iso8601(6)
           rescue RateLimited
@@ -193,6 +195,7 @@ module Integrations
           end
           raise_when_all_failed(failures, read)
           places[ROLLOUTS] = rollouts if rollouts.any?
+          places[ROLLOUT_CALLS] = seen if seen.any?
           error = failures.map { |region, failed| Sentence.join("CloudTrail in #{region} could not be read", failed) }.join(" ").presence
           MapEventSource::Polled.new(events: found, cursor: places.to_json, error: error)
         end
@@ -228,12 +231,16 @@ module Integrations
           [ kept, ended ]
         end
 
-        # The services a CreateService or UpdateService call that went through started a deployment of.
-        def rollouts_started(records, now)
+        # The services a CreateService or UpdateService call that went through started a deployment of, from when it was
+        # made. A call is noted in seen by its eventID, so one read again in the next read's overlap starts nothing twice.
+        def rollouts_started(records, seen)
           records.each_with_object({}) do |record, started|
             next unless record["eventSource"] == ECS && ROLLOUT_STARTS.include?(record["eventName"]) && record["errorCode"].blank?
+            next if seen.key?(record["eventID"])
 
-            record_events(record).each { |event| started[event.scope.external_id] = now.utc.iso8601 }
+            at = happened_at(record["eventTime"]).utc.iso8601
+            seen[record["eventID"]] = at
+            record_events(record).each { |event| started[event.scope.external_id] = at }
           end
         end
 

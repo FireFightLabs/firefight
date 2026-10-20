@@ -134,6 +134,10 @@ module Integrations
         assert_equal [ [ ResourceMap::Event::UPDATED, service ] ], done.events.map { |event| [ event.action, event.scope.external_id ] }
         assert_nil JSON.parse(done.cursor)[Aws::ROLLOUTS]
 
+        AwsApi.any_instance.stubs(:call).with(:cloudtrail, "eu-west-1", :lookup_events, anything)
+              .returns(events: [ { event_id: "ev-1", event_source: Aws::ECS, cloud_trail_event: update_service_record.to_json } ])
+        assert_nil JSON.parse(Aws.poll(@row, since: done.cursor).cursor)[Aws::ROLLOUTS], "a call read again in the overlap starts nothing twice"
+
         @row.map_events_sent!("eu-west-1")
         AwsApi.any_instance.stubs(:call).with(:cloudtrail, "eu-west-1", :lookup_events, anything)
               .returns(events: [ { event_id: "ev-2", event_source: Aws::ECS, cloud_trail_event: update_service_record.merge("eventID" => "ev-2").to_json } ])
