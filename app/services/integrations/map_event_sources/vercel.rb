@@ -11,10 +11,17 @@ module Integrations
       PRODUCTION = "production".freeze
 
       # Deployments change the production deployment's state and commit, which the map shows, so a preview's are left out
-      # (payload.target is production or null for one).
-      DEPLOYMENT_EVENTS = %w[deployment.created deployment.succeeded deployment.error deployment.canceled].freeze
-      # Production moving to another deployment without a new one.
-      PRODUCTION_EVENTS = %w[deployment.promoted deployment.rollback].freeze
+      # of the map (payload.target is production or null for one). A preview's still wakes a watch.
+      DEPLOYMENT_EVENTS = %w[deployment.created deployment.ready deployment.succeeded deployment.error deployment.canceled].freeze
+      # Production moving to another deployment without a new one, and a rolling release starting, moving on, ending or
+      # stopping, which changes the share of production each deployment serves (payload.project.id).
+      PRODUCTION_EVENTS = %w[
+        deployment.promoted deployment.rollback project.rolling-release.started project.rolling-release.approved
+        project.rolling-release.completed project.rolling-release.aborted
+      ].freeze
+      # A deployment held by its checks, and its checks passing, failing or asked to run again, which change nothing on the
+      # map and wake a watch following the deployment.
+      CHECK_EVENTS = %w[deployment.blocked deployment.checks.succeeded deployment.checks.failed deployment.check-rerequested].freeze
       PROJECT_CREATED = "project.created".freeze
       PROJECT_REMOVED = "project.removed".freeze
       PROJECT_EVENTS = [ PROJECT_CREATED, PROJECT_REMOVED, "project.renamed" ].freeze
@@ -24,7 +31,10 @@ module Integrations
       # longer verified is read in a full sweep, since only reading every project says none serves it now.
       DOMAIN_ADDED_EVENTS = %w[project.domain.created project.domain.verified].freeze
       DOMAIN_CHANGED_EVENTS = %w[project.domain.updated project.domain.deleted project.domain.unverified project.domain.moved].freeze
-      EVENTS = (DEPLOYMENT_EVENTS + PRODUCTION_EVENTS + PROJECT_EVENTS + SETTING_EVENTS + DOMAIN_ADDED_EVENTS + DOMAIN_CHANGED_EVENTS).freeze
+      MAP_EVENTS = (DEPLOYMENT_EVENTS + PRODUCTION_EVENTS + PROJECT_EVENTS + SETTING_EVENTS + DOMAIN_ADDED_EVENTS + DOMAIN_CHANGED_EVENTS).freeze
+      EVENTS = (MAP_EVENTS + CHECK_EVENTS).freeze
+      # What a watch following a run hears about: any deployment, a preview's too, its checks and a rolling release.
+      WAKING_EVENTS = (DEPLOYMENT_EVENTS + PRODUCTION_EVENTS + CHECK_EVENTS).freeze
 
       PLAN_NOTE = "Vercel sends changes to webhooks on Pro and Enterprise teams, up to 20 a team".freeze
 
@@ -40,7 +50,7 @@ module Integrations
           body = payload["payload"].is_a?(Hash) ? payload["payload"] : {}
           # createdAt is in milliseconds since the epoch (vercel.com/docs/webhooks, Events).
           at = payload["createdAt"].is_a?(Numeric) ? Time.zone.at(payload["createdAt"] / 1000.0) : Time.current
-          return [] unless EVENTS.include?(type)
+          return [] unless MAP_EVENTS.include?(type)
           return [ event(payload, at, ResourceMap::Event::RESCOPE, ResourceMap::Scope.everything) ] if DOMAIN_CHANGED_EVENTS.include?(type)
           return [] if DEPLOYMENT_EVENTS.include?(type) && body["target"] != PRODUCTION
 
@@ -49,6 +59,18 @@ module Integrations
 
           scope = ResourceMap::Scope.new(account: body.dig("team", "id"), kind: ResourceMap::KIND_SITE, external_id: project)
           [ event(payload, at, action_of(type), scope) ]
+        end
+
+        def wakes?(payload, headers:) = WAKING_EVENTS.include?(payload["type"].to_s)
+
+        # Whether a webhook Firefight registered before no longer asks for every event it now reads, such as one from before
+        # the check and rolling release events, which registering again puts right.
+        def register_again?(row, url:)
+          settings = ConnectionSettings.of(row)
+          (settings.scopes.presence || [ nil ]).any? do |team|
+            own = api(row, team).webhooks.find { |webhook| webhook["url"] == url }
+            own.nil? || (EVENTS - Array(own["events"])).any?
+          end
         end
 
         # Registers a webhook in each team the connection reaches, or in the token's own account when it names none. One
@@ -68,7 +90,7 @@ module Integrations
           raise MapEventSource::Refused, Sentence.all(error, PLAN_NOTE)
         end
 
-        def limits = "Vercel's preview deployments are not on the map, so they bring no update. Everything else on the map follows Vercel's changes within about a minute."
+        def limits = "Vercel's preview deployments are not on the map, so they change nothing there, though a watch following one hears about it at once. Everything else on the map follows Vercel's changes within about a minute."
 
         # Every team's webhook. One already gone from Vercel is taken back all the same.
         def remove(row, webhook_id)

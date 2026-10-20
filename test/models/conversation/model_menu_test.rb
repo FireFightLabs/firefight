@@ -28,6 +28,21 @@ class Conversation::ModelMenuTest < ActiveSupport::TestCase
     assert picked.context, "and runs in that account's own context"
   end
 
+  test "a DeepSeek account offers V4.1 Flash under DeepSeek's current name, reading images, beside V4 Pro" do
+    add_ai_account!(@workspace, provider: "deepseek", key: "sk-deepseek-own")
+    menu = Conversation::ModelMenu.for(@workspace)
+
+    assert_equal [ "deepseek-flash", "deepseek-v4-pro" ], menu.models.map(&:model)
+    flash, pro = menu.models
+    assert pro.default
+    assert_not pro.reads_images
+    assert_equal [ "DeepSeek V4.1 Flash", "Everyday questions" ], [ flash.label, flash.note ]
+    assert flash.reads_images
+    picked = menu.choice("deepseek-flash")
+    assert_equal [ "deepseek-flash", "deepseek" ], [ picked.model, picked.provider ]
+    assert_equal Conversation::ModelMenu::NOT_OFFERED, menu.blocked_reason("deepseek-v4-flash")
+  end
+
   test "a listed main model is not offered twice, and picking it is no pick at all" do
     add_ai_account!(@workspace, provider: "openrouter", key: "sk-or-own", models: { "main" => "anthropic/claude-opus-5.5", "fast" => "openai/shared-vision" })
     menu = Conversation::ModelMenu.for(@workspace)

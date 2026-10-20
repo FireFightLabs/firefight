@@ -88,6 +88,9 @@ railway:
     content/docs/deployments/troubleshooting: deployments/troubleshooting
     content/docs/networking/troubleshooting: networking
     content/docs/observability: observability
+    content/docs/cron-jobs.md: cron-jobs.md
+    content/docs/cli/cron.md: cli/cron.md
+    content/docs/services.md: services.md
 
 # Northflank's API client is MIT licensed and defines every endpoint of Northflank's API. So the endpoints are written out
 # from it, with which calls exist, their paths inside the project as api_request takes them, and the body each needs.
@@ -236,6 +239,18 @@ netlify:
     agent-plugin/skills/netlify-config: config
     agent-plugin/skills/netlify-caching: caching
     agent-plugin/skills/netlify-functions: functions
+
+# Vercel's agent plugin is Apache 2.0, in vercel/vercel-plugin. Its deployment and command line references say how
+# deployments, checks, rolling releases, logs and Vercel CI behave. Vercel's own documentation site is not openly
+# licensed, so none of it is copied.
+vercel:
+  repository: https://github.com/vercel/vercel-plugin
+  license: LICENSE
+  paths:
+    skills/deployments-cicd/references: deploy
+    skills/vercel-cli/references/deployment.md: cli/deployment.md
+    skills/vercel-cli/references/monitoring-and-debugging.md: cli/monitoring-and-debugging.md
+    skills/vercel-functions/SKILL.md: functions/functions.md
 
 # Convex's agent skills are Apache 2.0. Its documentation is FSL-1.1-Apache-2.0, which is not an open licence, so none of
 # it is copied. The skills that recommend Convex as the backend for new work are left out.

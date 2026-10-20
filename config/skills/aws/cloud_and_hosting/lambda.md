@@ -1,7 +1,7 @@
 ---
 name: aws_lambda
 when: Finding why a Lambda function errors, times out, runs out of memory or is throttled, and moving its alias back to an earlier version
-tools: [resource_status, query_metrics, cloudwatch_metrics, search_logs, logs_insights_query, recent_deploys, rollback]
+tools: [resource_status, query_metrics, cloudwatch_metrics, search_logs, logs_insights_query, recent_deploys, run_history, rollback]
 references: [serverless/troubleshooting.md, serverless/concurrency.md, serverless/lambda.md, lambda-timeouts/lambda-timeout-debugging.md]
 ---
 1. Call `resource_status`. A state of Failed, or a last update that failed, means the function cannot run as it is, and the reason says why. Note its memory, timeout, whether it runs in a VPC, and which version each alias points at.
@@ -12,5 +12,6 @@ references: [serverless/troubleshooting.md, serverless/concurrency.md, serverles
    - Throttling: Throttles above zero, with ConcurrentExecutions at the function's reserved concurrency or the account's limit in the region. A reserved concurrency of 0 throttles every call. A throttled synchronous call returns 429 to its caller, and an asynchronous one is retried.
    - Errors from the code: read the error lines with `search_logs` and `text` set to the error's words.
 4. Call `recent_deploys`. A version published shortly before the errors began is the first suspect. Lambda moves traffic between versions through an alias, so a function no caller reaches through an alias has nothing to roll back.
-5. To roll back, `rollback` with `to` set to the version to go back to, or alias:version, such as live:12, when the function has more than one alias. Undo by pointing the alias back at the version it had, which the answer names.
-6. When the function is defined as code, such as SAM, CDK, the Serverless Framework or Terraform, the lasting fix is a pull request to that code.
+5. To roll back, `rollback` with `to` set to the version to go back to, or alias:version, such as live:12, when the function has more than one alias. A weighted split, such as a canary sending 10% to a newer version, is taken off with it, so every request reaches the version named. Undo by pointing the alias back at the version it had, and setting the split again, which the answer names.
+6. A deploy still settling shows as the last update in `run_history`, which says whether it is in progress, succeeded or failed and why. Lambda keeps only that newest update and when each version was published.
+7. When the function is defined as code, such as SAM, CDK, the Serverless Framework or Terraform, the lasting fix is a pull request to that code.

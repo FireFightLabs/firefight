@@ -89,19 +89,60 @@ module Integrations
 
     def postgres_cluster(cluster_id) = machines_get("/postgres/#{segment(cluster_id)}")
 
+    # A Managed Postgres cluster's databases by name (spec, Postgres_databases_list).
+    def postgres_databases(cluster_id) = Array(machines_get("/postgres/#{segment(cluster_id)}/databases")["data"])
+
+    # The top 20 queries by total execution time, read from Postgres's cumulative counters within the last range seconds,
+    # at most a week (spec, Postgres_queries_slow).
+    def postgres_slow_queries(cluster_id, range:) = Array(machines_get("/postgres/#{segment(cluster_id)}/queries/slow", "range" => range)["data"])
+
+    # The queries running now in one database, which Fly takes by name (spec, Postgres_queries_active).
+    def postgres_active_queries(cluster_id, database:) = Array(machines_get("/postgres/#{segment(cluster_id)}/queries/active", "database" => database)["data"])
+
     def restart_machine(app_name, machine_id) = machines_post("/apps/#{segment(app_name)}/machines/#{segment(machine_id)}/restart")
 
+    # Machines_start, Machines_stop, Machines_suspend, Machines_cordon and Machines_uncordon in the spec. A stop sends no
+    # body, so the machine gets its own stop signal. A cordon takes a running machine out of the Fly Proxy's routing,
+    # and an uncordon puts it back.
+    def start_machine(app_name, machine_id) = machines_post("/apps/#{segment(app_name)}/machines/#{segment(machine_id)}/start")
+
+    def stop_machine(app_name, machine_id) = machines_post("/apps/#{segment(app_name)}/machines/#{segment(machine_id)}/stop")
+
+    def suspend_machine(app_name, machine_id) = machines_post("/apps/#{segment(app_name)}/machines/#{segment(machine_id)}/suspend")
+
+    def cordon_machine(app_name, machine_id) = machines_post("/apps/#{segment(app_name)}/machines/#{segment(machine_id)}/cordon")
+
+    def uncordon_machine(app_name, machine_id) = machines_post("/apps/#{segment(app_name)}/machines/#{segment(machine_id)}/uncordon")
+
     # The whole config goes back with the change, and current_version makes Fly refuse it if the machine moved on.
-    def update_machine(app_name, machine_id, config:, current_version:)
-      machines_post("/apps/#{segment(app_name)}/machines/#{segment(machine_id)}", "config" => config, "current_version" => current_version)
+    # skip_launch leaves a machine that was not running as it was (spec, UpdateMachineRequest).
+    def update_machine(app_name, machine_id, config:, current_version:, skip_launch: false)
+      body = { "config" => config, "current_version" => current_version, "skip_launch" => (true if skip_launch) }.compact
+      machines_post("/apps/#{segment(app_name)}/machines/#{segment(machine_id)}", body)
+    end
+
+    # A new machine from a config, in a region, started (spec, Machines_create, CreateMachineRequest), as fly scale count
+    # launches one from a machine of the same process group (superfly/flyctl, internal/command/scale/count_machines.go).
+    def create_machine(app_name, config:, region:)
+      machines_post("/apps/#{segment(app_name)}/machines", "config" => config, "region" => region)
+    end
+
+    # Destroys a machine, killing it first when it runs, as fly scale count does with Kill (spec, Machines_delete, force).
+    def destroy_machine(app_name, machine_id)
+      uri = URI.parse("#{MACHINES_ROOT}/apps/#{segment(app_name)}/machines/#{segment(machine_id)}")
+      uri.query = URI.encode_www_form("force" => true)
+      send_request(uri, Net::HTTP::Delete.new(uri))
     end
 
     # Waits until the machine is started, or at most timeout seconds, and answers whether it got there. version is the
     # machine version an update answered, so an old start does not count (spec, GET .../machines/{machine_id}/wait).
-    def wait_started(app_name, machine_id, version: nil, timeout: WAIT_SECONDS)
+    def wait_started(app_name, machine_id, version: nil, timeout: WAIT_SECONDS) = wait_for(app_name, machine_id, STARTED, version: version, timeout: timeout)
+
+    # The same wait for any state the spec's wait takes, such as stopped or suspended.
+    def wait_for(app_name, machine_id, state, version: nil, timeout: WAIT_SECONDS)
       uri = URI.parse("#{MACHINES_ROOT}/apps/#{segment(app_name)}/machines/#{segment(machine_id)}/wait")
-      answer = get(uri, { "state" => STARTED, "version" => version, "timeout" => timeout }, read_timeout: timeout + WAIT_MARGIN)
-      answer["ok"] != false && answer["state"].to_s.in?([ "", STARTED ])
+      answer = get(uri, { "state" => state, "version" => version, "timeout" => timeout }, read_timeout: timeout + WAIT_MARGIN)
+      answer["ok"] != false && answer["state"].to_s.in?([ "", state ])
     end
 
     def releases(app_name, limit:)

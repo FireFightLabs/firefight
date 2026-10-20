@@ -32,6 +32,25 @@ class CodeAgent::RelayPayerTest < ActiveSupport::TestCase
     assert_not_nil account.reload.last_used_at
   end
 
+  test "a call is priced at the hour it was sent, not the hour its answer ended" do
+    session, = CodeAgentSession.open!(workspace: @workspace, choice: FirefightAi::ModelChoice.new(model: "claude-sonnet-5", provider: "anthropic"),
+                                      repository: "acme/api")
+    sent = Time.utc(2026, 10, 20, 9, 59)
+    usage = FirefightAi::ModelProxy::Usage.new(input: 10, output: 5, cache_read: 0, cache_write: 0)
+    proxy = FakeProxy.new(usage, 200, nil, "req_011SENT")
+    test = self
+    proxy.define_singleton_method(:forward) do |**|
+      test.travel_to(Time.utc(2026, 10, 20, 10, 1))
+      usage
+    end
+    FirefightAi::ModelProxy.stubs(:new).returns(proxy)
+    FirefightAi.expects(:cost_micros).with { |*params| params.last[:at] == sent }.returns(1_234)
+
+    travel_to(sent) { CodeAgent::Relay.new(session).forward(path: "messages", body: "{}", headers: {}) { |*| nil } }
+
+    assert_equal 1_234, Inference.find_by!(inferable: session).cost_micros
+  end
+
   test "a change on the deployment's own account forwards with the deployment's configuration" do
     session, = CodeAgentSession.open!(workspace: @workspace, choice: FirefightAi::ModelChoice.new(model: "claude-sonnet-5", provider: "anthropic"),
                                       repository: "acme/api")

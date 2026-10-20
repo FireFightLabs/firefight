@@ -6,6 +6,7 @@ class Integrations::Capabilities::AzureTest < ActiveSupport::TestCase
   APP_ID = "#{GROUP}/Microsoft.App/containerApps/api".freeze
   SQL_ID = "#{GROUP}/Microsoft.Sql/servers/shop-sql/databases/orders".freeze
   PG_ID = "#{GROUP}/Microsoft.DBforPostgreSQL/flexibleServers/catalog".freeze
+  REGISTRY_ID = "#{GROUP}/Microsoft.ContainerRegistry/registries/acme".freeze
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -19,6 +20,18 @@ class Integrations::Capabilities::AzureTest < ActiveSupport::TestCase
     resource!(ResourceMap::KIND_SERVICE, APP_ID, "api", Integrations::Packs::Azure::TYPE_CONTAINER)
     resource!(ResourceMap::KIND_DATABASE, SQL_ID, "orders", Integrations::Packs::Azure::TYPE_SQL)
     resource!(ResourceMap::KIND_DATABASE, PG_ID, "catalog", Integrations::Packs::Azure::TYPE_POSTGRES)
+    resource!(ResourceMap::KIND_BUILD_SERVICE, REGISTRY_ID, "acme", Integrations::Packs::Azure::TYPE_REGISTRY)
+  end
+
+  test "a container registry's run history is its ACR Tasks runs, its logs a run's log, and it holds nothing else" do
+    history = resolve(Integrations::Capabilities::HISTORY, "resource" => "acme", "run" => "ca2")
+    assert_equal [ "list_registry_runs", { "resource" => REGISTRY_ID, "run" => "ca2", "limit" => 20 } ], [ history.tool.name, history.arguments ]
+    log = resolve(Integrations::Capabilities::LOGS, "resource" => "acme", "stream" => "build", "deployment" => "ca2", "text" => "ERR")
+    assert_equal [ "registry_run_log", { "resource" => REGISTRY_ID, "run" => "ca2", "text" => "ERR" } ], [ log.tool.name, log.arguments ]
+    assert_equal({ "resource" => REGISTRY_ID }, resolve(Integrations::Capabilities::LOGS, "resource" => "acme").arguments)
+    assert_match "stream must be build", unroutable(Integrations::Capabilities::LOGS, "resource" => "acme", "stream" => "app")
+    assert_equal "describe_resource", resolve(Integrations::Capabilities::STATUS, "resource" => "acme").tool.name
+    assert_match "no connection offers a restart", unroutable(Integrations::Capabilities::RESTART, "resource" => "acme")
   end
 
   test "every capability runs as the pack's own tool, by the resource's id" do
@@ -40,7 +53,8 @@ class Integrations::Capabilities::AzureTest < ActiveSupport::TestCase
   test "Azure answers no errors or traces, and a database has no deploys" do
     assert_equal Integrations::Capabilities::SPECS.keys - [ Integrations::Capabilities::ERRORS, Integrations::Capabilities::TRACES ], Integrations::Capabilities::Azure.capabilities
     assert_match "no connection offers deploys for it", unroutable(Integrations::Capabilities::DEPLOYS, "resource" => "catalog")
-    assert_equal %w[search_logs deployment_log query_metrics list_deployments describe_resource rollback_app restart_resource scale_app], Integrations::Capabilities::Azure::WRAPPED
+    assert_equal %w[search_logs deployment_log registry_run_log query_metrics list_deployments list_registry_runs describe_resource rollback_app restart_resource scale_app],
+                 Integrations::Capabilities::Azure::WRAPPED
     assert_match "restart an app or a PostgreSQL server", Integrations::Capabilities.halon_sentence("azure", "Azure")
   end
 

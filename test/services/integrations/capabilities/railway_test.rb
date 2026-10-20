@@ -1,7 +1,8 @@
 require "test_helper"
 
 class Integrations::Capabilities::RailwayTest < ActiveSupport::TestCase
-  TOOLS = %w[search_logs query_metrics list_deployments deploy_history describe_resource rollback_deployment restart_deployment scale_service].freeze
+  TOOLS = %w[search_logs query_metrics list_deployments deploy_history cron_runs search_traces describe_resource rollback_deployment restart_deployment
+             scale_service].freeze
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -12,6 +13,16 @@ class Integrations::Capabilities::RailwayTest < ActiveSupport::TestCase
     end
     resource!("svc-web", "web", ResourceMap::KIND_SERVICE)
     resource!("svc-db", "Postgres", ResourceMap::KIND_DATABASE)
+    resource!("svc-cron", "nightly", ResourceMap::KIND_JOB)
+  end
+
+  test "a cron job's run history is its cron runs, and a service's traces are Railway's own" do
+    history = resolve(Integrations::Capabilities::HISTORY, "resource" => "nightly", "run" => "run-2")
+    assert_equal [ "cron_runs", { "resource" => "svc-cron", "run" => "run-2" } ], [ history.tool.name, history.arguments ]
+
+    traces = resolve(Integrations::Capabilities::TRACES, "resource" => "web", "text" => "/cart", "minutes" => 30)
+    assert_equal [ "search_traces", { "resource" => "svc-web", "text" => "/cart", "minutes" => 30 } ], [ traces.tool.name, traces.arguments ]
+    assert_equal({ "resource" => "svc-web", "metrics" => %w[latency_p95] }, resolve(Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => %w[latency_p95]).arguments)
   end
 
   test "a resource on the map is answered by Railway's own tools, by its service id, with Railway's names for streams" do
@@ -39,7 +50,7 @@ class Integrations::Capabilities::RailwayTest < ActiveSupport::TestCase
 
   test "Railway's wrapped tools are not offered twice, and its details say what Halon can do" do
     assert Integrations::Capabilities.wrapped?(@railway.tools.find_by!(name: "scale_service"))
-    assert_equal %w[logs metrics deploys status history rollback restart scale], Integrations::Capabilities::Railway.capabilities
+    assert_equal %w[logs metrics deploys status history traces rollback restart scale], Integrations::Capabilities::Railway.capabilities
     assert_match "for anything Railway runs", Integrations::Capabilities.halon_sentence("railway", "Railway")
   end
 

@@ -17,11 +17,12 @@ class CodeAgent::Relay
     proxy = FirefightAi::ModelProxy.new(@session.provider, config: @session.llm_config, connect_to: address_check)
     raise FirefightAi::ModelProxy::Refused, CodeAgentSession::TOO_MANY_AT_ONCE unless @session.begin_call!
 
+    sent_at = Time.current
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     begin
       proxy.forward(path: path, body: body, model: @session.model, headers: headers, clearing: clearing, &)
     ensure
-      record(proxy, started)
+      record(proxy, started, sent_at)
       @session.cleared!(proxy.trim)
       @session.end_call!
     end
@@ -44,10 +45,11 @@ class CodeAgent::Relay
     end
   end
 
-  def record(proxy, started)
+  # A call is priced by the hour it was sent, for a provider that charges more at busy hours.
+  def record(proxy, started, sent_at)
     usage = proxy.usage
     cost = FirefightAi.cost_micros(@session.model, provider: @session.provider, input: usage.input, output: usage.output,
-                                   cache_read: usage.cache_read, cache_write: usage.cache_write, cache_write_by_ttl: usage.cache_write_by_ttl)
+                                   cache_read: usage.cache_read, cache_write: usage.cache_write, cache_write_by_ttl: usage.cache_write_by_ttl, at: sent_at)
     payer = @session.payer
     inference = Inference.create!(
       workspace: @session.workspace, feature: CodeAgentSession::FEATURE, provider: @session.provider, model: @session.model,

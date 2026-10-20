@@ -2,6 +2,7 @@
 name: vercel_function_errors
 when: Visitors get a 5xx or an error page from a Vercel project, such as FUNCTION_INVOCATION_FAILED, FUNCTION_INVOCATION_TIMEOUT, NO_RESPONSE_FROM_FUNCTION, FUNCTION_THROTTLED or a middleware error
 tools: [search_logs, deployment_logs, recent_deploys, resource_status]
+references: [functions/functions.md, cli/monitoring-and-debugging.md]
 ---
 Vercel names each failure with an error code on the error page and in the logs. Find the code first, then read what the function printed.
 

@@ -1,7 +1,7 @@
 require "test_helper"
 
 class Integrations::Capabilities::RenderTest < ActiveSupport::TestCase
-  TOOLS = Integrations::Capabilities::Render::TOOLS.values.freeze
+  TOOLS = Integrations::Capabilities::Render::TOOLS.values.flatten.freeze
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -31,7 +31,7 @@ class Integrations::Capabilities::RenderTest < ActiveSupport::TestCase
     assert_match "cannot leave lines out", unroutable(Integrations::Capabilities::LOGS, "resource" => "web", "exclude" => "healthz")
     assert_match "stream must be app, build, requests", unroutable(Integrations::Capabilities::LOGS, "resource" => "web", "stream" => "cdn")
     assert_match "Render does not keep network_in", unroutable(Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => [ "network_in" ])
-    assert_match "no connection offers metrics", unroutable(Integrations::Capabilities::METRICS, "resource" => "docs")
+    assert_equal({ "resource" => "srv-docs", "metrics" => [ "bandwidth" ] }, resolve(Integrations::Capabilities::METRICS, "resource" => "docs", "metrics" => [ "bandwidth" ]).arguments)
     assert_match "no connection offers scaling", unroutable(Integrations::Capabilities::SCALE, "resource" => "cache", "instances" => 2)
   end
 
@@ -73,6 +73,20 @@ class Integrations::Capabilities::RenderTest < ActiveSupport::TestCase
     assert_match "no connection offers run history", unroutable(Integrations::Capabilities::HISTORY, "resource" => "cache")
   end
 
+  test "a cron job's history is its scheduled runs, a service's one-off jobs are read when asked for, and a workflow's is its task runs" do
+    resource!(ResourceMap::KIND_JOB, "crn-1", "nightly")
+    resource!(ResourceMap::KIND_WORKFLOW, "wfl-1", "mailer")
+
+    assert_equal [ "cron_runs", { "resource" => "crn-1" } ], route(Integrations::Capabilities::HISTORY, "resource" => "nightly")
+    assert_equal "deploy_history", route(Integrations::Capabilities::HISTORY, "resource" => "nightly", "name" => "deploy").first
+    assert_equal "job_runs", route(Integrations::Capabilities::HISTORY, "resource" => "web", "name" => "one-off job").first
+    assert_equal [ "job_runs", { "resource" => "srv-web", "run" => "job-cph1rs3idesc73a2b2mg" } ],
+                 route(Integrations::Capabilities::HISTORY, "resource" => "web", "run" => "job-cph1rs3idesc73a2b2mg")
+    assert_equal [ "task_runs", { "resource" => "wfl-1", "run" => "trn-1" } ], route(Integrations::Capabilities::HISTORY, "resource" => "mailer", "run" => "trn-1")
+    assert_equal "search_logs", resolve(Integrations::Capabilities::LOGS, "resource" => "mailer").tool.name
+    assert_equal "describe_resource", resolve(Integrations::Capabilities::STATUS, "resource" => "mailer").tool.name
+  end
+
   private
 
   def resource!(kind, id, name)
@@ -81,6 +95,8 @@ class Integrations::Capabilities::RenderTest < ActiveSupport::TestCase
   end
 
   def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given, principal: map_reader)
+
+  def route(key, given) = resolve(key, given).then { |resolved| [ resolved.tool.name, resolved.arguments ] }
 
   def unroutable(key, given) = assert_raises(Integrations::Capabilities::Unroutable) { resolve(key, given) }.message
 end

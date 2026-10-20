@@ -195,4 +195,22 @@ class AiProvidersTest < ActiveSupport::TestCase
     assert_equal [ [ "claude-haiku-5-5", "anthropic" ], [ "anthropic/claude-haiku-5.5", "openrouter" ] ], backups.call("anthropic/claude-sonnet-5.5", "openrouter")
     assert_equal [ [ "claude-haiku-5-5", "anthropic" ] ], backups.call("anthropic/claude-haiku-5.5", "openrouter"), "never the model that failed"
   end
+
+  test "DeepSeek charges twice its registry price at peak hours on a weekday, and the registry's price on a holiday, a weekend and every other hour" do
+    peak = Time.utc(2026, 10, 20, 1, 0)
+
+    assert_equal 2, AiProviders.price_factor("deepseek", at: peak), "a Tuesday at 01:00 UTC"
+    assert_equal 2, AiProviders.price_factor("deepseek", at: Time.utc(2026, 10, 16, 9, 59)), "a Friday just before 10:00 UTC"
+    assert_equal 2, AiProviders.price_factor("deepseek", at: Time.new(2026, 10, 20, 16, 30, 0, "+08:00")), "17:30 in Beijing is 09:30 UTC"
+    assert_equal 1, AiProviders.price_factor("deepseek", at: Time.utc(2026, 10, 20, 4, 0)), "the first window ends at 04:00"
+    assert_equal 1, AiProviders.price_factor("deepseek", at: Time.utc(2026, 10, 20, 5, 30)), "between the two windows"
+    assert_equal 1, AiProviders.price_factor("deepseek", at: Time.utc(2026, 10, 20, 10, 0)), "the second window ends at 10:00"
+    assert_equal 1, AiProviders.price_factor("deepseek", at: Time.utc(2026, 10, 17, 2, 0)), "a Saturday"
+    assert_equal 1, AiProviders.price_factor("deepseek", at: Time.utc(2026, 10, 5, 2, 0)), "a Monday in the National Day holiday"
+    assert_equal 1, AiProviders.price_factor("deepseek", at: Time.utc(2026, 2, 23, 7, 0)), "the last day of the Spring Festival holiday"
+
+    assert_equal 1, AiProviders.price_factor("openrouter", at: peak), "OpenRouter's DeepSeek models are priced as the registry holds them"
+    assert_equal 1, AiProviders.price_factor("anthropic", at: peak)
+    assert_equal 1, AiProviders.price_factor("no-such-provider", at: peak)
+  end
 end

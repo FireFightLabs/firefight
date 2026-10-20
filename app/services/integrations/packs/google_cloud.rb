@@ -44,6 +44,13 @@ module Integrations
         TYPE_RUN => "run/services", TYPE_SQL => "sql", TYPE_MACHINE => "compute/instances", TYPE_CLUSTER => "kubernetes/list", TYPE_JOB => "run/jobs",
         TYPE_PIPELINE => "deploy/delivery-pipelines", TYPE_STAGE => "deploy/delivery-pipelines"
       }.freeze
+      # A resource's own page, at the path Google's own tools and samples open it at (Cloud Run's deploy button and MCP
+      # server, the Cloud Run job, Compute Engine and Cluster Toolkit samples): a Cloud Run service's details, a job's
+      # executions, a Compute Engine instance's details and a GKE cluster's.
+      OWN_PAGES = {
+        TYPE_RUN => "run/detail/%<location>s/%<name>s", TYPE_JOB => "run/jobs/details/%<location>s/%<name>s/executions",
+        TYPE_MACHINE => "compute/instancesDetail/zones/%<location>s/instances/%<name>s", TYPE_CLUSTER => "kubernetes/clusters/details/%<location>s/%<name>s/details"
+      }.freeze
       LOGS_PAGE = "logs/query".freeze
       ERRORS_PAGE = "errors".freeze
 
@@ -373,7 +380,7 @@ module Integrations
         started, ended = Capabilities::Answers.range(arguments)
         names = asked.presence || Metrics::DEFAULTS.fetch(target.type)
         alignment = alignment_for(started, ended)
-        link = page_link(environment_row, target.project, target.type)
+        link = resource_link(environment_row, target)
         charts = names.map do |name|
           metric = metric_for(environment_row, target, name, known)
           series = read_series(environment_row, target, metric, started, ended, alignment)
@@ -388,7 +395,7 @@ module Integrations
         return one_revision(environment_row, target, service, arguments["revision"]) if arguments["revision"].present?
 
         read = api(environment_row).run_revisions(target.project, target.location, target.name)
-        link = page_link(environment_row, target.project, TYPE_RUN)
+        link = resource_link(environment_row, target)
         if read.items.empty?
           return Capabilities::Deploys.with_deploys(Capabilities::RunHistory.with_runs(Telemetry.result("#{target.name} has no revisions.", link: link), [], link: link), [])
         end
@@ -437,7 +444,7 @@ module Integrations
         when TYPE_JOB then job_lines(api(environment_row).run_job(target.project, target.location, target.name))
         when TYPE_PIPELINE, TYPE_STAGE then pipeline_lines(environment_row, target)
         end
-        Telemetry.result(lines.compact.join("\n"), link: page_link(environment_row, target.project, target.type))
+        Telemetry.result(lines.compact.join("\n"), link: resource_link(environment_row, target))
       end
 
       def error_groups(environment_row:, arguments:)
@@ -492,7 +499,7 @@ module Integrations
         changed = service.except("etag").merge("traffic" => [ { "type" => REVISION_TRAFFIC, "revision" => wanted, "percent" => 100 } ])
         operation = api.update_run_service(target.project, target.location, target.name, changed.merge("etag" => service["etag"]).compact)
         Telemetry.result("Google Cloud is sending all of #{target.name}'s traffic to revision #{wanted}#{operation_note(operation)}. " \
-                         "Before, it went #{before}. To undo, send it back there.", link: page_link(environment_row, target.project, TYPE_RUN))
+                         "Before, it went #{before}. To undo, send it back there.", link: resource_link(environment_row, target))
       end
 
       def scale_service(environment_row:, arguments:)
@@ -518,7 +525,7 @@ module Integrations
         mask = wanted.keys.map { |field| "scaling.#{field}" }.join(",")
         operation = api.update_run_service(target.project, target.location, target.name, { "scaling" => wanted }, update_mask: mask)
         Telemetry.result("Google Cloud is setting #{target.name} to #{scaling_text(wanted)}#{operation_note(operation)}. " \
-                         "Before, it was #{scaling_text(scaling)}. To undo, set those again.", link: page_link(environment_row, target.project, TYPE_RUN))
+                         "Before, it was #{scaling_text(scaling)}. To undo, set those again.", link: resource_link(environment_row, target))
       end
 
       def restart_resource(environment_row:, arguments:)
@@ -534,7 +541,7 @@ module Integrations
         else
           fail!("A #{target.type} has no restart in Google Cloud. For a Cloud Run service, roll back to a revision that worked, or set its instances.")
         end
-        Telemetry.result("#{text} There is nothing to undo.", link: page_link(environment_row, target.project, target.type))
+        Telemetry.result("#{text} There is nothing to undo.", link: resource_link(environment_row, target))
       end
 
       # A GET the read guard let through (ReadGuards::GoogleCloud), only inside the projects the connection reads, answering
@@ -649,7 +656,7 @@ module Integrations
       # addresses.
       def map_item(environment_row, project, item, reading)
         found = ResourceMap::Found.new(provider: PROVIDER_KEY, account: project, kind: KINDS.fetch(item[:type]), external_id: item[:id], name: item[:name],
-                                       status: item[:status], url: console(environment_row, project, PAGES.fetch(item[:type])), details: item[:details])
+                                       status: item[:status], url: resource_page(environment_row, project, item), details: item[:details])
         reading.resources << found
         item[:hosts].each do |host|
           domain = ResourceMap.domain(host)
@@ -960,6 +967,17 @@ module Integrations
 
       def page_link(environment_row, project, type) = Telemetry::Link.new(provider: PROVIDER, url: console(environment_row, project, PAGES.fetch(type)))
 
+      def resource_link(environment_row, target) = Telemetry::Link.new(provider: PROVIDER, url: resource_page(environment_row, target.project, target))
+
+      # A resource's own page where it has one (OWN_PAGES), and its kind's list otherwise.
+      def resource_page(environment_row, project, resource)
+        type, location, name = resource.is_a?(Hash) ? resource.values_at(:type, :location, :name) : [ resource.type, resource.location, resource.name ]
+        own = OWN_PAGES[type]
+        return console(environment_row, project, PAGES.fetch(type)) unless own && location.present? && name.present?
+
+        console(environment_row, project, format(own, location: Http.segment(location), name: Http.segment(name)))
+      end
+
       # The console is the registry's site for Google Cloud.
       def console(environment_row, project, page) = "#{ConnectionSettings.of(environment_row).site}/#{page}?#{{ "project" => project }.to_query}"
 
@@ -1022,7 +1040,16 @@ module Integrations
         state = ready ? ready["state"].to_s.delete_prefix("CONDITION_").downcase : "unknown"
         image = Array(revision["containers"]).filter_map { |container| container["image"] }.join(", ")
         [ revision["createTime"], short(revision["name"]), ("by #{revision['creator']}" if revision["creator"]), "image #{image}",
-          "ready #{state}", "#{shares[short(revision['name'])]}% of traffic" ].compact.join(", ")
+          "ready #{state}#{" (#{ready_said(ready)})" if ready_said(ready)}", "#{shares[short(revision['name'])]}% of traffic" ].compact.join(", ")
+      end
+
+      # Why the Ready condition stands as it does: its reason, one of reason, revisionReason or executionReason, and its
+      # message (Cloud Run Admin API v2, Condition). A condition that succeeded has no reason.
+      def ready_said(ready)
+        return unless ready
+
+        reason = ready.values_at("reason", "revisionReason", "executionReason").compact_blank.first.to_s.downcase.tr("_", " ").presence
+        [ reason, ready["message"].to_s.strip.presence ].compact.join(": ").presence
       end
 
       # A revision's rollout as every run history reads it, from when it was made (createTime) to when its Ready condition
@@ -1034,7 +1061,7 @@ module Integrations
         Capabilities::History::Run.new(
           id: short(revision["name"]), name: "revision", status: status, started_at: Capabilities::RunHistory.time(revision["createTime"]),
           finished_at: (Capabilities::RunHistory.time(ready["lastTransitionTime"]) if ready && Capabilities::History::FINISHED.include?(status)),
-          detail: Array(revision["containers"]).filter_map { |container| container["image"] }.join(", ").presence
+          detail: [ Array(revision["containers"]).filter_map { |container| container["image"] }.join(", ").presence, ready_said(ready) ].compact.join(", ").presence
         )
       end
 

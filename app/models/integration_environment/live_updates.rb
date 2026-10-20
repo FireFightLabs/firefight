@@ -191,7 +191,8 @@ module IntegrationEnvironment::LiveUpdates
   end
 
   def live_updates_turn_off_words
-    "Firefight removes its webhook from #{integration.name}, which frees it for one of your own. The map then updates at each hourly sweep."
+    map_event_source&.turn_off_words ||
+      "Firefight removes its webhook from #{integration.name}, which frees it for one of your own. The map then updates at each hourly sweep."
   end
 
   # Whether the provider's change log is read now. Each is read as often as its source says, and one the provider refused
@@ -229,7 +230,8 @@ module IntegrationEnvironment::LiveUpdates
     name = integration.name
     return "#{name} is switched off, so changes there do not reach the map." unless integration.operational? && enabled?
     return Integrations::Installations.live_updates_reason(self) if installation_stopped?
-    return "Live updates were turned off, so the map updates at each sweep." if source.registers_for?(self) && map_events_turned_off_at.present?
+    # A provider whose change log is read as well keeps following it whether its registration is on or off.
+    return "Live updates were turned off, so the map updates at each sweep." if source.registers_for?(self) && !source.polls? && map_events_turned_off_at.present?
     if map_events_error.present?
       if source.offers? && map_events_sent_from.present?
         return Integrations::Sentence.join("Firefight could not read #{name}'s change log", map_events_error,
@@ -238,7 +240,7 @@ module IntegrationEnvironment::LiveUpdates
       after = map_events_refused_at ? "Firefight tries again tomorrow. The map still updates at each sweep." : "The map still updates at each sweep."
       return Integrations::Sentence.join("Firefight could not follow #{name}'s changes", map_events_error, after: after)
     end
-    if source.registers_for?(self) && map_events_webhook_id.blank? && map_events_confirmation.present?
+    if source.registers_for?(self) && !source.polls? && map_events_webhook_id.blank? && map_events_confirmation.present?
       return "Firefight asks before adding its webhook to #{name}. #{map_events_confirmation}"
     end
     return if source.polls?

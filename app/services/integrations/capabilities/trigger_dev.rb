@@ -4,6 +4,7 @@ module Integrations
     # environment, not to one task, so recent_deploys lists the environment's versions and a rollback promotes one for
     # every task in it. Trigger.dev keeps only what a task logs, so stream must be app. run_history is the task's own runs
     # from list_runs over the last week, each with when it started and finished, or one run by its id with its attempts.
+    # Asked for deploys, or for one deployment by its id, it is the environment's deployments from deploy_history.
     module TriggerDev
       extend Adapter
 
@@ -11,12 +12,18 @@ module Integrations
       SUPPORTS = {
         LOGS => TASKS, METRICS => TASKS, DEPLOYS => TASKS, STATUS => TASKS, ERRORS => TASKS, ROLLBACK => TASKS, HISTORY => TASKS
       }.freeze
+      # The environment's deployments as runs, asked by name deploy or by a deployment's id, which never starts run_.
+      DEPLOY_HISTORY = "deploy_history".freeze
+      DEPLOY_RUN = Packs::TriggerDev::RunControl::DEPLOY_RUN
+      RUN_PREFIX = "run_".freeze
+      RUNS = "list_runs".freeze
       TOOLS = {
         LOGS => "search_task_logs", METRICS => "task_metrics", DEPLOYS => "list_deployments", STATUS => "describe_task",
-        ERRORS => "list_errors", ROLLBACK => "promote_deployment", HISTORY => "list_runs"
+        ERRORS => "list_errors", ROLLBACK => "promote_deployment", HISTORY => [ RUNS, DEPLOY_HISTORY ]
       }.freeze
-      # list_runs also filters by status and by the error a run belongs to, which run_history cannot ask, so it stays offered.
-      WRAPPED = TOOLS.values.excluding(TOOLS[HISTORY]).freeze
+      # list_runs also filters by status and by the error a run belongs to, which run_history cannot ask, so it stays
+      # offered, and deploy_history with it.
+      WRAPPED = TOOLS.except(HISTORY).values.freeze
       # The capability's metric names Trigger.dev keeps for a task, by the same names in its pack.
       METRIC_MAP = Packs::TriggerDev::METRICS.index_with(&:itself).freeze
       PASSED = %w[text regex exclude limit minutes start end].freeze
@@ -39,9 +46,13 @@ module Integrations
         when ROLLBACK then Route.new(tool_name: TOOLS[ROLLBACK], arguments: { "version" => target(given) })
         when HISTORY
           run = given["run"].to_s.strip.delete_prefix("#").presence
-          return Route.new(tool_name: TOOLS[HISTORY], arguments: task.merge("run" => run), present: RunHistory.presenter(resource.name, given.except("name"))) if run
+          if given["name"].to_s.strip.casecmp?(DEPLOY_RUN) || (run && !run.start_with?(RUN_PREFIX))
+            return Route.new(tool_name: DEPLOY_HISTORY, arguments: { "run" => run, "limit" => given["limit"] }.compact_blank)
+          end
 
-          Route.new(tool_name: TOOLS[HISTORY], arguments: task.merge("minutes" => MAX_MINUTES, "limit" => Answers.limit(given, Packs::TriggerDev::RUN_LIMIT)),
+          return Route.new(tool_name: RUNS, arguments: task.merge("run" => run), present: RunHistory.presenter(resource.name, given.except("name"))) if run
+
+          Route.new(tool_name: RUNS, arguments: task.merge("minutes" => MAX_MINUTES, "limit" => Answers.limit(given, Packs::TriggerDev::RUN_LIMIT)),
                     present: RunHistory.presenter(resource.name, given))
         end
       end

@@ -41,7 +41,7 @@ module Integrations
 
         assert_equal 'logName="projects/acme-prod/logs/cloudaudit.googleapis.com%2Factivity" AND timestamp>="2026-10-06T11:50:00.000000Z" AND ' \
                      'protoPayload.serviceName=("run.googleapis.com" OR "cloudsql.googleapis.com" OR "compute.googleapis.com" OR "container.googleapis.com" OR ' \
-                     '"clouddeploy.googleapis.com")', filter
+                     '"clouddeploy.googleapis.com" OR "cloudbuild.googleapis.com")', filter
         assert_equal({ "acme-prod" => "2026-10-06T12:05:00.000000Z" }, JSON.parse(polled.cursor), "a cursor from before is the project's")
         assert_equal %w[e1 e2 e3 e4 e6], polled.events.map(&:id)
         assert_equal [
@@ -110,6 +110,26 @@ module Integrations
       end
 
       private
+
+      test "a Cloud Build build starting or ending changes the Cloud Run services its trigger deploys, and one deploying none changes nothing" do
+        web = "projects/acme-prod/locations/us-central1/services/web"
+        ResourceMap::Resource.create!(workspace: @workspace, provider: "google_cloud", account: "acme-prod", kind: ResourceMap::KIND_SERVICE, external_id: web,
+                                      name: "web", details: { ResourceMap::TAGS => { Packs::GoogleCloud::TRIGGER_LABEL => "trig-1" } },
+                                      integration_environment: @row, first_seen_at: Time.current, last_seen_at: Time.current)
+        GoogleCloudApi.any_instance.stubs(:log_entries_since).returns(Pages::Read.new(complete: true, items: [
+          entry("b1", "cloudbuild.googleapis.com", "google.devtools.cloudbuild.v1.CloudBuild.CreateBuild", "projects/acme-prod/builds/abc",
+                labels: { "build_id" => "abc", "build_trigger_id" => "trig-1" }),
+          entry("b2", "cloudbuild.googleapis.com", "google.devtools.cloudbuild.v1.CloudBuild.RunBuildTrigger", "projects/acme-prod/locations/global/triggers/trig-1"),
+          entry("b3", "cloudbuild.googleapis.com", "google.devtools.cloudbuild.v1.CloudBuild.CreateBuild", "projects/acme-prod/builds/def",
+                labels: { "build_id" => "def", "build_trigger_id" => "trig-2" }),
+          entry("b4", "cloudbuild.googleapis.com", "google.devtools.cloudbuild.v1.CloudBuild.CreateBuild", "projects/acme-prod/builds/ghi")
+        ]))
+
+        polled = travel_to(Time.zone.parse("2026-10-06T12:05:00Z")) { GoogleCloud.poll(@row, since: "2026-10-06T12:00:00.000000Z") }
+
+        assert_equal [ [ "b1", web, ResourceMap::Event::UPDATED ], [ "b2", web, ResourceMap::Event::UPDATED ] ],
+                     polled.events.map { |event| [ event.id, event.scope.external_id, event.action ] }
+      end
 
       def entry(id, service, method, name, labels: {}, at: "2026-10-06T12:01:00Z")
         { "insertId" => id, "timestamp" => at, "resource" => { "labels" => labels },

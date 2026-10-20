@@ -4,7 +4,7 @@ when: A question about Railway that the other Railway tools do not answer, such 
 tools: [api_read, list_resources]
 references: [api/index.md]
 ---
-`api_read` runs one GraphQL query against Railway's public API and answers what Railway said. It only reads, so it never needs the person's go ahead and works while investigating and watching. A mutation or a subscription is refused. Changes go through the restart, rollback and scale in railway_fixes, never through this.
+`api_read` runs one GraphQL query against Railway's public API and answers what Railway said. It only reads, so it never needs the person's go ahead and works while investigating and watching. A mutation or a subscription is refused. Changes go through the change tools in railway_fixes, never through this.
 
 1. Use the named tools first where they answer the question, since their answers are shaped and linked: `list_resources` for the services, databases and cron jobs. Reach for `api_read` for the rest.
 2. Find the fields in the API reference before the first call, not by guessing: read api/index.md (use_skill with this skill and that reference), which lists every query field Railway's API offers by area, then the area's page it names for the arguments each takes. When the reference lists no field for the question, Railway's API does not offer it. Say so, and give the steps in Railway's dashboard instead.

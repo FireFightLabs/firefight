@@ -1,10 +1,12 @@
 module Integrations
   module Packs
     # Railway for one environment in each project a connection reads, one, several or every one its token can read (the
-    # project connect field, a scope). It reads their services, databases and cron jobs, and their logs, metrics and
-    # deployments, with an account or workspace token. Every tool reads, except the restart, rollback and scale Halon
-    # uses to apply fixes. Queries and mutations are the ones the Railway CLI sends (railwayapp/cli, src/gql) or
-    # Railway's API docs give (railwayapp/docs, content/docs/integrations/api).
+    # project connect field, a scope). It reads their services, databases and cron jobs, and their logs, metrics,
+    # traces, deployments and cron runs, with an account or workspace token. A call may name another environment of
+    # the same project, such as a PR environment, which only that call reads. Every tool reads, except the restart,
+    # rollback and scale Halon uses to apply fixes and the deployment changes in Deployments. Queries and mutations are
+    # the ones the Railway CLI sends (railwayapp/cli, src/gql) or Railway's API docs give (railwayapp/docs,
+    # content/docs/integrations/api).
     class Railway < NativePack
       # The environment row's credentials, which only this pack reads.
       API_TOKEN = "api_token".freeze
@@ -49,7 +51,13 @@ module Integrations
       # Request counts by status code come from Railway's edge, so only for traffic through a public domain (docs,
       # content/docs/observability/metrics.md).
       HTTP_METRICS = { "requests" => [ "Requests", nil ], "http_4xx" => [ "4xx responses", "4" ], "http_5xx" => [ "5xx responses", "5" ] }.freeze
-      METRICS = (MEASUREMENTS.keys + HTTP_METRICS.keys).freeze
+      # How long those requests took, each a percentile Railway keeps in milliseconds (schema, HttpDurationMetricsSample).
+      LATENCY_METRICS = {
+        "latency_p50" => [ "p50", "Latency, median" ], "latency_p95" => [ "p95", "Latency, 95th percentile" ],
+        "latency_p99" => [ "p99", "Latency, 99th percentile" ]
+      }.freeze
+      MILLISECONDS = "ms".freeze
+      METRICS = (MEASUREMENTS.keys + HTTP_METRICS.keys + LATENCY_METRICS.keys).freeze
       DEFAULT_METRICS = %w[cpu memory requests http_5xx].freeze
       DATABASE_METRICS = %w[cpu memory disk].freeze
       BASELINE_METRICS = %w[cpu memory].freeze
@@ -63,12 +71,18 @@ module Integrations
 
       RESOURCE = { "type" => "string", "description" => "A service, database or cron job in the environment, by name or id, as list_resources shows it" }.freeze
       DEPLOYMENT = { "type" => "string", "description" => "A deployment id, as list_deployments shows it (optional, the latest)" }.freeze
+      # Another environment of the project a call reads instead of the connection's own, such as a PR environment.
+      ENVIRONMENT_PARAM = {
+        "type" => "string",
+        "description" => "Another environment of the project, such as a PR environment, by name or id as list_resources lists them (optional, the connection's own)"
+      }.freeze
 
       tool :list_resources,
            summary: "Lists the services, databases and cron jobs in the Railway environment.",
            description: "The services, databases and cron jobs in the Railway project environment for this connection, with " \
-                        "the status of each one's latest deployment. Use it first to find the name to pass to the other tools",
-           params_schema: { "type" => "object", "properties" => {} },
+                        "the status of each one's latest deployment, and the project's other environments, PR environments with " \
+                        "their pull request. Use it first to find the name to pass to the other tools, and an environment to pass as environment",
+           params_schema: { "type" => "object", "properties" => { "environment" => ENVIRONMENT_PARAM } },
            read_only: true
 
       tool :describe_resource,
@@ -76,7 +90,7 @@ module Integrations
            description: "How one service, database or cron job is set up and how it stands now: its latest deployment and the " \
                         "state of each replica, its replicas and region, what it runs, its start command, health check, restart " \
                         "policy, whether it sleeps when idle, its schedule and its domains",
-           params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
+           params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE, "environment" => ENVIRONMENT_PARAM }, "required" => [ "resource" ] },
            read_only: true
 
       tool :search_logs,
@@ -89,6 +103,7 @@ module Integrations
              "type" => "object",
              "properties" => {
                "resource" => RESOURCE,
+               "environment" => ENVIRONMENT_PARAM,
                "type" => { "type" => "string", "enum" => LOG_TYPES, "description" => "Which logs (optional, app)" },
                "deployment" => DEPLOYMENT,
                "text" => { "type" => "string", "description" => "Only lines containing this text (optional)" },
@@ -101,14 +116,15 @@ module Integrations
            read_only: true
 
       tool :query_metrics,
-           summary: "Shows CPU, memory, network and request metrics of a service or database.",
-           description: "Metrics of one service or database over time: CPU, memory, network in and out and disk, and requests " \
-                        "and 4xx and 5xx responses through its public domains. Returns min, average, max and latest, and the " \
-                        "person sees each metric as a chart",
+           summary: "Shows CPU, memory, network, request and latency metrics of a service or database.",
+           description: "Metrics of one service or database over time: CPU, memory, network in and out and disk, and requests, " \
+                        "4xx and 5xx responses and the median, 95th and 99th percentile latency through its public domains. " \
+                        "Returns min, average, max and latest, and the person sees each metric as a chart",
            params_schema: {
              "type" => "object",
              "properties" => {
                "resource" => RESOURCE,
+               "environment" => ENVIRONMENT_PARAM,
                "metrics" => { "type" => "array", "items" => { "type" => "string", "enum" => METRICS },
                               "description" => "Which metrics (optional, the usual ones for the resource)" },
                **Capabilities::RANGE
@@ -126,6 +142,7 @@ module Integrations
              "type" => "object",
              "properties" => {
                "resource" => RESOURCE,
+               "environment" => ENVIRONMENT_PARAM,
                "limit" => { "type" => "integer", "description" => "At most this many deployments (optional, #{DEPLOYMENT_LIMIT})" }
              },
              "required" => [ "resource" ]
@@ -141,6 +158,7 @@ module Integrations
              "type" => "object",
              "properties" => {
                "resource" => RESOURCE,
+               "environment" => ENVIRONMENT_PARAM,
                "name" => { "type" => "string", "description" => "Only runs of this kind, deploy (optional)" },
                "run" => { "type" => "string", "description" => "Only this deployment, by its id, with each step it went through and how each ended (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many deployments (optional, #{DEPLOYMENT_LIMIT})" }
@@ -171,14 +189,17 @@ module Integrations
            read_only: false
 
       tool :scale_service,
-           summary: "Sets how many replicas a service runs.",
-           description: "Set how many replicas a service runs in its region, from 1 to #{MAX_REPLICAS}. A service that runs in " \
-                        "more than one region is scaled in Railway, region by region",
+           summary: "Sets how many replicas a service runs, region by region.",
+           description: "Set how many replicas a service runs in one of its regions, at most #{MAX_REPLICAS} across every region. " \
+                        "A service in one region takes the count alone. A service in several regions takes the region too, as " \
+                        "describe_resource names its regions, and the others keep their replicas. A region of several may go to " \
+                        "0 while another still runs replicas",
            params_schema: {
              "type" => "object",
              "properties" => {
                "resource" => RESOURCE,
-               "instances" => { "type" => "integer", "description" => "How many replicas to run" }
+               "instances" => { "type" => "integer", "description" => "How many replicas to run in the region" },
+               "region" => { "type" => "string", "description" => "The region to scale, by the id describe_resource shows, such as us-west2 (optional for a service in one region)" }
              },
              "required" => %w[resource instances]
            },
@@ -202,6 +223,10 @@ module Integrations
              "required" => %w[query]
            },
            read_only: true
+
+      include Deployments
+      include CronRuns
+      include Traces
 
       def self.credential_fields
         [
@@ -277,6 +302,22 @@ module Integrations
                                  "#{environments.map { |each| each['name'] }.join(', ').presence || 'none'}."
       end
 
+      # A read naming another environment of the project, such as a PR environment, reads that one alone. A change acts
+      # only in the connection's own environment, since what a person may change is granted per connection and so per
+      # environment, and naming another is refused as Firefight's rule.
+      def call(tool_name, environment_row:, arguments:)
+        @asked_environment = arguments[ENVIRONMENT].to_s.strip.presence
+        @changing = tool_definitions.find { |definition| definition.name == tool_name }&.read_only == false
+        super
+      end
+
+      def scoped(scope)
+        super.tap do |pack|
+          pack.instance_variable_set(:@asked_environment, @asked_environment)
+          pack.instance_variable_set(:@changing, @changing)
+        end
+      end
+
       def list_resources(environment_row:, arguments:)
         return every_project(environment_row) { |pack| pack.list_resources(environment_row: environment_row, arguments: arguments) } if every_scope?(environment_row)
 
@@ -287,7 +328,7 @@ module Integrations
         where = "the #{environment(environment_row)['name']} environment#{" of project #{scope_label(environment_row)}" if ConnectionSettings.of(environment_row).several_scopes?}"
         cut = " Only the first #{rows.size} were read, so name a resource by its id to reach the rest." if instances(environment_row).incomplete?
         text = rows.empty? ? "#{where.upcase_first} has no services." : "#{rows.size} services in #{where}.#{cut}\n#{rows.join("\n")}"
-        Telemetry.result(text, link: project_link(environment_row))
+        Telemetry.result([ text, other_environments(environment_row) ].compact.join("\n"), link: project_link(environment_row))
       end
 
       def describe_resource(environment_row:, arguments:)
@@ -320,7 +361,8 @@ module Integrations
         sample = [ ((ended - started) / POINTS).ceil, MIN_SAMPLE ].max
         page = link(environment_row, resource)
         charts = measurement_charts(environment_row, resource, asked & MEASUREMENTS.keys, started, ended, sample, page) +
-                 http_charts(environment_row, resource, asked & HTTP_METRICS.keys, started, ended, sample, page)
+                 http_charts(environment_row, resource, asked & HTTP_METRICS.keys, started, ended, sample, page) +
+                 latency_charts(environment_row, resource, asked & LATENCY_METRICS.keys, started, ended, sample, page)
         Telemetry.result("#{resource[:name]}\n#{Telemetry.charts_text(charts)}", charts: charts, link: page)
       end
 
@@ -343,27 +385,54 @@ module Integrations
 
       def deploy_of(deployment)
         meta = deployment["meta"].is_a?(Hash) ? deployment["meta"] : {}
+        status = status_of(deployment)
         Capabilities::Deploys::Deploy.new(
           id: deployment["id"], commit: meta["commitHash"], branch: meta["branch"],
-          status: Capabilities::Deploys.status(deployment["status"], DEPLOYMENT_STATUSES), live: DEPLOYMENT_LIVE[deployment["status"].to_s],
-          started_at: deployment["createdAt"], finished_at: (deployment["updatedAt"] if ENDED_AT.include?(deployment["status"]))
+          status: status, live: DEPLOYMENT_LIVE[deployment["status"].to_s],
+          started_at: deployment["createdAt"], finished_at: ended_at(deployment, status)&.utc&.iso8601
         )
       end
       private :deploy_of
 
-      # Railway's DeploymentStatus in Firefight's words. A deployment that slept or was replaced had gone live, and one that
-      # crashed went live and then failed.
+      # Railway's DeploymentStatus in Firefight's words. A deployment that slept had gone live, and one that crashed went
+      # live and then failed. A removed one is read by status_of, since Railway removes both a deployment that was
+      # replaced and one cancelled before it went live.
       DEPLOYMENT_STATUSES = {
         "initializing" => Capabilities::History::QUEUED, "queued" => Capabilities::History::QUEUED, "waiting" => Capabilities::History::QUEUED,
         "needs_approval" => Capabilities::History::QUEUED, "building" => Capabilities::History::RUNNING,
         "deploying" => Capabilities::History::RUNNING, "success" => Capabilities::History::SUCCEEDED,
-        "sleeping" => Capabilities::History::SUCCEEDED, "removed" => Capabilities::History::SUCCEEDED,
-        "removing" => Capabilities::History::SUCCEEDED, "failed" => Capabilities::History::FAILED, "crashed" => Capabilities::History::FAILED,
+        "sleeping" => Capabilities::History::SUCCEEDED, "failed" => Capabilities::History::FAILED, "crashed" => Capabilities::History::FAILED,
         "skipped" => Capabilities::History::CANCELLED
       }.freeze
-      # Railway keeps when a deployment's status last changed (updatedAt), which is when it went live or failed only while
-      # that is still its status.
-      ENDED_AT = %w[SUCCESS FAILED].freeze
+      REMOVED_STATUSES = %w[REMOVED REMOVING].freeze
+      # Railway keeps when a deployment's status last changed (statusUpdatedAt, or updatedAt before it kept that), which is
+      # when it went live, failed, crashed or was skipped only while that is still its status. A removed deployment that
+      # never went live ended when it was removed, and one that was replaced went live at a time Railway no longer keeps.
+      ENDED_AT = %w[SUCCESS FAILED CRASHED SKIPPED].freeze
+      # The steps a deployment takes once it passed its healthcheck, switching traffic to it and draining the old instances
+      # (schema, enum DeploymentEventStep), so one that completed either went live.
+      LIVE_STEPS = %w[CONFIGURE_NETWORK DRAIN_INSTANCES].freeze
+
+      # A removed deployment went live when Railway can still roll back to it, which it offers only for one that served
+      # (docs, content/docs/deployments/deployment-actions.md, Rollback), or when its steps say it took traffic. Otherwise
+      # it was cancelled before it went live.
+      def status_of(deployment, events: nil)
+        word = deployment["status"].to_s
+        return Capabilities::History.status(word, DEPLOYMENT_STATUSES) unless REMOVED_STATUSES.include?(word)
+
+        went_live = deployment["canRollback"] == true || Array(events).any? do |event|
+          LIVE_STEPS.include?(event["step"]) && event["completedAt"].present? && event.dig("payload", "error").blank?
+        end
+        went_live ? Capabilities::History::SUCCEEDED : Capabilities::History::CANCELLED
+      end
+      private :status_of
+
+      def ended_at(deployment, status)
+        word = deployment["status"].to_s
+        ended = ENDED_AT.include?(word) || (REMOVED_STATUSES.include?(word) && status == Capabilities::History::CANCELLED)
+        Telemetry.parse_time(deployment["statusUpdatedAt"].presence || deployment["updatedAt"]) if ended
+      end
+      private :ended_at
 
       def deploy_history(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
@@ -388,12 +457,12 @@ module Integrations
       # A step's log is read to a little past when it completed.
       STEP_MARGIN = 1.minute
 
-      def deployment_run(deployment)
+      def deployment_run(deployment, events: nil)
         meta = deployment["meta"].is_a?(Hash) ? deployment["meta"] : {}
+        status = status_of(deployment, events: events)
         Capabilities::History::Run.new(
-          id: deployment["id"], name: "deploy", status: Capabilities::History.status(deployment["status"], DEPLOYMENT_STATUSES),
-          started_at: Telemetry.parse_time(deployment["createdAt"]),
-          finished_at: (Telemetry.parse_time(deployment["updatedAt"]) if ENDED_AT.include?(deployment["status"])),
+          id: deployment["id"], name: "deploy", status: status, started_at: Telemetry.parse_time(deployment["createdAt"]),
+          finished_at: ended_at(deployment, status),
           detail: ("#{meta['commitHash'].to_s.first(12)} #{meta['commitMessage'].to_s.lines.first.to_s.strip}".strip if meta["commitHash"].present?)
         )
       end
@@ -405,8 +474,8 @@ module Integrations
         id = asked.to_s.strip
         deployment = own_deployment!(environment_row, resource, id)
 
-        run = deployment_run(deployment)
         events = api(environment_row).deployment_events(id, limit: STEP_LIMIT).sort_by { |event| event["createdAt"].to_s }
+        run = deployment_run(deployment, events: events)
         run = run.with(parts: events.map { |event| step_part(resource, run, event) })
         Capabilities::History.result([ run ], what: resource[:name], link: link(environment_row, resource))
       end
@@ -421,7 +490,7 @@ module Integrations
         elsif run.finished? then run.status
         else Capabilities::History::RUNNING
         end
-        log = { "resource" => resource[:id], "type" => BUILD_STEPS.include?(event["step"]) ? BUILD : APP, "deployment" => run.id,
+        log = { "resource" => resource[:id], "type" => BUILD_STEPS.include?(event["step"]) ? BUILD : APP, "deployment" => run.id, ENVIRONMENT => @asked_environment,
                 "start" => run.started_at&.utc&.iso8601, "end" => (finished_at && (finished_at + STEP_MARGIN).utc.iso8601) }.compact
         Capabilities::History::Part.new(
           id: event["id"], name: STEPS.fetch(event["step"].to_s) { event["step"].to_s.downcase.tr("_", " ") }, status: status,
@@ -457,22 +526,46 @@ module Integrations
         Telemetry.result("Railway is rolling #{resource[:name]} back to deployment #{wanted}, with the image and variables it had.", link: link(environment_row, resource))
       end
 
+      # One region's replicas, committed with every region the service runs in, the others as they were, as railway scale
+      # merges the regions asked into the ones there and commits them together (railwayapp/cli, src/commands/scale.rs and
+      # src/controllers/regions.rs, merge_config and build_multi_region_patch). Only a region the service already runs in is
+      # scaled, since placing replicas somewhere new is a choice of where it runs.
       def scale_service(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
         count = Integer(arguments["instances"], exception: false)
-        fail! "instances must be a whole number from 1 to #{MAX_REPLICAS}." unless count && count.between?(1, MAX_REPLICAS)
-
         regions = regions_of(resource)
         fail! "Railway has no region for #{resource[:name]} yet, so it cannot be scaled before its first deployment." if regions.empty?
-        if regions.size > 1
-          fail! "#{resource[:name]} runs in #{regions.keys.join(', ')}. Scale it in Railway region by region, since one number cannot say where the replicas go."
-        end
 
-        region, before = regions.first
-        patch = { "services" => { resource[:id] => { "deploy" => { "multiRegionConfig" => { region => { "numReplicas" => count } } } } } }
-        api(environment_row).patch_commit(environment(environment_row)["id"], patch, "Scale service #{resource[:name]} to #{count} replicas from Firefight")
-        Telemetry.result("Railway is scaling #{resource[:name]} to #{count} replicas in #{region}#{" from #{before}" if before}.", link: link(environment_row, resource))
+        region = scaled_region(resource, regions, arguments["region"])
+        lowest = regions.size > 1 ? 0 : 1
+        fail! "instances must be a whole number from #{lowest} to #{MAX_REPLICAS}." unless count && count.between?(lowest, MAX_REPLICAS)
+
+        after = regions.transform_values { |replicas| replicas || 1 }.merge(region => count)
+        total = after.values.sum
+        fail! "#{resource[:name]} would run #{total} replicas across its regions, and Railway runs at most #{MAX_REPLICAS}." if total > MAX_REPLICAS
+        fail! "#{resource[:name]} would run no replicas in any region. Keep at least one, or stop its deployment instead." if total.zero?
+
+        before = regions[region]
+        patch = { "services" => { resource[:id] => { "deploy" => { "multiRegionConfig" => after.transform_values { |replicas| { "numReplicas" => replicas } } } } } }
+        api(environment_row).patch_commit(environment(environment_row)["id"], patch, "Scale service #{resource[:name]} to #{count} replicas in #{region} from Firefight")
+        others = after.except(region).map { |name, replicas| "#{replicas} in #{name}" }
+        Telemetry.result("Railway is scaling #{resource[:name]} to #{count} replicas in #{region}#{" from #{before}" if before}" \
+                         "#{", keeping #{others.to_sentence}" if others.any?}.", link: link(environment_row, resource))
       end
+
+      # The region a scale names, or the only one the service runs in.
+      def scaled_region(resource, regions, asked)
+        asked = asked.to_s.strip
+        if asked.empty?
+          return regions.keys.first if regions.one?
+
+          fail! "#{resource[:name]} runs in #{regions.map { |name, replicas| "#{name} (#{replicas} #{'replica'.pluralize(replicas)})" }.to_sentence}. Name the region to scale, " \
+                "and the others keep their replicas."
+        end
+        regions.keys.find { |name| name.casecmp?(asked) } ||
+          fail!("#{resource[:name]} runs in #{regions.keys.to_sentence}, not #{asked}. Railway adds a region in the service's settings.")
+      end
+      private :scaled_region
 
       # Kept to the connection's projects, by every project the query's words, its variables and its answer name.
       def api_read(environment_row:, arguments:)
@@ -762,10 +855,59 @@ module Integrations
       end
 
       def environment(environment_row)
-        @environment ||= begin
-          asked = ConnectionSettings.of(environment_row).field(ENVIRONMENT) || fail!("This environment has no Railway environment. Reconnect it.")
-          self.class.environment_in(api(environment_row).project(project_of(environment_row)), asked)
+        @environment ||= if @asked_environment
+          other = other_environment(environment_row, @asked_environment)
+          @changing ? own_environment_only!(environment_row, other) : other
+        else
+          connection_environment(environment_row)
         end
+      end
+
+      def connection_environment(environment_row)
+        asked = ConnectionSettings.of(environment_row).field(ENVIRONMENT) || fail!("This environment has no Railway environment. Reconnect it.")
+        self.class.environment_in(api(environment_row).project(project_of(environment_row)), asked)
+      end
+
+      # A change acts only in the connection's own environment, since what a person may change is granted per connection
+      # and so per environment. Naming another is refused as Firefight's rule, and reads go on reaching every one.
+      def own_environment_only!(environment_row, asked)
+        own = connection_environment(environment_row)
+        return own if asked["id"] == own["id"]
+
+        fail_policy!("A change acts only in this connection's own Railway environment, #{own['name']}, and #{asked['name']} is another. " \
+                     "Connect #{asked['name']} as an environment of its own on the Integrations page to change it there.")
+      end
+
+      # An environment of the project a call named, its PR environments among them, by name or id.
+      def other_environment(environment_row, asked)
+        listed = project_environments(environment_row)
+        rows = listed.items.map { |each| { id: each["id"], name: each["name"], environment: each } }
+        found = Named.find(rows, asked, id: :id, name: :name, provider: PROVIDER)&.dig(:environment)
+        return found if found
+
+        fail! "Project #{scope_label(environment_row)} has no environment called #{asked}. It has #{listed.items.map { |each| each['name'] }.join(', ').presence || 'none'}."
+      end
+
+      def project_environments(environment_row) = @project_environments ||= api(environment_row).environments(project_of(environment_row))
+
+      # The project's other environments, for a call to name one. A PR environment says which pull request it is for.
+      def other_environments(environment_row)
+        others = project_environments(environment_row).items.reject { |each| each["id"] == environment(environment_row)["id"] }
+        return nil if others.empty?
+
+        rows = others.map do |each|
+          pull = each.dig("meta", "prNumber")
+          title = each.dig("meta", "prTitle").presence
+          about = if pull then "PR environment for pull request ##{pull}#{" #{title}" if title}"
+          elsif each["isEphemeral"] then "PR environment"
+          end
+          "#{each['name']} (#{each['id']})#{", #{about}" if about}"
+        end
+        "Other environments of the project, each read by passing it as environment:\n#{rows.join("\n")}"
+      rescue Integrations::RateLimited
+        raise
+      rescue RailwayApi::Error => error
+        Sentence.join("The project's other environments could not be listed", error)
       end
 
       def resources(environment_row) = @resources ||= instances(environment_row).items.map { |instance| resource_of(instance) }
@@ -937,6 +1079,20 @@ module Integrations
         end
       end
 
+      # One chart per percentile asked, from one read of the service's request durations.
+      def latency_charts(environment_row, resource, names, started, ended, sample, page)
+        return [] if names.empty?
+
+        samples = api(environment_row).http_duration("serviceId" => resource[:id], "environmentId" => environment(environment_row)["id"],
+                                                     "startDate" => started.utc.iso8601, "endDate" => ended.utc.iso8601, "stepSeconds" => sample)
+        names.map do |name|
+          field, title = LATENCY_METRICS.fetch(name)
+          readings = points(samples.map { |each| { "ts" => each["ts"], "value" => each[field] } })
+          Telemetry::Chart.new(title: "#{title} of #{resource[:name]}", unit: MILLISECONDS, series: [ Telemetry::Series.new(label: resource[:name], points: readings) ],
+                               from: started, to: ended, link: page.url)
+        end
+      end
+
       # ts is an Int the schema gives no unit for, read by its size as seconds or a finer unit.
       def points(values)
         Array(values).filter_map do |point|
@@ -979,7 +1135,7 @@ module Integrations
           (latest ? "Latest deployment: #{deployment_line(latest)}" : "Never deployed"),
           ("Replicas now: #{replicas.join(', ')}" if replicas.any?),
           ("Deployment stopped by hand" if latest&.dig("deploymentStopped")),
-          "Replicas: #{instance['numReplicas'] || 1}, region #{instance['region'] || 'unknown'}",
+          replicas_line(resource),
           source_line(instance),
           ("Health check: #{instance['healthcheckPath']}, timeout #{instance['healthcheckTimeout'] || 300} seconds, checked only while deploying" if instance["healthcheckPath"].present?),
           ("Health check: none, so a deployment counts as up once its container starts" if instance["healthcheckPath"].blank? && resource[:type] == SERVICE),
@@ -988,6 +1144,14 @@ module Integrations
           ("Schedule: #{instance['cronSchedule']}, next run #{instance['nextCronRunAt']}" if instance["cronSchedule"].present?),
           ("Domains: #{hosts.join(', ')}" if hosts.any?)
         ]
+      end
+
+      # A service in several regions names the replicas in each, as scale_service takes them.
+      def replicas_line(resource)
+        regions = regions_of(resource)
+        return "Replicas by region: #{regions.map { |name, replicas| "#{replicas || 1} in #{name}" }.join(', ')}" if regions.size > 1
+
+        "Replicas: #{resource[:instance]['numReplicas'] || 1}, region #{resource[:instance]['region'] || 'unknown'}"
       end
 
       def source_line(instance)

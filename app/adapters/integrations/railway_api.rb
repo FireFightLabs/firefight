@@ -50,7 +50,7 @@ module Integrations
               id serviceId serviceName environmentId numReplicas region cronSchedule nextCronRunAt startCommand healthcheckPath
               healthcheckTimeout restartPolicyType restartPolicyMaxRetries sleepApplication
               source { repo image }
-              latestDeployment { id status createdAt meta canRollback deploymentStopped instances { id status } }
+              latestDeployment { id status createdAt statusUpdatedAt meta canRollback deploymentStopped instances { id status } }
               domains { serviceDomains { domain targetPort } customDomains { domain targetPort } }
             } }
             pageInfo { hasNextPage endCursor }
@@ -66,7 +66,7 @@ module Integrations
           id serviceId serviceName environmentId numReplicas region cronSchedule nextCronRunAt startCommand healthcheckPath
           healthcheckTimeout restartPolicyType restartPolicyMaxRetries sleepApplication
           source { repo image }
-          latestDeployment { id status createdAt meta canRollback deploymentStopped instances { id status } }
+          latestDeployment { id status createdAt statusUpdatedAt meta canRollback deploymentStopped instances { id status } }
           domains { serviceDomains { domain targetPort } customDomains { domain targetPort } }
         }
       }
@@ -96,7 +96,7 @@ module Integrations
     DEPLOYMENTS = <<~GRAPHQL.freeze
       query Deployments($input: DeploymentListInput!, $first: Int) {
         deployments(input: $input, first: $first) {
-          edges { node { id status createdAt updatedAt meta canRollback creator { name email } staticUrl } }
+          edges { node { id status createdAt updatedAt statusUpdatedAt meta canRollback creator { name email } staticUrl } }
         }
       }
     GRAPHQL
@@ -104,7 +104,9 @@ module Integrations
     # One deployment, with what says which project, environment and service it belongs to (schema, Query.deployment).
     DEPLOYMENT = <<~GRAPHQL.freeze
       query Deployment($id: String!) {
-        deployment(id: $id) { id status createdAt updatedAt meta canRollback staticUrl projectId environmentId serviceId }
+        deployment(id: $id) {
+          id status createdAt updatedAt statusUpdatedAt meta canRollback canRedeploy creator { name email } staticUrl projectId environmentId serviceId
+        }
       }
     GRAPHQL
 
@@ -161,9 +163,63 @@ module Integrations
       }
     GRAPHQL
 
+    # How long a service's requests took through its public domains, as percentiles in milliseconds at each step, as the
+    # CLI reads them (src/gql/queries/strings/HttpDurationMetrics.graphql).
+    HTTP_DURATION = <<~GRAPHQL.freeze
+      query HttpDurationMetrics($serviceId: String!, $environmentId: String!, $startDate: DateTime!, $endDate: DateTime!, $stepSeconds: Int) {
+        httpDurationMetrics(serviceId: $serviceId, environmentId: $environmentId, startDate: $startDate, endDate: $endDate, stepSeconds: $stepSeconds) {
+          samples { ts p50 p90 p95 p99 }
+        }
+      }
+    GRAPHQL
+
+    # A cron service's runs, newest first, each an execution of one of its deployments, as the CLI's railway cron list
+    # reads them (src/gql/queries/strings/DeploymentInstanceExecutions.graphql, docs content/docs/cli/cron.md).
+    CRON_RUNS = <<~GRAPHQL.freeze
+      query DeploymentInstanceExecutions($input: DeploymentInstanceExecutionListInput!, $first: Int) {
+        deploymentInstanceExecutions(input: $input, first: $first) {
+          edges { node { id deploymentId deploymentMeta status createdAt completedAt updatedAt } }
+        }
+      }
+    GRAPHQL
+
+    # An environment's traces, newest first, and one trace's spans, as the CLI's railway trace reads them
+    # (src/gql/queries/strings/Traces.graphql and Trace.graphql, docs content/docs/cli/trace.md).
+    TRACES = <<~GRAPHQL.freeze
+      query Traces($environmentId: String!, $serviceId: String, $filter: String, $startDate: String, $endDate: String, $limit: Int) {
+        traces(environmentId: $environmentId, serviceId: $serviceId, filter: $filter, startDate: $startDate, endDate: $endDate, limit: $limit) {
+          traceId startedAt durationMs rootSpanName rootServiceName rootServiceId rootUrlPath serviceName spanCount errorCount
+        }
+      }
+    GRAPHQL
+    TRACE = <<~GRAPHQL.freeze
+      query Trace($environmentId: String!, $traceId: String!, $maxSpans: Int) {
+        trace(environmentId: $environmentId, traceId: $traceId, maxSpans: $maxSpans) {
+          traceId spanId parentSpanId startedAt durationMs name kind component serviceName serviceId deploymentId statusCode statusMessage
+        }
+      }
+    GRAPHQL
+
+    # Every environment of a project, PR environments with the pull request they are for, as the CLI's railway
+    # environment list reads them (src/gql/queries/strings/Environments.graphql).
+    ENVIRONMENTS = <<~GRAPHQL.freeze
+      query Environments($projectId: String!, $first: Int, $after: String) {
+        environments(projectId: $projectId, first: $first, after: $after) {
+          edges { node { id name isEphemeral meta { prNumber prTitle prRepo branch } } }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+    GRAPHQL
+
     # Each of these answers a Boolean, so nothing is selected on it (schema, type Mutation).
     RESTART = "mutation DeploymentRestart($id: String!) { deploymentRestart(id: $id) }".freeze
     ROLLBACK = "mutation DeploymentRollback($id: String!) { deploymentRollback(id: $id) }".freeze
+    CANCEL = "mutation DeploymentCancel($id: String!) { deploymentCancel(id: $id) }".freeze
+    STOP = "mutation DeploymentStop($id: String!) { deploymentStop(id: $id) }".freeze
+    APPROVE = "mutation DeploymentApprove($id: String!) { deploymentApprove(id: $id) }".freeze
+    # A redeploy answers the new deployment (schema, Mutation.deploymentRedeploy: Deployment!, and docs
+    # content/docs/integrations/api/manage-deployments.md, Trigger a redeploy).
+    REDEPLOY = "mutation DeploymentRedeploy($id: String!) { deploymentRedeploy(id: $id) { id status } }".freeze
     PATCH_COMMIT = <<~GRAPHQL.freeze
       mutation EnvironmentPatchCommit($environmentId: String!, $patch: EnvironmentConfig!, $commitMessage: String) {
         environmentPatchCommit(environmentId: $environmentId, patch: $patch, commitMessage: $commitMessage)
@@ -216,17 +272,17 @@ module Integrations
     # The project's webhooks, read only to find one Firefight registered before at the same address.
     def notification_rules(workspace_id, project_id) = Array(query(NOTIFICATION_RULES, "workspaceId" => workspace_id, "projectId" => project_id)["notificationRules"])
 
-    # A webhook for the event types named, in the project's own environments only (ephemeralEnvironments false leaves out
-    # preview environments, as the dashboard's form does), sending headers with every delivery.
+    # A webhook for the event types named, in every environment of the project, its PR environments too
+    # (ephemeralEnvironments, includePreviewEnvironments in Railway's MCP server), sending headers with every delivery.
     def create_webhook(workspace_id, project_id, url:, events:, headers:)
-      input = { "workspaceId" => workspace_id, "projectId" => project_id, "eventTypes" => events, "ephemeralEnvironments" => false,
+      input = { "workspaceId" => workspace_id, "projectId" => project_id, "eventTypes" => events, "ephemeralEnvironments" => true,
                 "channelConfigs" => [ webhook_channel(url, headers) ] }
       query(NOTIFICATION_RULE_CREATE, "input" => input)["notificationRuleCreate"]
     end
 
     # Sets a webhook's event types and headers again, replacing every header it had (docs, Custom headers).
     def update_webhook(rule_id, url:, events:, headers:)
-      input = { "eventTypes" => events, "ephemeralEnvironments" => false, "channelConfigs" => [ webhook_channel(url, headers) ] }
+      input = { "eventTypes" => events, "ephemeralEnvironments" => true, "channelConfigs" => [ webhook_channel(url, headers) ] }
       query(NOTIFICATION_RULE_UPDATE, "id" => rule_id, "input" => input)["notificationRuleUpdate"]
     end
 
@@ -263,6 +319,34 @@ module Integrations
     def restart(deployment_id) = query(RESTART, "id" => deployment_id)["deploymentRestart"]
 
     def rollback(deployment_id) = query(ROLLBACK, "id" => deployment_id)["deploymentRollback"]
+
+    def cancel(deployment_id) = query(CANCEL, "id" => deployment_id)["deploymentCancel"]
+
+    def stop(deployment_id) = query(STOP, "id" => deployment_id)["deploymentStop"]
+
+    def approve(deployment_id) = query(APPROVE, "id" => deployment_id)["deploymentApprove"]
+
+    def redeploy(deployment_id) = query(REDEPLOY, "id" => deployment_id)["deploymentRedeploy"] || {}
+
+    def http_duration(variables) = Array(query(HTTP_DURATION, variables).dig("httpDurationMetrics", "samples"))
+
+    def cron_runs(environment_id, service_id, limit:)
+      input = { "environmentId" => environment_id, "serviceId" => service_id }
+      Array(query(CRON_RUNS, "input" => input, "first" => limit).dig("deploymentInstanceExecutions", "edges")).filter_map { |edge| edge["node"] }
+    end
+
+    def traces(variables) = Array(query(TRACES, variables)["traces"])
+
+    def trace(environment_id, trace_id, max_spans:) = Array(query(TRACE, "environmentId" => environment_id, "traceId" => trace_id, "maxSpans" => max_spans)["trace"])
+
+    # Every environment of a project, as a Pages::Read.
+    def environments(project_id)
+      Pages.read(max_pages: MAX_PAGES) do |after|
+        connection = query(ENVIRONMENTS, "projectId" => project_id, "first" => PAGE_SIZE, "after" => after)["environments"] || {}
+        nodes = Array(connection["edges"]).filter_map { |edge| edge["node"] }
+        [ nodes, (connection.dig("pageInfo", "endCursor") if connection.dig("pageInfo", "hasNextPage")) ]
+      end
+    end
 
     def patch_commit(environment_id, patch, message) = query(PATCH_COMMIT, "environmentId" => environment_id, "patch" => patch, "commitMessage" => message)
 
