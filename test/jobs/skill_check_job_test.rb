@@ -29,7 +29,8 @@ class SkillCheckJobTest < ActiveJob::TestCase
 
   test "the map a Cloudflare skill names is Firefight's own, so it is never recorded missing" do
     integration = workspaces(:slack_workspace_one).integrations.create!(kind: Integration::KIND_MCP, provider: "cloudflare", name: "Cloudflare")
-    %w[search execute docs].each { |name| integration.tools.create!(name: name, description: name, params_schema: { "type" => "object" }) }
+    named = Integrations::Provider.for("cloudflare").named_tools.definitions.map(&:name)
+    (%w[search execute docs] + named).each { |name| integration.tools.create!(name: name, description: name, params_schema: { "type" => "object" }) }
     offer(@planetscale_tools)
 
     SkillCheckJob.perform_now
