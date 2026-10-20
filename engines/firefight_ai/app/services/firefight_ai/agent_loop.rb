@@ -517,7 +517,7 @@ module FirefightAi
 
     def record_turn(message)
       @turns += 1
-      @purse.add((message.cost&.total.to_f * 1_000_000).round)
+      @purse.add(FirefightAi.billed_micros(message.cost, provider: @choice.provider_name))
       @room.saw(message)
       report_turn
     end

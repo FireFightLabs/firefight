@@ -120,4 +120,17 @@ class InferenceTest < ActiveSupport::TestCase
     assert_equal "gemini-1", answered.provider_request_id
     assert_equal "gen-failed", Inference.find_by!(workspace: @workspace, feature: "refused_call").provider_request_id
   end
+
+  test "a DeepSeek call is kept in the ledger at the price of the hour it ran, and an OpenRouter call at the registry's" do
+    deepseek = @context.merge(provider: "deepseek", model: "deepseek-flash")
+
+    _, peak = travel_to(Time.utc(2026, 10, 20, 2, 0)) { Inference.track(deepseek) { llm_reply(cost: 0.0045) } }
+    _, off_peak = travel_to(Time.utc(2026, 10, 20, 12, 0)) { Inference.track(deepseek) { llm_reply(cost: 0.0045) } }
+    _, weekend = travel_to(Time.utc(2026, 10, 17, 2, 0)) { Inference.track(deepseek) { llm_reply(cost: 0.0045) } }
+    _, openrouter = travel_to(Time.utc(2026, 10, 20, 2, 0)) do
+      Inference.track(@context.merge(provider: "openrouter", model: "deepseek/deepseek-v4.1-flash")) { llm_reply(cost: 0.0045) }
+    end
+
+    assert_equal [ 9_000, 4_500, 4_500, 4_500 ], [ peak, off_peak, weekend, openrouter ].map(&:cost_micros)
+  end
 end

@@ -278,6 +278,19 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     assert_equal [ [ 1, 10_000 ], [ 2, 30_000 ] ], turns.first(2)
   end
 
+  test "a DeepSeek turn at peak hours spends twice what it would off-peak from the budget, as the ledger keeps it" do
+    spent = lambda do |at|
+      travel_to(at) do
+        chat = FakeChat.new([ tool_reply("call_1", cost: 0.01), llm_reply(content: "x") ])
+        [ run_loop(chat, provider: "deepseek", model: "deepseek-flash").spent_micros,
+          Inference.where(workspace: @workspace, provider: "deepseek", created_at: at).sum(:cost_micros) ]
+      end
+    end
+
+    assert_equal [ 20_000, 20_000 ], spent.call(Time.utc(2026, 10, 20, 8, 0))
+    assert_equal [ 10_000, 10_000 ], spent.call(Time.utc(2026, 10, 20, 12, 0))
+  end
+
   test "small replies add up to what they cost, not a cent each" do
     chat = FakeChat.new(Array.new(10) { |index| tool_reply("call_#{index}", cost: 0.003) } + [ llm_reply(content: "x") ])
 
@@ -599,11 +612,12 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
   end
 
   def run_loop(chat, budget: budget(), answered: -> { false }, on_step: nil, on_chunk: nil, reply_is_answer: false,
-               nudge: nil, take_messages: nil, purse: nil, retry_malformed: false, canceled: FirefightAi::AgentLoop::NEVER_CANCELED, &on_turn)
+               nudge: nil, take_messages: nil, purse: nil, retry_malformed: false, canceled: FirefightAi::AgentLoop::NEVER_CANCELED,
+               provider: "openai", model: "gpt-4o", &on_turn)
     FirefightAi::AgentLoop.new(
       chat: chat, budget: budget, answered: answered, on_step: on_step, on_chunk: on_chunk, canceled: canceled,
       reply_is_answer: reply_is_answer, nudge: nudge, take_messages: take_messages, purse: purse, retry_malformed: retry_malformed,
-      inference: { workspace: @workspace, feature: "investigation", provider: "openai", model: "gpt-4o", inferable: @incident }
+      inference: { workspace: @workspace, feature: "investigation", provider: provider, model: model, inferable: @incident }
     ).run(&on_turn)
   end
 end
