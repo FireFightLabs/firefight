@@ -1100,6 +1100,7 @@ DEPENDENCIES
   vite_rails (~> 3.0)
   web-console
   webrick
+  websocket-driver (~> 0.8)
   yabeda
   yabeda-activejob
   yabeda-gc
