@@ -72,6 +72,27 @@ module Integrations
 
     private
 
+    test "a provider's named tools join the server's, and each runs as the one general call Firefight writes, linked by it" do
+      cloudflare = connection("cloudflare", "Cloudflare", "https://mcp.cloudflare.com/mcp")
+      McpClient.stubs(:new).returns(stub(tools_list: [ { "name" => "execute", "inputSchema" => {} }, { "name" => "search", "inputSchema" => {} } ]))
+      assert_equal %w[execute search retry_pages_deployment cancel_workers_build split_worker_traffic], McpExecutor.tool_definitions(cloudflare).map(&:name)
+
+      account = "0123456789abcdef0123456789abcdef"
+      retry_tool = cloudflare.tools.create!(name: "retry_pages_deployment", description: "Runs it again", read_only: false, enabled: true, params_schema: {})
+      client = mock("client")
+      client.expects(:call_tool).with do |name:, arguments:|
+        name == "execute" && arguments["account_id"] == account &&
+          arguments["code"].include?(%({"method":"POST","path":"/accounts/#{account}/pages/projects/docs/deployments/d2a1-4b/retry"}))
+      end.returns("content" => [ { "type" => "text", "text" => %({"success":true,"result":{"id":"d3"}}) } ])
+      McpClient.stubs(:new).returns(client)
+
+      result = call(retry_tool, "account_id" => account, "project" => "docs", "deployment" => "d2a1-4b")
+
+      assert_match "Pages deployment d2a1-4b of docs is running again as a new deployment.", result["content"].first["text"]
+      assert_match "https://dash.cloudflare.com/#{account}/pages/view/docs/d2a1-4b", result["content"].last["text"]
+      assert_match "project must be", assert_raises(Integrations::Error) { call(retry_tool, "account_id" => account, "project" => "../zones", "deployment" => "d2a1-4b") }.message
+    end
+
     def connection(provider, name, server_url)
       integration = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: provider, name: name, slug: provider,
                                                     settings: { "server_url" => server_url })

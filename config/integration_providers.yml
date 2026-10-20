@@ -628,7 +628,7 @@ providers:
     color: "#f38020"
     status_page: { url: https://www.cloudflarestatus.com, feed: statuspage }
     hosts: [ api.cloudflare.com, workers.dev, pages.dev, r2.cloudflarestorage.com ]
-    description: Read traffic, security events, DNS and cache, and block IPs, add rules or purge the cache when you allow it.
+    description: Read traffic, security events, DNS, cache, Workers and Pages, and block IPs, add rules, purge the cache, retry a Pages deployment, cancel a Workers build or split a Worker's traffic when you allow it.
     server_url: https://mcp.cloudflare.com/mcp
     # The server marks only execute as a write. search reads the API's own spec and docs reads the documentation.
     read_only_tools: [search, docs]
@@ -641,10 +641,16 @@ providers:
     scaling: none
     scaling_note: "Its Workers and sites run at every edge location on demand, so there is no count of copies to read."
     history: firefight
+    # retry_pages_deployment, cancel_workers_build and split_worker_traffic are Firefight's own tools on the server
+    # (Integrations::NamedTools::Cloudflare). Cancelling a build ends what someone's push started.
+    stopping_tools: [cancel_workers_build]
     # What a person reads beside each tool, by the name Firefight gives it (Integrations::ToolSummaries).
     tool_summaries:
       docs: "Searches the Cloudflare documentation."
       execute: "Reads, creates, updates or deletes resources in the Cloudflare account."
+      retry_pages_deployment: "Runs a failed Cloudflare Pages deployment again."
+      cancel_workers_build: "Cancels a queued or running Cloudflare Workers build."
+      split_worker_traffic: "Splits a Cloudflare Worker's traffic between two of its versions."
       search: "Searches the Cloudflare API reference for the right operation."
       whoami: "Shows the Cloudflare user or account this connection signs in as."
   - key: kubernetes

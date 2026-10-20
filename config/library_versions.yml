@@ -142,8 +142,8 @@ skills:
     version: 1
     digest: f6fc53a3a68668063e63b450bd40affe24cc51679526f3aa43dbc213a57ab20f
   cloudflare_deploys:
-    version: 1
-    digest: 6abd24c41c8b2bc54e8ed307d755702923a89360ebfa0507c2794179c81ee32e
+    version: 2
+    digest: cfd1c59793100f295e94d4c9ae11c47acb5d96f214deac1d4e7d71ece2bd5379
   cloudflare_dns:
     version: 1
     digest: ab6dadc9db8096e5ca3681fb28ae8328af6a883adf63292aa01e573d0aa2de2a

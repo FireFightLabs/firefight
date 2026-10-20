@@ -11,15 +11,20 @@ module Integrations
       SecretReads.refuse!(tool, arguments)
       within = QUICK_READ if quick_read?(tool)
       rules = Redactions.rules(tool.integration.provider)
+      named = Provider.for(tool.integration.provider).named_tools
+      named = nil unless named&.handles?(tool.name)
+      remote_name, sent = named ? named.call_for(tool.name, arguments) : [ tool.remote_name, arguments ]
       result = begin
-        client_for(tool.integration, environment_row, within: within).call_tool(name: tool.remote_name, arguments: arguments)
+        client_for(tool.integration, environment_row, within: within).call_tool(name: remote_name, arguments: sent)
       rescue Integrations::Error => error
         # The server's own words reach the model and the chat as an answer does, so they lose credentials the same way.
         raise error.exception(Redactions.message(error.message, **rules))
       end
       kept = Redactions.apply(ToolResult.normalize(result), **rules)
+      kept = named.present(tool.name, arguments, kept) if named
       kept = ApiIndex.hinted(kept, tool.integration.provider, tool.name, arguments, failed: failed?(tool, kept))
-      SourceLinks.attach(kept, settings: ConnectionSettings.of(environment_row), tool_name: tool.name, arguments: arguments)
+      # A named tool's answer is linked by the general call it made, which the provider's links know.
+      SourceLinks.attach(kept, settings: ConnectionSettings.of(environment_row), tool_name: named ? remote_name : tool.name, arguments: sent)
     rescue TimedOut
       raise unless within
 
@@ -54,11 +59,12 @@ module Integrations
 
     # Names are sanitized into action-key-safe form, spec keeps the server's own name for the call. A server's readOnlyHint
     # is its own claim, so a remote tool reads only when the registry lists it (IntegrationProvider::Entry#reads?) or an
-    # admin marks it.
+    # admin marks it. The provider's named tools (Provider#named_tools) join the server's, each switched on and off by
+    # itself like any of them.
     def self.tool_definitions(integration)
       environment_row = integration.resolve_environment(nil) || integration.integration_environments.enabled.first
 
-      client_for(integration, environment_row).tools_list.map do |remote|
+      listed = client_for(integration, environment_row).tools_list.map do |remote|
         ToolDefinition.new(
           name: local_name(remote["name"]),
           description: remote["description"],
@@ -67,6 +73,8 @@ module Integrations
           spec: { "tool_name" => remote["name"] }
         )
       end
+      named = Provider.for(integration.provider).named_tools&.definitions.to_a
+      listed.reject { |definition| named.any? { |own| own.name == definition.name } } + named
     end
 
     # The name Firefight gives a server's tool, such as query_logs for a tool the server calls query-logs.
