@@ -1,8 +1,9 @@
 module Integrations
   module Providers
-    # A database's and a branch's state as PlanetScale's API documents them.
+    # A database's and a branch's state as PlanetScale's API documents them. Its pack sits beside the MCP server, reaching
+    # PlanetScale's API for deploy requests and branch changes, which the server has no tools for.
     Planetscale = Provider.new(
-      key: "planetscale", data_writes: "Integrations::DataWrites::Planetscale", adapter: "Integrations::Capabilities::Planetscale", map_reader: "Integrations::MapReaders::Planetscale",
+      key: "planetscale", pack: "Integrations::Packs::Planetscale", data_writes: "Integrations::DataWrites::Planetscale", adapter: "Integrations::Capabilities::Planetscale", map_reader: "Integrations::MapReaders::Planetscale",
       source_links: "Integrations::SourceLinks::Planetscale", map_events: "Integrations::MapEventSources::Planetscale",
       status_words: { "importing" => "pending", "import_ready" => "ready", "sleep_in_progress" => "pending", "awakening" => "starting" },
       error_reader: "Integrations::ErrorReaders::Planetscale",

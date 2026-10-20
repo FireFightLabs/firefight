@@ -17,6 +17,7 @@ module Integrations
       OBSERVE = "observe".freeze
       OBSERVE_LOGS = "logs".freeze
       OBSERVE_METRICS = "metrics".freeze
+      BUILDS_PAGE = "builds".freeze
       KIND_SERVICES = "services".freeze
       KIND_ADDONS = "addons".freeze
       KIND_JOBS = "jobs".freeze
@@ -584,16 +585,16 @@ module Integrations
       end
       private :builder!
 
-      # A service's builds page and one build's, as Northflank's pages write them. A job keeps its own page, since its builds
-      # address has not been checked.
-      def builds_link(environment_row, resource)
-        resource[:kind] == KIND_SERVICES ? resource_link(environment_row, resource, "builds") : resource_link(environment_row, resource)
+      # A service's or a job's builds page and one build's, as Northflank's app writes them (<kind>/<id>/builds/<build>). A
+      # job's address is read from the project, as its runs' is, since a job may carry no appId.
+      def builds_link(environment_row, resource, *build)
+        return project_link(environment_row, KIND_JOBS, resource[:id], BUILDS_PAGE, *build) if resource[:kind] == KIND_JOBS
+
+        resource_link(environment_row, resource, BUILDS_PAGE, *build)
       end
       private :builds_link
 
-      def build_link(environment_row, resource, build_id)
-        resource[:kind] == KIND_SERVICES && build_id.present? ? resource_link(environment_row, resource, "builds", build_id) : nil
-      end
+      def build_link(environment_row, resource, build_id) = (builds_link(environment_row, resource, build_id) if build_id.present?)
       private :build_link
 
       def describe_resource(environment_row:, arguments:)
@@ -1347,9 +1348,12 @@ module Integrations
 
       def secret?(body) = body && Chat::SecretFree::SECRET_PATTERNS.values.any? { |pattern| body.to_json.match?(pattern) }
 
-      # The page of what was changed, when the path names a service, database or job, and the project's otherwise.
+      # The page of what was changed or read, when the path names a service, database or job, a workflow or one of its
+      # runs, or a release flow or one of its runs, and the project's otherwise.
       def change_link(environment_row, path)
         kind, id = path.split("/").first(2)
+        return release_page(environment_row, path) if [ Releases::KIND_WORKFLOWS, Releases::KIND_PIPELINES ].include?(kind) && id.present?
+
         resource = resources(environment_row).find { |each| each[:kind] == kind && each[:id] == id } if [ KIND_SERVICES, KIND_ADDONS ].include?(kind)
         resource ? resource_link(environment_row, resource) : project_link(environment_row, *([ kind, id ] if kind == KIND_JOBS))
       end
@@ -1360,19 +1364,33 @@ module Integrations
         resource_link(environment_row, resource, OBSERVE, tab, query: query)
       end
 
-      # A job or the project has no appId of its own here, so the team is read off any service or database in it.
+      # A job or the project has no appId of its own here, so the team is read off any service or database in it, or off
+      # its jobs (List jobs gives each its appId) when it holds only jobs.
       def project_link(environment_row, *rest)
         team = resources(environment_row).filter_map { |resource| team_of(resource[:app_id]) }.first
-        app_link(environment_row, team, *rest)
+        app_link(environment_row, team || team_of_jobs(environment_row), *rest)
       end
 
-      def app_link(environment_row, team, *rest, query: {})
+      # The team the project's jobs name, from the same read job_resource keeps. A list that cannot be read only costs the link.
+      def team_of_jobs(environment_row)
+        @jobs ||= api(environment_row).jobs(project_of(environment_row)).tap { |read| @jobs_cut = read.incomplete? }.items
+        @jobs.filter_map { |job| team_of(job["appId"]) }.first
+      rescue NorthflankApi::RateLimited
+        raise
+      rescue NorthflankApi::Error
+        nil
+      end
+
+      def app_link(environment_row, team, *rest, query: {}) = team_link(environment_row, team, "project", project_of(environment_row), *rest, query: query)
+
+      # An address under the team in Northflank's app, such as a template's, which belongs to the team rather than a project.
+      def team_link(environment_row, team, *rest, query: {})
         return nil if team.blank?
 
         site = ConnectionSettings.of(environment_row).site
         return nil if site.blank?
 
-        segments = [ "t", team, "project", project_of(environment_row), *rest.compact ].map { |part| ERB::Util.url_encode(part) }
+        segments = [ "t", team, *rest.compact ].map { |part| ERB::Util.url_encode(part) }
         url = "#{site.chomp('/')}/#{segments.join('/')}"
         url = "#{url}?#{query.compact.to_query}" if query.compact.any?
         Telemetry::Link.new(provider: PROVIDER, url: url)

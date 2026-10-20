@@ -603,9 +603,15 @@ skills:
   planetscale_billing:
     version: 1
     digest: ac37413704af2409456c954215957de4a2939f3eaa5db34c76c83c0888623f62
+  planetscale_branch_changes:
+    version: 1
+    digest: '0986668420f5f45f79b102ac8f66cd02187196c4d797f12199e059ad5cf17dfd'
   planetscale_connections:
     version: 1
     digest: a62e2a783d69ff9123f25288e3fe404103baf28caad614bbef263980cd16864c
+  planetscale_deploy_requests:
+    version: 1
+    digest: 82c0a70a9b30c9dcc2670d168f27b39cb5ad3148ca80282def0fb10b5cd0eafc
   planetscale_locks:
     version: 1
     digest: 116a012e4f84f51d66d05f0960b98fced0b861535fedcb494e93038facb00996
@@ -613,14 +619,14 @@ skills:
     version: 1
     digest: c874f2bc2bb4beafeeac70c01b31c342b3f310adaf9ace8255df796b03846494
   planetscale_query_errors:
-    version: 1
-    digest: 52d47e5e62ff7d670ad38738dbfea7802f7357e567453e1ef1d88bb3fc861def
+    version: 2
+    digest: 47545d804f49e7e822ce253f2b2a1fb8aaeddd599267755c286e77188d3d5ae1
   planetscale_slow_queries:
     version: 1
     digest: 1234a6d6f9818d0d1b7b69f5ffd4044bed6eb890eb9d84e48e2debdbcbc07178
   planetscale_triage:
-    version: 1
-    digest: dc6342661348f2b077fd2a9f6c2a84cd5bd99a5105f61eaa9856ae44d80e41e8
+    version: 2
+    digest: 4620254976bf0d638577ad1e7abababd0861aa0370497c41c7d4a8150d2ee8d2
   postgresql_connections:
     version: 1
     digest: 5e6e8f83cc086255ba1c8a76ed1df3cde387a1ddd35b90cb76abbdc0c127ea29
@@ -751,14 +757,17 @@ skills:
     version: 1
     digest: 8fea79988684bd606e4c0095a454b827818b5962ea54fb63f3bb5ec42e88ca0d
   supabase_migrations:
+    version: 2
+    digest: beb4ae3efe968ea091df417820a647e50ad674d4af67dcb0432a4147707fc15b
+  supabase_recovery:
     version: 1
-    digest: 00b275a20f73657c0dc369b5789d6d4d5d35b80f907a9f61ae7c93eb3ada9fd1
+    digest: f69e5f9cf311a418a25a22ac25bce07e63bf678128c775ca1b0ec84b131e5915
   supabase_slow_queries:
     version: 1
     digest: f627e3f17ce34b9d9a120b37687e8f4696563346505391470eb029c59da45cef
   supabase_triage:
-    version: 1
-    digest: 306e8082678dcbe71cafdb3ea6ee0f3078ba782ce435b49d75de1260b2b5df1f
+    version: 2
+    digest: f58f111c00fcb6e8ef3940fd58f60014129ac72b961f3ae32102f76bb12c4d7d
   suspicious_access:
     version: 1
     digest: fe83a2c1cf8951f981f994dcfc929a6dcdfa2c3488a1012391bc774d0f063780
