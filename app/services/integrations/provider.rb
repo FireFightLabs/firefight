@@ -25,6 +25,9 @@ module Integrations
   #   pager            an Integrations::Pager raising a page for an incident and keeping it in step (Integrations::Paging)
   #   agent_sessions   how the provider's own agent sessions reach Halon and Halon answers in them, for a provider whose app
   #                    people assign work to or mention (Integrations::AgentSessions)
+  #   named_tools      tools Firefight adds to a remote server (firefight_tools), each one fixed call of the server's own
+  #                    general tool that Firefight writes from the tool's arguments, so a common change is granted and
+  #                    approved by its own name (definitions, handles?, call_for and present)
   # redacted_fields names answer fields that hold a credential, which never reach the model, and redacted_patterns the
   # credentials of the provider's own shape, such as an address that works as a password, wherever they appear in an
   # answer. withheld_tools names the tools whose whole answer is a secret, each with the sentence a refusal says
@@ -36,7 +39,7 @@ module Integrations
   class Provider
     PARTS = %i[
       pack adapter map_reader baseline_reader health_probe source_links read_guard issue_tracker map_events error_reader data_writes mitigation_reader cli pager
-      document_reader agent_sessions
+      document_reader agent_sessions named_tools
     ].freeze
     KEY_FORMAT = /\A[a-z0-9_]+\z/
 
@@ -75,14 +78,15 @@ module Integrations
     # The tools Firefight adds to a connection to the provider's MCP server beside the server's own, as ToolDefinitions
     # marked FIREFIGHT_TOOL, only those the connection is offered (settings, its ConnectionSettings). This is the one list
     # of them: discovery adds them to what the server lists, and DiscoveryService.add_firefight_tools! saves them without
-    # asking the server. Today they are the tools of a pack that sits beside the server (NativePack.beside_server?), which
-    # run through NativeExecutor. Another kind of tool Firefight adds joins this list.
+    # asking the server. They are the tools of a pack that sits beside the server (NativePack.beside_server?), which run
+    # through NativeExecutor, and the provider's named tools, each one call of the server's own general tool that
+    # McpExecutor makes (named_tools).
     def firefight_tools(settings)
-      found = pack
-      return [] unless found&.beside_server? && settings
+      return [] unless settings
 
-      found.tool_definitions.select { |definition| found.offers?(settings, definition) }
-           .map { |definition| definition.with(spec: definition.spec.to_h.merge(FIREFIGHT_TOOL => true)) }
+      found = pack
+      beside = found&.beside_server? ? found.tool_definitions.select { |definition| found.offers?(settings, definition) } : []
+      (beside + named_tools&.definitions.to_a).map { |definition| definition.with(spec: definition.spec.to_h.merge(FIREFIGHT_TOOL => true)) }
     end
 
     # Whether Firefight runs a tool of a connection to the provider's MCP server through the provider's pack.

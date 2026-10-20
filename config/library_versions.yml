@@ -147,6 +147,9 @@ skills:
   cloudflare_cost:
     version: 1
     digest: f6fc53a3a68668063e63b450bd40affe24cc51679526f3aa43dbc213a57ab20f
+  cloudflare_deploys:
+    version: 2
+    digest: cfd1c59793100f295e94d4c9ae11c47acb5d96f214deac1d4e7d71ece2bd5379
   cloudflare_dns:
     version: 1
     digest: ab6dadc9db8096e5ca3681fb28ae8328af6a883adf63292aa01e573d0aa2de2a
@@ -172,8 +175,11 @@ skills:
     version: 1
     digest: 15253511256a7d374488e555a853dcc4884ba2978de5faa5466286ca21975a0a
   convex_triage:
+    version: 2
+    digest: b6b8df95ac37cc7e296bf494b8e0ee34ace51551c128c734cd82e34eb7390a90
+  convex_usage:
     version: 1
-    digest: 12638f3c62eab9a11aea70768306c0acc53e7eeaba1f1b7dc107a711c92007cd
+    digest: 0dd81206788ed179a15758e02c2244527e92cc17c58679d19e5f35d97b11809c
   cost_trends:
     version: 1
     digest: 4091c5791c06ad1d07802bcae35d574956222aa4e59de0cba07f32031984664c
@@ -474,6 +480,9 @@ skills:
   modal_cold_starts:
     version: 1
     digest: 060f30cff6a4a94aa8e443acd3839f7709398d355ea01db58c3963e59f4a8d67
+  modal_containers:
+    version: 1
+    digest: 62ebb1ddb6b28b2c930a5b88efccdc3f85894b60048e21dea3982b183119b9fb
   modal_crashes:
     version: 1
     digest: 55c760b316d00e68faf904d30e6a750db0b270c86bf796a4ded1e9e6e88918cd

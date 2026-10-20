@@ -14,6 +14,7 @@ module Integrations
       source_links: "Integrations::SourceLinks::Cloudflare",
       read_guard: "Integrations::ReadGuards::Cloudflare",
       mitigation_reader: "Integrations::MitigationReaders::Cloudflare",
+      named_tools: "Integrations::NamedTools::Cloudflare",
       error_reader: "Integrations::ErrorReaders::Cloudflare",
       redacted_fields: %w[
         secret client_secret password passphrase private_key privkey custom_key streamKey stream_key license_key jwt destination_conf headers

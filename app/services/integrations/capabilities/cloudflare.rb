@@ -10,13 +10,14 @@ module Integrations
       EXECUTE = ReadGuards::Cloudflare::TOOL
       PROVIDER = "Cloudflare".freeze
       SUPPORTS = {
-        # A Worker's logs are what it prints, a Pages project's are its deployments' build logs.
+        # A Worker's logs are what it prints and its Workers Builds' logs, a Pages project's are its deployments' build logs.
         LOGS => [ ResourceMap::KIND_WORKER, ResourceMap::KIND_SITE ],
         METRICS => [ ResourceMap::KIND_WORKER, ResourceMap::KIND_ZONE ],
         DEPLOYS => [ ResourceMap::KIND_WORKER, ResourceMap::KIND_SITE ],
         STATUS => [ ResourceMap::KIND_WORKER, ResourceMap::KIND_ZONE, ResourceMap::KIND_SITE ],
-        # A Worker's deployment switches versions at once, so only a Pages project's builds take a time worth reading.
-        HISTORY => [ ResourceMap::KIND_SITE ],
+        # A Worker's deployment switches versions at once, so its runs are the builds Workers Builds makes from its
+        # repository, and a Pages project's are its deployments' builds.
+        HISTORY => [ ResourceMap::KIND_WORKER, ResourceMap::KIND_SITE ],
         ROLLBACK => [ ResourceMap::KIND_WORKER, ResourceMap::KIND_SITE ]
       }.freeze
       TOOLS = SUPPORTS.keys.index_with { EXECUTE }.freeze
@@ -54,12 +55,14 @@ module Integrations
         account = account_of(resource)
         case [ key, resource.kind ]
         in [ LOGS, ResourceMap::KIND_SITE ] then build_logs(resource, account, given)
+        in [ LOGS, _ ] if given["stream"] == STREAM_BUILD then worker_build_logs(resource, account, given)
         in [ LOGS, _ ] then logs(resource, account, given)
         in [ METRICS, ResourceMap::KIND_WORKER ] then metrics(resource, account, given, WORKER_METRICS, WORKER_QUERY,
                                                               { "accountTag" => account, "scriptName" => resource.external_id })
         in [ METRICS, ResourceMap::KIND_ZONE ] then metrics(resource, account, given, ZONE_METRICS, ZONE_QUERY, { "zoneTag" => resource.external_id })
-        in [ DEPLOYS, ResourceMap::KIND_WORKER ] then deploys(resource, account, given, "/accounts/#{account}/workers/scripts/#{resource.external_id}/deployments")
+        in [ DEPLOYS, ResourceMap::KIND_WORKER ] then worker_deploys(resource, account, given)
         in [ DEPLOYS, ResourceMap::KIND_SITE ] then deploys(resource, account, given, "/accounts/#{account}/pages/projects/#{resource.external_id}/deployments")
+        in [ HISTORY, ResourceMap::KIND_WORKER ] then worker_history(resource, account, given)
         in [ HISTORY, ResourceMap::KIND_SITE ] then history(resource, account, given, deployments_path(account, resource))
         in [ STATUS, ResourceMap::KIND_WORKER ] then status(resource, account, "/accounts/#{account}/workers/scripts/#{resource.external_id}/settings")
         in [ STATUS, ResourceMap::KIND_ZONE ] then status(resource, account, "/zones/#{resource.external_id}")
@@ -101,7 +104,9 @@ module Integrations
       end
 
       def self.logs(resource, account, given)
-        raise Unroutable, "Cloudflare keeps only what a Worker prints, so stream must be app." if given["stream"].present? && given["stream"] != "app"
+        if given["stream"].present? && given["stream"] != STREAM_APP
+          raise Unroutable, "Cloudflare keeps what a Worker prints and the logs of its builds, so stream must be #{STREAM_APP} or #{STREAM_BUILD}."
+        end
 
         limit = given["limit"].to_i.positive? ? [ given["limit"].to_i, LOG_LIMIT ].min : LOG_LIMIT
         filters = [ { "key" => "$metadata.service", "operation" => "eq", "type" => "string", "value" => resource.external_id } ]
@@ -225,6 +230,158 @@ module Integrations
         )
       end
 
+      # Workers Builds knows a Worker by its tag rather than its name (Workers Builds API reference, Get your Worker tag).
+      # The map keeps it, and a Worker read before it did has it looked up in the account's Workers first. Either way it
+      # is checked before it goes into a path.
+      def self.worker_tag_js(account, resource)
+        known = resource.details.to_h[MapReaders::Cloudflare::WORKER_TAG].to_s
+        return "const tag = #{JSON.generate(known)};" if known.match?(BUILD_ID)
+
+        "const scripts = await cloudflare.request(#{JSON.generate('method' => 'GET', 'path' => "/accounts/#{account}/workers/scripts")}); " \
+          "const script = (Array.isArray(scripts && scripts.result) ? scripts.result : []).find((each) => each.id === #{JSON.generate(resource.external_id)}); " \
+          "if (!script) throw new Error(#{JSON.generate("Cloudflare has no Worker #{resource.external_id}")}); " \
+          "if (!/^[0-9a-f-]+$/i.test(String(script.tag))) throw new Error(\"Unexpected Worker tag\"); const tag = script.tag;"
+      end
+
+      # A script of Firefight's own: the Worker's tag, then body, with every answer Cloudflare marks as failed thrown.
+      def self.worker_script(account, resource, body)
+        code = "async () => { const ask = async (request) => { const answer = await cloudflare.request(request); " \
+               "if (answer && answer.success === false) throw new Error(JSON.stringify(answer.errors || answer)); return answer; }; " \
+               "#{worker_tag_js(account, resource).gsub('await cloudflare.request(', 'await ask(')} #{body} }"
+        { ReadGuards::Cloudflare::CODE => code, ReadGuards::Cloudflare::ACCOUNT => account }
+      end
+
+      def self.builds_path(account) = "/accounts/#{account}/builds"
+
+      # The Worker's builds, newest first, or one build by its id with what Cloudflare says of it, whatever its age.
+      def self.worker_history(resource, account, given)
+        run = given["run"].to_s.strip.delete_prefix("#").presence
+        if run
+          raise Unroutable, "run is a Workers build's id, as run_history shows it." unless uuid?(run)
+
+          body = "const answer = await ask(#{JSON.generate('method' => 'GET', 'path' => "#{builds_path(account)}/builds/#{run}")}); return { result: answer.result, tag };"
+          return Route.new(tool_name: EXECUTE, arguments: worker_script(account, resource, body),
+                           present: ->(result) { read(result) { |data| worker_run_result(resource, account, data, run) } })
+        end
+
+        limit = given["limit"].to_i.positive? ? [ given["limit"].to_i, History::LIMIT ].min : History::LIMIT
+        body = "const answer = await ask({ method: \"GET\", path: #{JSON.generate("#{builds_path(account)}/workers/")} + tag + \"/builds\", " \
+               "query: { per_page: #{History::LIMIT} } }); return { result: answer.result };"
+        Route.new(tool_name: EXECUTE, arguments: worker_script(account, resource, body),
+                  present: lambda { |result|
+                    read(result) do |data|
+                      runs = Array(data["result"]).map { |build| worker_run(resource, account, build) }
+                      History.result(runs, what: resource.name, link: link(resource), name: given["name"], limit: limit)
+                    end
+                  })
+      end
+
+      def self.worker_run_result(resource, account, data, id)
+        build = data["result"]
+        built_for = build.is_a?(Hash) ? build.dig("trigger", "external_script_id") : nil
+        unless build.is_a?(Hash) && (built_for.blank? || built_for == data["tag"])
+          return Telemetry.result("Cloudflare has no build #{id} of #{resource.name}.", link: link(resource))
+        end
+
+        run = worker_run(resource, account, build)
+        History.result([ run ], what: resource.name, link: Telemetry::Link.new(provider: PROVIDER, url: run.url))
+      end
+
+      # A build is queued, initializing, running or stopped, and once stopped its outcome says how it ended (Workers
+      # Builds API, list builds, status and build_outcome). Skipped is a build that never ran.
+      BUILD_STATUSES = { "queued" => History::QUEUED, "initializing" => History::RUNNING, "running" => History::RUNNING }.freeze
+      BUILD_OUTCOMES = { "success" => History::SUCCEEDED, "fail" => History::FAILED, "terminated" => History::FAILED,
+                         "cancelled" => History::CANCELLED, "skipped" => History::CANCELLED }.freeze
+      BUILD_STOPPED = "stopped".freeze
+      # A Workers build id is a UUID, and a Worker's tag is hex.
+      BUILD_ID = /\A\h[\h-]*\z/
+
+      def self.worker_run(resource, account, build)
+        status = if build["status"] == BUILD_STOPPED then History.status(build["build_outcome"], BUILD_OUTCOMES)
+        else History.status(build["status"], BUILD_STATUSES)
+        end
+        meta = build["build_trigger_metadata"] || {}
+        History::Run.new(
+          id: build["build_uuid"], name: "#{meta['branch'].presence || 'worker'} build", status: status, started_at: time_of(build["created_on"]),
+          finished_at: (time_of(build["stopped_on"]) if History::FINISHED.include?(status)), url: worker_builds_page(account, resource),
+          detail: ("#{meta['commit_hash'].to_s.first(12)} #{meta['commit_message'].to_s.lines.first.to_s.strip}".strip if meta["commit_hash"])
+        )
+      end
+
+      # A Worker's build history is at the bottom of its Deployments tab (Workers Builds, View build and Preview URL).
+      def self.worker_builds_page(account, resource)
+        "#{MapReaders::Cloudflare::DASHBOARD}/#{account}/workers/services/view/#{Http.segment(resource.external_id)}/production/deployments"
+      end
+
+      BUILD_LOG_PAGES = 10
+
+      # A Workers build's log, of the build named, or of the Worker's newest one. Cloudflare answers it a page at a time,
+      # each line its time and its text, with a cursor to the next (Workers Builds API, get build logs).
+      def self.worker_build_logs(resource, account, given)
+        build = given["deployment"].to_s.strip.presence || given["run"].to_s.strip.presence
+        raise Unroutable, "Give the build id run_history shows." if build && !uuid?(build)
+
+        limit = given["limit"].to_i.positive? ? [ given["limit"].to_i, LOG_LIMIT ].min : LOG_LIMIT
+        find = if build then "const build = #{JSON.generate(build)};"
+        else
+          "const listed = await ask({ method: \"GET\", path: #{JSON.generate("#{builds_path(account)}/workers/")} + tag + \"/builds\", query: { per_page: 1 } }); " \
+            "const newest = (Array.isArray(listed.result) ? listed.result : [])[0]; if (!newest) return { result: null }; " \
+            "if (!/^[0-9a-f-]+$/i.test(String(newest.build_uuid))) throw new Error(\"Unexpected build id\"); const build = newest.build_uuid;"
+        end
+        body = "#{find} const lines = []; let cursor = null; let truncated = false; " \
+               "for (let page = 0; page < #{BUILD_LOG_PAGES}; page++) { " \
+               "const answer = await ask({ method: \"GET\", path: #{JSON.generate("#{builds_path(account)}/builds/")} + build + \"/logs\", query: cursor ? { cursor } : {} }); " \
+               "const read = (answer && answer.result) || {}; const got = Array.isArray(read.lines) ? read.lines : []; lines.push(...got); " \
+               "truncated = Boolean(read.truncated); if (!read.cursor || got.length === 0) { cursor = null; break; } cursor = read.cursor; } " \
+               "return { result: { lines, truncated, more: Boolean(cursor) }, build };"
+        Route.new(tool_name: EXECUTE, arguments: worker_script(account, resource, body),
+                  present: ->(result) { read(result) { |data| worker_build_logs_result(resource, account, data, given, limit) } })
+      end
+
+      def self.worker_build_logs_result(resource, account, data, given, limit)
+        id = data["build"]
+        return Telemetry.result("#{resource.name} has no Workers builds, so it has no build log.", link: link(resource)) if id.blank?
+
+        matcher = log_matcher(given)
+        lines = Array(data.dig("result", "lines")).filter_map do |entry|
+          at, text = Array(entry)
+          Telemetry::LogLine.new(at: time_of(at) || Time.current, source: id, text: text.to_s) if text.present? && matcher.call(text.to_s)
+        end.sort_by(&:at).reverse
+        cut = data.dig("result", "truncated") || data.dig("result", "more") ? "\nCloudflare holds more of this log than was read." : ""
+        Telemetry.result("#{Telemetry.logs_text(lines.first(limit), asked: "build #{id} of #{resource.name}", limit: limit)}#{cut}",
+                         link: Telemetry::Link.new(provider: PROVIDER, url: worker_builds_page(account, resource)))
+      end
+
+      # A Worker's deployments, and its versions beside them, since a version uploaded and not yet deployed, or one held
+      # at a share of traffic, is what changed next (Workers API, list deployments and list versions).
+      def self.worker_deploys(resource, account, given)
+        limit = given["limit"].to_i.positive? ? [ given["limit"].to_i, DEPLOY_LIMIT ].min : DEPLOY_LIMIT
+        path = "/accounts/#{account}/workers/scripts/#{resource.external_id}"
+        code = "async () => { const ask = async (request) => { const answer = await cloudflare.request(request); " \
+               "if (answer && answer.success === false) throw new Error(JSON.stringify(answer.errors || answer)); return answer; }; " \
+               "const deployments = await ask(#{JSON.generate('method' => 'GET', 'path' => "#{path}/deployments")}); " \
+               "const versions = await ask(#{JSON.generate('method' => 'GET', 'path' => "#{path}/versions", 'query' => { 'per_page' => DEPLOY_LIMIT })}); " \
+               "return { result: deployments.result, versions: versions.result }; }"
+        Route.new(tool_name: EXECUTE, arguments: { ReadGuards::Cloudflare::CODE => code, ReadGuards::Cloudflare::ACCOUNT => account },
+                  present: lambda { |result|
+                    read(result) do |data|
+                      versions = Array(data.dig("versions", "items")).first(limit)
+                      deployed = Array(data.dig("result", "deployments")).flat_map { |deployment| Array(deployment["versions"]).map { |version| version["version_id"] } }
+                      said = if versions.any?
+                        "Latest #{versions.size} versions, newest first. A version in no deployment listed was uploaded and has not served.\n" \
+                          "#{versions.map { |version| version_line(version, deployed) }.join("\n")}"
+                      end
+                      deploys_result(resource, account, data, limit, versions: said)
+                    end
+                  })
+      end
+
+      def self.version_line(version, deployed)
+        meta = version["metadata"] || {}
+        [ meta["created_on"], "version #{version['id']}", ("number #{version['number']}" if version["number"]), ("by #{meta['author_email']}" if meta["author_email"]),
+          ("from #{meta['source']}" if meta["source"]), (deployed.include?(version["id"]) ? "deployed" : "in no deployment listed") ].compact.join(", ")
+      end
+
       def self.status(resource, account, path)
         Route.new(tool_name: EXECUTE, arguments: script({ "method" => "GET", "path" => path }, account),
                   present: lambda { |result|
@@ -321,14 +478,16 @@ module Integrations
         rows.filter_map { |row| (at = time_of(row.dig("dimensions", "datetimeHour"))) && [ at, row["count"].to_f ] }.sort_by(&:first)
       end
 
-      def self.deploys_result(resource, account, data, limit)
+      # versions is what a Worker's versions add, said after its deployments.
+      def self.deploys_result(resource, account, data, limit, versions: nil)
         listed = data["result"].is_a?(Hash) ? data.dig("result", "deployments") : data["result"]
         shown = Array(listed).first(limit)
         rows = shown.map { |deployment| deploy_line(resource, deployment) }
-        return Deploys.with_deploys(Telemetry.result("#{resource.name} has no deployments.", link: link(resource)), []) if rows.empty?
+        return Deploys.with_deploys(Telemetry.result([ "#{resource.name} has no deployments.", versions ].compact.join("\n"), link: link(resource)), []) if rows.empty?
 
         to = resource.kind == ResourceMap::KIND_WORKER ? "a version id" : "a deployment id"
-        result = Telemetry.result("Latest #{rows.size} deployments of #{resource.name}, newest first. rollback takes #{to}.\n#{rows.join("\n")}", link: link(resource))
+        said = [ "Latest #{rows.size} deployments of #{resource.name}, newest first. rollback takes #{to}.", *rows, versions ].compact.join("\n")
+        result = Telemetry.result(said, link: link(resource))
         deploys = if resource.kind == ResourceMap::KIND_WORKER
           shown.map { |deployment| worker_deploy(deployment, serving: deployment.equal?(shown.first)) }
         else
@@ -418,7 +577,8 @@ module Integrations
         Time.zone.at((at.to_i / (minutes * 60)) * minutes * 60).utc
       end
 
-      private_class_method :account_of, :logs, :build_logs, :build_log_arguments, :newest_build_log, :build_logs_result, :log_matcher,
+      private_class_method :account_of, :logs, :build_logs, :worker_tag_js, :worker_script, :builds_path, :worker_history, :worker_run_result, :worker_run,
+                           :worker_builds_page, :worker_build_logs, :worker_build_logs_result, :worker_deploys, :version_line, :build_log_arguments, :newest_build_log, :build_logs_result, :log_matcher,
                            :one_run, :stage_part, :history_run, :uuid?, :deployments_path, :deployment_page, :metrics, :deploys, :status, :change, :read, :logs_result, :metrics_result,
                            :worker_points, :zone_points, :deploys_result, :worker_deploy, :pages_deploy, :deploy_line, :history, :history_result, :link, :time_of, :bucket_minutes, :floor, :script, :range_js
     end

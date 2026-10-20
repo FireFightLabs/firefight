@@ -1,8 +1,8 @@
 module Integrations
   module Packs
-    # One Convex deployment per environment: how it stands, its function logs and errors, and what was pushed to it, read
-    # with a deploy key the workspace creates in Convex. Every tool reads. Convex documents no rollback, restart or scale
-    # for a deployment, so none is offered.
+    # One Convex deployment per environment: how it stands, its function logs and errors, what was pushed to it and how
+    # much it used against its limits, read with a deploy key the workspace creates in Convex, and pausing or unpausing
+    # it when a person allows. Convex documents no rollback, restart or scale for a deployment, so none is offered.
     class Convex < NativePack
       # The environment row's credentials, which only this pack reads.
       DEPLOYMENT_URL = "deployment_url".freeze
@@ -36,6 +36,15 @@ module Integrations
       ACTOR_MEMBER = "member".freeze
       ACTOR_TOKEN = "token".freeze
       ACTOR_SYSTEM = "system".freeze
+
+      # A usage limit's kind that stops the deployment once passed, beside warning (UsageLimitType).
+      LIMIT_DISABLE = "disable".freeze
+      # What Convex's usage backfill status says of the numbers (SeedStatusResponse).
+      SEED_NOTES = {
+        "pending" => "Convex is still loading this deployment's earlier usage, so these numbers may be lower than the real total.",
+        "partial" => "Convex has loaded only part of this deployment's earlier usage, so these numbers may be lower than the real total.",
+        "failed" => "Convex could not load this deployment's earlier usage, so these numbers may be lower than the real total."
+      }.freeze
 
       LOG_LIMIT = 200
       ERROR_GROUPS = 20
@@ -103,6 +112,29 @@ module Integrations
              }
            },
            read_only: true
+
+      tool :usage,
+           summary: "Shows the deployment's usage today and this month, and its usage limits.",
+           description: "How much the deployment used in the current UTC day and month, by metric (function calls, database " \
+                        "I/O, data egress, search, compute and AI gateway cost), beside each usage limit set on it and whether " \
+                        "passing it warns or stops the deployment. Use it when functions stop or slow down near a limit, or the bill grows",
+           params_schema: { "type" => "object", "properties" => {} },
+           read_only: true
+
+      tool :pause_deployment,
+           summary: "Pauses the deployment, so every function call fails until it is unpaused.",
+           description: "Pause the Convex deployment, keeping all its data. While paused every function call fails, scheduled " \
+                        "functions wait and cron jobs are skipped, and no calls or bandwidth are charged. Use it to stop a " \
+                        "deployment doing harm or spending out of control. unpause_deployment puts it back",
+           params_schema: { "type" => "object", "properties" => {} },
+           read_only: false
+
+      tool :unpause_deployment,
+           summary: "Unpauses the deployment, so its functions run again.",
+           description: "Unpause a paused Convex deployment. Its functions answer again, and the scheduled functions that " \
+                        "waited while it was paused run",
+           params_schema: { "type" => "object", "properties" => {} },
+           read_only: false
 
       def self.credential_fields
         [
@@ -196,6 +228,38 @@ module Integrations
         Telemetry.result(text, link: link)
       end
 
+      # Each metric's usage beside the limits set on it, from get_current_usage and list_usage_limits. Usage is only whole
+      # once Convex's backfill is complete, which the answer says otherwise.
+      def usage(environment_row:, arguments:)
+        api = api(environment_row)
+        current = api.current_usage
+        limits = api.usage_limits.group_by { |limit| limit["metric"].to_s }
+        metrics = current["metrics"].to_h
+        rows = (metrics.keys | limits.keys).sort.map do |metric|
+          used = metrics[metric].to_h
+          unit = used["unit"].presence
+          amounts = used["usage"].to_h
+          [ "#{metric}: #{amount(amounts['current_day'], unit)} today, #{amount(amounts['current_month'], unit)} this month",
+            *Array(limits[metric]).map { |limit| limit_words(limit, unit) } ].join(", ")
+        end
+        lines = [ "Usage of #{deployment_name(environment_row)} in the current UTC day and month, with its usage limits." ]
+        lines << SEED_NOTES[current["seedStatus"].to_s] if SEED_NOTES.key?(current["seedStatus"].to_s)
+        lines << "No usage limits are set on it." if limits.empty?
+        Telemetry.result([ *lines, *rows ].join("\n"), link: dashboard_link(environment_row))
+      end
+
+      def pause_deployment(environment_row:, arguments:)
+        api(environment_row).pause
+        Telemetry.result("#{deployment_name(environment_row)} is paused. Every function call fails, scheduled functions wait and cron " \
+                         "jobs are skipped until it is unpaused, and its data is kept.", link: dashboard_link(environment_row))
+      end
+
+      def unpause_deployment(environment_row:, arguments:)
+        api(environment_row).unpause
+        Telemetry.result("#{deployment_name(environment_row)} is unpaused. Its functions answer again, and the scheduled functions " \
+                         "that waited now run.", link: dashboard_link(environment_row))
+      end
+
       # The deployment on the resource map, under its project, with its page in the Convex dashboard.
       def map_of(environment_row)
         api = api(environment_row)
@@ -251,6 +315,17 @@ module Integrations
       def dashboard_link(environment_row)
         name = deployment_name(environment_row)
         name.present? ? Telemetry::Link.new(provider: PROVIDER, url: "#{ConnectionSettings.of(environment_row).site.to_s.chomp('/')}/#{DEPLOYMENT_PAGE}/#{Http.segment(name)}") : nil
+      end
+
+      def amount(value, unit)
+        return "unknown" if value.nil?
+
+        [ value.to_f.round(4).to_s.delete_suffix(".0"), unit ].compact.join(" ")
+      end
+
+      def limit_words(limit, unit)
+        action = limit["limitType"] == LIMIT_DISABLE ? "stops the deployment" : "warns"
+        "#{'switched off ' unless limit['enabled']}limit of #{amount(limit['limit'], unit)} a #{limit['window']} that #{action}"
       end
 
       def identity_line(environment_row, info)

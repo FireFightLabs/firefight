@@ -17,6 +17,7 @@ module Integrations
                                             created_at: Time.utc(2026, 9, 1).to_f)
         ModalApi.any_instance.stubs(:deployed).with("inference", "main").returns(Proto::AppGetByDeploymentNameResponse.new(app_id: APP_ID, lifecycle: lifecycle))
         ModalApi.any_instance.stubs(:lifecycle).with(APP_ID).returns(lifecycle)
+        ModalApi.any_instance.stubs(:apps).with("main").returns([ Proto::AppListResponse::AppListItem.new(app_id: APP_ID, description: "inference") ])
         summary = Proto::AppGetInfoResponse::FunctionInfoSummary.new(gpu_config: [ Proto::GPUConfig.new(count: 1, gpu_type: "H100") ],
                                                                      schedule: Proto::Schedule.new(cron: Proto::Schedule::Cron.new(cron_string: "0 * * * *")))
         ModalApi.any_instance.stubs(:info).with(APP_ID).returns(Proto::AppGetInfoResponse.new(
@@ -25,11 +26,12 @@ module Integrations
         ))
       end
 
-      test "the token is stored trimmed, the environment is a field of the form, and only the three changes are not read only" do
+      test "the token is stored trimmed, the environment is a field of the form, and only the five changes are not read only" do
         assert_equal [ "ak-1", "as-1", nil ], @row.reload.credentials_hash.values_at(Modal::TOKEN_ID, Modal::TOKEN_SECRET, Modal::ENVIRONMENT)
         assert_equal "main", ConnectionSettings.of(@row).field(Modal::ENVIRONMENT)
         assert_equal [ Modal::TOKEN_ID, Modal::TOKEN_SECRET ], Modal.credential_fields.map(&:key)
-        assert_equal %w[rollback_app rollover_app update_autoscaler], Modal.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[rollback_app rollover_app stop_container stop_app update_autoscaler], Modal.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[stop_container stop_app], IntegrationProvider.find("modal").stopping_tools
         assert Modal.credential_fields.find { |field| field.key == Modal::TOKEN_SECRET }.secret
       end
 
@@ -74,8 +76,9 @@ module Integrations
           Proto::TaskLogs.new(data: "CUDA out of memory\n", timestamp: Time.utc(2026, 10, 3, 9, 1).to_f, container_id: "ta-1"),
           Proto::TaskLogs.new(data: "healthcheck ok", timestamp: Time.utc(2026, 10, 3, 9, 2).to_f, container_id: "ta-1")
         ])
-        ModalApi.any_instance.expects(:logs).with do |app_id, since:, upto:, limit:, source:, search_text:, function_id:|
-          app_id == APP_ID && (upto - since).round == 30.minutes && limit == 50 && source == :FILE_DESCRIPTOR_STDERR && search_text.nil? && function_id == "fu-1"
+        ModalApi.any_instance.expects(:logs).with do |app_id, since:, upto:, limit:, source:, search_text:, function_id:, task_id:|
+          app_id == APP_ID && (upto - since).round == 30.minutes && limit == 50 && source == :FILE_DESCRIPTOR_STDERR && search_text.nil? && function_id == "fu-1" &&
+            task_id == ""
         end.returns([ batch ])
 
         text = call(:app_logs, "app" => "inference", "source" => "stderr", "function" => "generate", "exclude" => "healthcheck", "limit" => 50, "minutes" => 30)
@@ -85,6 +88,55 @@ module Integrations
         assert_no_match "healthcheck", text
         assert_match "No function or server called nope", assert_raises(NativePack::Error) { call(:app_logs, "app" => "inference", "function" => "nope") }.message
         assert_match "source must be one of", assert_raises(NativePack::Error) { call(:app_logs, "app" => "inference", "source" => "build") }.message
+      end
+
+      test "logs narrow to one container as modal container logs does" do
+        ModalApi.any_instance.expects(:logs).with { |app_id, task_id:, **| app_id == APP_ID && task_id == "ta-2" }.returns([])
+
+        assert_match "inference container ta-2", call(:app_logs, "app" => "inference", "container" => " ta-2 ")
+      end
+
+      test "containers list newest first with their app, or that one is waiting to start, across the environment or for one app" do
+        ModalApi.any_instance.stubs(:containers).with("", "main").returns([
+          Proto::TaskStats.new(task_id: "ta-1", app_id: APP_ID, app_description: "inference", started_at: Time.utc(2026, 10, 3, 9).to_f),
+          Proto::TaskStats.new(task_id: "ta-2", app_id: APP_ID, app_description: "inference", enqueued_at: Time.utc(2026, 10, 3, 9, 5).to_f),
+          Proto::TaskStats.new(task_id: "ta-3", app_id: "ap-b", app_description: "batch", started_at: Time.utc(2026, 10, 3, 10).to_f)
+        ])
+        ModalApi.any_instance.stubs(:containers).with(APP_ID, "main").returns([])
+
+        lines = call(:list_containers).lines
+
+        assert_equal "3 containers running in main, newest first.\n", lines.first
+        assert_equal "ta-3, app batch (ap-b), started 2026-10-03T10:00:00Z\n", lines.second
+        assert_equal "ta-2, app inference (#{APP_ID}), waiting to start since 2026-10-03T09:05:00Z", lines.last
+        assert_equal "No containers are running in inference in main.", call(:list_containers, "app" => "inference").lines.first.strip
+      end
+
+      test "a container is stopped only when it runs in the connection's environment, gracefully when asked" do
+        ModalApi.any_instance.stubs(:containers).with("", "main").returns([ Proto::TaskStats.new(task_id: "ta-1", app_id: APP_ID, app_description: "inference") ])
+        ModalApi.any_instance.expects(:stop_container).with("ta-1", graceful: true)
+        ModalApi.any_instance.expects(:stop_container).with("ta-elsewhere", anything).never
+
+        assert_match "Container ta-1 of inference finishes the work it holds, then stops.", call(:stop_container, "container" => "ta-1", "graceful" => true)
+        assert_match "No container ta-elsewhere is running in main", assert_raises(NativePack::Error) { call(:stop_container, "container" => "ta-elsewhere") }.message
+        assert_match "Say which container", assert_raises(NativePack::Error) { call(:stop_container) }.message
+      end
+
+      test "an app is stopped as modal app stop does, refused when already stopped or outside the environment, and names who deployed it" do
+        ModalApi.any_instance.stubs(:apps).with("main").returns([ Proto::AppListResponse::AppListItem.new(app_id: APP_ID, description: "inference") ])
+        ModalApi.any_instance.stubs(:containers).with(APP_ID, "main").returns([ Proto::TaskStats.new(task_id: "ta-1"), Proto::TaskStats.new(task_id: "ta-2") ])
+        ModalApi.any_instance.expects(:stop_app).with(APP_ID).once
+
+        assert_match "inference is stopped for good, and the 2 containers it ran are ending.", call(:stop_app, "app" => "inference")
+        owner = @pack.owner_of("stop_app", environment_row: @row, arguments: { "app" => "inference" })
+        assert_equal [ "ana", Owner::ROLE_DEPLOYED, "Modal app inference" ], [ owner.name, owner.role, owner.what ]
+        assert_nil @pack.owner_of("stop_container", environment_row: @row, arguments: { "container" => "ta-1" })
+
+        ModalApi.any_instance.stubs(:lifecycle).with(APP_ID).returns(Proto::AppLifecycle.new(app_state: :APP_STATE_STOPPED))
+        assert_match "inference is already stopped", assert_raises(NativePack::Error) { call(:stop_app, "app" => "inference") }.message
+
+        ModalApi.any_instance.stubs(:apps).with("main").returns([])
+        assert_match "inference is not in main", assert_raises(PolicyRefusal) { call(:stop_app, "app" => APP_ID) }.message
       end
 
       test "the history is newest first with commits, and says which entries were rollbacks" do
@@ -151,6 +203,20 @@ module Integrations
         assert_match "generate in inference now scales with min_containers 2, scaledown_window 300. The next deployment of inference puts back what its code says.", text
         assert_match "Say what to change", assert_raises(NativePack::Error) { call(:update_autoscaler, "app" => "inference", "function" => "generate") }.message
         assert_match "whole number", assert_raises(NativePack::Error) { call(:update_autoscaler, "app" => "inference", "function" => "generate", "max_containers" => -1) }.message
+      end
+
+      test "describing, rolling back, rolling over or rescaling an app another environment holds is refused as Firefight's rule before Modal is asked" do
+        ModalApi.any_instance.stubs(:apps).with("main").returns([])
+        ModalApi.any_instance.expects(:rollback).never
+        ModalApi.any_instance.expects(:rollover).never
+        ModalApi.any_instance.expects(:update_autoscaler).never
+        ModalApi.any_instance.expects(:containers).never
+
+        assert_match "inference is not in main", assert_raises(PolicyRefusal) { call(:describe_app, "app" => APP_ID) }.message
+        assert_match "inference is not in main", assert_raises(PolicyRefusal) { call(:rollback_app, "app" => APP_ID, "version" => "v5") }.message
+        assert_match "inference is not in main", assert_raises(PolicyRefusal) { call(:rollover_app, "app" => APP_ID) }.message
+        assert_match "inference is not in main",
+                     assert_raises(PolicyRefusal) { call(:update_autoscaler, "app" => APP_ID, "function" => "generate", "min_containers" => 1) }.message
       end
 
       test "an app Modal does not know is said in words that point at list_apps" do

@@ -58,9 +58,10 @@ module Integrations
 
     # The newest lines in the range, at most limit, as tail_logs fetches them with an explicit start (py/modal/_logs.py).
     # source is a Proto::FileDescriptor value, unspecified for every stream.
-    def logs(app_id, since:, upto:, limit:, source: :FILE_DESCRIPTOR_UNSPECIFIED, search_text: "", function_id: "")
+    # task_id narrows them to one container, as modal container logs does (py/modal/cli/container.py).
+    def logs(app_id, since:, upto:, limit:, source: :FILE_DESCRIPTOR_UNSPECIFIED, search_text: "", function_id: "", task_id: "")
       request = Proto::AppFetchLogsRequest.new(app_id: app_id, since: timestamp(since), until: timestamp(upto), limit: limit, source: source,
-                                               search_text: search_text.to_s, function_id: function_id.to_s)
+                                               search_text: search_text.to_s, function_id: function_id.to_s, task_id: task_id.to_s)
       call("AppFetchLogs", request, Proto::AppFetchLogsResponse).batches.to_a
     end
 
@@ -68,7 +69,7 @@ module Integrations
       call("AppDeploymentHistory", Proto::AppDeploymentHistoryRequest.new(app_id: app_id), Proto::AppDeploymentHistoryResponse)
     end
 
-    # The containers an app runs now (modal container list).
+    # The containers an app runs now, or with no app every container in the environment (modal container list).
     def containers(app_id, environment)
       call("TaskList", Proto::TaskListRequest.new(app_id: app_id, environment_name: environment.to_s), Proto::TaskListResponse).tasks.to_a
     end
@@ -78,6 +79,17 @@ module Integrations
 
     # New containers on the same version, rolling (modal app rollover).
     def rollover(app_id) = call("AppRollover", Proto::AppRolloverRequest.new(app_id: app_id), Proto::AppRolloverResponse)
+
+    # Stops the app for good and ends every container it runs (modal app stop). A stopped app is only ever deployed anew.
+    def stop_app(app_id)
+      call("AppStop", Proto::AppStopRequest.new(app_id: app_id, source: :APP_STOP_SOURCE_CLI), Google::Protobuf::Empty)
+    end
+
+    # Ends one container (modal container stop). graceful lets it finish the inputs it holds first, and otherwise they are
+    # cancelled and run again on other containers.
+    def stop_container(task_id, graceful:)
+      call("ContainerStop", Proto::ContainerStopRequest.new(task_id: task_id, graceful: graceful), Proto::ContainerStopResponse)
+    end
 
     # Overrides a function's autoscaler until its app is deployed again (Function.update_autoscaler, py/modal/_functions.py).
     def update_autoscaler(function_id, settings)

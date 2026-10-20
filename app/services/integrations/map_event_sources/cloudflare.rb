@@ -6,6 +6,14 @@ module Integrations
     # was made on (raw.uri), which says what changed: a zone, or a Worker, Pages project, bucket, database, namespace,
     # queue, Tunnel, pool or Hyperdrive configuration in an account. Reading the log needs Account Settings Read, and a
     # connection without it stays on the daily read, saying why.
+    #
+    # A Pages build started by a push is Cloudflare's own and not in the audit log, so an admin may also send the
+    # account's Pages Project updates notification to a generic webhook at the connection's address
+    # (developers.cloudflare.com/notifications/get-started/configure-webhooks). Cloudflare sends the secret chosen for the
+    # webhook as it is in cf-webhook-auth, and alert_type names the notification (notifications, webhook payload schema).
+    # A deployment starting, failing or succeeding changes nothing on the map, so it only wakes the watches following
+    # the connection's runs. Workers Builds sends its events only to a Queue in the account (Workers Builds, Event
+    # subscriptions), which no webhook reaches, so a Worker's builds are followed by the watches' own reads.
     class Cloudflare < MapEventSource
       # Audit entries can be written after the change they record, so each read looks back this far, and an entry read
       # twice is kept once.
@@ -30,14 +38,32 @@ module Integrations
       DELETE = "DELETE".freeze
       POST = "POST".freeze
       AUDIT_NOTE = "Following Cloudflare's changes reads its audit log, which needs Account Settings Read on the connection".freeze
+      SECRET_HEADER = "cf-webhook-auth".freeze
+      PAGES_ALERT = "pages_event_alert".freeze
 
       class << self
-        def verify(**) = false
+        def verify(raw_body:, headers:, secret:)
+          secret.present? && ActiveSupport::SecurityUtils.secure_compare(headers[SECRET_HEADER].to_s, secret.to_s)
+        end
 
         def events(_payload, headers:) = []
 
+        def wakes?(payload, headers:) = payload.is_a?(Hash) && payload["alert_type"] == PAGES_ALERT
+
         def limits = "Firefight reads Cloudflare's audit log every 5 minutes, so a change reaches the map within about 6 minutes. A DNS record " \
-                     "renamed keeps its old hostname on the map until the daily read."
+                     "renamed keeps its old hostname on the map until the daily read. A Pages build reaches Halon as it happens only once " \
+                     "the Project updates notification is sent to Firefight."
+
+        def setup_steps
+          [
+            "Choose a long random secret and save it below first, so Cloudflare's test reaches Firefight.",
+            "In the Cloudflare dashboard, go to Alerts, then Destinations, and under Webhooks choose Create.",
+            "Paste the address above as its URL and the same secret as its Secret, then choose Save and Test.",
+            "Go to Alerts, then Overview, and choose Create an Alert. Pick Pages, Project updates, choose the projects and the " \
+              "Deployment started, Deployment failed and Deployment success events, and add that webhook as its destination.",
+            "Do the same for each account the connection reaches, with the same secret."
+          ]
+        end
 
         def poll(row, since:)
           before = Time.current
