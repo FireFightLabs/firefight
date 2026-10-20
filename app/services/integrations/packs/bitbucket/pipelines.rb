@@ -3,8 +3,10 @@ module Integrations
     class Bitbucket
       # A repository's CI as Bitbucket Pipelines keeps it (the pipelines, steps, log, deployments and environments paths of
       # Bitbucket's OpenAPI description): its pipelines, their steps, a step's log, and how a branch and the environments
-      # stand now. Bitbucket gives a pipeline no web address, so its page is the repository's pipelines/results/<build
-      # number>, the address Bitbucket's own app serves. Running a pipeline, running one again and stopping one are changes
+      # stand now. Bitbucket's API gives a pipeline no web address of its own, so its page is the repository's
+      # pipelines/results/<build number>, the address a deployment's release.url gives for the pipeline that made it. A
+      # step links that page too, since neither the API nor Bitbucket's docs give a step one. A step's test reports are read from its test_reports paths, whose
+      # answers Bitbucket's description gives no shape for, so they are shown as Bitbucket sent them. Running a pipeline, running one again and stopping one are changes
       # (POST pipelines and pipelines/{pipeline_uuid}/stopPipeline), so they go through the gateway as writes and a member
       # needs a grant for them. They need the write:pipeline:bitbucket scope. Bitbucket's API has no rerun, so running one again
       # starts a new pipeline on the same target, the way its description documents for a commit on a branch or tag, a
@@ -27,18 +29,23 @@ module Integrations
         REF_TARGET = "pipeline_ref_target".freeze
         CUSTOM = "custom".freeze
         REF_TYPES = %w[branch tag].freeze
+        COMMIT_TARGET = "pipeline_commit_target".freeze
+        SHA_FORMAT = /\A\h{7,40}\z/
         # The parts of a pipeline's target Bitbucket's pipelines description takes back to start the same pipeline again.
         TARGET_KEYS = %w[type ref_type ref_name source destination].freeze
         WRITE_NEEDS = "Running or stopping a pipeline needs a token that can write pipelines, the write:pipeline:bitbucket scope".freeze
         FOLLOW = "pipeline_steps with its uuid, or ci_status, follows it".freeze
         HISTORY_LIMIT = 20
         HISTORY_CANDIDATES = 100
+        PAUSED = "paused".freeze
+        HALTED = "halted".freeze
         # A pipeline's result, stage or state in Firefight's words (the pipeline_state, its stage and result objects of
-        # Bitbucket's OpenAPI description). A paused or halted pipeline waits on a manual step, so it is still going.
+        # Bitbucket's OpenAPI description). A paused or halted pipeline waits for a person to run its manual step or let a
+        # deployment go on, so it waits rather than runs.
         HISTORY_STATUSES = {
           "pending" => Capabilities::History::QUEUED, "parsing" => Capabilities::History::QUEUED,
           "in_progress" => Capabilities::History::RUNNING, "running" => Capabilities::History::RUNNING, "building" => Capabilities::History::RUNNING,
-          "paused" => Capabilities::History::RUNNING, "halted" => Capabilities::History::RUNNING,
+          PAUSED => Capabilities::History::WAITING, HALTED => Capabilities::History::WAITING,
           "successful" => Capabilities::History::SUCCEEDED, "failed" => Capabilities::History::FAILED, "error" => Capabilities::History::FAILED,
           "stopped" => Capabilities::History::CANCELLED, "expired" => Capabilities::History::CANCELLED
         }.freeze
@@ -63,9 +70,9 @@ module Integrations
                                  "long it took, and how long finished pipelines usually take",
                     params_schema: CodeHost::Code.object_schema({
                       "repo" => repo,
-                      "name" => { "type" => "string", "description" => "Only pipelines whose custom pipeline or branch contains this, such as release (optional)" },
+                      "name" => { "type" => "string", "description" => "Only pipelines whose custom pipeline or branch contains this, such as release, or else deployments to an environment it names (optional)" },
                       "branch" => { "type" => "string", "description" => "Only pipelines for this branch (optional)" },
-                      "run" => { "type" => "string", "description" => "Only this pipeline, by its uuid, with each step and how it ended (optional)" },
+                      "run" => { "type" => "string", "description" => "Only this pipeline, by its uuid, with each step and how it ended, or a deployment by the id this answer gives it (optional)" },
                       "limit" => { "type" => "integer", "description" => "At most this many (optional, #{HISTORY_LIMIT})" }
                     }, %w[repo]),
                     read_only: true
@@ -106,18 +113,29 @@ module Integrations
                     read_only: false
 
           pack.tool :run_pipeline,
-                    summary: "Runs a pipeline on the newest commit of a branch or tag.",
-                    description: "Run a pipeline on the newest commit of a branch or tag, the definition that matches it or a custom " \
-                                 "pipeline by name, with variables if asked",
+                    summary: "Runs a pipeline on a branch, a tag or one commit.",
+                    description: "Run a pipeline on the newest commit of a branch or tag, or on one commit, the definition that matches it " \
+                                 "or a custom pipeline by name, with variables if asked. A commit with a custom pipeline and no ref runs " \
+                                 "that definition on the commit alone, such as a deploy of an earlier commit",
                     params_schema: CodeHost::Code.object_schema({
                       "repo" => repo,
-                      "ref" => { "type" => "string", "description" => "The branch or tag (optional, the main branch)" },
+                      "ref" => { "type" => "string", "description" => "The branch or tag (optional, the main branch unless a commit and a custom pipeline are given)" },
                       "ref_type" => { "type" => "string", "enum" => REF_TYPES, "description" => "Whether ref is a branch or a tag (optional, branch)" },
+                      "commit" => { "type" => "string", "description" => "Run on this commit, by its hash, rather than the newest one (optional)" },
                       "custom" => { "type" => "string", "description" => "A custom pipeline's name, as bitbucket-pipelines.yml defines it under custom (optional)" },
                       "variables" => { "type" => "object", "additionalProperties" => { "type" => "string" },
                                        "description" => "Variables by name, never a secret, since they are shown and kept (optional)" }
                     }, %w[repo]),
                     read_only: false
+
+          pack.tool :step_test_reports,
+                    summary: "Shows a pipeline step's test report summary and its test cases.",
+                    description: "The test reports one pipeline step published: the summary, then its test cases with how each ended, as " \
+                                 "Bitbucket gives them. A step publishes them only when its build writes test results Bitbucket reads",
+                    params_schema: CodeHost::Code.object_schema({
+                      "repo" => repo, "pipeline" => pipeline, "step" => { "type" => "string", "description" => "The step's uuid, as pipeline_steps shows it" }
+                    }, %w[repo pipeline step]),
+                    read_only: true
 
           pack.tool :cancel_pipeline,
                     summary: "Cancels a running pipeline and its unfinished steps.",
@@ -139,15 +157,37 @@ module Integrations
         end
 
         # A pipeline runs from when it was created to when it completed (created_on and completed_on), the time a person waits.
+        # A name no pipeline has reads the deployments as runs, named for their environment.
         def ci_runs(environment_row:, arguments:)
           repo = repo_argument(arguments)
-          return one_pipeline(api(environment_row), repo, uuid_argument(arguments, "run")) if arguments["run"].present?
+          bitbucket = api(environment_row)
+          asked = arguments["run"].to_s.strip
+          return one_deployment(bitbucket, repo, asked.delete_prefix(DEPLOYMENT_RUN)) if asked.start_with?(DEPLOYMENT_RUN)
+          return one_pipeline(bitbucket, repo, uuid_argument(arguments, "run")) if asked.present?
 
           limit = whole_number_argument(arguments, "limit", HISTORY_LIMIT, HISTORY_LIMIT)
           name = arguments["name"].to_s.strip.presence
-          found = pipelines_of(api(environment_row), repo, "target.branch" => branch_argument(arguments), "pagelen" => name ? HISTORY_CANDIDATES : limit)
+          found = pipelines_of(bitbucket, repo, "target.branch" => branch_argument(arguments), "pagelen" => name ? HISTORY_CANDIDATES : limit)
           runs = found.map { |pipeline| history_run(repo, pipeline) }
+          if name && runs.none? { |run| run.called?(name) }
+            return Capabilities::History.result(deployment_runs(bitbucket, repo), what: "deployments in #{repo}, since no pipeline is named #{name}",
+                                                name: name, limit: limit)
+          end
+
           Capabilities::History.result(runs, what: "pipelines in #{repo}", link: found.first && pipeline_link(repo, found.first), name: name, limit: limit)
+        end
+
+        def step_test_reports(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          bitbucket = api(environment_row)
+          pipeline = bitbucket.get("#{BitbucketApi.repository(repo)}/pipelines/#{uuid_argument(arguments, 'pipeline')}")
+          step = "#{BitbucketApi.repository(repo)}/pipelines/#{Http.segment(pipeline['uuid'])}/steps/#{uuid_argument(arguments, 'step')}"
+          read = [ "#{step}/test_reports", "#{step}/test_reports/test_cases" ].map do |path|
+            ApiReads.answer(PROVIDER, ApiReads.asked(path, {}), bitbucket.get(path))
+          rescue BitbucketApi::NotFound
+            return Telemetry.result("That step of pipeline #{pipeline['build_number']} in #{repo} published no test reports.", link: pipeline_link(repo, pipeline))
+          end
+          Telemetry.result("Test reports of a step of pipeline #{pipeline['build_number']} in #{repo}:\n\n#{read.join("\n\n")}", link: pipeline_link(repo, pipeline))
         end
 
         def pipeline_steps(environment_row:, arguments:)
@@ -203,13 +243,7 @@ module Integrations
           name = "Pipeline #{pipeline['build_number']} in #{repo}"
           fail! "#{name} is still #{outcome(pipeline)}, so it cannot run again until it finishes. cancel_pipeline stops it." unless finished?(pipeline)
 
-          variables = Array(pipeline["variables"])
-          if variables.any? { |variable| variable["secured"] }
-            fail! "#{name} was given secured variables, which Bitbucket never hands back, so it cannot be run again the same way. A person runs it again in Bitbucket."
-          end
-
-          body = { "target" => same_target(pipeline["target"]), "variables" => variables.map { |variable| variable.slice("key", "value") }.presence }.compact
-          started = changing("run pipeline #{pipeline['build_number']} in #{repo} again") { bitbucket.post("#{BitbucketApi.repository(repo)}/pipelines/", body) }
+          started = start_again(bitbucket, repo, pipeline, name)
           Telemetry.result("Started pipeline #{started['build_number']} (#{started['uuid']}) in #{repo}, running pipeline #{pipeline['build_number']} again " \
                            "on #{pipeline.dig('target', 'ref_name') || 'its commit'} at #{pipeline.dig('target', 'commit', 'hash').to_s[0, 12]}, every " \
                            "step from the start. #{FOLLOW}.", link: pipeline_link(repo, started) || pipeline_link(repo, pipeline))
@@ -221,20 +255,32 @@ module Integrations
           ref_type = arguments["ref_type"].presence || REF_TYPES.first
           fail! "ref_type must be one of #{REF_TYPES.join(', ')}" unless REF_TYPES.include?(ref_type)
 
-          ref = ref_argument(arguments) || bitbucket.get(BitbucketApi.repository(repo)).dig("mainbranch", "name")
-          fail! "#{repo} has no main branch yet, so name a branch or tag with ref." if ref.blank?
-
           custom = arguments["custom"].to_s.strip.presence
+          commit = arguments["commit"].to_s.strip.presence
+          fail! "commit must be a commit's hash" if commit && !commit.match?(SHA_FORMAT)
+
+          # A commit with a custom pipeline and no ref runs that definition on the commit alone (pipeline_commit_target).
+          alone = commit && custom && ref_argument(arguments).nil?
+          ref = ref_argument(arguments) || (bitbucket.get(BitbucketApi.repository(repo)).dig("mainbranch", "name") unless alone)
+          fail! "#{repo} has no main branch yet, so name a branch or tag with ref." if ref.blank? && !alone
+
           variables = variables_argument(arguments)
-          target = { "type" => REF_TARGET, "ref_type" => ref_type, "ref_name" => ref, "selector" => custom && { "type" => CUSTOM, "pattern" => custom } }.compact
-          started = changing("run a pipeline on #{ref} in #{repo}") do
+          selector = custom && { "type" => CUSTOM, "pattern" => custom }
+          on_commit = commit && { "type" => "commit", "hash" => commit }
+          target = if alone
+            { "type" => COMMIT_TARGET, "commit" => on_commit, "selector" => selector }
+          else
+            { "type" => REF_TARGET, "ref_type" => ref_type, "ref_name" => ref, "commit" => on_commit, "selector" => selector }.compact
+          end
+          where = [ ("commit #{commit[0, 12]}" if commit), ("on #{ref}" if ref) ].compact.join(" ")
+          started = changing("run a pipeline #{where} in #{repo}") do
             bitbucket.post("#{BitbucketApi.repository(repo)}/pipelines/", { "target" => target, "variables" => variables.presence }.compact)
           end
           what = custom ? "the custom pipeline #{custom}" : "the pipeline that matches it"
           given = variables.any? ? " with #{variables.map { |variable| variable['key'] }.to_sentence}" : ""
-          text = "Started pipeline #{started['build_number']} (#{started['uuid']}) on #{ref} in #{repo}, #{what}#{given}. #{FOLLOW}."
+          text = "Started pipeline #{started['build_number']} (#{started['uuid']}) #{where} in #{repo}, #{what}#{given}. #{FOLLOW}."
           link = pipeline_link(repo, started)
-          return "#{text} Bitbucket gives a pipeline no page of its own and had not named the commit it builds yet, so there is no link." unless link
+          return "#{text} Bitbucket had not numbered the pipeline yet, so there is no link to its page." unless link
 
           Telemetry.result(text, link: link)
         end
@@ -272,6 +318,18 @@ module Integrations
         end
 
         def finished?(pipeline) = pipeline.dig("state", "name") == COMPLETED
+
+        # A new pipeline on the same target and definition, with the same variables. Secured ones Bitbucket never hands
+        # back, so a pipeline given any cannot be started the same way.
+        def start_again(bitbucket, repo, pipeline, name)
+          variables = Array(pipeline["variables"])
+          if variables.any? { |variable| variable["secured"] }
+            fail! "#{name} was given secured variables, which Bitbucket never hands back, so it cannot be run again the same way. A person runs it again in Bitbucket."
+          end
+
+          body = { "target" => same_target(pipeline["target"]), "variables" => variables.map { |variable| variable.slice("key", "value") }.presence }.compact
+          changing("run pipeline #{pipeline['build_number']} in #{repo} again") { bitbucket.post("#{BitbucketApi.repository(repo)}/pipelines/", body) }
+        end
 
         # The target a pipeline built, as Bitbucket takes it back: the commit, the branch or tag, the pull request and
         # the definition that was chosen.
@@ -319,8 +377,10 @@ module Integrations
 
         def step_name(step) = step["name"].presence || step["uuid"]
 
-        # The commit a pipeline built, since Bitbucket gives a pipeline no page address (see commit_link).
-        def pipeline_link(repo, pipeline) = pipeline.dig("target", "commit", "hash").present? ? commit_link(repo, pipeline.dig("target", "commit", "hash")) : nil
+        # The pipeline's results page, by its build number, as a deployment's release.url names it.
+        def pipeline_link(repo, pipeline) = pipeline_page(repo, pipeline) && link(pipeline_page(repo, pipeline))
+
+        def pipeline_page(repo, pipeline) = pipeline["build_number"].present? ? [ @site, repo, "pipelines", "results", pipeline["build_number"] ].join("/") : nil
 
         def pipeline_line(repo, pipeline)
           "#{pipeline['created_on']}  pipeline #{pipeline['build_number']} #{pipeline['uuid']}  #{outcome(pipeline)}  #{pipeline.dig('target', 'ref_name')}  " \
@@ -332,11 +392,12 @@ module Integrations
         def history_run(repo, pipeline)
           target = pipeline["target"] || {}
           custom = target.dig("selector", "type") == CUSTOM ? target.dig("selector", "pattern").presence : nil
+          held = [ PAUSED, HALTED ].include?(outcome(pipeline)) ? ", #{outcome(pipeline)}, waiting for someone to run its manual step or let its deployment go on in Bitbucket" : ""
           Capabilities::History::Run.new(
             id: pipeline["uuid"].to_s, number: pipeline["build_number"]&.to_s, name: custom || "pipeline on #{target['ref_name'] || 'a commit'}",
             status: Capabilities::History.status(outcome(pipeline), HISTORY_STATUSES),
             started_at: Telemetry.parse_time(pipeline["created_on"]), finished_at: Telemetry.parse_time(pipeline["completed_on"]),
-            url: pipeline_link(repo, pipeline)&.url, detail: "#{target['ref_name'] || 'commit'} at #{target.dig('commit', 'hash').to_s[0, 12]}"
+            url: pipeline_page(repo, pipeline), detail: "#{target['ref_name'] || 'commit'} at #{target.dig('commit', 'hash').to_s[0, 12]}#{held}"
           )
         end
 
@@ -351,7 +412,7 @@ module Integrations
         def history_part(repo, pipeline, step)
           Capabilities::History::Part.new(
             id: step["uuid"].to_s, name: step_name(step), status: Capabilities::History.status(outcome(step), HISTORY_STATUSES),
-            started_at: Telemetry.parse_time(step["started_on"]), finished_at: Telemetry.parse_time(step["completed_on"]),
+            started_at: Telemetry.parse_time(step["started_on"]), finished_at: Telemetry.parse_time(step["completed_on"]), url: pipeline_page(repo, pipeline),
             log: { Capabilities::History::LOG_TOOL => "job_log",
                    Capabilities::History::LOG_ARGUMENTS => { "repo" => repo, "pipeline" => pipeline["uuid"], "step" => step["uuid"] } }
           )

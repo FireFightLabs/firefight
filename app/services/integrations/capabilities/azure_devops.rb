@@ -8,8 +8,9 @@ module Integrations
 
       HOST = "Azure DevOps".freeze
       KINDS = [ ResourceMap::KIND_REPOSITORY, ResourceMap::KIND_PIPELINE ].freeze
-      SUPPORTS = CodeHostAdapter::SUPPORTS.transform_values { KINDS }.freeze
-      TOOLS = CodeHostAdapter::TOOLS
+      # The pack has no redeploy, so a rollback is not offered through it.
+      SUPPORTS = CodeHostAdapter::SUPPORTS.except(ROLLBACK).transform_values { KINDS }.freeze
+      TOOLS = CodeHostAdapter::TOOLS.except(ROLLBACK).freeze
       WRAPPED = CodeHostAdapter::WRAPPED
 
       def self.subject(name) = "the repositories and pipelines #{name} puts on the map"

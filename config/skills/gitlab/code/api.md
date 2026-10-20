@@ -1,6 +1,6 @@
 ---
 name: gitlab_api
-when: A question about GitLab that the other GitLab tools do not answer, such as a project's environments and their protections, protected branches, releases, members, container registry or a group's settings, or anything else GitLab's REST API reads, and finding out whether GitLab's API offers a read at all
+when: A question about GitLab that the other GitLab tools do not answer, such as a project's protected branches, members, container registry or a group's settings, or anything else GitLab's REST API reads, and finding out whether GitLab's API offers a read at all
 tools: [api_read, list_projects]
 references: [api/index.md]
 ---
