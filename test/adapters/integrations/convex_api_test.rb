@@ -35,6 +35,24 @@ module Integrations
       assert_raises(Integrations::RateLimited) { @api.canonical_urls }
     end
 
+    test "pausing, unpausing and the webhook log stream post to the paths Convex's spec gives, with the key" do
+      Http.expects(:request).with { |uri, request, **| uri.path == "/api/v1/pause_deployment" && request.method == "POST" && request["Authorization"].start_with?("Convex ") }
+          .returns(response(200, {}))
+      Http.expects(:request).with { |uri, request, **| uri.path == "/api/v1/unpause_deployment" && request.method == "POST" }.returns(response(200, {}))
+      Http.expects(:request).with do |uri, request, **|
+        uri.path == "/api/v1/create_log_stream" &&
+          JSON.parse(request.body) == { "logStreamType" => "webhook", "url" => "https://ff.test/hook", "format" => "json", "topics" => [ "audit_log" ] }
+      end.returns(response(200, { id: "ls1", hmacSecret: "s3cret", logStreamType: "webhook" }))
+      Http.expects(:request).with { |uri, request, **| uri.path == "/api/v1/delete_log_stream/ls1" && request.method == "POST" }.returns(response(200, {}))
+      Http.expects(:request).with { |uri, _request, **| uri.path == "/api/v1/list_usage_limits" }.returns(response(200, { usageLimits: [ { id: "l1" } ] }))
+
+      @api.pause
+      @api.unpause
+      assert_equal "s3cret", @api.create_webhook_stream(url: "https://ff.test/hook", topics: [ "audit_log" ])["hmacSecret"]
+      @api.delete_log_stream("ls1")
+      assert_equal [ { "id" => "l1" } ], @api.usage_limits
+    end
+
     private
 
     def response(code, body)

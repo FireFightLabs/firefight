@@ -32,6 +32,18 @@ module Integrations
         assert_equal "https://dash.cloudflare.com/#{ACCOUNT}/pages/view/docs", project.url
       end
 
+      test "a Worker's read opens its own page, its deployments or versions its Deployments tab, and a Workers build the list it is in" do
+        link = ->(path) { @links.link(tool_name: Cloudflare::EXECUTE, arguments: { "code" => "cloudflare.request({ method: 'GET', path: '#{path}' })" }).url }
+        worker = "https://dash.cloudflare.com/#{ACCOUNT}/workers/services/view/edge-api/production"
+
+        assert_equal worker, link.call("/accounts/#{ACCOUNT}/workers/scripts/edge-api/settings")
+        assert_equal "#{worker}/deployments", link.call("/accounts/#{ACCOUNT}/workers/scripts/edge-api/deployments")
+        assert_equal "#{worker}/deployments", link.call("/accounts/#{ACCOUNT}/workers/scripts/edge-api/versions")
+        assert_equal "https://dash.cloudflare.com/#{ACCOUNT}/workers-and-pages", link.call("/accounts/#{ACCOUNT}/workers/scripts")
+        assert_equal "https://dash.cloudflare.com/#{ACCOUNT}/workers-and-pages", link.call("/accounts/#{ACCOUNT}/builds/builds/b-1/logs")
+        assert_equal "https://dash.cloudflare.com/#{ACCOUNT}/pages/view/docs/d2a1-4b", link.call("/accounts/#{ACCOUNT}/pages/projects/docs/deployments/d2a1-4b/retry")
+      end
+
       test "no link for a page it cannot name: several paths, one the table does not know, or an answer across several zones" do
         several = "cloudflare.request({ path: `/zones/${a}/dns_records` }); cloudflare.request({ path: `/accounts/${b}/queues` })"
         many_zones = %([{"zone_name":"a.app"},{"zone_name":"b.app"}])
