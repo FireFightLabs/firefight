@@ -738,7 +738,7 @@ providers:
     color: "#00c7b7"
     status_page: { url: https://www.netlifystatus.com, feed: statuspage }
     hosts: [ api.netlify.com, netlify.app, netlify.com ]
-    description: Deploys and state of your Netlify sites, and rolling a site back to an earlier deploy when you allow it.
+    description: Deploys and state of your Netlify sites, and rolling a site back to an earlier deploy, locking auto publishing, canceling a deploy or starting a build when you allow it.
     server_url: ""
     kind: native
     connect_with: api_token
@@ -749,6 +749,7 @@ providers:
     scaling: none
     scaling_note: "It builds and serves sites from its edge network, which run no copies of a service."
     history: firefight
+    stopping_tools: [cancel_deploy]
   - key: convex
     name: Convex
     category: Cloud and hosting
@@ -923,7 +924,7 @@ providers:
     color: "#000000"
     status_page: { url: https://www.vercel-status.com, feed: statuspage }
     hosts: [ api.vercel.com, vercel.app, vercel.com ]
-    description: Projects, deployments and their build and runtime logs, and instant rollback or promotion of a deployment when you allow it.
+    description: Projects, deployments and their build and runtime logs, metrics, rolling releases and Vercel CI runs, and rolling back, promoting, canceling or redeploying a deployment, or moving a rolling release on or stopping it, when you allow it.
     server_url: ""
     site: https://vercel.com
     kind: native
@@ -936,6 +937,7 @@ providers:
     scaling: none
     scaling_note: "It runs functions on demand and says no count of copies."
     history: firefight
+    stopping_tools: [cancel_deployment, abort_rolling_release]
   - key: render
     name: Render
     category: Cloud and hosting
@@ -984,7 +986,7 @@ providers:
     color: "#24175b"
     status_page: { url: https://status.flyio.net, feed: statuspage }
     hosts: [ api.fly.io, fly.dev, fly.io ]
-    description: Logs, metrics, releases and machines of the apps in a Fly.io organization, and restarts and rollbacks when you allow it.
+    description: Logs, metrics, releases and machines of the apps in a Fly.io organization, with a Managed Postgres cluster's slow and running queries, and restarting, rolling back, scaling, resizing, starting, stopping, suspending or cordoning machines when you allow it.
     server_url: ""
     site: https://fly.io
     kind: native
@@ -996,6 +998,7 @@ providers:
     scaling: firefight
     scaling_note: "An app counts its Machines."
     history: firefight
+    stopping_tools: [stop_app, suspend_app, cordon_machine]
   - key: sentry
     name: Sentry
     category: Observability

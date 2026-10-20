@@ -1,9 +1,10 @@
 module Integrations
   module Packs
     # Netlify for every site a personal access token reaches: how each stands, what it was deployed from, and putting it
-    # back on an earlier deploy when that is switched on. Paths, parameters and fields come from Netlify's OpenAPI
-    # document (netlify/open-api, swagger.yml), and the rollback from its Manage deploys guide. Netlify's REST API keeps
-    # no function logs, build logs or traffic metrics, so this pack reads none, and with no metrics it has no baselines.
+    # back on an earlier deploy, locking auto publishing there, canceling a deploy or building again when that is switched
+    # on. Paths, parameters and fields come from Netlify's OpenAPI document (netlify/open-api, swagger.yml), and the
+    # rollback from its Manage deploys guide. Netlify's REST API keeps no function logs, build logs or traffic metrics, so
+    # this pack reads none, and with no metrics it has no baselines.
     class Netlify < NativePack
       # The environment row's credentials, which only this pack reads.
       API_TOKEN = "api_token".freeze
@@ -78,8 +79,51 @@ module Integrations
            summary: "Publishes an earlier deploy of a site as its live version.",
            description: "Publish an earlier deploy of a site as its live version, without building again. Netlify keeps every " \
                         "deploy, so this is instant, and it can be undone by restoring the deploy that was live before. A later " \
-                        "production deploy from Git publishes over it while auto publishing is on",
+                        "production deploy from Git publishes over it while auto publishing is on, so lock_deploy keeps it",
            params_schema: { "type" => "object", "properties" => { "site" => SITE, "deploy" => DEPLOY }, "required" => %w[site deploy] },
+           read_only: false
+
+      tool :lock_deploy,
+           summary: "Locks a site's auto publishing on one deploy, so Git pushes stop going live.",
+           description: "Keep a site on one published deploy by locking auto publishing to it, such as after restore_deploy, so " \
+                        "a later production deploy from Git still builds but does not go live until unlock_deploy. Takes the " \
+                        "deploy that is live, or names it",
+           params_schema: {
+             "type" => "object",
+             "properties" => { "site" => SITE, "deploy" => DEPLOY.merge("description" => "#{DEPLOY['description']} (optional, the live one)") },
+             "required" => [ "site" ]
+           },
+           read_only: false
+
+      tool :unlock_deploy,
+           summary: "Unlocks a site's auto publishing, so new production deploys go live again.",
+           description: "Turn a site's auto publishing back on after lock_deploy, so its next production deploy goes live when " \
+                        "it is ready. Deploys that built while it was locked stay as they are until one is published",
+           params_schema: { "type" => "object", "properties" => { "site" => SITE }, "required" => [ "site" ] },
+           read_only: false
+
+      tool :cancel_deploy,
+           summary: "Stops a site's deploy that is still building.",
+           description: "Stop a deploy of a site that is still queued, building or uploading, such as one from the wrong branch " \
+                        "or one known to be broken, so it never goes live. A deploy that is ready or failed cannot be canceled, " \
+                        "and trigger_build builds again",
+           params_schema: { "type" => "object", "properties" => { "site" => SITE, "deploy" => DEPLOY }, "required" => %w[site deploy] },
+           read_only: false
+
+      tool :trigger_build,
+           summary: "Starts a new build and deploy of a site from its repository.",
+           description: "Build a site again from its repository, its production branch unless a branch is named, as a new deploy, " \
+                        "such as to retry a build that failed for a passing reason. clear_cache builds without Netlify's build " \
+                        "cache. A production deploy goes live when ready unless auto publishing is locked",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "site" => SITE,
+               "branch" => { "type" => "string", "description" => "The branch to build (optional, the production branch)" },
+               "clear_cache" => { "type" => "boolean", "description" => "Build without the build cache (optional, false)" }
+             },
+             "required" => [ "site" ]
+           },
            read_only: false
 
       tool :api_read,
@@ -97,7 +141,7 @@ module Integrations
         [
           CredentialField.new(key: API_TOKEN, label: "Personal access token", secret: true, placeholder: "nfp_...",
                               hint: "A Netlify personal access token, from User settings, Applications. Make it as a dedicated user, such as Firefight, so changes do not show as a teammate and the connection keeps working when someone leaves. It reaches every site its user " \
-                                    "can. restore_deploy is its one tool that changes anything, and a member needs a grant to use it.")
+                                    "can. Restoring, locking and unlocking a deploy, canceling one and starting a build are its changes, and a member needs a grant to use them.")
         ]
       end
 
@@ -195,9 +239,63 @@ module Integrations
         before = site.dig("published_deploy", "id")
         restored = api(environment_row).restore(site["id"], id)
         undo = before && before != id ? " To undo it, restore deploy #{before}, which was live before." : ""
-        text = "#{site['name']} now serves deploy #{id}.#{undo} A later production deploy from Git publishes over it while auto publishing is on."
+        text = "#{site['name']} now serves deploy #{id}.#{undo} " \
+               "A later production deploy from Git publishes over it while auto publishing is on, and lock_deploy keeps this one " \
+               "live until unlock_deploy."
         Telemetry.result(text, link: deploy_link(restored) || site_link(site))
       end
+
+      # Locks the deploy that is live unless one is named, which must be the site's own (lockDeploy).
+      def lock_deploy(environment_row:, arguments:)
+        site = api(environment_row).site(find_site(environment_row, arguments["site"])["id"])
+        id = arguments["deploy"].to_s.strip.presence || site.dig("published_deploy", "id") || fail!("#{site['name']} serves no deploy, so there is nothing to lock.")
+        deploy = own_deploy(environment_row, site, id)
+        fail!("Deploy #{id} of #{site['name']} is locked already.") if deploy["locked"]
+
+        locked = api(environment_row).lock_deploy(id)
+        Telemetry.result("#{site['name']} keeps auto publishing locked on deploy #{id}, so a production deploy from Git builds but does not " \
+                         "go live. unlock_deploy turns auto publishing back on.", link: deploy_link(locked) || deploy_link(deploy) || site_link(site))
+      end
+
+      # Unlocks the live deploy, which is the one auto publishing is locked on (unlockDeploy).
+      def unlock_deploy(environment_row:, arguments:)
+        site = api(environment_row).site(find_site(environment_row, arguments["site"])["id"])
+        live = site["published_deploy"].to_h
+        fail!("Auto publishing of #{site['name']} is not locked, so there is nothing to unlock.") unless live["locked"] && live["id"].present?
+
+        unlocked = api(environment_row).unlock_deploy(live["id"])
+        Telemetry.result("#{site['name']} publishes its next production deploy again when it is ready. lock_deploy locks it again.",
+                         link: deploy_link(unlocked) || site_link(site))
+      end
+
+      # Only a deploy of the named site that has not ended (cancelSiteDeploy).
+      def cancel_deploy(environment_row:, arguments:)
+        site = find_site(environment_row, arguments["site"])
+        deploy = own_deploy(environment_row, site, deploy_id(arguments))
+        if ENDED.include?(deploy["state"])
+          fail!("Deploy #{deploy['id']} of #{site['name']} is #{deploy['state']} already, so there is nothing to cancel. trigger_build builds again.")
+        end
+
+        canceled = api(environment_row).cancel_deploy(deploy["id"])
+        Telemetry.result("Netlify stopped deploy #{deploy['id']} of #{site['name']}, which is now #{canceled['state'] || 'canceled'} and never goes live. " \
+                         "trigger_build builds again.", link: deploy_link(canceled) || deploy_link(deploy) || site_link(site))
+      end
+
+      # A build of the production branch, or the one named, through createSiteBuild.
+      def trigger_build(environment_row:, arguments:)
+        site = find_site(environment_row, arguments["site"])
+        clear = ActiveModel::Type::Boolean.new.cast(arguments["clear_cache"]) == true
+        build = api(environment_row).create_build(site["id"], branch: arguments["branch"].to_s.strip.presence, clear_cache: clear)
+        deploy = build["deploy_id"].presence
+        made = deploy ? "deploy #{deploy}" : "a new deploy"
+        text = "Netlify is building #{made} of #{site['name']}#{" from #{arguments['branch'].to_s.strip}" if arguments['branch'].present?}" \
+               "#{' without its build cache' if clear}.#{" deploy_history with run #{deploy} follows it." if deploy}"
+        link = deploy && site["admin_url"].present? ? deploy_link("admin_url" => site["admin_url"], "id" => deploy) : site_link(site)
+        Telemetry.result(text, link: link)
+      end
+
+      # Deploy states after which a deploy no longer changes (swagger.yml, deploy.state).
+      ENDED = %w[ready error rejected].freeze
 
       # A GET the read guard let through (ReadGuards::Netlify). The connection is the token's, which reaches every site its
       # user can, so a read reaches what the token does and nothing narrows it further.
@@ -392,6 +490,13 @@ module Integrations
         Capabilities::Deploys::Deploy.new(id: deploy["id"], commit: deploy["commit_ref"], branch: deploy["branch"], status: status,
                                           live: (deploy["id"] == live if live.present?), started_at: deploy["created_at"], finished_at: finished,
                                           environment: deploy["context"])
+      end
+
+      # A deploy read under its site, so one of another site is refused.
+      def own_deploy(environment_row, site, id)
+        api(environment_row).deploy(site["id"], id)
+      rescue NetlifyApi::NotFound
+        fail!("#{site['name']} has no deploy #{id}. list_deploys shows its deploys.")
       end
 
       def deploy_id(arguments)

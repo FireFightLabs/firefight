@@ -25,7 +25,10 @@ module Integrations
       # deploy_succeeded_after_failing), which only repeat these.
       BUILDING = "deploy_building".freeze
       FAILED = "deploy_failed".freeze
-      EVENTS = [ *MAP_EVENTS, BUILDING, FAILED ].freeze
+      # A deploy from someone the site does not trust waits for a team member to approve it, and is accepted and built or
+      # rejected (netlify/netlify-mcp events/registry.ts, deploy_request.*), which changes nothing on the map either.
+      DEPLOY_REQUESTS = %w[deploy_request_pending deploy_request_accepted deploy_request_rejected].freeze
+      EVENTS = [ *MAP_EVENTS, BUILDING, FAILED, *DEPLOY_REQUESTS ].freeze
       DEPLOY_ENDS = { PUBLISHED => RunsEnded::OUTCOME_SUCCEEDED, FAILED => RunsEnded::OUTCOME_FAILED }.freeze
       PROVIDER_NAME = "Netlify".freeze
       # A deploy preview or branch deploy is not what the site serves.
