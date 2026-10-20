@@ -634,7 +634,7 @@ providers:
     color: "#f38020"
     status_page: { url: https://www.cloudflarestatus.com, feed: statuspage }
     hosts: [ api.cloudflare.com, workers.dev, pages.dev, r2.cloudflarestorage.com ]
-    description: Read traffic, security events, DNS and cache, and block IPs, add rules or purge the cache when you allow it.
+    description: Read traffic, security events, DNS, cache, Workers and Pages, and block IPs, add rules, purge the cache, retry a Pages deployment, cancel a Workers build or split a Worker's traffic when you allow it.
     server_url: https://mcp.cloudflare.com/mcp
     # The server marks only execute as a write. search reads the API's own spec and docs reads the documentation.
     read_only_tools: [search, docs]
@@ -647,10 +647,16 @@ providers:
     scaling: none
     scaling_note: "Its Workers and sites run at every edge location on demand, so there is no count of copies to read."
     history: firefight
+    # retry_pages_deployment, cancel_workers_build and split_worker_traffic are Firefight's own tools on the server
+    # (Integrations::NamedTools::Cloudflare). Cancelling a build ends what someone's push started.
+    stopping_tools: [cancel_workers_build]
     # What a person reads beside each tool, by the name Firefight gives it (Integrations::ToolSummaries).
     tool_summaries:
       docs: "Searches the Cloudflare documentation."
       execute: "Reads, creates, updates or deletes resources in the Cloudflare account."
+      retry_pages_deployment: "Runs a failed Cloudflare Pages deployment again."
+      cancel_workers_build: "Cancels a queued or running Cloudflare Workers build."
+      split_worker_traffic: "Splits a Cloudflare Worker's traffic between two of its versions."
       search: "Searches the Cloudflare API reference for the right operation."
       whoami: "Shows the Cloudflare user or account this connection signs in as."
   - key: kubernetes
@@ -690,7 +696,8 @@ providers:
     color: "#1b1d1a"
     status_page: { url: https://status.modal.com, feed: page }
     hosts: [ modal.run, api.modal.com ]
-    description: Logs, functions and deployment history of your Modal apps, and rolling an app back, rolling over its containers or changing a function's autoscaler when you allow it.
+    description: Logs, functions, containers and deployment history of your Modal apps, and rolling an app back, rolling over or stopping its containers, changing a function's autoscaler or stopping an app when you allow it.
+    stopping_tools: [stop_container, stop_app]
     site: https://modal.com
     server_url: ""
     kind: native
@@ -750,7 +757,9 @@ providers:
     color: "#ee342f"
     status_page: { url: https://status.convex.dev, feed: statuspage }
     hosts: [ convex.cloud, convex.site ]
-    description: Function logs, errors, pushes and state of a Convex deployment.
+    description: Function logs, errors, pushes, usage and state of a Convex deployment, and pausing or unpausing it when you allow it.
+    # Pausing fails every function call until it is unpaused, a stop customers feel for a while.
+    mitigation_tools: [pause_deployment]
     site: https://dashboard.convex.dev
     server_url: ""
     kind: native

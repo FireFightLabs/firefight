@@ -6,7 +6,7 @@ references: [insights/SKILL.md]
 ---
 Work from the outside in, and stop as soon as one of these explains what was reported.
 
-1. Call `resource_status` for the deployment. A deployment that was paused, or stopped because it went over a usage limit, fails every function call, so a recent pause or stop is the answer on its own. Say who did it and when, from the audit log line.
+1. Call `resource_status` for the deployment. A deployment that was paused, or stopped because it went over a usage limit, fails every function call, so a recent pause or stop is the answer on its own. Say who did it and when, from the audit log line. For a stop by a usage limit, load the convex_usage skill.
 2. Call `search_errors` for the window. A function failing far more often than the rest is where to look, so load the convex_errors skill. Errors about reading too much, running too long or write conflicts belong to the convex_limits skill.
 3. Call `recent_deploys`. A push shortly before the trouble began is the first suspect, so load the convex_changes skill.
 4. Read what the functions printed with `search_logs` around the moment it started, with `text` set to the function or the message the person saw.
