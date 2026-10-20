@@ -1,6 +1,8 @@
 module Integrations
   module SourceLinks
-    # A list of a project's runs links to that project's pipelines page in CircleCI's app, on its registry site. CircleCI's
+    # For a connection through CircleCI's hosted MCP server, whose answers carry no page. The pack's own connection links
+    # every answer itself (Packs::Circleci). A list of a project's runs links to that project's pipelines page in CircleCI's
+    # app, on its registry site. CircleCI's
     # docs give the address as app.circleci.com/pipelines/<VCS>/<org>/<project> (security/pages/rename-organizations-and-repositories.adoc)
     # and show it with github and circleci as the first segment (reference/pages/outbound-webhooks-reference.adoc), the
     # long forms its API spec lists beside gh and bb. Every other tool is keyed by an id whose page needs the pipeline's
@@ -8,7 +10,7 @@ module Integrations
     class Circleci
       PROVIDER = Capabilities::Circleci::PROVIDER_KEY
       NAME = "CircleCI".freeze
-      LIST_RUNS = Capabilities::Circleci::TOOLS.fetch(Capabilities::STATUS)
+      LIST_RUNS = Capabilities::Circleci::LIST_RUNS
       PIPELINES = "pipelines".freeze
       # The vcs segment of a project slug, short or long, as the app's address writes it.
       VCS = { "gh" => "github", "github" => "github", "bb" => "bitbucket", "bitbucket" => "bitbucket", "circleci" => "circleci" }.freeze
