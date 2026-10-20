@@ -2,11 +2,12 @@ require "test_helper"
 
 module Integrations
   module ReadGuards
-    # The read guards of GitHub, GitLab and Bitbucket, each only ever a GET, so what they settle is which GETs answer
+    # The read guards of GitHub, GitLab, Bitbucket and Azure DevOps, each only ever a GET, so what they settle is which GETs answer
     # secrets or a download.
     class CodeHostsTest < ActiveSupport::TestCase
       test "each guards api_read only, and a plain GET reads" do
-        { Github => "/repos/acme/web/environments", Gitlab => "/projects/12/environments", Bitbucket => "/repositories/acme/web/environments" }.each do |guard, path|
+        { Github => "/repos/acme/web/environments", Gitlab => "/projects/12/environments", Bitbucket => "/repositories/acme/web/environments",
+          AzureDevops => "/Shop/_apis/distributedtask/environments" }.each do |guard, path|
           assert guard.guards?(ApiReads::TOOL)
           assert_not guard.guards?("fetch_file")
           assert guard.reads?(ApiReads::TOOL, "path" => path, "query" => { "per_page" => 5 }), path
@@ -50,6 +51,22 @@ module Integrations
         end
         assert Bitbucket.reads?(ApiReads::TOOL, "path" => "/repositories/acme/web/downloads")
         assert Bitbucket.webhooks?("/repositories/acme/web/hooks")
+      end
+
+      test "Azure DevOps' run logs, artifacts, file contents, secure files and tokens are refused, its variables are read as names, and its service hooks keep their host" do
+        %w[/Shop/_apis/build/builds/7/logs/3 /Shop/_apis/pipelines/12/runs/7/logs /Shop/_apis/build/builds/7/artifacts
+           /Shop/_apis/git/repositories/checkout/items /Shop/_apis/distributedtask/securefiles/4 /_apis/tokens/pats].each do |path|
+          assert_raises(PolicyRefusal, path) { AzureDevops.reading(ApiReads::TOOL, "path" => path) }
+        end
+        %w[/Shop/_apis/distributedtask/variablegroups /Shop/_apis/serviceendpoint/endpoints /Shop/_apis/build/definitions/12 /Shop/_apis/pipelines/12/runs/7
+           /_apis/hooks/subscriptions].each do |path|
+          assert AzureDevops.secret?(path), path
+        end
+        assert_not AzureDevops.secret?("/Shop/_apis/pipelines/approvals")
+        assert_not AzureDevops.secret?("/Shop/_apis/build/builds/7")
+        assert AzureDevops.webhooks?("/_apis/hooks/subscriptions")
+        assert AzureDevops.organization_read?("/_apis/projects")
+        assert_not AzureDevops.organization_read?("/_apis/hooks/subscriptions")
       end
     end
   end

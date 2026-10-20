@@ -356,6 +356,29 @@ azure:
     sql/troubleshoot-common-errors-issues.md: sql-docs/live/azure-sql/database/troubleshoot-common-errors-issues.md
     monitor/diagnostic-settings.md: azure-monitor-docs/main/articles/azure-monitor/data-collection/diagnostic-settings.md
 
+# Azure DevOps' documentation (github.com/MicrosoftDocs/azure-devops-docs) is CC BY 4.0. Each page is read as the
+# markdown source Microsoft publishes there.
+azure_devops:
+  site: https://raw.githubusercontent.com/MicrosoftDocs/azure-devops-docs/main/docs
+  page_url: "%<site>s/%<page>s"
+  license: |
+    These guides are pages of Microsoft's Azure DevOps documentation (https://learn.microsoft.com/azure/devops), copied
+    unchanged from the markdown sources Microsoft publishes in MicrosoftDocs/azure-devops-docs on GitHub. They are
+    licensed under the Creative Commons Attribution 4.0 International license, https://creativecommons.org/licenses/by/4.0/,
+    and their code samples under the MIT license. Copyright Microsoft Corporation.
+  pages:
+    pipelines/troubleshooting.md: pipelines/troubleshooting/troubleshooting.md
+    pipelines/review-logs.md: pipelines/troubleshooting/review-logs.md
+    pipelines/troubleshoot-start.md: pipelines/troubleshooting/troubleshoot-start.md
+    pipelines/runs.md: pipelines/process/runs.md
+    pipelines/stages.md: pipelines/process/stages.md
+    pipelines/approvals.md: pipelines/process/approvals.md
+    pipelines/environments.md: pipelines/process/environments.md
+    pipelines/deployment-jobs.md: pipelines/process/deployment-jobs.md
+    pipelines/service-containers.md: pipelines/process/service-containers.md
+    repos/pull-requests.md: repos/git/pull-requests.md
+    repos/branch-policies.md: repos/git/branch-policies.md
+
 # Fly.io's documentation (github.com/superfly/docs) is Apache 2.0. Each page is read as the markdown Fly serves at
 # <page>.md.
 fly:

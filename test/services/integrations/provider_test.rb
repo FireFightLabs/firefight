@@ -117,7 +117,7 @@ module Integrations
     test "every provider whose pack reads code is a code host, so its connections keep the paths Halon may not change" do
       reads_code = IntegrationProvider.all.select { |entry| Provider.for(entry.key).pack&.include?(Packs::CodeHost::Code) }.map(&:key)
 
-      assert_equal %w[bitbucket github gitlab], reads_code.sort
+      assert_equal %w[azure_devops bitbucket github gitlab], reads_code.sort
       assert_equal reads_code.sort, IntegrationProvider.all.select(&:holds_code).map(&:key).sort
     end
 

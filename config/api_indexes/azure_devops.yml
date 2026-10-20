@@ -1,0 +1,99 @@
+# Azure DevOps's key reads through api_read, at most 40, which close the azure_devops_api skill
+# (Integrations::ApiIndex). Edit a read's call, purpose or query here, then run bin/rails provider_docs:api_indexes.
+tool: api_read
+skill: azure_devops_api
+source: https://learn.microsoft.com/rest/api/azure/devops
+reads:
+  - call: GET /_apis/projects
+    purpose: The organization's projects this token can read.
+    query: [ $top, continuationToken ]
+  - call: GET /{project}/_apis/git/repositories
+    purpose: A project's Git repositories, with each default branch and web address.
+  - call: GET /{project}/_apis/git/repositories/{repositoryId}/refs
+    purpose: A repository's branches and tags, each with the commit it points at.
+    query: [ filter, peelTags, $top, continuationToken ]
+  - call: GET /{project}/_apis/git/repositories/{repositoryId}/pullrequests
+    purpose: A repository's pull requests, by status, branch or who made them.
+    query: [ searchCriteria.status, searchCriteria.targetRefName, searchCriteria.creatorId, $top, $skip ]
+  - call: GET /{project}/_apis/git/repositories/{repositoryId}/pullRequests/{pullRequestId}/threads
+    purpose: A pull request's comment threads and their status.
+  - call: GET /{project}/_apis/git/repositories/{repositoryId}/commits/{commitId}/statuses
+    purpose: The statuses services posted on a commit, such as a build's.
+  - call: GET /{project}/_apis/policy/configurations
+    purpose: The project's branch policies, such as required reviewers and build validation.
+    query: [ policyType, $top, continuationToken ]
+  - call: GET /{project}/_apis/policy/evaluations
+    purpose: How each branch policy stands on a pull request.
+    query: [ api-version=7.1-preview.1, artifactId, includeNotApplicable, $top, $skip ]
+  - call: GET /{project}/_apis/build/definitions
+    purpose: The project's pipelines, by name, folder or repository.
+    query: [ name, path, repositoryId, repositoryType, includeLatestBuilds, $top, continuationToken ]
+  - call: GET /{project}/_apis/build/definitions/{definitionId}
+    purpose: One pipeline, with its repository, triggers and queue status.
+  - call: GET /{project}/_apis/build/builds
+    purpose: The project's runs, newest first, by pipeline, branch, status or result.
+    query: [ definitions, branchName, statusFilter, resultFilter, reasonFilter, minTime, maxTime, queryOrder, $top, continuationToken ]
+  - call: GET /{project}/_apis/build/builds/{buildId}
+    purpose: One run, with its pipeline, branch, commit, who asked for it and its outcome.
+  - call: GET /{project}/_apis/build/builds/{buildId}/timeline
+    purpose: A run's stages, jobs and steps, each with its outcome, errors and log id.
+  - call: GET /{project}/_apis/build/builds/{buildId}/changes
+    purpose: The commits a run built that the run before it did not.
+    query: [ $top, continuationToken ]
+  - call: GET /{project}/_apis/build/builds/{buildId}/workitems
+    purpose: The work items linked to the commits a run built.
+    query: [ $top ]
+  - call: GET /{project}/_apis/build/builds/{buildId}/tags
+    purpose: The tags on a run.
+  - call: GET /{project}/_apis/pipelines
+    purpose: The project's pipelines, as the Pipelines API lists them.
+    query: [ orderBy, $top, continuationToken ]
+  - call: GET /{project}/_apis/pipelines/{pipelineId}/runs/{runId}
+    purpose: One run of a pipeline, with its state, result and the resources it ran with.
+  - call: GET /{project}/_apis/pipelines/approvals
+    purpose: The approvals runs wait on, by state, with their steps.
+    query: [ state, approvalIds, $expand, top ]
+  - call: GET /{project}/_apis/distributedtask/environments
+    purpose: The project's environments.
+    query: [ name, $top, continuationToken ]
+  - call: GET /{project}/_apis/distributedtask/environments/{environmentId}
+    purpose: One environment, with the resources it holds.
+    query: [ expands ]
+  - call: GET /{project}/_apis/distributedtask/environments/{environmentId}/environmentdeploymentrecords
+    purpose: What an environment received, newest first, with the run, stage and job of each deployment.
+    query: [ top, continuationToken ]
+  - call: GET /{project}/_apis/distributedtask/variablegroups
+    purpose: The project's variable groups, with their variables as names.
+    query: [ groupName, $top, continuationToken ]
+  - call: GET /{project}/_apis/serviceendpoint/endpoints
+    purpose: The project's service connections, with their type and address.
+    query: [ type, includeFailed ]
+  - call: GET /{project}/_apis/release/definitions
+    purpose: The project's classic release pipelines.
+    query: [ searchText, $top, continuationToken ]
+  - call: GET /{project}/_apis/release/releases
+    purpose: Classic releases, newest first, by release pipeline or status.
+    query: [ definitionId, statusFilter, $top, continuationToken ]
+  - call: GET /{project}/_apis/release/releases/{releaseId}
+    purpose: One classic release, with its artifacts and the state of each stage.
+  - call: GET /{project}/_apis/release/deployments
+    purpose: Classic release deployments, newest first, by release pipeline, stage or status.
+    query: [ definitionId, definitionEnvironmentId, deploymentStatus, queryOrder, $top, continuationToken ]
+  - call: GET /{project}/_apis/release/approvals
+    purpose: Classic release approvals, such as those still pending.
+    query: [ statusFilter, releaseIdsFilter, $top, continuationToken ]
+  - call: GET /{project}/_apis/test/runs
+    purpose: The project's test runs, by run or build.
+    query: [ buildUri, includeRunDetails, $top, $skip ]
+  - call: GET /{project}/_apis/test/runs/{runId}/results
+    purpose: A test run's results, by outcome.
+    query: [ outcomes, $top, $skip ]
+  - call: GET /_apis/distributedtask/pools
+    purpose: The organization's agent pools.
+    query: [ poolName, poolType ]
+  - call: GET /_apis/distributedtask/pools/{poolId}/agents
+    purpose: A pool's agents, whether each is online and what it is running.
+    query: [ includeAssignedRequest, includeLastCompletedRequest ]
+  - call: GET /{project}/_apis/wit/workitems/{id}
+    purpose: One work item, with its fields.
+    query: [ $expand, fields ]

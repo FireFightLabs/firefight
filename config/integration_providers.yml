@@ -233,6 +233,41 @@ providers:
     history: firefight
     holds_code: true
     stopping_tools: [cancel_pipeline]
+  - key: azure_devops
+    safe_tools: [run_tests]
+    safe_until_outside_tools: [run_tests]
+    name: Azure DevOps
+    category: Code
+    mark: AD
+    color: "#0078d4"
+    status_page: { url: https://status.dev.azure.com, feed: page }
+    hosts: [ dev.azure.com, vsrm.dev.azure.com ]
+    description: Pull requests, pipeline runs, deployments, releases and code of your Azure DevOps projects, and run, rerun or cancel a pipeline or answer an approval when you allow it.
+    # Azure DevOps' hosted MCP server signs in only with Microsoft Entra, with no dynamic client registration and no token
+    # (learn.microsoft.com/azure/devops/mcp-server/remote-mcp-server), and has no environments, approvals, blame or service
+    # hooks, so the pack reads the REST API itself.
+    server_url: ""
+    kind: native
+    connect_with: api_token
+    connect_fields:
+      - key: organization
+        label: Organization
+        hint: Your organization's name, the part after dev.azure.com/ in its address.
+        placeholder: fabrikam
+        pattern: "[A-Za-z0-9][A-Za-z0-9-]{0,49}"
+        allowed: letters, numbers and dashes, starting with a letter or number
+      - key: project
+        label: Projects
+        hint: The projects this connection reads. Choose one or several, or all this token can read, which takes in a project added later at the next sweep.
+        placeholder: Choose projects
+        scope: true
+    source_links: firefight
+    map: firefight
+    scaling: none
+    scaling_note: "It holds repositories and runs CI, which run no copies of a service."
+    history: firefight
+    holds_code: true
+    stopping_tools: [cancel_pipeline]
   - key: circleci
     name: CircleCI
     category: CI
