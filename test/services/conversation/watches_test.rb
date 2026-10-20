@@ -473,6 +473,27 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_match "It reads: web crashed on boot", watch.outcome
   end
 
+  test "a run held for someone to approve or start it is said once as waiting, a job of it or the run as a whole, rather than looking queued" do
+    Investigation.stubs(:unavailable_reason).returns(nil)
+    answers("ci_runs" => History.result(finished_runs("Deploy", 7.minutes), what: "repo"))
+    Conversation::Watches.start(@turn, watch_of([ { "label" => "Deploy", "capability" => "run_history", "resource" => "firefight", "name" => "Deploy", "run" => "41" } ]))
+    watch = @conversation.chat.watches.sole
+    started = Time.current
+    built = History::Part.new(id: "1", name: "build", status: History::SUCCEEDED, started_at: started, finished_at: started + 30.seconds)
+    held = History::Part.new(id: "2", name: "production", status: History::WAITING)
+    answers("ci_runs" => History.result([ History::Run.new(id: "41", name: "Deploy", status: History::WAITING, started_at: started, parts: [ built, held ]) ], what: "repo"))
+
+    2.times { check!(watch) }
+
+    assert_equal [ "Deploy: build passed, production waiting for someone to approve or start it." ], watch.updates.reload.map(&:text)
+    assert_equal "production waiting for someone to approve or start it, 1 of 2 done", Conversation::Watches.run_summary(
+      History::Run.new(id: "41", status: History::WAITING, started_at: started, parts: [ built, held ])
+    )
+    assert_equal [ [ "deployment to production", Chat::Watch::Step::PART_HELD ] ],
+                 Conversation::Watches.part_states(History::Run.new(id: "deployment-5", name: "deployment to production", status: History::WAITING, started_at: started))
+    assert_equal Chat::Watch::STATUS_ACTIVE, watch.reload.status
+  end
+
   test "the first job that fails inside a run is said at once with why from its own log, while the run still goes" do
     Investigation.stubs(:unavailable_reason).returns(nil)
     answers("ci_runs" => History.result(finished_runs("Release", 7.minutes), what: "repo"))

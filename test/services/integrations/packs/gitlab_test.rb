@@ -16,8 +16,9 @@ module Integrations
       test "the token is the one credential, the address an optional connect field that must be https, and only the test runner and pipeline changes write" do
         assert_equal "glpat-token", ConnectionSettings.of(@row.reload).credential(Gitlab::TOKEN)
         assert_equal [ Gitlab::TOKEN ], Gitlab.credential_fields.map(&:key)
-        assert_equal %w[run_tests retry_pipeline run_pipeline cancel_pipeline], Gitlab.tool_definitions.reject(&:read_only).map(&:name),
-                     "only the sandbox's test runner and the pipeline changes write, so they arrive switched off"
+        assert_equal %w[run_tests retry_pipeline run_pipeline cancel_pipeline retry_job play_job cancel_job redeploy approve_deployment stop_environment],
+                     Gitlab.tool_definitions.reject(&:read_only).map(&:name),
+                     "only the sandbox's test runner and the pipeline, job, deployment and environment changes write, so they arrive switched off"
         address = IntegrationProvider.find(Gitlab::PROVIDER_KEY).connect_fields.sole
         assert_equal [ Gitlab::URL, true ], [ address.key, address.optional ]
         assert_nil address.refusal("https://gitlab.example.com/gitlab")
@@ -72,9 +73,14 @@ module Integrations
                               "sha" => "a" * 40, "status" => "success", "user" => { "username" => "ana" },
                               "deployable" => { "id" => 77, "web_url" => "https://gitlab.com/acme/platform/web/-/jobs/77" } } ])
 
-        text = call(:recent_deployments, "repo" => "acme/platform/web", "deployment_environment" => "production", "limit" => 2)
+        result = @pack.recent_deployments(environment_row: @row, arguments: { "repo" => "acme/platform/web", "deployment_environment" => "production", "limit" => 2 })
+        text = result["content"].first["text"]
 
-        assert_equal "2026-10-01T10:00:00Z  production  main  #{'a' * 12}  success  by ana  deployment 9  job 77 https://gitlab.com/acme/platform/web/-/jobs/77", text
+        assert text.start_with?("2026-10-01T10:00:00Z  production  main  #{'a' * 12}  success  by ana  deployment 9  job 77 https://gitlab.com/acme/platform/web/-/jobs/77\n")
+        assert text.end_with?("https://gitlab.com/acme/platform/web/-/environments")
+        run = Capabilities::History.runs_of(result).sole
+        assert_equal [ "deployment-9", "deployment to production", Capabilities::History::SUCCEEDED, "https://gitlab.com/acme/platform/web/-/jobs/77" ],
+                     [ run.id, run.name, run.status, run.url ]
       end
 
       test "deployments are kept as data, a finished one ending when its job did" do
@@ -191,7 +197,8 @@ module Integrations
       end
 
       test "CI runs read each pipeline for when it started and finished, narrowed to a pipeline by name" do
-        stub_get("#{PROJECT}/pipelines", { "ref" => nil, "per_page" => 50 }, [
+        stub_get("#{PROJECT}/pipelines", { "per_page" => 10, "name" => "release" }, [])
+        stub_get("#{PROJECT}/pipelines", { "per_page" => 50 }, [
           { "id" => 32, "iid" => 12, "status" => "running", "name" => "Release", "ref" => "main" },
           { "id" => 31, "iid" => 11, "status" => "success", "name" => nil, "ref" => "main" },
           { "id" => 30, "iid" => 10, "status" => "success", "name" => "Release", "ref" => "main" }
@@ -209,8 +216,35 @@ module Integrations
         assert_includes result["content"].first["text"], "https://gitlab.com/acme/platform/web/-/pipelines"
       end
 
+      test "a name GitLab knows whole, a status and a source go to GitLab's own filters" do
+        GitlabApi.any_instance.expects(:get).with("#{PROJECT}/pipelines", { "status" => "manual", "source" => "web", "per_page" => 10, "name" => "Deploy production" })
+                 .returns([ { "id" => 33, "status" => "manual", "name" => "Deploy production", "ref" => "main" } ])
+        stub_get("#{PROJECT}/pipelines/33", { "id" => 33, "status" => "manual", "name" => "Deploy production", "ref" => "main", "created_at" => "2026-10-01T10:00:00Z" })
+
+        run = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/platform/web", "name" => "Deploy production",
+                                                                                               "status" => "manual", "source" => "web", "limit" => 10 })).sole
+
+        assert_equal [ "33", Capabilities::History::WAITING ], [ run.id, run.status ]
+        assert_not run.finished?
+        assert_match "status must be one of", assert_raises(NativePack::Error) { call(:ci_runs, "repo" => "acme/platform/web", "status" => "broken") }.message
+      end
+
+      test "a name no pipeline has reads the deployments as runs, a blocked one waiting for approval, and one is read back by its id" do
+        stub_get("#{PROJECT}/pipelines", { "per_page" => 10, "name" => "production" }, [])
+        stub_get("#{PROJECT}/pipelines", { "per_page" => 50 }, [ { "id" => 31, "status" => "success", "ref" => "main" } ])
+        blocked = deployment(4, "production", "a" * 40).merge("status" => "blocked", "created_at" => "2026-10-04T00:00:00Z")
+        stub_get("#{PROJECT}/deployments", { "order_by" => "id", "sort" => "desc", "per_page" => 10 }, [ blocked ])
+        stub_get("#{PROJECT}/deployments/4", blocked)
+
+        listed = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/platform/web", "name" => "production" })).sole
+        followed = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/platform/web", "run" => "deployment-4" })).sole
+
+        assert_equal [ "deployment-4", "deployment to production", Capabilities::History::WAITING ], [ listed.id, listed.name, listed.status ]
+        assert_includes followed.detail, "waiting for approval, approve_deployment gives it"
+      end
+
       test "a pipeline without a name is called by its branch" do
-        stub_get("#{PROJECT}/pipelines", { "ref" => nil, "per_page" => 10 }, [ { "id" => 31, "status" => "failed", "ref" => "main" } ])
+        stub_get("#{PROJECT}/pipelines", { "per_page" => 10 }, [ { "id" => 31, "status" => "failed", "ref" => "main" } ])
         stub_get("#{PROJECT}/pipelines/31", { "id" => 31, "status" => "failed", "ref" => "main", "created_at" => "2026-10-01T10:00:00Z" })
 
         run = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/platform/web" })).sole
@@ -220,10 +254,13 @@ module Integrations
 
       test "one pipeline read by its id carries its jobs, a failed one with why and how its log is read, and a job allowed to fail left out" do
         stub_get("#{PROJECT}/pipelines/31", { "id" => 31, "status" => "running", "ref" => "main", "created_at" => "2026-10-01T10:00:00Z", "web_url" => "p31" })
-        stub_list("#{PROJECT}/pipelines/31/jobs", [ { "id" => 2, "stage" => "test", "name" => "rspec", "status" => "failed", "failure_reason" => "script_failure",
-                                                      "started_at" => "2026-10-01T10:01:00Z", "finished_at" => "2026-10-01T10:02:00Z", "web_url" => "j2" },
-                                                    { "id" => 3, "stage" => "test", "name" => "lint", "status" => "failed", "allow_failure" => true },
-                                                    { "id" => 1, "stage" => "deploy", "name" => "web", "status" => "running" } ], query: { "per_page" => GitlabApi::PAGE_SIZE })
+        GitlabApi.any_instance.stubs(:list).with("#{PROJECT}/pipelines/31/jobs", {}, pages: Gitlab::Pipelines::JOB_PAGES).returns([ [
+          { "id" => 2, "stage" => "test", "name" => "rspec", "status" => "failed", "failure_reason" => "script_failure",
+            "started_at" => "2026-10-01T10:01:00Z", "finished_at" => "2026-10-01T10:02:00Z", "web_url" => "j2" },
+          { "id" => 3, "stage" => "test", "name" => "lint", "status" => "failed", "allow_failure" => true },
+          { "id" => 1, "stage" => "deploy", "name" => "web", "status" => "running" }
+        ], false ])
+        stub_list("#{PROJECT}/pipelines/31/trigger_jobs", [])
 
         run = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/platform/web", "run" => "31" })).sole
 
@@ -231,6 +268,92 @@ module Integrations
         failed = run.first_failed_part
         assert_equal [ "with script failure", 60 ], [ failed.detail, failed.seconds ]
         assert_equal({ "tool" => "job_log", "arguments" => { "repo" => "acme/platform/web", "job_id" => 2 } }, failed.log)
+      end
+
+      test "a trigger job and the child pipeline it started are followed too, and a manual job says it waits for someone to start it" do
+        stub_get("#{PROJECT}/pipelines/31", { "id" => 31, "status" => "running", "ref" => "main", "created_at" => "2026-10-01T10:00:00Z" })
+        GitlabApi.any_instance.stubs(:list).with("#{PROJECT}/pipelines/31/jobs", {}, pages: Gitlab::Pipelines::JOB_PAGES)
+                 .returns([ [ { "id" => 1, "stage" => "deploy", "name" => "production", "status" => "manual" } ], false ])
+        GitlabApi.any_instance.stubs(:list).with("#{PROJECT}/pipelines/31/trigger_jobs").raises(GitlabApi::NotFound, "404")
+        stub_list("#{PROJECT}/pipelines/31/bridges", [ { "id" => 5, "stage" => "build", "name" => "services", "status" => "running",
+                                                         "downstream_pipeline" => { "id" => 40, "status" => "running", "web_url" => "p40" } } ])
+        GitlabApi.any_instance.stubs(:list).with("#{PROJECT}/pipelines/40/jobs", {}, pages: Gitlab::Pipelines::JOB_PAGES)
+                 .returns([ [ { "id" => 41, "stage" => "test", "name" => "api", "status" => "failed", "failure_reason" => "script_failure" } ], false ])
+
+        run = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/platform/web", "run" => "31" })).sole
+
+        assert_equal [ "deploy / production", "build / services", "services > test / api" ], run.parts.map(&:name)
+        assert_equal [ Capabilities::History::WAITING, "waiting for someone to start it, play_job starts job 1" ], [ run.parts.first.status, run.parts.first.detail ]
+        assert_equal [ "p40", "starts pipeline 40, running" ], [ run.parts.second.url, run.parts.second.detail ]
+        assert_equal "41", run.first_failed_part.id
+      end
+
+      test "one job is retried, a manual one started and a running one canceled, each refused when its state does not fit" do
+        stub_get("#{PROJECT}/jobs/7", { "id" => 7, "stage" => "deploy", "name" => "web", "status" => "failed", "ref" => "main", "commit" => { "short_id" => "abc12345" } })
+        stub_get("#{PROJECT}/jobs/8", { "id" => 8, "stage" => "deploy", "name" => "prod", "status" => "manual", "ref" => "main", "commit" => { "short_id" => "abc12345" } })
+        GitlabApi.any_instance.expects(:post).with("#{PROJECT}/jobs/7/retry").returns("id" => 70, "status" => "pending", "web_url" => "j70")
+        GitlabApi.any_instance.expects(:post).with("#{PROJECT}/jobs/8/play", { "job_variables_attributes" => [ { "key" => "TARGET", "value" => "eu" } ] })
+                 .returns("id" => 8, "status" => "pending")
+        GitlabApi.any_instance.expects(:post).with("#{PROJECT}/jobs/8/cancel").returns("status" => "canceling")
+
+        assert_includes call(:retry_job, "repo" => "acme/platform/web", "job_id" => 7), "Job 7 deploy/web in acme/platform/web runs again as job 70, on main at abc12345. It is pending."
+        assert_includes call(:play_job, "repo" => "acme/platform/web", "job_id" => 8, "variables" => { "TARGET" => "eu" }), "Started Job 8 deploy/prod in acme/platform/web with TARGET"
+        assert_includes call(:cancel_job, "repo" => "acme/platform/web", "job_id" => 8), "the rest of its pipeline goes on as it was"
+        assert_match "not a manual job", assert_raises(NativePack::Error) { call(:play_job, "repo" => "acme/platform/web", "job_id" => 7) }.message
+        assert_match "already finished", assert_raises(NativePack::Error) { call(:cancel_job, "repo" => "acme/platform/web", "job_id" => 7) }.message
+      end
+
+      test "an earlier deployment is deployed again by retrying the job that made it, and one no job made is refused" do
+        stub_get("#{PROJECT}/deployments/9", deployment(9, "production", "a" * 40).merge("deployable" => { "id" => 77, "stage" => "deploy", "name" => "web", "status" => "success" }))
+        stub_get("#{PROJECT}/deployments/8", deployment(8, "production", "b" * 40).merge("deployable" => nil))
+        GitlabApi.any_instance.expects(:post).with("#{PROJECT}/jobs/77/retry").returns("id" => 90, "status" => "pending", "web_url" => "j90")
+
+        assert_includes call(:redeploy, "repo" => "acme/platform/web", "deployment" => 9),
+                        "Deploying the deployment 9 of #{'a' * 12} to production again as job 90, a new run of deploy/web. It is pending."
+        assert_match "was not made by a job", assert_raises(Integrations::PolicyRefusal) { call(:redeploy, "repo" => "acme/platform/web", "deployment" => 8) }.message
+      end
+
+      test "a deployment waiting for approval is approved or rejected, and one not waiting is refused" do
+        stub_get("#{PROJECT}/deployments/9", deployment(9, "production", "a" * 40).merge("status" => "blocked", "deployable" => { "web_url" => "j77" }))
+        stub_get("#{PROJECT}/deployments/8", deployment(8, "production", "b" * 40).merge("status" => "success"))
+        GitlabApi.any_instance.expects(:post).with("#{PROJECT}/deployments/9/approval", { "status" => "approved", "comment" => "Fix verified" })
+                 .returns("user" => { "username" => "firefight-bot" }, "status" => "approved")
+
+        assert_includes call(:approve_deployment, "repo" => "acme/platform/web", "deployment" => 9, "decision" => "approve", "comment" => "Fix verified"),
+                        "Approved the deployment 9 of #{'a' * 12} to production as firefight-bot. Its job goes on once every approval rule has its approvals."
+        assert_match "not waiting for approval", assert_raises(Integrations::PolicyRefusal) {
+          call(:approve_deployment, "repo" => "acme/platform/web", "deployment" => 8, "decision" => "approve")
+        }.message
+      end
+
+      test "environments say who may deploy and how many approvals a deploy needs, and one is stopped with or without its stop job" do
+        stub_list("#{PROJECT}/environments", [ { "id" => 1, "name" => "production", "state" => "available", "tier" => "production", "external_url" => "https://web.example.com" },
+                                               { "id" => 2, "name" => "review/x", "state" => "available" } ])
+        stub_get("#{PROJECT}/protected_environments", [ { "name" => "production", "deploy_access_levels" => [ { "access_level_description" => "Maintainers" } ],
+                                                          "required_approval_count" => 0, "approval_rules" => [ { "required_approvals" => 2 } ] } ])
+        stub_get("#{PROJECT}/environments/2", { "id" => 2, "name" => "review/x", "state" => "available" })
+        GitlabApi.any_instance.expects(:post).with("#{PROJECT}/environments/2/stop", { "force" => true }).returns("state" => "stopped")
+
+        text = call(:list_environments, "repo" => "acme/platform/web")
+
+        assert_includes text, "  production (id 1), available, production tier, only Maintainers deploy, needs 2 approvals  https://web.example.com\n  review/x (id 2), available"
+        assert_includes call(:stop_environment, "repo" => "acme/platform/web", "environment_id" => 2, "force" => true), "Stopping review/x in acme/platform/web, without running its stop job. It is stopped."
+      end
+
+      test "releases, one release by its tag, and tags are read with their pages" do
+        release = { "tag_name" => "v1.2.0", "name" => "Spring", "released_at" => "2026-10-01T00:00:00Z", "commit" => { "short_id" => "abc12345" },
+                    "description" => "Faster checkout", "_links" => { "self" => "https://gitlab.com/acme/platform/web/-/releases/v1.2.0" },
+                    "assets" => { "links" => [ { "name" => "binary", "url" => "https://example.com/bin" } ] } }
+        stub_get("#{PROJECT}/releases", { "per_page" => 10 }, [ release ])
+        stub_get("#{PROJECT}/releases/v1.2.0", release)
+        stub_get("#{PROJECT}/repository/tags", { "order_by" => "updated", "sort" => "desc", "search" => "^v1", "per_page" => 10 },
+                 [ { "name" => "v1.2.0", "commit" => { "id" => "c" * 40, "committed_date" => "2026-10-01T00:00:00Z" }, "message" => "Spring", "release" => {} } ])
+
+        assert_includes call(:list_releases, "repo" => "acme/platform/web"), "  v1.2.0  Spring  released 2026-10-01T00:00:00Z  commit abc12345  https://gitlab.com/acme/platform/web/-/releases/v1.2.0"
+        looked_up = call(:release_lookup, "repo" => "acme/platform/web", "tag" => "v1.2.0")
+        assert_includes looked_up, "Files and links:\n  binary  https://example.com/bin\n\nFaster checkout"
+        assert_includes call(:list_tags, "repo" => "acme/platform/web", "search" => "^v1"), "  v1.2.0  #{'c' * 12}  2026-10-01T00:00:00Z  Spring  has a release"
+        assert Gitlab.tool_definitions.select { |definition| %w[list_releases release_lookup list_tags list_environments].include?(definition.name) }.all?(&:read_only)
       end
 
       test "a pipeline's jobs say why each failed and link to the pipeline" do

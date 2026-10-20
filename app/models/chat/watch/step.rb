@@ -55,8 +55,10 @@ class Chat::Watch::Step < ApplicationRecord
   PART_RUNNING = "running"
   PART_PASSED = "passed"
   PART_FAILED = "failed"
-  # Starting and passing are said as progress. A failed job inside a run or a reading is said on its own with why.
-  PART_SAID = [ PART_RUNNING, PART_PASSED ].freeze
+  # Held until a person approves it or starts it, which nothing else will do.
+  PART_HELD = "waiting for someone to approve or start it"
+  # Starting, passing and being held are said as progress. A failed job inside a run or a reading is said on its own with why.
+  PART_SAID = [ PART_RUNNING, PART_PASSED, PART_HELD ].freeze
 
   belongs_to :watch, class_name: "Chat::Watch", inverse_of: :steps
   belongs_to :integration_environment, optional: true

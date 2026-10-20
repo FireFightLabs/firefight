@@ -30,10 +30,12 @@ module Integrations
         end
 
         test "CI runs say when each started and finished, narrowed to a workflow by name, with how long finished ones usually take" do
-          GithubApp.expects(:get).with("/repos/acme/web/actions/runs?per_page=100", token: "ghs_token").returns("workflow_runs" => [
+          GithubApp.expects(:get).with("/repos/acme/web/actions/workflows?per_page=100", token: "ghs_token").returns("workflows" => [
+            { "id" => 3, "name" => "Release", "path" => ".github/workflows/ship.yml" }, { "id" => 4, "name" => "CI", "path" => ".github/workflows/ci.yml" }
+          ])
+          GithubApp.expects(:get).with("/repos/acme/web/actions/workflows/3/runs?per_page=20", token: "ghs_token").returns("workflow_runs" => [
             history_run(46, "Release", "in_progress", nil, "2026-10-01T10:00:00Z", "2026-10-01T10:03:00Z"),
             history_run(45, "Release", "completed", "success", "2026-10-01T09:00:00Z", "2026-10-01T09:18:00Z"),
-            history_run(44, "CI", "completed", "failure", "2026-10-01T08:30:00Z", "2026-10-01T08:34:00Z"),
             history_run(43, "Release", "completed", "failure", "2026-10-01T08:00:00Z", "2026-10-01T08:05:00Z")
           ])
 
@@ -53,6 +55,94 @@ module Integrations
           GithubApp.expects(:get).with("/repos/acme/web/actions/runs?branch=main&per_page=5", token: "ghs_token").returns("workflow_runs" => [])
 
           assert_includes text_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web", "branch" => "main", "limit" => 5 })), "No runs of GitHub Actions in acme/web"
+        end
+
+        test "a workflow is found by its file name too, and runs are narrowed by status and event as GitHub filters them" do
+          GithubApp.expects(:get).with("/repos/acme/web/actions/workflows?per_page=100", token: "ghs_token").returns("workflows" => [
+            { "id" => 3, "name" => "Ship it", "path" => ".github/workflows/release.yml" }
+          ])
+          GithubApp.expects(:get).with("/repos/acme/web/actions/workflows/3/runs?event=push&per_page=20&status=failure", token: "ghs_token").returns("workflow_runs" => [
+            history_run(45, "Ship it", "completed", "failure", "2026-10-01T09:00:00Z", "2026-10-01T09:18:00Z")
+          ])
+
+          result = @pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web", "name" => "release", "status" => "failure", "event" => "push" })
+
+          assert_equal [ %w[45 failed] ], Capabilities::History.runs_of(result).map { |run| [ run.number, run.status ] }
+          assert_includes text_of(result), "recent runs of Ship it in acme/web"
+          assert_match "status must be one of", assert_raises(NativePack::Error) { @pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web", "status" => "red" }) }.message
+        end
+
+        test "a name no workflow has reads the deployments as runs, named for where each went, and one is read back by its id" do
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/workflows?per_page=100", token: "ghs_token").returns("workflows" => [ { "id" => 4, "name" => "CI", "path" => ".github/workflows/ci.yml" } ])
+          GithubApp.stubs(:get).with("/repos/acme/web/deployments?per_page=20", token: "ghs_token").returns([ deployment(5, "production"), deployment(4, "staging") ])
+          GithubApp.stubs(:get).with("/repos/acme/web/deployments/5", token: "ghs_token").returns(deployment(5, "production"))
+          GithubApp.stubs(:get).with("/repos/acme/web/deployments/5/statuses?per_page=1", token: "ghs_token")
+                   .returns([ { "state" => "in_progress", "created_at" => "2026-10-01T09:01:00Z", "log_url" => "https://github.com/acme/web/actions/runs/41/job/9" } ])
+          GithubApp.stubs(:get).with("/repos/acme/web/deployments/4/statuses?per_page=1", token: "ghs_token").returns([ { "state" => "success", "created_at" => "2026-10-01T08:10:00Z" } ])
+
+          runs = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web", "name" => "production" }))
+          followed = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web", "run" => "deployment-5" })).sole
+
+          assert_equal [ [ "deployment-5", "deployment to production", Capabilities::History::RUNNING, "https://github.com/acme/web/actions/runs/41/job/9" ] ],
+                       runs.map { |run| [ run.id, run.name, run.status, run.url ] }
+          assert_equal [ "deployment-5", "bbbbbbb by ana" ], [ followed.id, followed.detail ]
+        end
+
+        test "a run waiting on an environment's reviewers, or on approval to run at all, is waiting rather than queued, and says on what" do
+          waiting = history_run(41, "Deploy", "waiting", nil, "2026-10-01T09:00:00Z", "2026-10-01T09:01:00Z")
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/4100", token: "ghs_token").returns(waiting)
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/4100/jobs?filter=latest&per_page=100", token: "ghs_token")
+                   .returns("jobs" => [ job(8, "success"), job(9, nil).merge("name" => "deploy", "status" => "waiting", "completed_at" => nil) ])
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/4100/pending_deployments", token: "ghs_token").returns([ { "environment" => { "name" => "production" } } ])
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/runs?per_page=20", token: "ghs_token")
+                   .returns("workflow_runs" => [ history_run(42, "CI", "completed", "action_required", "2026-10-01T09:00:00Z", "2026-10-01T09:01:00Z") ])
+
+          run = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web", "run" => "4100" })).sole
+          listed = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web" })).sole
+
+          assert_equal [ Capabilities::History::WAITING, [ Capabilities::History::SUCCEEDED, Capabilities::History::WAITING ] ], [ run.status, run.parts.map(&:status) ]
+          assert_not run.finished?
+          assert_includes run.detail, "waiting for approval to deploy to production, pending_deployments names who may give it"
+          assert_equal Capabilities::History::WAITING, listed.status
+          assert_includes listed.detail, "waiting for someone with write access to approve running it"
+        end
+
+        test "an earlier attempt of a run that ran again is read with its own jobs" do
+          GithubApp.expects(:get).with("/repos/acme/web/actions/runs/4100/attempts/1", token: "ghs_token")
+                   .returns(history_run(41, "Release", "completed", "failure", "2026-10-01T09:00:00Z", "2026-10-01T09:05:00Z").merge("run_attempt" => 1))
+          GithubApp.expects(:get).with("/repos/acme/web/actions/runs/4100/attempts/1/jobs?per_page=100", token: "ghs_token").returns("jobs" => [ job(9, "failure") ])
+
+          result = @pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web", "run" => "4100", "attempt" => 1 })
+
+          assert_equal [ Capabilities::History::FAILED ], Capabilities::History.runs_of(result).sole.parts.map(&:status)
+          assert_includes text_of(result), "attempt 1 of run 4100"
+          assert_match "attempt must be a whole number", assert_raises(NativePack::Error) {
+            @pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web", "run" => "4100", "attempt" => "latest" })
+          }.message
+        end
+
+        test "one job of a finished run runs again with the jobs that depend on it, and one in a run still going is not" do
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/jobs/9", token: "ghs_token").returns(job(9, "failure").merge("run_id" => 41))
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/41", token: "ghs_token").returns(workflow_run(41, "CI", "failure"))
+          GithubApp.expects(:act).with("/repos/acme/web/actions/jobs/9/rerun", {}, token: "ghs_token").returns({})
+
+          text = text_of(@pack.rerun_job(environment_row: @row, arguments: { "repo" => "acme/web", "job_id" => 9 }))
+
+          assert_includes text, "CI / test (job 9) in acme/web runs again with the jobs that depend on it, on main at #{'a' * 12}."
+          assert_not Github.tool_definitions.find { |definition| definition.name == "rerun_job" }.read_only
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/41", token: "ghs_token").returns(workflow_run(41, "CI", nil).merge("status" => "in_progress"))
+          assert_match "GitHub runs a job again only once its whole run finished", assert_raises(NativePack::Error) {
+            @pack.rerun_job(environment_row: @row, arguments: { "repo" => "acme/web", "job_id" => 9 })
+          }.message
+        end
+
+        test "force cancel stops a run a plain cancel did not, jobs that always run included" do
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/41", token: "ghs_token").returns(workflow_run(41, "Deploy", nil).merge("status" => "in_progress"))
+          GithubApp.expects(:act).with("/repos/acme/web/actions/runs/41/force-cancel", token: "ghs_token").returns({})
+
+          text = text_of(@pack.cancel_workflow(environment_row: @row, arguments: { "repo" => "acme/web", "run_id" => 41, "force" => true }))
+
+          assert_includes text, "Force canceling Deploy run 7 (41) in acme/web on main at #{'a' * 12}. GitHub stops every job, also those whose if condition holds"
         end
 
         test "one run read by its id carries each job, a failed one with the step it failed at and how its log is read" do
@@ -309,6 +399,10 @@ module Integrations
           { "id" => id * 100, "name" => name, "run_number" => id, "status" => status, "conclusion" => conclusion, "head_branch" => "main", "head_sha" => "a" * 40,
             "event" => "workflow_dispatch", "run_started_at" => started, "created_at" => started, "updated_at" => updated,
             "html_url" => "https://github.com/acme/web/actions/runs/#{id * 100}" }
+        end
+
+        def deployment(id, environment)
+          { "id" => id, "environment" => environment, "sha" => "b" * 40, "ref" => "main", "created_at" => "2026-10-01T09:00:00Z", "creator" => { "login" => "ana" } }
         end
 
         def job(id, conclusion)

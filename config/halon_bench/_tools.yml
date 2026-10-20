@@ -285,6 +285,9 @@ recent_deploys:
       resource:
         type: string
         description: The resource, by its name, its provider's id or its id on the resource map, as search_map or get_resource gave it
+      deployment_environment:
+        type: string
+        description: Only deploys to this environment, such as production, where one resource deploys to several, such as a repository (optional)
       limit:
         type: integer
         description: At most this many (optional)

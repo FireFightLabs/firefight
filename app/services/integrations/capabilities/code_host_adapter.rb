@@ -1,16 +1,16 @@
 module Integrations
   module Capabilities
     # What every code host answers for the repositories it puts on the map: what was deployed from one (recent_deployments),
-    # how its CI stands (ci_status), the log of its newest failed job (job_log), and its CI runs with how long each took
-    # (ci_runs). A repository only has build logs, so a
+    # how its CI stands (ci_status), the log of its newest failed job (job_log), its CI runs with how long each took
+    # (ci_runs), and a rollback that runs again what made an earlier deployment (redeploy). A repository only has build logs, so a
     # log is asked of its builds unless the request says otherwise. A host's other tools take any repository, so none is
     # wrapped and all stay offered. A host's adapter extends this and names itself in HOST.
     module CodeHostAdapter
       include Adapter
 
       KINDS = [ ResourceMap::KIND_REPOSITORY ].freeze
-      SUPPORTS = { LOGS => KINDS, DEPLOYS => KINDS, STATUS => KINDS, HISTORY => KINDS }.freeze
-      TOOLS = { LOGS => "job_log", DEPLOYS => "recent_deployments", STATUS => "ci_status", HISTORY => "ci_runs" }.freeze
+      SUPPORTS = { LOGS => KINDS, DEPLOYS => KINDS, STATUS => KINDS, HISTORY => KINDS, ROLLBACK => KINDS }.freeze
+      TOOLS = { LOGS => "job_log", DEPLOYS => "recent_deployments", STATUS => "ci_status", HISTORY => "ci_runs", ROLLBACK => "redeploy" }.freeze
       WRAPPED = [].freeze
       STREAM_BUILD = "build".freeze
       PASSED = %w[text regex exclude limit minutes start end].freeze
@@ -43,9 +43,10 @@ module Integrations
           end
 
           Route.new(tool_name: TOOLS[LOGS], arguments: repo.merge(given.slice(*PASSED)))
-        when DEPLOYS then Route.new(tool_name: TOOLS[DEPLOYS], arguments: repo.merge(given.slice("limit")))
+        when DEPLOYS then Route.new(tool_name: TOOLS[DEPLOYS], arguments: repo.merge(given.slice(DEPLOYMENT_ENVIRONMENT_ARG, "limit").compact_blank))
         when STATUS then Route.new(tool_name: TOOLS[STATUS], arguments: repo)
         when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: repo.merge(given.slice("name", "run", "limit").compact_blank))
+        when ROLLBACK then Route.new(tool_name: TOOLS[ROLLBACK], arguments: repo.merge("deployment" => target(given)))
         end
       end
     end
