@@ -31,7 +31,8 @@ class Integrations::Capabilities::BitbucketTest < ActiveSupport::TestCase
   test "Bitbucket keeps no metrics, traces or errors, answers its CI runs' history, and wraps none of its own tools" do
     adapter = Integrations::Capabilities.adapter_for("bitbucket")
 
-    assert_equal [ Integrations::Capabilities::LOGS, Integrations::Capabilities::DEPLOYS, Integrations::Capabilities::STATUS, Integrations::Capabilities::HISTORY ],
+    assert_equal [ Integrations::Capabilities::LOGS, Integrations::Capabilities::DEPLOYS, Integrations::Capabilities::STATUS, Integrations::Capabilities::HISTORY,
+                   Integrations::Capabilities::ROLLBACK ],
                  adapter.capabilities
     assert_not adapter.wraps?("ci_status")
   end

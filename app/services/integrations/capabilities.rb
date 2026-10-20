@@ -21,6 +21,9 @@ module Integrations
     CONNECTION_ARG = "connection".freeze
     PLAN_ARG = "plan".freeze
     RUN_ARG = "run".freeze
+    # Where a deploy went, such as production, for a resource that deploys to several. Not environment, which names a
+    # connection's Firefight environment.
+    DEPLOYMENT_ENVIRONMENT_ARG = "deployment_environment".freeze
     # connection: all asks every connection that can answer, each answer labelled with where it came from.
     ALL = Integration::SLUG_ALL
     # What an observability tool answers by default when the platform that runs a resource could too.
@@ -90,7 +93,8 @@ module Integrations
                description: "What went out to one resource on the map, newest first: when, which commit or version, by whom and " \
                             "why, with the id rollback takes. A deploy carries every commit since the one before it, so the answer " \
                             "says what the live one carried when a code host holds its repository. Use it to see what changed before something broke",
-               params: { "limit" => LIMIT }, required: []),
+               params: { DEPLOYMENT_ENVIRONMENT_ARG => { "type" => "string", "description" => "Only deploys to this environment, such as production, where one resource deploys to several, such as a repository (optional)" },
+                         "limit" => LIMIT }, required: []),
       Spec.new(key: STATUS, tool_name: "resource_status", writes: false, what: "status",
                description: "How one resource on the map is set up and how it stands now, read live from whichever connection " \
                             "runs it: its state, size, what it runs and its health checks",

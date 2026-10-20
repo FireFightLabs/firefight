@@ -3,8 +3,9 @@ module Integrations
     class Gitlab
       # A project's CI as GitLab keeps it (doc/api/pipelines.md, jobs.md and environments.md): its pipelines, their jobs,
       # a job's log, and how the default branch and the environments stand now. Retrying a pipeline's failed and canceled
-      # jobs, running a new pipeline and canceling one are changes (doc/api/pipelines.md, retry, create and cancel), so
-      # they go through the gateway as writes and a member needs a grant for them. They need a token with the api scope.
+      # jobs, running a new pipeline and canceling one are changes (doc/api/pipelines.md, retry, create and cancel), as are
+      # retrying, running a manual job and canceling one job (doc/api/jobs.md, retry, play and cancel), so they go through
+      # the gateway as writes and a member needs a grant for them. They need a token with the api scope.
       module Pipelines
         PIPELINE_LIMIT = 10
         MAX_PIPELINES = 50
@@ -29,11 +30,17 @@ module Integrations
         HISTORY_LIMIT = 10
         MAX_HISTORY = 20
         HISTORY_CANDIDATES = 50
-        # A pipeline's status in Firefight's words (the status values of doc/api/pipelines.md).
+        # A pipeline's jobs are read this many pages of 100 at most, and so are each child pipeline's.
+        JOB_PAGES = 5
+        MANUAL = "manual".freeze
+        # Statuses a job can be retried from (doc/api/jobs.md, job status values), since one still going has nothing to retry.
+        JOB_ENDED = %w[success failed canceled skipped].freeze
+        # A pipeline's or job's status in Firefight's words (the status values of doc/api/pipelines.md and jobs.md). A
+        # manual job waits for someone to start it, so it waits on a person rather than a runner.
         HISTORY_STATUSES = {
           "created" => Capabilities::History::QUEUED, "waiting_for_resource" => Capabilities::History::QUEUED,
           "preparing" => Capabilities::History::QUEUED, "pending" => Capabilities::History::QUEUED, "scheduled" => Capabilities::History::QUEUED,
-          "manual" => Capabilities::History::QUEUED, "running" => Capabilities::History::RUNNING, "canceling" => Capabilities::History::RUNNING,
+          MANUAL => Capabilities::History::WAITING, "running" => Capabilities::History::RUNNING, "canceling" => Capabilities::History::RUNNING,
           "success" => Capabilities::History::SUCCEEDED, "failed" => Capabilities::History::FAILED,
           "canceled" => Capabilities::History::CANCELLED, "skipped" => Capabilities::History::CANCELLED
         }.freeze
@@ -55,12 +62,15 @@ module Integrations
           pack.tool :ci_runs,
                     summary: "Lists recent pipelines with how long each took compared with the usual time.",
                     description: "A project's pipelines, newest first, each with its status, when it started and finished and how long " \
-                                 "it took, and how long finished pipelines usually take",
+                                 "it took, and how long finished pipelines usually take. A pipeline waiting on a manual job says so. A " \
+                                 "name no pipeline has, such as production, reads the project's deployments as runs",
                     params_schema: CodeHost::Code.object_schema({
                       "repo" => repo,
-                      "name" => { "type" => "string", "description" => "Only pipelines whose name contains this, such as release (optional)" },
+                      "name" => { "type" => "string", "description" => "Only pipelines with this name, or whose name contains it, such as release, or else deployments to an environment it names (optional)" },
                       "ref" => { "type" => "string", "description" => "Only pipelines for this branch or tag (optional)" },
-                      "run" => { "type" => "string", "description" => "Only this pipeline, by its id, with each job and how it ended (optional)" },
+                      "status" => { "type" => "string", "enum" => PIPELINE_STATUSES, "description" => "Only pipelines in this status, such as failed or manual (optional)" },
+                      "source" => { "type" => "string", "description" => "Only pipelines started this way, such as push, schedule, web or merge_request_event (optional)" },
+                      "run" => { "type" => "string", "description" => "Only this pipeline, by its id, with each job and its child pipelines' jobs, or a deployment by the id this answer gives it (optional)" },
                       "limit" => { "type" => "integer", "description" => "At most this many (optional, #{HISTORY_LIMIT}, at most #{MAX_HISTORY})" }
                     }, %w[repo]),
                     read_only: true
@@ -121,6 +131,30 @@ module Integrations
                     description: "Cancel a pipeline's jobs that have not finished, such as a deploy that should not go out",
                     params_schema: CodeHost::Code.object_schema({ "repo" => repo, "pipeline_id" => pipeline_id }, %w[repo pipeline_id]),
                     read_only: false
+
+          job_id = { "type" => "integer", "description" => "The job's id, as pipeline_jobs shows it" }
+          pack.tool :retry_job,
+                    summary: "Runs one finished job again as a new job.",
+                    description: "Run one finished job again as a new job in its pipeline, on the same commit. For one flaky job, or to " \
+                                 "deploy again from a deploy job",
+                    params_schema: CodeHost::Code.object_schema({ "repo" => repo, "job_id" => job_id }, %w[repo job_id]),
+                    read_only: false
+
+          pack.tool :play_job,
+                    summary: "Starts a manual job that is waiting for someone to run it.",
+                    description: "Start a job that waits for someone to run it by hand, such as a manual deploy to production",
+                    params_schema: CodeHost::Code.object_schema({
+                      "repo" => repo, "job_id" => job_id,
+                      "variables" => { "type" => "object", "additionalProperties" => { "type" => "string" },
+                                       "description" => "CI/CD variables for this run of the job, never a secret, since they are shown and kept (optional)" }
+                    }, %w[repo job_id]),
+                    read_only: false
+
+          pack.tool :cancel_job,
+                    summary: "Cancels one job that has not finished.",
+                    description: "Cancel one job that is pending or running, leaving the rest of its pipeline as it is",
+                    params_schema: CodeHost::Code.object_schema({ "repo" => repo, "job_id" => job_id }, %w[repo job_id]),
+                    read_only: false
         end
 
         def pipelines(environment_row:, arguments:)
@@ -136,18 +170,66 @@ module Integrations
           found.map { |pipeline| pipeline_line(pipeline) }.join("\n")
         end
 
+        # status, source, ref and a name go to GitLab's own filters. GitLab matches a name whole, so a name it finds no
+        # pipeline by is looked for inside the newest pipelines' names, and then among the deployments' environments.
         def ci_runs(environment_row:, arguments:)
           repo = repo_argument(arguments)
-          return one_pipeline(api(environment_row), repo, positive_id(arguments, "run")) if arguments["run"].present?
+          gitlab = api(environment_row)
+          asked = arguments["run"].to_s.strip
+          return one_deployment(gitlab, repo, asked.delete_prefix(DEPLOYMENT_RUN)) if asked.start_with?(DEPLOYMENT_RUN)
+          return one_pipeline(gitlab, repo, positive_id(arguments, "run")) if asked.present?
 
           limit = whole_number_argument(arguments, "limit", HISTORY_LIMIT, MAX_HISTORY)
+          status = arguments["status"].presence
+          fail! "status must be one of #{PIPELINE_STATUSES.join(', ')}" if status && PIPELINE_STATUSES.exclude?(status)
+
           name = arguments["name"].to_s.strip.presence
-          gitlab = api(environment_row)
-          query = { "ref" => ref_argument(arguments), "per_page" => name ? HISTORY_CANDIDATES : limit }
-          listed = Array(gitlab.get("#{GitlabApi.project(repo)}/pipelines", query)).map { |pipeline| history_run(pipeline) }
-          chosen = listed.select { |run| run.called?(name) }.first(limit)
-          runs = chosen.map { |run| history_run(gitlab.get("#{GitlabApi.project(repo)}/pipelines/#{run.id}")) }
+          query = { "ref" => ref_argument(arguments), "status" => status, "source" => arguments["source"].presence, "per_page" => limit }.compact
+          chosen = name ? named_pipelines(gitlab, repo, query, name) : Array(gitlab.get("#{GitlabApi.project(repo)}/pipelines", query))
+          if name && chosen.empty?
+            return Capabilities::History.result(deployment_runs(gitlab, repo, limit, name), what: "deployments in #{repo}, since no pipeline is named #{name}",
+                                                link: link(gitlab.web_url(repo, "-", "environments")), name: name, limit: limit)
+          end
+
+          runs = chosen.first(limit).map { |pipeline| history_run(gitlab.get("#{GitlabApi.project(repo)}/pipelines/#{pipeline['id']}")) }
           Capabilities::History.result(runs, what: "pipelines in #{repo}", link: link(gitlab.web_url(repo, "-", "pipelines")), name: name, limit: limit)
+        end
+
+        def retry_job(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          gitlab = api(environment_row)
+          job = gitlab.get("#{GitlabApi.project(repo)}/jobs/#{positive_id(arguments, 'job_id')}")
+          fail! "#{job_name(job, repo)} is still #{job['status']}, so it cannot run again until it finishes. cancel_job stops it." unless JOB_ENDED.include?(job["status"])
+
+          retried = changing("retry #{job_name(job, repo)}") { gitlab.post("#{GitlabApi.project(repo)}/jobs/#{job['id']}/retry") }
+          Telemetry.result("#{job_name(job, repo)} runs again as job #{retried['id']}, on #{job['ref']} at #{job_commit(job)}. It is " \
+                           "#{retried['status'] || 'starting'}. #{FOLLOW}.", link: link(retried["web_url"] || job["web_url"]))
+        end
+
+        def play_job(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          gitlab = api(environment_row)
+          job = gitlab.get("#{GitlabApi.project(repo)}/jobs/#{positive_id(arguments, 'job_id')}")
+          fail! "#{job_name(job, repo)} is #{job['status']}, not a manual job waiting to be started. retry_job runs a finished one again." unless job["status"] == MANUAL
+
+          variables = hash_argument(arguments, "variables").map { |key, value| { "key" => key.to_s, "value" => value.to_s } }
+          started = changing("start #{job_name(job, repo)}") do
+            gitlab.post("#{GitlabApi.project(repo)}/jobs/#{job['id']}/play", { "job_variables_attributes" => variables.presence }.compact)
+          end
+          given = variables.any? ? " with #{variables.map { |variable| variable['key'] }.to_sentence}" : ""
+          Telemetry.result("Started #{job_name(job, repo)}#{given}, on #{job['ref']} at #{job_commit(job)}. It is #{started['status'] || 'starting'}. #{FOLLOW}.",
+                           link: link(started["web_url"] || job["web_url"]))
+        end
+
+        def cancel_job(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          gitlab = api(environment_row)
+          job = gitlab.get("#{GitlabApi.project(repo)}/jobs/#{positive_id(arguments, 'job_id')}")
+          fail! "#{job_name(job, repo)} already finished, #{job['status']}, so there is nothing to cancel." if JOB_ENDED.include?(job["status"])
+
+          canceled = changing("cancel #{job_name(job, repo)}") { gitlab.post("#{GitlabApi.project(repo)}/jobs/#{job['id']}/cancel") }
+          Telemetry.result("Canceling #{job_name(job, repo)}, on #{job['ref']} at #{job_commit(job)}. It is #{canceled['status'] || 'canceling'}, and " \
+                           "the rest of its pipeline goes on as it was. #{FOLLOW}.", link: link(canceled["web_url"] || job["web_url"]))
         end
 
         def pipeline_jobs(environment_row:, arguments:)
@@ -239,9 +321,14 @@ module Integrations
                            "#{canceled['status'] || 'canceling'}. #{FOLLOW}.", link: link(canceled["web_url"] || pipeline["web_url"]))
         end
 
-        # Whoever started the pipeline, matched to a member by the public address their GitLab profile shows.
+        # Whoever started the pipeline, matched to a member by the public address their GitLab profile shows. A job is
+        # asked about by the pipeline it runs in.
         def owner_of(tool_name, environment_row:, arguments:)
-          return super unless tool_name == "cancel_pipeline"
+          return super unless %w[cancel_pipeline cancel_job].include?(tool_name)
+          if tool_name == "cancel_job"
+            job = api(environment_row).get("#{GitlabApi.project(repo_argument(arguments))}/jobs/#{positive_id(arguments, 'job_id')}")
+            arguments = arguments.merge("pipeline_id" => job.dig("pipeline", "id"))
+          end
 
           repo = repo_argument(arguments)
           gitlab = api(environment_row)
@@ -281,24 +368,74 @@ module Integrations
           )
         end
 
-        # One pipeline with its jobs, each with its log read by job_log, so a watch hears the first job that failed while the
-        # pipeline still goes. A job allowed to fail is not a failure of the pipeline.
+        # One pipeline with every job, each with its log read by job_log, so a watch hears the first job that failed while the
+        # pipeline still goes. A job allowed to fail is not a failure of the pipeline. A trigger job is a part of its own, and
+        # the child pipeline it started in the same project has its jobs read too, named under it.
         def one_pipeline(gitlab, repo, id)
           pipeline = gitlab.get("#{GitlabApi.project(repo)}/pipelines/#{id}")
-          jobs, = gitlab.list("#{GitlabApi.project(repo)}/pipelines/#{id}/jobs", "per_page" => GitlabApi::PAGE_SIZE)
-          parts = Array(jobs).reject { |job| job["allow_failure"] }.map { |job| history_part(repo, job) }
-          Capabilities::History.result([ history_run(pipeline).with(parts: parts) ], what: "pipelines in #{repo}", link: link(pipeline["web_url"]))
+          parts, more = pipeline_parts(gitlab, repo, id)
+          trigger_jobs(gitlab, repo, id).each do |trigger|
+            parts << trigger_part(trigger)
+            downstream = trigger["downstream_pipeline"]
+            parts.concat(child_parts(gitlab, repo, downstream["id"], "#{trigger['name']} > ")) if downstream.is_a?(Hash) && downstream["id"]
+          end
+          cut = more ? ", of which only the first #{JOB_PAGES * GitlabApi::PAGE_SIZE} jobs were read" : ""
+          Capabilities::History.result([ history_run(pipeline).with(parts: parts) ], what: "pipelines in #{repo}#{cut}", link: link(pipeline["web_url"]))
         end
 
-        def history_part(repo, job)
-          status = Capabilities::History.status(job["status"], HISTORY_STATUSES)
+        # The pipeline's jobs as parts, and whether it held more than were read.
+        def pipeline_parts(gitlab, repo, id, prefix = "")
+          jobs, more = gitlab.list("#{GitlabApi.project(repo)}/pipelines/#{id}/jobs", {}, pages: JOB_PAGES)
+          [ Array(jobs).reject { |job| job["allow_failure"] }.map { |job| history_part(repo, job, prefix) }, more ]
+        end
+
+        # A downstream pipeline in another project is not found under this one, so only its trigger job stands for it.
+        def child_parts(gitlab, repo, id, prefix)
+          pipeline_parts(gitlab, repo, id, prefix).first
+        rescue GitlabApi::NotFound
+          []
+        end
+
+        # GitLab 19.2 renamed a pipeline's bridges to trigger_jobs and keeps the old route, so an older GitLab is read by it.
+        def trigger_jobs(gitlab, repo, id)
+          listed, = gitlab.list("#{GitlabApi.project(repo)}/pipelines/#{id}/trigger_jobs")
+          Array(listed)
+        rescue GitlabApi::NotFound
+          Array(gitlab.list("#{GitlabApi.project(repo)}/pipelines/#{id}/bridges").first)
+        end
+
+        def trigger_part(trigger)
+          downstream = trigger["downstream_pipeline"].to_h
           Capabilities::History::Part.new(
-            id: job["id"].to_s, name: "#{job['stage']} / #{job['name']}", status: status, started_at: Telemetry.parse_time(job["started_at"]),
-            finished_at: Telemetry.parse_time(job["finished_at"]), url: job["web_url"],
-            detail: job["failure_reason"].present? ? "with #{job['failure_reason'].tr('_', ' ')}" : nil,
+            id: trigger["id"].to_s, name: "#{trigger['stage']} / #{trigger['name']}", status: Capabilities::History.status(trigger["status"], HISTORY_STATUSES),
+            started_at: Telemetry.parse_time(trigger["started_at"]), finished_at: Telemetry.parse_time(trigger["finished_at"]),
+            url: downstream["web_url"].presence || trigger["web_url"], detail: ("starts pipeline #{downstream['id']}, #{downstream['status']}" if downstream["id"])
+          )
+        end
+
+        def history_part(repo, job, prefix = "")
+          status = Capabilities::History.status(job["status"], HISTORY_STATUSES)
+          detail = if job["failure_reason"].present? then "with #{job['failure_reason'].tr('_', ' ')}"
+          elsif job["status"] == MANUAL then "waiting for someone to start it, play_job starts job #{job['id']}"
+          end
+          Capabilities::History::Part.new(
+            id: job["id"].to_s, name: "#{prefix}#{job['stage']} / #{job['name']}", status: status, started_at: Telemetry.parse_time(job["started_at"]),
+            finished_at: Telemetry.parse_time(job["finished_at"]), url: job["web_url"], detail: detail,
             log: { Capabilities::History::LOG_TOOL => "job_log", Capabilities::History::LOG_ARGUMENTS => { "repo" => repo, "job_id" => job["id"] } }
           )
         end
+
+        # GitLab's name filter matches a name whole, so a name it finds nothing by is looked for inside the newest names.
+        def named_pipelines(gitlab, repo, query, name)
+          exact = Array(gitlab.get("#{GitlabApi.project(repo)}/pipelines", query.merge("name" => name)))
+          return exact if exact.any?
+
+          Array(gitlab.get("#{GitlabApi.project(repo)}/pipelines", query.merge("per_page" => HISTORY_CANDIDATES))).select { |pipeline| history_run(pipeline).called?(name) }
+        end
+
+        def job_name(job, repo) = "Job #{job['id']} #{job['stage']}/#{job['name']} in #{repo}"
+
+        def job_commit(job) = job.dig("commit", "short_id") || job.dig("pipeline", "sha").to_s[0, 8]
 
         def pipeline_line(pipeline)
           "#{pipeline['created_at']}  pipeline #{pipeline['id']}  #{pipeline['status']}  #{pipeline['ref']}  #{pipeline['sha'].to_s[0, 12]}  " \
