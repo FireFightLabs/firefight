@@ -8,7 +8,9 @@ class SyncRenderRunAndChangeToolsTest < ActiveSupport::TestCase
 
     ActiveRecord::Migration.suppress_messages { SyncRenderRunAndChangeTools.new.up }
 
-    assert render.tools.where(name: %w[cron_runs job_runs task_runs]).all? { |tool| tool.enabled && tool.read_only }
+    reads = render.tools.where(name: %w[cron_runs job_runs task_runs])
+    assert_equal 3, reads.count
+    assert(reads.all? { |tool| tool.enabled && tool.read_only })
     changes = render.tools.where(name: %w[trigger_cron_run cancel_cron_run cancel_job run_task cancel_task_run cancel_deploy trigger_deploy set_autodeploy set_autoscaling suspend_service resume_service])
     assert_equal 11, changes.count
     assert(changes.none?(&:read_only))

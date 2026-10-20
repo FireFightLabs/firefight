@@ -58,7 +58,7 @@ module Integrations
 
       test "a webhook from before that misses an event Firefight now follows, or PR environments, is registered again" do
         @row.update!(map_events_webhook_id: { "prj-1" => "rule-1" }.to_json)
-        rule = { "id" => "rule-1", "eventTypes" => Railway::EVENTS, "ephemeralEnvironments" => true }
+        rule = { "id" => "rule-1", "eventTypes" => Railway::EVENTS, "ephemeralEnvironments" => true, "channels" => [ { "config" => { "url" => URL } } ] }
         RailwayApi.any_instance.stubs(:notification_rules).with("ws-1", "prj-1").returns([ rule ])
         assert_not Railway.register_again?(@row, url: URL)
 
@@ -68,6 +68,11 @@ module Integrations
         assert Railway.register_again?(@row, url: URL)
         RailwayApi.any_instance.stubs(:notification_rules).with("ws-1", "prj-1").returns([])
         assert Railway.register_again?(@row, url: URL)
+        RailwayApi.any_instance.stubs(:notification_rules).with("ws-1", "prj-1").returns([ rule.merge("channels" => [ { "config" => { "url" => "https://example.com/elsewhere" } } ]) ])
+        assert Railway.register_again?(@row, url: URL), "a rule no longer sending to this address"
+        RailwayApi.any_instance.stubs(:notification_rules).with("ws-1", "prj-1").returns([ rule ])
+        @row.store_fields!(Packs::Railway::PROJECT => %w[prj-1 prj-2], Packs::Railway::ENVIRONMENT => "production")
+        assert Railway.register_again?(@row.reload, url: URL), "a project chosen since has no webhook yet"
       end
 
       test "registering adds a webhook with a new secret header, or gives Firefight's own at this address a new one, never touching another" do

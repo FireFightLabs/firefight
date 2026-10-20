@@ -50,7 +50,7 @@ module Integrations
                     description: "Start a deploy of a Render service, static site or cron job. With nothing else it builds and deploys " \
                                  "the latest commit of its branch. commit deploys one commit, image one tag of the image it runs, " \
                                  "clear_cache clears the build cache first, and deploy_only deploys the last build that succeeded again " \
-                                 "without building. Autodeploy stays as it is. Follow it with deploy_history",
+                                 "without building. Autodeploy stays as it is. Follow it with run_history",
                     params_schema: {
                       "type" => "object",
                       "properties" => {
@@ -136,7 +136,7 @@ module Integrations
 
           started = api(environment_row).trigger_deploy(resource[:id], deploy_body(resource, arguments)).to_h
           what = started["id"] ? "Render started deploy #{started['id']} of #{resource[:name]}, now #{started['status'].to_s.tr('_', ' ').presence || 'queued'}." : "Render queued a deploy of #{resource[:name]}."
-          Telemetry.result("#{what} Autodeploy is as it was. Follow it with deploy_history.", link: started["id"] ? deploy_link(resource, started["id"]) : link(resource))
+          Telemetry.result("#{what} Autodeploy is as it was. Follow it with run_history.", link: started["id"] ? deploy_link(resource, started["id"]) : link(resource))
         end
 
         def suspend_service(environment_row:, arguments:)
@@ -187,19 +187,18 @@ module Integrations
                            link: link(resource))
         end
 
-        # Who started the deploy a cancel would stop, from the build or deploy start Render recorded with the person who
-        # triggered it (spec, Build Started and Deploy Started, trigger.user). A deploy Render or a commit started has
-        # nobody to ask.
+        # Who started the deploy a cancel would stop, from the deploy start Render recorded for it by its deployId with the
+        # person who triggered it (spec, Deploy Started, trigger.user). A build's start names only its buildId, which a deploy
+        # still building does not give, so such a deploy, and one Render or a commit started, has nobody to ask.
         def owner_of(tool_name, environment_row:, arguments:)
           return super unless tool_name == CANCEL_DEPLOY
 
           resource = find_resource(environment_row, arguments["resource"])
           deploy = deploy_named(environment_row, resource, arguments["deploy"])
           from = Telemetry.parse_time(deploy["createdAt"]) || Time.current
-          events = api(environment_row).events(resource[:id], "type" => PHASE_EVENTS.values_at("build", "deploy").map(&:first), "startTime" => (from - PHASE_MARGIN).utc.iso8601,
+          events = api(environment_row).events(resource[:id], "type" => [ PHASE_EVENTS["deploy"].first ], "startTime" => (from - PHASE_MARGIN).utc.iso8601,
                                                               "endTime" => Time.current.utc.iso8601, "limit" => PHASE_EVENT_LIMIT)
-          started = events.find { |event| event["type"] == PHASE_EVENTS["deploy"].first && event.dig("details", "deployId") == deploy["id"] } ||
-                    events.select { |event| event["type"] == PHASE_EVENTS["build"].first }.min_by { |event| event["timestamp"].to_s }
+          started = events.find { |event| event.dig("details", "deployId") == deploy["id"] }
           email = started&.dig("details", "trigger", "user", "email")
           return if email.blank?
 

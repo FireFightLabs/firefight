@@ -52,7 +52,20 @@ module Integrations
         assert_match "web has no deployment dep-other in this environment", error.message
       end
 
-      test "stopping takes the latest deployment unless one is named, and says the service serves nothing until restarted" do
+      test "a change naming another environment is refused as Firefight's rule, and naming the connection's own goes ahead" do
+        stub_instances("env-pr-12", latest: { "id" => "dep-pr", "status" => "SUCCESS" })
+        RailwayApi.any_instance.expects(:restart).never
+        refusal = assert_raises(Integrations::PolicyRefusal) { call(:restart_deployment, "resource" => "web", "environment" => "shop-pr-12") }
+        assert_match "A change acts only in this connection's own Railway environment, production, and shop-pr-12 is another.", refusal.message
+        assert_not(Railway.tool_definitions.reject(&:read_only).any? { |definition| definition.params_schema["properties"].key?("environment") })
+
+        RailwayApi.any_instance.unstub(:restart)
+        RailwayApi.any_instance.expects(:restart).with("dep-2").returns(true)
+        call(:restart_deployment, "resource" => "web", "environment" => "production")
+      end
+
+      test "stopping takes the deployment serving unless one is named, past a newer one that failed, and says the service serves nothing until restarted" do
+        serving_after_a_failed_one
         own_deployment("dep-2", "status" => "SUCCESS")
         RailwayApi.any_instance.expects(:stop).with("dep-2").returns(true)
 
@@ -85,6 +98,7 @@ module Integrations
         owner = @pack.owner_of("cancel_deployment", environment_row: @row, arguments: { "resource" => "web", "deployment" => "dep-3" })
         assert_equal [ "Ada", "ada@example.com", Owner::ROLE_STARTED, "deployment dep-3 of web" ], [ owner.name, owner.email, owner.role, owner.what ]
 
+        serving_after_a_failed_one
         own_deployment("dep-2", "status" => "SUCCESS", "creator" => nil)
         assert_nil Railway.new(@integration).owner_of("stop_deployment", environment_row: @row, arguments: { "resource" => "web" })
         assert_nil Railway.new(@integration).owner_of("restart_deployment", environment_row: @row, arguments: { "resource" => "web" })
@@ -169,6 +183,10 @@ module Integrations
           { "serviceId" => "svc-cron", "serviceName" => "nightly", "cronSchedule" => "0 0 * * *", "restartPolicyType" => "NEVER" }
         ], complete: true))
         @pack = Railway.new(@integration)
+      end
+
+      def serving_after_a_failed_one
+        RailwayApi.any_instance.stubs(:deployments).returns([ { "id" => "dep-4", "status" => "FAILED" }, { "id" => "dep-2", "status" => "SUCCESS" } ])
       end
 
       def own_deployment(id, fields)

@@ -19,6 +19,8 @@ module Integrations
         # (docs, content/docs/services.md, Approving a deployment).
         AWAITING_APPROVAL = %w[NEEDS_APPROVAL WAITING].freeze
         STOPPING_TOOLS = [ CANCEL_DEPLOYMENT, STOP_DEPLOYMENT ].freeze
+        # A stop with no deployment named takes the one serving, not the newest, which may be queued or failed.
+        SERVING = :serving
 
         def self.included(pack)
           pack.tool CANCEL_DEPLOYMENT,
@@ -30,9 +32,9 @@ module Integrations
 
           pack.tool STOP_DEPLOYMENT,
                     summary: "Stops a service's running deployment, so it serves nothing.",
-                    description: "Stop the replicas of a service's deployment that runs, by its id or the latest. The service serves " \
+                    description: "Stop the replicas of a service's deployment that runs, by its id or the one serving now. The service serves " \
                                  "nothing until restart_deployment starts it again or a new deployment goes live",
-                    params_schema: deployment_schema("The deployment to stop, by its id (optional, the latest)"),
+                    params_schema: deployment_schema("The deployment to stop, by its id (optional, the one serving now, even when a newer one is queued or failed)"),
                     read_only: false
 
           pack.tool REDEPLOY_DEPLOYMENT,
@@ -54,7 +56,7 @@ module Integrations
         def self.deployment_schema(words, required: false)
           {
             "type" => "object",
-            "properties" => { "resource" => RESOURCE, "environment" => ENVIRONMENT_PARAM, "deployment" => { "type" => "string", "description" => words } },
+            "properties" => { "resource" => RESOURCE, "deployment" => { "type" => "string", "description" => words } },
             "required" => required ? %w[resource deployment] : %w[resource]
           }
         end
@@ -71,7 +73,7 @@ module Integrations
         end
 
         def stop_deployment(environment_row:, arguments:)
-          resource, deployment = named_deployment(environment_row, arguments, latest: true)
+          resource, deployment = named_deployment(environment_row, arguments, latest: SERVING)
           unless RUNNING.include?(deployment["status"])
             fail! "Deployment #{deployment['id']} of #{resource[:name]} is #{deployment['status'].to_s.downcase}, so it runs nothing to stop."
           end
@@ -107,7 +109,7 @@ module Integrations
         def owner_of(tool_name, environment_row:, arguments:)
           return super unless STOPPING_TOOLS.include?(tool_name)
 
-          resource, deployment = named_deployment(environment_row, arguments, latest: tool_name == STOP_DEPLOYMENT)
+          resource, deployment = named_deployment(environment_row, arguments, latest: (SERVING if tool_name == STOP_DEPLOYMENT))
           creator = deployment["creator"].to_h
           return if creator["name"].blank? && creator["email"].blank?
 
@@ -122,10 +124,16 @@ module Integrations
         def named_deployment(environment_row, arguments, latest:)
           resource = find_resource(environment_row, arguments["resource"])
           id = arguments["deployment"].to_s.strip.presence
-          id ||= resource[:instance].dig("latestDeployment", "id") if latest
-          fail!(latest ? "#{resource[:name]} has no deployment yet." : "Say which deployment, by the id list_deployments shows.") unless id
+          id ||= (latest == SERVING ? serving_id(environment_row, resource) : resource[:instance].dig("latestDeployment", "id")) if latest
+          fail!(latest ? "#{resource[:name]} has no #{latest == SERVING ? 'running deployment' : 'deployment yet'}." : "Say which deployment, by the id list_deployments shows.") unless id
 
           [ resource, own_deployment!(environment_row, resource, id) ]
+        end
+
+        # The newest deployment whose replicas run or sleep, which is what serves even while a newer one is queued or failed.
+        def serving_id(environment_row, resource)
+          api(environment_row).deployments(project_of(environment_row), environment(environment_row)["id"], resource[:id], limit: ROLLBACK_LOOKUP)
+                              .find { |deployment| RUNNING.include?(deployment["status"]) }&.dig("id")
         end
       end
     end

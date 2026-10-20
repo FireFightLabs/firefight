@@ -1,13 +1,13 @@
 ---
 name: railway_cron_jobs
 when: A Railway cron job did not run, failed, was skipped, ran too long or ran late, or someone asks when it last ran
-tools: [run_history, cron_runs, resource_status, search_logs, recent_deploys, list_resources]
+tools: [run_history, resource_status, search_logs, recent_deploys, list_resources]
 references: [cron-jobs.md, cli/cron.md]
 ---
 A cron job on Railway is a service with a cron schedule. Each run starts its deployment, runs until the process exits, and is listed with how it ended.
 
 1. Call `resource_status` for the schedule and when the next run is due. The schedule is in UTC.
-2. Call `run_history` on the cron job, or `cron_runs` with it as `resource`. Each run says how it ended:
+2. Call `run_history` on the cron job. Each run says how it ended:
    - exited is a run that finished, which reads as succeeded.
    - crashed is a run that exited with an error.
    - skipped is a run Railway did not start because the run before it was still running, so a run that never ends blocks every one after it.

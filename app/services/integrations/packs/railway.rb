@@ -171,7 +171,7 @@ module Integrations
            summary: "Restarts a service's latest deployment without building again.",
            description: "Restart the containers of a service's latest deployment without building it again, such as one that " \
                         "crashed and ran out of restarts",
-           params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE, "environment" => ENVIRONMENT_PARAM }, "required" => [ "resource" ] },
+           params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
            read_only: false
 
       tool :rollback_deployment,
@@ -182,7 +182,6 @@ module Integrations
              "type" => "object",
              "properties" => {
                "resource" => RESOURCE,
-               "environment" => ENVIRONMENT_PARAM,
                "deployment" => { "type" => "string", "description" => "The deployment to go back to, by its id" }
              },
              "required" => %w[resource deployment]
@@ -199,7 +198,6 @@ module Integrations
              "type" => "object",
              "properties" => {
                "resource" => RESOURCE,
-               "environment" => ENVIRONMENT_PARAM,
                "instances" => { "type" => "integer", "description" => "How many replicas to run in the region" },
                "region" => { "type" => "string", "description" => "The region to scale, by the id describe_resource shows, such as us-west2 (optional for a service in one region)" }
              },
@@ -304,13 +302,21 @@ module Integrations
                                  "#{environments.map { |each| each['name'] }.join(', ').presence || 'none'}."
       end
 
-      # A call naming another environment of the project, such as a PR environment, reads that one alone.
+      # A read naming another environment of the project, such as a PR environment, reads that one alone. A change acts
+      # only in the connection's own environment, since what a person may change is granted per connection and so per
+      # environment, and naming another is refused as Firefight's rule.
       def call(tool_name, environment_row:, arguments:)
         @asked_environment = arguments[ENVIRONMENT].to_s.strip.presence
+        @changing = tool_definitions.find { |definition| definition.name == tool_name }&.read_only == false
         super
       end
 
-      def scoped(scope) = super.tap { |pack| pack.instance_variable_set(:@asked_environment, @asked_environment) }
+      def scoped(scope)
+        super.tap do |pack|
+          pack.instance_variable_set(:@asked_environment, @asked_environment)
+          pack.instance_variable_set(:@changing, @changing)
+        end
+      end
 
       def list_resources(environment_row:, arguments:)
         return every_project(environment_row) { |pack| pack.list_resources(environment_row: environment_row, arguments: arguments) } if every_scope?(environment_row)
@@ -850,11 +856,26 @@ module Integrations
 
       def environment(environment_row)
         @environment ||= if @asked_environment
-          other_environment(environment_row, @asked_environment)
+          other = other_environment(environment_row, @asked_environment)
+          @changing ? own_environment_only!(environment_row, other) : other
         else
-          asked = ConnectionSettings.of(environment_row).field(ENVIRONMENT) || fail!("This environment has no Railway environment. Reconnect it.")
-          self.class.environment_in(api(environment_row).project(project_of(environment_row)), asked)
+          connection_environment(environment_row)
         end
+      end
+
+      def connection_environment(environment_row)
+        asked = ConnectionSettings.of(environment_row).field(ENVIRONMENT) || fail!("This environment has no Railway environment. Reconnect it.")
+        self.class.environment_in(api(environment_row).project(project_of(environment_row)), asked)
+      end
+
+      # A change acts only in the connection's own environment, since what a person may change is granted per connection
+      # and so per environment. Naming another is refused as Firefight's rule, and reads go on reaching every one.
+      def own_environment_only!(environment_row, asked)
+        own = connection_environment(environment_row)
+        return own if asked["id"] == own["id"]
+
+        fail_policy!("A change acts only in this connection's own Railway environment, #{own['name']}, and #{asked['name']} is another. " \
+                     "Connect #{asked['name']} as an environment of its own on the Integrations page to change it there.")
       end
 
       # An environment of the project a call named, its PR environments among them, by name or id.

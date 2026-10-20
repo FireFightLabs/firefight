@@ -128,8 +128,8 @@ module Integrations
                "regex" => { "type" => "string", "description" => "Only lines matching this regular expression, in RE2 syntax (optional)" },
                "type" => { "type" => "string", "enum" => LOG_TYPES, "description" => "Which logs (optional, every type)" },
                "deploy" => { "type" => "string", "description" => "Only the time this deploy ran, by its id, when no start is given (optional)" },
-               "job" => { "type" => "string", "description" => "Only this one-off job's lines, by its id as job_runs shows it (optional)" },
-               "task_run" => { "type" => "string", "description" => "A workflow's lines of this task run only, by its id as task_runs shows it (optional)" },
+               "job" => { "type" => "string", "description" => "Only this one-off job's lines, by its id as run_history with name job shows it (optional)" },
+               "task_run" => { "type" => "string", "description" => "A workflow's lines of this task run only, by its id as run_history on the workflow shows it (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many lines (optional, #{LOG_LIMIT})" },
                **Capabilities::RANGE
              },
@@ -373,7 +373,7 @@ module Integrations
       def job_of(environment_row, resource, asked)
         api(environment_row).job(resource[:id], asked.to_s.strip)
       rescue RenderApi::NotFound
-        fail! "#{resource[:name]} has no one-off job #{asked}. job_runs lists its jobs."
+        fail! "#{resource[:name]} has no one-off job #{asked}. run_history with name job lists its jobs."
       end
       private :job_of
 
@@ -397,7 +397,7 @@ module Integrations
 
       def query_metrics(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
-        fail! "#{resource[:name]} is a workflow, and task_runs reads how its runs went." if resource[:type] == WORKFLOW
+        fail! "#{resource[:name]} is a workflow, and run_history reads how its runs went." if resource[:type] == WORKFLOW
 
         started, ended = Capabilities::Answers.range(arguments)
         asked = Array(arguments["metrics"]).map(&:to_s) & METRICS.keys
@@ -984,11 +984,13 @@ module Integrations
         end
       end
 
-      # The workspace's workflows. One Render refuses to list, such as on a workspace without workflows, is said beside
-      # the rest rather than failing the listing.
+      # The workspace's workflows. A list Render refuses or fails, such as on a workspace without workflows, is said beside
+      # the rest rather than failing the listing, and being asked to slow down still stops the read.
       def workflows_read(api, workspace)
         api.workflows(workspace)
-      rescue RenderApi::Refused => error
+      rescue Integrations::RateLimited
+        raise
+      rescue RenderApi::Error => error
         @workflows_unread = error
         Pages::Read.new(items: [], complete: true)
       end
@@ -1151,7 +1153,7 @@ module Integrations
           ("Run command: #{workflow['runCommand']}" if workflow["runCommand"].present?),
           ("Autodeploy: #{workflow['autoDeployTrigger']}" if workflow["autoDeployTrigger"]),
           (tasks.is_a?(Exception) ? Sentence.join("Its tasks could not be read", tasks) : "Tasks: #{tasks.join(', ').presence || 'none yet'}"),
-          "task_runs reads how its runs went."
+          "run_history reads how its runs went."
         ]
       end
 

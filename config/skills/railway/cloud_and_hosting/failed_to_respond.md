@@ -12,6 +12,6 @@ Railway's edge proxy answers 502 with "Application failed to respond" when it ca
    - The app does not listen on host 0.0.0.0 and the PORT variable Railway sets. Read its start lines with `search_logs`, `stream` app, for the address it listens on.
    - A domain's target port is not the port the app listens on.
    - The app is too loaded to answer. Call `query_metrics` with `metrics` cpu, memory and requests and look for a spike at the same time.
-4. For slow requests, call `query_metrics` with `metrics` latency_p95 for when they slowed, then `search_traces` over that window. Traces come failed and slowest first, and one read by its id shows each span, so the slow or failing call inside the request is named. Railway traces a service only once tracing is on for it in that environment, so no traces is not proof of fast requests.
+4. For slow requests, call `query_metrics` with `metrics` latency_p95 for when they slowed, then `search_traces` over that window. Traces come failed and slowest first, each with the route and how long it took. Railway traces a service only once tracing is on for it in that environment, so no traces is not proof of fast requests.
 5. A service that sleeps when idle wakes on the next request, and that first request can take long or fail with a 502 while it starts.
 6. Say which cause it is, with the request lines that show it. A wrong port or listen address is a change to the service's settings or code for a person to make, so name the setting and the value.

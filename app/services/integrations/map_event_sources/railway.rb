@@ -51,13 +51,16 @@ module Integrations
         # registered before an event joined is registered again with it. One Railway no longer has is registered again too.
         def register_again?(row, url:)
           api = api(row)
-          rules = registrations(row.map_events_webhook_id, ConnectionSettings.of(row))
+          settings = ConnectionSettings.of(row)
+          rules = registrations(row.map_events_webhook_id, settings)
+          return true unless rules.keys.sort == settings.scopes.sort
+
           rules.any? do |project, rule_id|
             workspace = api.project(project)&.dig("workspaceId")
             next false if workspace.blank?
 
             own = api.notification_rules(workspace, project).find { |rule| rule["id"].to_s == rule_id.to_s }
-            own.nil? || (EVENTS - Array(own["eventTypes"])).any? || own["ephemeralEnvironments"] != true
+            own.nil? || !at?(own, url) || (EVENTS - Array(own["eventTypes"])).any? || own["ephemeralEnvironments"] != true
           end
         end
 

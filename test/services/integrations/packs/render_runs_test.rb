@@ -174,8 +174,18 @@ module Integrations
       test "a cron job's run is started and cancelled at the cron job's runs, and only a cron job has them" do
         RenderApi.any_instance.expects(:trigger_cron_run).with("crn-1").returns("id" => "crn-run-9", "status" => "pending")
         assert_match "Render started run crn-run-9 of nightly, cancelling any run of it already going.", call(:trigger_cron_run, "resource" => "nightly")
+        RenderApi.any_instance.stubs(:events).returns([
+          { "timestamp" => "2026-10-02T03:00:01Z", "type" => "cron_job_run_started", "details" => { "cronJobRunId" => "crn-run-3" } }
+        ])
         RenderApi.any_instance.expects(:cancel_cron_run).with("crn-1").returns({})
-        assert_match "Render is cancelling the run of nightly going now. Its next scheduled run still starts.", call(:cancel_cron_run, "resource" => "nightly")
+        assert_match "Render is cancelling run crn-run-3 of nightly, going since 2026-10-02T03:00:01Z. Its next scheduled run still starts.",
+                     call(:cancel_cron_run, "resource" => "nightly")
+
+        RenderApi.any_instance.stubs(:events).returns([
+          { "timestamp" => "2026-10-02T03:04:00Z", "type" => "cron_job_run_ended", "details" => { "cronJobRunId" => "crn-run-3", "status" => "successful" } },
+          { "timestamp" => "2026-10-02T03:00:01Z", "type" => "cron_job_run_started", "details" => { "cronJobRunId" => "crn-run-3" } }
+        ])
+        assert_match "No run of nightly is going now", error(:cancel_cron_run, "resource" => "nightly")
         assert_match "only a cron job has runs to start or cancel", error(:trigger_cron_run, "resource" => "web")
       end
 
@@ -201,6 +211,11 @@ module Integrations
         assert_match "Render is cancelling task run trn-5 of mailer.", call(:cancel_task_run, "resource" => "mailer", "run" => "trn-5")
         RenderApi.any_instance.stubs(:task_run).with("trn-1").returns("id" => "trn-1", "taskId" => "tsk-1", "status" => "failed")
         assert_match "already ended as failed", error(:cancel_task_run, "resource" => "mailer", "run" => "trn-1")
+
+        RenderApi.any_instance.stubs(:tasks).with("wfl-1").raises(RenderApi::Error, "Render answered 500: oops")
+        RenderApi.any_instance.expects(:cancel_task_run).never
+        assert_match "could not be read, so task run trn-5 cannot be told to be its own", error(:cancel_task_run, "resource" => "mailer", "run" => "trn-5")
+        assert_match "cannot be told to be its own", error(:task_runs, "resource" => "mailer", "run" => "trn-5")
       end
 
       private
