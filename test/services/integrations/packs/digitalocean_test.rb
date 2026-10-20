@@ -34,11 +34,14 @@ module Integrations
                                                                     "version" => "8", "num_nodes" => 1, "size" => "db-s-1vcpu-1gb", "region" => "fra1",
                                                                     "connection" => { "password" => "s3cret" } }))
         DigitaloceanApi.any_instance.stubs(:account).returns("uuid" => "acc-1", "team" => { "name" => "Acme" })
+        DigitaloceanApi.any_instance.stubs(:alerts).returns([])
+        DigitaloceanApi.any_instance.stubs(:droplet_actions).returns([])
+        DigitaloceanApi.any_instance.stubs(:job_invocations).returns([])
       end
 
       test "the token is stored trimmed, a wrong one is said on the form, and only the changes are not read only" do
         assert_equal "dop-token", @row.reload.credentials_hash[Digitalocean::API_TOKEN]
-        assert_equal %w[rollback_app restart_app scale_app reboot_droplet], Digitalocean.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[cancel_deployment cancel_job_run cancel_autoscaling redeploy_app commit_rollback revert_rollback rollback_app restart_app scale_app reboot_droplet], Digitalocean.tool_definitions.reject(&:read_only).map(&:name)
         DigitaloceanApi.any_instance.stubs(:account).raises(DigitaloceanApi::Error, "DigitalOcean answered 401: Unable to authenticate you")
         assert_equal "DigitalOcean refused this token: DigitalOcean answered 401: Unable to authenticate you.",
                      Digitalocean.credential_refusal({ Digitalocean::API_TOKEN => "dop-bad" })
@@ -72,7 +75,7 @@ module Integrations
       end
 
       test "logs are the newest lines in range, filtered, and every answer is redacted on its way out of the executor" do
-        DigitaloceanApi.any_instance.expects(:log_urls).with(APP_ID, type: "RUN_RESTARTED", component: "web", deployment: nil).twice.returns([ "https://logs.example/1.log" ])
+        DigitaloceanApi.any_instance.expects(:logs).with(APP_ID, type: "RUN_RESTARTED", component: "web", deployment: nil).twice.returns(historic: [ "https://logs.example/1.log" ], live: nil)
         DigitaloceanApi.any_instance.stubs(:log_file).returns(<<~LOG)
           web 2026-10-01T10:00:00Z booting
           web 2026-10-01T10:01:00Z error token ghp_#{'a' * 36}
@@ -92,7 +95,7 @@ module Integrations
       end
 
       test "a regular expression that takes too long is refused as too slow, not as unreadable" do
-        DigitaloceanApi.any_instance.stubs(:log_urls).returns([ "https://logs.example/1.log" ])
+        DigitaloceanApi.any_instance.stubs(:logs).returns(historic: [ "https://logs.example/1.log" ], live: nil)
         DigitaloceanApi.any_instance.stubs(:log_file).returns("web 2026-10-01T10:00:00Z #{'a' * 35}\n")
 
         error = assert_raises(NativePack::Error) do
@@ -157,12 +160,170 @@ module Integrations
         assert_match "only for MySQL databases", error.message
       end
 
-      test "a rollback goes to the deployment named and says the app is pinned" do
+      test "a rollback is checked first, goes to the deployment named and says how to keep or undo it" do
+        DigitaloceanApi.any_instance.expects(:validate_rollback).with(APP_ID, "dep-1").returns(
+          "valid" => true, "warnings" => [ { "code" => "image_source_missing_digest", "components" => [ "worker" ],
+                                             "message" => "one or more components are missing an image digest" } ]
+        )
         DigitaloceanApi.any_instance.expects(:rollback).with(APP_ID, "dep-1").returns("deployment" => { "id" => "dep-3" })
 
         text = call(:rollback_app, "resource" => "shop", "deployment" => "dep-1")
 
-        assert text.start_with?("shop is rolling back to deployment dep-1, as new deployment dep-3. DigitalOcean pins the app")
+        assert text.start_with?("shop is rolling back to deployment dep-1, as new deployment dep-3. DigitalOcean warned: one or more " \
+                                "components are missing an image digest (worker). DigitalOcean pins the app")
+        assert_match "kept with commit_rollback or undone with revert_rollback", text
+      end
+
+      test "a rollback DigitalOcean says it cannot make is refused with its reason, and nothing is rolled back" do
+        DigitaloceanApi.any_instance.stubs(:validate_rollback).returns("valid" => false,
+                                                                       "error" => { "code" => "incompatible_result", "message" => "deployment result \"failed\" is unsuitable for rollback" })
+        DigitaloceanApi.any_instance.expects(:rollback).never
+
+        error = assert_raises(NativePack::Error) { call(:rollback_app, "resource" => "shop", "deployment" => "dep-1") }
+
+        assert_equal "DigitalOcean cannot roll shop back to deployment dep-1: deployment result \"failed\" is unsuitable for rollback.", error.message
+      end
+
+      test "a pinned app's rollback is kept or undone, and an app that is not pinned is refused" do
+        pinned = APP.deep_dup.merge("pinned_deployment" => { "id" => "dep-1" })
+        DigitaloceanApi.any_instance.stubs(:app).returns(pinned)
+        DigitaloceanApi.any_instance.expects(:commit_rollback).with(APP_ID).returns({})
+        DigitaloceanApi.any_instance.expects(:revert_rollback).with(APP_ID).returns("deployment" => { "id" => "dep-4" })
+
+        assert_match "shop keeps deployment dep-1 for good and deploys again", call(:commit_rollback, "resource" => "shop")
+        assert_match "as deployment dep-4, and deploys again on a push", call(:revert_rollback, "resource" => "shop")
+        assert_match "pinned to deployment dep-1 by a rollback", assert_raises(NativePack::Error) { call(:redeploy_app, "resource" => "shop") }.message
+
+        DigitaloceanApi.any_instance.stubs(:app).returns(APP.deep_dup)
+        assert_match "not pinned by a rollback", assert_raises(NativePack::Error) { call(:commit_rollback, "resource" => "shop") }.message
+      end
+
+      test "a redeploy builds the newest commit, from source when asked" do
+        DigitaloceanApi.any_instance.expects(:create_deployment).with(APP_ID, force_build: true).returns("deployment" => { "id" => "dep-5" })
+
+        text = call(:redeploy_app, "resource" => "shop", "force_build" => true)
+
+        assert_match "shop is deploying the newest commit of each component's branch, built again from source, as deployment dep-5.", text
+        assert_match "https://cloud.digitalocean.com/apps/#{APP_ID}/deployments/dep-5", text
+      end
+
+      test "a deployment still going is cancelled, and one that ended is refused" do
+        DigitaloceanApi.any_instance.stubs(:deployment).with(APP_ID, "dep-3").returns("id" => "dep-3", "phase" => "BUILDING")
+        DigitaloceanApi.any_instance.expects(:cancel_deployment).with(APP_ID, "dep-3").returns("id" => "dep-3", "phase" => "CANCELED")
+
+        assert_match "Deployment dep-3 of shop is cancelled, now CANCELED. The deployment live before it keeps serving.", call(:cancel_deployment, "resource" => "shop", "deployment" => "dep-3")
+
+        DigitaloceanApi.any_instance.stubs(:deployment).with(APP_ID, "dep-2").returns("id" => "dep-2", "phase" => "ACTIVE")
+        assert_match "already ended, ACTIVE", assert_raises(NativePack::Error) { call(:cancel_deployment, "resource" => "shop", "deployment" => "dep-2") }.message
+      end
+
+      JOB_RUN = { "id" => "inv-1", "job_name" => "migrate", "deployment_id" => "dep-2", "phase" => "FAILED", "created_at" => "2026-10-01T11:00:00Z",
+                  "started_at" => "2026-10-01T11:00:05Z", "completed_at" => "2026-10-01T11:01:05Z",
+                  "trigger" => { "type" => "SCHEDULE", "scheduled" => { "schedule" => { "cron" => "0 * * * *" } } } }.freeze
+
+      test "a job's runs are run history beside the deployments, and one run by its id carries its log" do
+        DigitaloceanApi.any_instance.stubs(:deployments).returns([ APP["active_deployment"].merge("phase_last_updated_at" => "2026-10-01T10:05:00Z") ])
+        DigitaloceanApi.any_instance.stubs(:job_invocations).with(APP_ID, limit: 20).returns([ JOB_RUN ])
+
+        runs = Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: { "resource" => APP_ID }))
+        assert_equal [ [ "inv-1", "job migrate", "failed", 60 ], [ "dep-2", "deploy", "succeeded", 300 ] ], runs.map { |run| [ run.id, run.name, run.status, run.seconds ] }
+        assert_equal "on schedule 0 * * * *, deployment dep-2", runs.first.detail
+
+        DigitaloceanApi.any_instance.stubs(:deployment).raises(DigitaloceanApi::NotFound, "DigitalOcean answered 404: not found")
+        DigitaloceanApi.any_instance.stubs(:job_invocation).with(APP_ID, "inv-1").returns(JOB_RUN)
+        one = Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: { "resource" => APP_ID, "run" => "inv-1" })).sole
+        assert_equal({ "resource" => APP_ID, "job_invocation" => "inv-1", "component" => "migrate" }, one.first_failed_part.log[Capabilities::History::LOG_ARGUMENTS])
+        assert_equal [ "dep-2" ], Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: { "resource" => APP_ID, "name" => "deploy" })).map(&:id)
+      end
+
+      test "a job run's logs are read under its job, and a run still going is cancelled under it" do
+        DigitaloceanApi.any_instance.stubs(:job_invocation).with(APP_ID, "inv-1").returns(JOB_RUN.merge("phase" => "RUNNING"))
+        DigitaloceanApi.any_instance.expects(:job_invocation_logs).with(APP_ID, "migrate", "inv-1").returns(historic: [], live: "wss://logs.example/live?token=x")
+        DigitaloceanApi.any_instance.expects(:live_log).with("wss://logs.example/live?token=x").returns("migrate 2026-10-01T11:00:30Z applying 0042\n")
+
+        text = call(:app_logs, "resource" => "shop", "job_invocation" => "inv-1")
+        assert_match "job run inv-1 logs of shop", text
+        assert_match "applying 0042", text
+        assert_no_match "token=x", text
+
+        DigitaloceanApi.any_instance.expects(:cancel_job_invocation).with(APP_ID, "inv-1", job_name: "migrate").returns("phase" => "CANCELED")
+        assert_match "Run inv-1 of job migrate in shop is cancelled", call(:cancel_job_run, "resource" => "shop", "run" => "inv-1")
+      end
+
+      test "a deployment's live log is read beside its archived files, and one that cannot be read is said" do
+        DigitaloceanApi.any_instance.stubs(:logs).returns(historic: [ "https://logs.example/build.log" ], live: "wss://logs.example/live")
+        DigitaloceanApi.any_instance.stubs(:log_file).returns("web 2026-10-01T06:01:00Z npm ci\n")
+        DigitaloceanApi.any_instance.stubs(:live_log).returns("web 2026-10-01T06:02:00Z compiling\n")
+
+        text = call(:app_logs, "resource" => "shop", "deployment" => "dep-9", "type" => "BUILD")
+        assert_match "compiling", text
+        assert_match "npm ci", text
+
+        DigitaloceanApi.any_instance.stubs(:live_log).raises(DigitaloceanApi::Error, "could not reach logs.example (Errno::ECONNREFUSED)")
+        text = call(:app_logs, "resource" => "shop", "deployment" => "dep-9", "type" => "BUILD")
+        assert_match "npm ci", text
+        assert_match "The live log could not be read, so only the archived lines are here", text
+      end
+
+      test "an app's events say its deployments and how autoscaling moved each component" do
+        DigitaloceanApi.any_instance.expects(:events).with(APP_ID, limit: 20, type: nil).returns([
+          { "id" => "ev-2", "type" => "AUTOSCALING", "created_at" => "2026-10-01T12:00:00Z",
+            "autoscaling" => { "phase" => "SUCCEEDED", "components" => { "web" => { "from" => 2, "to" => 4, "triggering_metric" => "cpu" } } } },
+          { "id" => "ev-1", "type" => "DEPLOYMENT", "deployment_id" => "dep-2", "created_at" => "2026-10-01T10:00:00Z",
+            "deployment" => { "phase" => "ACTIVE", "cause" => "manual" } }
+        ])
+
+        text = call(:app_events, "resource" => "shop")
+
+        assert_match "- 2026-10-01T12:00:00Z: autoscaling SUCCEEDED, web 2 to 4 on cpu, event ev-2", text
+        assert_match "- 2026-10-01T10:00:00Z: deployment dep-2, ACTIVE, manual", text
+      end
+
+      test "an autoscaling still going is cancelled, and a deployment or one that ended is refused" do
+        DigitaloceanApi.any_instance.stubs(:event).with(APP_ID, "ev-2").returns("id" => "ev-2", "type" => "AUTOSCALING", "autoscaling" => { "phase" => "IN_PROGRESS" })
+        DigitaloceanApi.any_instance.expects(:cancel_event).with(APP_ID, "ev-2").returns("id" => "ev-2", "autoscaling" => { "phase" => "CANCELED" })
+        assert_match "The autoscaling ev-2 of shop is cancelled, now CANCELED. Its components keep the instances they run now.",
+                     call(:cancel_autoscaling, "resource" => "shop", "event" => "ev-2")
+
+        DigitaloceanApi.any_instance.stubs(:event).with(APP_ID, "ev-3").returns("id" => "ev-3", "type" => "AUTOSCALING", "autoscaling" => { "phase" => "SUCCEEDED" })
+        assert_match "already ended, SUCCEEDED", assert_raises(NativePack::Error) { call(:cancel_autoscaling, "resource" => "shop", "event" => "ev-3") }.message
+        DigitaloceanApi.any_instance.stubs(:event).with(APP_ID, "ev-1").returns("id" => "ev-1", "type" => "DEPLOYMENT")
+        assert_match "only an autoscaling is cancelled", assert_raises(NativePack::Error) { call(:cancel_autoscaling, "resource" => "shop", "event" => "ev-1") }.message
+      end
+
+      test "an app's status names its alerts without where they are sent, and a Droplet's its latest actions" do
+        DigitaloceanApi.any_instance.stubs(:health).returns({})
+        DigitaloceanApi.any_instance.stubs(:alerts).returns([
+          { "id" => "al-1", "component_name" => "web", "phase" => "ACTIVE",
+            "spec" => { "rule" => "CPU_UTILIZATION", "operator" => "GREATER_THAN", "value" => 80, "window" => "FIVE_MINUTES" },
+            "emails" => [ "ops@acme.dev" ], "slack_webhooks" => [ { "url" => "https://hooks.slack.com/services/T0/B0/secret", "channel" => "ops" } ] }
+        ])
+        text = call(:describe_resource, "resource" => "shop")
+        assert_match "- CPU_UTILIZATION, GREATER_THAN 80 over FIVE_MINUTES, on web, ACTIVE, sent to 1 emails and 1 Slack channels", text
+        assert_no_match "hooks.slack.com", text
+        assert_no_match "ops@acme.dev", text
+
+        DigitaloceanApi.any_instance.stubs(:droplet).returns("id" => 3164494, "name" => "bastion", "status" => "active", "created_at" => "2026-01-01T00:00:00Z")
+        DigitaloceanApi.any_instance.stubs(:droplet_actions).with("3164494", limit: Digitalocean::DROPLET_ACTIONS).returns([
+          { "id" => 2, "type" => "reboot", "status" => "completed", "started_at" => "2026-10-01T09:00:00Z", "completed_at" => "2026-10-01T09:01:00Z" }
+        ])
+        assert_match "- reboot completed, started 2026-10-01T09:00:00Z, ended 2026-10-01T09:01:00Z", call(:describe_resource, "resource" => "bastion")
+      end
+
+      test "an app is read again on its own after it changed, linked to the database it attaches, and one gone is gone" do
+        attached = APP.deep_dup
+        attached["spec"]["databases"] = [ { "name" => "db", "cluster_name" => "shop-db" } ]
+        DigitaloceanApi.any_instance.stubs(:app).returns(attached)
+        scope = ResourceMap::Scope.new(account: "Acme", kind: ResourceMap::KIND_SERVICE, external_id: APP_ID)
+
+        snapshot = @pack.map_refresh(@row, scope)
+
+        assert_includes snapshot.resources.map(&:name), "shop"
+        assert_not_includes snapshot.resources.map(&:kind), ResourceMap::KIND_DATABASE
+        assert(snapshot.links.any? { |link| link.relation == ResourceMap::RELATION_USES && link.to.last == "db-1" })
+        DigitaloceanApi.any_instance.stubs(:app).raises(DigitaloceanApi::NotFound, "DigitalOcean answered 404: not found")
+        assert_equal [ [ Digitalocean::PROVIDER_KEY, "Acme", ResourceMap::KIND_SERVICE, APP_ID ] ], @pack.map_refresh(@row, scope).gone
+        assert_nil @pack.map_refresh(@row, ResourceMap::Scope.new(kind: ResourceMap::KIND_DATABASE, external_id: "db-1"))
       end
 
       test "scaling changes one instance count and sends the rest of the spec back as it came" do
@@ -175,6 +336,15 @@ module Integrations
         assert_match "autoscales", assert_raises(Integrations::Error) { call(:scale_app, "resource" => "shop", "component" => "jobs", "instances" => 2) }.message
         assert_match "call scale_app with the component", assert_raises(Integrations::Error) { call(:scale_app, "resource" => "shop", "instances" => 2) }.message
         assert_raises(Integrations::Error) { call(:scale_app, "resource" => "shop", "component" => "web", "instances" => 0) }
+      end
+
+      test "a fractional or non-finite instance count is refused, never rounded down" do
+        DigitaloceanApi.any_instance.expects(:update_app).never
+
+        [ 2.9, 1.5, Float::INFINITY, Float::NAN, "2.9" ].each do |instances|
+          error = assert_raises(Integrations::Error) { call(:scale_app, "resource" => "shop", "component" => "web", "instances" => instances) }
+          assert_equal "instances must be a whole number, 1 or more.", error.message, instances.inspect
+        end
       end
 
       test "a change the token may not make says which scope to give it, and a Droplet reboots" do
@@ -374,14 +544,15 @@ module Integrations
 
       test "a deployment the app does not hold is said in words" do
         DigitaloceanApi.any_instance.stubs(:deployment).raises(DigitaloceanApi::NotFound, "DigitalOcean answered 404: not found")
+        DigitaloceanApi.any_instance.stubs(:job_invocation).raises(DigitaloceanApi::NotFound, "DigitalOcean answered 404: not found")
 
         error = assert_raises(NativePack::Error) { call(:deploy_history, "resource" => APP_ID, "run" => "dep-0") }
 
-        assert_equal "shop has no deployment dep-0. deploy_history lists its recent ones.", error.message
+        assert_equal "shop has no deployment or job run dep-0. deploy_history lists its recent ones.", error.message
       end
 
       test "the logs of one deployment are read whole, however old, and link to that deployment" do
-        DigitaloceanApi.any_instance.expects(:log_urls).with(APP_ID, type: "BUILD", component: "web", deployment: "dep-9").returns([ "https://logs.example/build.log" ])
+        DigitaloceanApi.any_instance.expects(:logs).with(APP_ID, type: "BUILD", component: "web", deployment: "dep-9").returns(historic: [ "https://logs.example/build.log" ], live: nil)
         DigitaloceanApi.any_instance.stubs(:log_file).returns(<<~LOG)
           web 2026-09-01T06:01:00Z npm ci
           web 2026-09-01T06:03:59Z npm ERR! missing script: build

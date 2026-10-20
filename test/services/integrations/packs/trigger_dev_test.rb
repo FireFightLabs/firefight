@@ -19,10 +19,156 @@ module Integrations
         TriggerDevApi.any_instance.stubs(:environment_variables).returns([])
       end
 
-      test "the key is stored trimmed, the project ref is a field of the form, and only promoting a deployment changes anything" do
+      test "the key is stored trimmed, the project ref is a field of the form, and only the run, queue, error and promote tools change anything" do
         assert_equal "tr_prod_sk_abc", @row.reload.credentials_hash[TriggerDev::API_KEY]
         assert_equal [ TriggerDev::API_KEY ], TriggerDev.credential_fields.map(&:key)
-        assert_equal [ "promote_deployment" ], TriggerDev.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[cancel_run replay_run bulk_cancel_runs bulk_replay_runs abort_bulk_action pause_queue resume_queue override_queue_concurrency reset_queue_concurrency
+                        pause_concurrency_limit resume_concurrency_limit override_concurrency_limit reset_concurrency_limit resolve_error ignore_error
+                        unresolve_error promote_deployment], TriggerDev.tool_definitions.reject(&:read_only).map(&:name)
+      end
+
+      test "a run still going is cancelled, one that ended is refused, and a run is replayed as a new one" do
+        TriggerDevApi.any_instance.stubs(:run).with("run_a").returns("id" => "run_a", "taskIdentifier" => "send-email", "status" => "EXECUTING")
+        TriggerDevApi.any_instance.expects(:cancel_run).with("run_a").returns("id" => "run_a")
+        assert_match "Run run_a of send-email is cancelled, with any retries it had left.", call(:cancel_run, "run" => "run_a")
+
+        TriggerDevApi.any_instance.stubs(:run).with("run_b").returns("id" => "run_b", "taskIdentifier" => "send-email", "status" => "COMPLETED")
+        assert_match "already ended, COMPLETED", assert_raises(NativePack::Error) { call(:cancel_run, "run" => "run_b") }.message
+        assert_match "starting run_", assert_raises(NativePack::Error) { call(:cancel_run, "run" => "abc") }.message
+
+        TriggerDevApi.any_instance.expects(:replay_run).with("run_b").returns("id" => "run_c")
+        text = call(:replay_run, "run" => "run_b")
+        assert_match "Run run_b runs again as run_c", text
+        assert_match "https://cloud.trigger.dev/projects/v3/proj_acme/runs/run_c", text
+      end
+
+      test "a key that cannot write runs is told which preset to give it" do
+        TriggerDevApi.any_instance.stubs(:replay_run).raises(TriggerDevApi::Error, "Trigger.dev answered 403: Forbidden")
+
+        assert_match "create a key whose preset can write runs", assert_raises(NativePack::Error) { call(:replay_run, "run" => "run_b") }.message
+      end
+
+      test "many runs are cancelled or replayed by id or by a filter, and never with nothing to narrow them" do
+        TriggerDevApi.any_instance.expects(:bulk_action).with("cancel", name: "Firefight: cancel 2 runs", run_ids: %w[run_a run_b], filter: nil).returns("id" => "bulk_1")
+        assert_match "Trigger.dev cancels 2 runs as bulk action bulk_1", call(:bulk_cancel_runs, "runs" => %w[run_a run_b run_a])
+
+        TriggerDevApi.any_instance.expects(:bulk_action).with do |action, name:, run_ids:, filter:|
+          action == "replay" && run_ids.nil? && name.start_with?("Firefight: replay") &&
+            filter.slice("taskIdentifier", "status") == { "taskIdentifier" => "send-email", "status" => [ "FAILED" ] } && filter["from"].present? && filter["to"].present?
+        end.returns("id" => "bulk_2")
+        assert_match "bulk action bulk_2", call(:bulk_replay_runs, "task" => "send-email", "status" => [ "FAILED" ], "minutes" => 60)
+
+        assert_match "never replays every run", assert_raises(Integrations::PolicyRefusal) { call(:bulk_replay_runs, "minutes" => 60) }.message
+      end
+
+      test "a bulk action still pending is aborted, and one that ended is refused" do
+        TriggerDevApi.any_instance.stubs(:bulk_action_status).with("bulk_1").returns("id" => "bulk_1", "type" => "REPLAY", "status" => "PENDING",
+                                                                                     "counts" => { "total" => 40, "success" => 10, "failure" => 2 })
+        TriggerDevApi.any_instance.expects(:abort_bulk_action).with("bulk_1").returns("id" => "bulk_1")
+        assert_match "Bulk action bulk_1 (replay) is stopped and takes no more runs. It had done 12 of 40 runs", call(:abort_bulk_action, "bulk_action" => "bulk_1")
+
+        TriggerDevApi.any_instance.stubs(:bulk_action_status).with("bulk_2").returns("id" => "bulk_2", "status" => "COMPLETED")
+        assert_match "already ended, COMPLETED", assert_raises(NativePack::Error) { call(:abort_bulk_action, "bulk_action" => "bulk_2") }.message
+      end
+
+      test "a bulk action that ends between the read and the abort is said as ended" do
+        TriggerDevApi.any_instance.stubs(:bulk_action_status).with("bulk_3").returns({ "status" => "PENDING" }, { "status" => "COMPLETED" })
+        TriggerDevApi.any_instance.stubs(:abort_bulk_action).raises(TriggerDevApi::Error, "Trigger.dev answered 400: Bulk action is not pending")
+
+        assert_match "ended while it was being stopped, COMPLETED", assert_raises(NativePack::Error) { call(:abort_bulk_action, "bulk_action" => "bulk_3") }.message
+      end
+
+      test "an abort that was slowed down, or refused for the key, keeps its own error rather than reading the status again" do
+        TriggerDevApi.any_instance.stubs(:bulk_action_status).with("bulk_4").returns({ "status" => "PENDING" }, { "status" => "COMPLETED" })
+        TriggerDevApi.any_instance.stubs(:abort_bulk_action).raises(TriggerDevApi::Error.new("Trigger.dev answered 429: slow down").extend(Integrations::RateLimited))
+        assert_raises(Integrations::RateLimited) { call(:abort_bulk_action, "bulk_action" => "bulk_4") }
+
+        TriggerDevApi.any_instance.stubs(:bulk_action_status).with("bulk_5").returns({ "status" => "PENDING" }, { "status" => "COMPLETED" })
+        TriggerDevApi.any_instance.stubs(:abort_bulk_action).raises(TriggerDevApi::Error, "Trigger.dev answered 403: Forbidden")
+        assert_match "create a key whose preset can write runs", assert_raises(NativePack::Error) { call(:abort_bulk_action, "bulk_action" => "bulk_5") }.message
+
+        TriggerDevApi.any_instance.stubs(:bulk_action_status).with("bulk_6").returns({ "status" => "PENDING" }).then.raises(TriggerDevApi::Error, "Trigger.dev answered 500: down")
+        TriggerDevApi.any_instance.stubs(:abort_bulk_action).raises(TriggerDevApi::Error, "Trigger.dev answered 400: Bulk action is not pending")
+        assert_equal "Trigger.dev answered 400: Bulk action is not pending",
+                     assert_raises(TriggerDevApi::Error) { call(:abort_bulk_action, "bulk_action" => "bulk_6") }.message
+      end
+
+      test "a fraction is refused for a count, never rounded down" do
+        TriggerDevApi.any_instance.expects(:override_queue_concurrency).never
+        TriggerDevApi.any_instance.expects(:override_concurrency_limit).never
+        TriggerDevApi.any_instance.expects(:ignore_error).never
+        TriggerDevApi.any_instance.stubs(:error_group).returns("status" => "unresolved")
+
+        assert_match "whole number", assert_raises(NativePack::Error) { call(:override_queue_concurrency, "queue" => "send-email", "concurrency" => 2.9) }.message
+        assert_match "whole number", assert_raises(NativePack::Error) { call(:override_concurrency_limit, "limit" => "openai", "total" => 0.5) }.message
+        assert_match "whole number", assert_raises(NativePack::Error) { call(:ignore_error, "error" => "error_1", "minutes" => 1.5) }.message
+      end
+
+      test "the environment's deployments are run history, timed from when each was made to when it deployed, and one is read by its id" do
+        listed = [ { "id" => "deployment_2", "version" => "20261002.1", "status" => "DEPLOYED", "createdAt" => "2026-10-02T10:00:00Z", "deployedAt" => "2026-10-02T10:03:00Z" },
+                   { "id" => "deployment_1", "version" => "20261001.1", "status" => "FAILED", "createdAt" => "2026-10-01T10:00:00Z", "error" => { "message" => "build failed" } } ]
+        TriggerDevApi.any_instance.stubs(:deployments).with(limit: TriggerDev::DEPLOYMENT_LIMIT).returns(listed)
+
+        runs = Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: {}))
+        assert_equal [ [ "deployment_2", "succeeded", 180, "20261002.1" ], [ "deployment_1", "failed", nil, "20261001.1" ] ],
+                     runs.map { |run| [ run.id, run.status, run.seconds, run.title ] }
+        assert_match "error build failed", runs.last.detail
+
+        TriggerDevApi.any_instance.stubs(:deployments).with(limit: TriggerDev::RunControl::DEPLOYMENT_LOOKUP).returns(listed)
+        one = Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: { "run" => "deployment_2" })).sole
+        assert_equal [ "deployment_2", "succeeded", 180 ], [ one.id, one.status, one.seconds ]
+      end
+
+      test "a queue is paused, resumed and its limit overridden or reset, and a pause names the queue so it can be put back" do
+        TriggerDevApi.any_instance.stubs(:queue).with("send-email", "task").returns("id" => "queue_1", "name" => "send-email", "paused" => false, "queued" => 40, "running" => 2)
+        TriggerDevApi.any_instance.expects(:pause_queue).with("send-email", "task", "pause").returns("id" => "queue_1", "name" => "send-email", "paused" => true, "queued" => 41, "running" => 2)
+
+        result = @pack.call("pause_queue", environment_row: @row, arguments: { "queue" => "send-email" })
+        assert_match "Queue send-email is paused, so none of its 41 waiting runs starts", result["content"].sole["text"]
+        assert_equal({ "queue" => "queue_1" }, result.dig(Telemetry::STRUCTURED, Telemetry::FACTS))
+        assert_match "is not paused", assert_raises(NativePack::Error) { call(:resume_queue, "queue" => "send-email") }.message
+
+        TriggerDevApi.any_instance.stubs(:queue).with("queue_1", "id").returns("id" => "queue_1", "name" => "send-email", "paused" => true, "queued" => 41)
+        TriggerDevApi.any_instance.expects(:pause_queue).with("queue_1", "id", "resume").returns("name" => "send-email", "queued" => 41)
+        assert_match "Queue send-email is resumed", call(:resume_queue, "queue" => "queue_1")
+
+        TriggerDevApi.any_instance.expects(:override_queue_concurrency).with("send-email", "task", 20).returns("name" => "send-email", "concurrency" => { "base" => 5 })
+        assert_match "runs at most 20 at once until it is reset, over the 5 its code declares", call(:override_queue_concurrency, "queue" => "send-email", "concurrency" => 20)
+        assert_match "from 0 to 100000", assert_raises(NativePack::Error) { call(:override_queue_concurrency, "queue" => "send-email", "concurrency" => -1) }.message
+        TriggerDevApi.any_instance.expects(:reset_queue_concurrency).with("send-email", "task").returns("name" => "send-email", "concurrency" => { "base" => 5 })
+        assert_match "back to the limit its code declares, 5", call(:reset_queue_concurrency, "queue" => "send-email")
+      end
+
+      test "a concurrency limit is paused, resumed, overridden and reset by its name" do
+        TriggerDevApi.any_instance.stubs(:concurrency_limit).with("openai").returns("name" => "openai", "paused" => false)
+        TriggerDevApi.any_instance.expects(:pause_concurrency_limit).with("openai", "pause").returns("queued" => 3, "running" => 1)
+        result = @pack.call("pause_concurrency_limit", environment_row: @row, arguments: { "limit" => "openai" })
+        assert_match "Concurrency limit openai is paused", result["content"].sole["text"]
+        assert_equal({ "limit" => "openai" }, result.dig(Telemetry::STRUCTURED, Telemetry::FACTS))
+
+        TriggerDevApi.any_instance.expects(:override_concurrency_limit).with("openai", total: 50, per_key: nil).returns("total" => { "current" => 50 }, "perKey" => {})
+        assert_match "now allows 50 at once in all", call(:override_concurrency_limit, "limit" => "openai", "total" => 50)
+        assert_match "Give total, per_key or both", assert_raises(NativePack::Error) { call(:override_concurrency_limit, "limit" => "openai") }.message
+        TriggerDevApi.any_instance.expects(:reset_concurrency_limit).with("openai").returns("total" => { "current" => 10 }, "perKey" => { "current" => 2 })
+        assert_match "10 at once in all and 2 for each key", call(:reset_concurrency_limit, "limit" => "openai")
+      end
+
+      test "an error group is resolved, ignored or unresolved, and names itself for an undo only when it was unresolved before" do
+        TriggerDevApi.any_instance.stubs(:error_group).with("error_1").returns("id" => "error_1", "status" => "unresolved", "errorType" => "TypeError", "taskIdentifier" => "send-email")
+        TriggerDevApi.any_instance.expects(:resolve_error).with("error_1", version: "20261002.1").returns({})
+        resolved = @pack.call("resolve_error", environment_row: @row, arguments: { "error" => "error_1", "version" => "20261002.1" })
+        assert_match "Error group error_1 (TypeError in send-email) is resolved in version 20261002.1, from unresolved.", resolved["content"].sole["text"]
+        assert_equal({ "error" => "error_1" }, resolved.dig(Telemetry::STRUCTURED, Telemetry::FACTS))
+
+        TriggerDevApi.any_instance.stubs(:error_group).with("error_1").returns("id" => "error_1", "status" => "resolved")
+        TriggerDevApi.any_instance.expects(:ignore_error).with("error_1", duration_ms: 3_600_000, occurrence_rate: nil, total_occurrences: 10, reason: "known flake").returns({})
+        ignored = @pack.call("ignore_error", environment_row: @row, arguments: { "error" => "error_1", "minutes" => 60, "occurrences" => 10, "reason" => "known flake" })
+        assert_match "is ignored for 60 minutes or until it happens 10 more times, from resolved.", ignored["content"].sole["text"]
+        assert_nil ignored.dig(Telemetry::STRUCTURED, Telemetry::FACTS)
+
+        assert_match "already resolved", assert_raises(NativePack::Error) { call(:resolve_error, "error" => "error_1") }.message
+        TriggerDevApi.any_instance.expects(:unresolve_error).with("error_1").returns({})
+        assert_match "is unresolved again, from resolved", call(:unresolve_error, "error" => "error_1")
       end
 
       test "a key or project ref that cannot be right is refused on the form, and Trigger.dev's own refusal is said there too" do
