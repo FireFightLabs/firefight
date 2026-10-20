@@ -82,7 +82,9 @@ class IntegrationProviderTest < ActiveSupport::TestCase
     assert_equal [ Integration::KIND_MCP, Integration::KIND_NATIVE ], [ gitlab.connect_kind(Integration::KIND_MCP), gitlab.connect_kind(nil) ]
     assert_not IntegrationProvider.find("northflank").mcp_alternative?, "Northflank has no server of its own"
     assert_equal Integration::KIND_NATIVE, IntegrationProvider.find("github").connect_kind(Integration::KIND_MCP)
-    assert_equal Integration::KIND_MCP, IntegrationProvider.find("circleci").connect_kind(nil)
+    circleci = IntegrationProvider.find("circleci")
+    assert circleci.mcp_alternative?, "CircleCI's hosted server stays offered beside its API"
+    assert_equal [ Integration::KIND_MCP, Integration::KIND_NATIVE ], [ circleci.connect_kind(Integration::KIND_MCP), circleci.connect_kind(nil) ]
   end
 
   test "the token form's hint is user copy, and a header other than Authorization is named only where a server reads one" do

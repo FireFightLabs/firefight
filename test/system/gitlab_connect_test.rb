@@ -30,14 +30,18 @@ class GitlabConnectTest < ApplicationSystemTestCase
     assert_equal 0, @workspace.integrations.where(provider: "gitlab").count
   end
 
-  test "CircleCI sits in the CI group and connects with one click to its hosted server" do
+  test "CircleCI sits in the CI group, connects with a personal API token, and offers its hosted server instead" do
     visit integrations_path
 
     within(:xpath, "//section[.//h3[text()='CI']]") { assert_text "CircleCI" }
     visit integrations_path(Integration::CONNECT_QUERY_PARAM => "circleci")
     within("[role=dialog]") do
-      assert_link "Continue with CircleCI"
-      assert_no_text "kind=mcp"
+      assert_field "Personal API token"
+      click_button "Use an MCP server instead"
+      assert_link "Continue with CircleCI", href: /kind=mcp/
+      click_button "Back to credentials"
+      assert_field "Personal API token"
     end
+    assert_equal 0, @workspace.integrations.where(provider: "circleci").count
   end
 end

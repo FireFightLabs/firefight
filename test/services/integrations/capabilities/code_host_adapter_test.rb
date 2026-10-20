@@ -42,7 +42,8 @@ class Integrations::Capabilities::CodeHostAdapterTest < ActiveSupport::TestCase
     assert_equal "Halon can read their build logs, see what was deployed, check how their CI stands, and see how long their CI runs usually take " \
                  "for the repositories GitLab puts on the map, " \
                  "through the tools that are switched on. It also uses GitLab's other tools that are switched on.", Integrations::Capabilities.halon_sentence("gitlab", "GitLab")
-    assert_equal "Halon can check how their CI stands for the repositories on the map that CircleCI builds, through the tools that are switched on. " \
+    assert_equal "Halon can read their build logs, see what was deployed, check how their CI stands, see how long their CI runs usually take, and roll a " \
+                 "deployed component back for the CircleCI projects on the map and the repositories they build, through the tools that are switched on. " \
                  "It also uses CircleCI's other tools that are switched on.", Integrations::Capabilities.halon_sentence("circleci", "CircleCI")
   end
 
