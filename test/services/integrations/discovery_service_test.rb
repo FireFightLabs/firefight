@@ -28,6 +28,11 @@ module Integrations
       assert tools.fetch("planetscale_get_branch").read_only?
       assert tools.fetch("planetscale_list_deploy_requests").then { |tool| tool.enabled? && tool.read_only? && tool.removed_at.nil? }
       assert_not tools.fetch("planetscale_revert_deploy_request").read_only?
+      stale = @integration.tools.create!(name: "planetscale_old_tool", description: "Gone", read_only: true, enabled: true, params_schema: {},
+                                         spec: { Provider::FIREFIGHT_TOOL => true })
+      DiscoveryService.add_firefight_tools!(@integration)
+      assert stale.reload.removed_at, "one of Firefight's own tools no longer offered is taken as gone"
+      assert_nil tools.fetch("planetscale_get_branch").reload.removed_at
       assert_empty DiscoveryService.add_firefight_tools!(@integration.tap { |each| each.update!(provider: "newrelic") })
     end
 
