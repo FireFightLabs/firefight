@@ -42,6 +42,8 @@ class Inference < ApplicationRecord
     )
 
     begin
+      # Priced by the hour the call was sent, for a provider that charges more at busy hours.
+      sent_at = Time.current
       response = yield
       tokens = response.try(:tokens)
       inference = create!(
@@ -51,7 +53,7 @@ class Inference < ApplicationRecord
         cache_read_tokens:   tokens.try(:cache_read).to_i,
         cache_write_tokens:  tokens.try(:cache_write).to_i,
         cache_write_tokens_by_ttl: tokens.try(:cache_write_by_ttl).to_h,
-        cost_micros:         cost_to_micros(response.try(:cost)),
+        cost_micros:         FirefightAi.billed_micros(response.try(:cost), provider: attrs[:provider], at: sent_at),
         latency_ms:          elapsed_ms_since(started),
         stop_reason:         response.try(:finish_reason)&.to_s,
         provider_request_id: FirefightAi::RequestId.from(response.try(:raw)),
@@ -83,12 +85,6 @@ class Inference < ApplicationRecord
   rescue RubyLLM::ModelNotFoundError
     "unknown"
   end
-
-  def self.cost_to_micros(cost)
-    dollars = cost.respond_to?(:total) ? cost.total : cost
-    ((dollars || 0).to_f * 1_000_000).round
-  end
-  private_class_method :cost_to_micros
 
   def self.monotonic_now
     Process.clock_gettime(Process::CLOCK_MONOTONIC)

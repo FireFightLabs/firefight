@@ -76,7 +76,23 @@ openrouter:
 deepseek:
   name: DeepSeek
   main: deepseek-v4-pro
-  fast: deepseek-v4-flash
+  fast: deepseek-flash
+  # DeepSeek charges twice its off-peak price at peak, for every model and every kind of token, and the registry holds
+  # the off-peak price. Peak is 01:00 to 04:00 and 06:00 to 10:00 UTC, Monday to Friday, and a Chinese public holiday is
+  # off-peak all day. Those hours fall on the same date in Beijing. Each holiday is a first and last date, from the
+  # State Council's notice for the year, which comes out each November.
+  peak_pricing:
+    multiplier: 2
+    days: [ monday, tuesday, wednesday, thursday, friday ]
+    hours: [ [ 1, 4 ], [ 6, 10 ] ]
+    off_peak_dates:
+      - [ "2026-01-01", "2026-01-03" ]
+      - [ "2026-02-15", "2026-02-23" ]
+      - [ "2026-04-04", "2026-04-06" ]
+      - [ "2026-05-01", "2026-05-05" ]
+      - [ "2026-06-19", "2026-06-21" ]
+      - [ "2026-09-25", "2026-09-27" ]
+      - [ "2026-10-01", "2026-10-07" ]
 mistral:
   name: Mistral
   main: mistral-large-latest
@@ -138,14 +154,14 @@ chat_models:
     - { model: anthropic/claude-haiku-5.5, label: Claude Haiku 5.5, note: "Everyday questions" }
     - { model: z-ai/glm-5.3-flash, label: GLM-5.3 Flash, note: "Everyday questions" }
     - { model: z-ai/glm-5.2, label: GLM-5.2, note: "Everyday questions" }
-    - { model: deepseek/deepseek-v4-flash, label: DeepSeek V4 Flash, note: "Everyday questions, reads text only" }
+    - { model: deepseek/deepseek-v4.1-flash, label: DeepSeek V4.1 Flash, note: "Everyday questions" }
     - { model: deepseek/deepseek-v4-pro, label: DeepSeek V4 Pro, note: "Everyday questions, reads text only" }
     - { model: anthropic/claude-sonnet-5.5, label: Claude Sonnet 5.5, note: "Investigations and tricky problems" }
     - { model: z-ai/glm-5.3, label: GLM-5.3, note: "Investigations and tricky problems, reads text only" }
     - { model: openai/gpt-6-sol, label: GPT-6 Sol, note: "Investigations and tricky problems" }
     - { model: anthropic/claude-opus-5.5, label: Claude Opus 5.5, note: "Hardest problems and production changes, costs more" }
   deepseek:
-    - { model: deepseek-v4-flash, label: DeepSeek V4 Flash, note: "Everyday questions" }
+    - { model: deepseek-flash, label: DeepSeek V4.1 Flash, note: "Everyday questions" }
     - { model: deepseek-v4-pro, label: DeepSeek V4 Pro, note: "Everyday questions, reads text only" }
   mistral:
     - { model: mistral-medium-latest, label: Mistral Medium, note: "Everyday questions" }

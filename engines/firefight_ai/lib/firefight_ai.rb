@@ -344,16 +344,25 @@ module FirefightAi
   # and each kind is charged at its own price, a cache read at the cache read price. cache_write_by_ttl splits the cache
   # writes by how long they last, such as { "1h" => 2048 }, and a provider that charges more for a longer lifetime, as
   # Anthropic charges twice the input price for an hour, has each part priced at its own rate. A kind the registry has no
-  # price for is charged as plain input. Zero for a model it cannot price, the same as priced_for? says.
-  def cost_micros(model_id, provider:, input:, output:, cache_read: 0, cache_write: 0, cache_write_by_ttl: nil)
+  # price for is charged as plain input. Zero for a model it cannot price, the same as priced_for? says. at is when the
+  # call ran, for a provider that charges more at busy hours (billed_micros).
+  def cost_micros(model_id, provider:, input:, output:, cache_read: 0, cache_write: 0, cache_write_by_ttl: nil, at: Time.current)
     model = RubyLLM.models.find(model_id.to_s, provider: provider.presence)
     plain = [ input - cache_read - cache_write, 0 ].max
     tokens = RubyLLM::Tokens.new(input: plain, output: output, cache_read: cache_read, cache_write: cache_write, cache_write_by_ttl: cache_write_by_ttl)
     total = model.cost_for(tokens).total
     total ||= model.cost_for(RubyLLM::Tokens.new(input: input, output: output)).total
-    (total.to_f * 1_000_000).round
+    billed_micros(total, provider: provider, at: at)
   rescue RubyLLM::ModelNotFoundError
     0
+  end
+
+  # What a call RubyLLM priced cost in millionths of a dollar, given its cost or its total in dollars. The registry holds
+  # one price per model, so a provider that charges more at busy hours has the call priced by the hour it ran
+  # (AiProviders.price_factor). The ledger, a run's purse and a code fix's budget all count a call this way.
+  def billed_micros(cost, provider:, at: Time.current)
+    dollars = cost.respond_to?(:total) ? cost.total : cost
+    (dollars.to_f * 1_000_000 * AiProviders.price_factor(provider, at: at)).round
   end
 
   # How much the model can read at once, from the registry, as the provider serves it when one is named. Nil when it is

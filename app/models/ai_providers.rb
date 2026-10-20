@@ -34,14 +34,43 @@ module AiProviders
 
   Field = Data.define(:key, :option, :label, :secret, :required)
 
+  # A provider that charges more at busy hours, as a multiple of the price the registry holds. days and hours are in
+  # UTC, each hour range from its first hour up to its last, and off_peak_dates are the first and last dates of days
+  # charged at the registry's price whatever the hour.
+  PeakPricing = Data.define(:multiplier, :days, :hours, :off_peak_dates) do
+    def self.from(entry)
+      return nil unless entry
+
+      new(multiplier: entry.fetch("multiplier").to_r, days: entry.fetch("days").freeze, hours: entry.fetch("hours").map { |from, to| (from...to) }.freeze,
+          off_peak_dates: entry.fetch("off_peak_dates", []).map { |first, last| (Date.iso8601(first)..Date.iso8601(last)) }.freeze)
+    end
+
+    def factor(at)
+      peak?(at.utc) ? multiplier : 1
+    end
+
+    # The last day the off-peak dates are known for, the end of the last year they list. Past it a holiday is priced as
+    # any other day, so the next year's dates have to be added before then (RefreshModelRegistryJob says so).
+    def dates_known_through = off_peak_dates.empty? ? nil : Date.new(off_peak_dates.map(&:last).max.year, 12, 31)
+
+    private
+
+    def peak?(at)
+      days.include?(at.strftime("%A").downcase) && hours.any? { |range| range.cover?(at.hour) } && off_peak_dates.none? { |range| range.cover?(at.to_date) }
+    end
+  end
+
   # main_models are the models Halon's loop runs on and fast_models its quick work, preferred first, and backup_models what
   # the loop carries on with when the main one stops answering. The last main and fast model is always in RubyLLM's catalog.
-  Provider = Data.define(:slug, :name, :main_models, :fast_models, :backup_models, :code_fix_models, :code_review_models, :fields, :local, :code_fixes, :sign_in, :assumes_models) do
+  Provider = Data.define(:slug, :name, :main_models, :fast_models, :backup_models, :code_fix_models, :code_review_models, :fields, :local, :code_fixes, :sign_in, :assumes_models, :peak_pricing) do
     def field(key) = fields.find { |field| field.key == key.to_s }
 
     def secret_fields = fields.select(&:secret)
 
     def options = fields.map(&:option)
+
+    # What a call that ran at at costs as a multiple of the registry's price.
+    def price_factor(at) = peak_pricing ? peak_pricing.factor(at) : 1
 
     def recommended(role) = role.to_s == WorkspaceAiAccount::FAST ? fast_model : main_model
 
@@ -150,6 +179,10 @@ module AiProviders
   end
 
   def self.find(slug) = offered[slug.to_s]
+
+  # What a call to the provider that ran at at costs as a multiple of the registry's price, 1 for a provider that is
+  # not offered or charges the same at every hour.
+  def self.price_factor(slug, at: Time.current) = find(slug)&.price_factor(at) || 1
 
   # What a workspace may add. A local provider runs on a private network, which only an install someone runs
   # themselves reaches.
@@ -284,7 +317,7 @@ module AiProviders
       slug: slug, name: entry.fetch("name"), main_models: Array(entry["main"]).freeze, fast_models: Array(entry["fast"]).freeze, backup_models: Array(entry["backup"]).freeze, code_fix_models: code_models(slug, entry, "code_fix"),
       code_review_models: code_models(slug, entry, "code_review"), fields: fields.freeze,
       local: klass.local?, code_fixes: FirefightAi::ModelProxy.supported?(slug), sign_in: sign_in(entry["sign_in"]),
-      assumes_models: klass.assume_models_exist?
+      assumes_models: klass.assume_models_exist?, peak_pricing: PeakPricing.from(entry["peak_pricing"])
     )
   end
   private_class_method :build

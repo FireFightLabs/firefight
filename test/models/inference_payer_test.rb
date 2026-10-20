@@ -46,6 +46,16 @@ class InferencePayerTest < ActiveSupport::TestCase
     assert_equal 12_000, inference.reload.billed_micros
   end
 
+  test "a DeepSeek call on Firefight credits is charged what it cost at the hour it ran" do
+    Entitlements.backend = ChargingBackend.new([])
+    context = { workspace: @workspace, feature: "payer_test", provider: "deepseek", model: "deepseek-flash", paid_by: Inference::PAID_BY_CREDITS }
+
+    _, peak = travel_to(Time.utc(2026, 10, 20, 7, 0)) { Inference.track(context) { llm_reply(cost: 0.01) } }
+    _, off_peak = travel_to(Time.utc(2026, 10, 20, 12, 0)) { Inference.track(context) { llm_reply(cost: 0.01) } }
+
+    assert_equal [ [ 20_000, 24_000 ], [ 10_000, 12_000 ] ], [ peak, off_peak ].map { |row| [ row.cost_micros, row.reload.billed_micros ] }
+  end
+
   test "an install someone runs themselves charges nothing" do
     assert_nil Entitlements.charge_ai!(Inference.new)
   end
