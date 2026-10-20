@@ -15,6 +15,8 @@ module Integrations
   #                                           database, and each signs with a secret of its own, so every one saved counts
   #   register(row, url:)                     registers a webhook itself, answering a Webhook, and raises Refused when
   #                                           the provider turns it down for its plan or a limit
+  #   registers_for?(row)                     whether it registers for this connection, for a source that can only with
+  #                                           some connections' credentials and keeps setup_steps for the others
   #   confirmation_for(row, url:)             a sentence saying what registering would cost the account, such as its
   #                                           only webhook, when a person should decide first, or nil
   #   register_again?(row, url:)              whether a registration from before no longer covers what the connection
@@ -163,6 +165,10 @@ module Integrations
       def turn_off_words = nil
 
       def registers? = respond_to?(:register)
+
+      # Whether Firefight registers for one connection's changes itself. A source that can only with some connections'
+      # credentials answers per row, and the others are set up by hand from its setup_steps.
+      def registers_for?(_row) = registers?
 
       def asks_first? = respond_to?(:confirmation_for)
 

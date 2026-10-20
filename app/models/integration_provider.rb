@@ -115,10 +115,14 @@ class IntegrationProvider
   # workspaces. It holds one, several or ALL, every one the credential can read, including ones made later. Its choices
   # are listed live from the credential (Integrations::Credentials.scope_options), so it lists no options of its own, and
   # its label names them in the plural.
+  #
+  # A field marked editable can be changed after connecting, on the connection's details, for each environment's
+  # credentials, such as a token's id a connection made before the field was asked for lacks. It belongs to the
+  # environment, so it is neither part of the address nor chosen from what the connection learned.
   ConnectField = Data.define(:key, :label, :hint, :placeholder, :numeric, :optional, :path, :query, :pattern, :allowed, :options, :multiple,
-                             :default, :learned, :scope) do
+                             :default, :learned, :scope, :editable) do
     def initialize(placeholder: "", numeric: false, optional: false, path: false, query: nil, pattern: nil, allowed: nil, options: [],
-                   multiple: false, default: nil, learned: nil, scope: false, **)
+                   multiple: false, default: nil, learned: nil, scope: false, editable: false, **)
       raise ArgumentError, "connect field #{key} has a pattern without saying in allowed what it allows" if pattern.present? && allowed.blank?
       if scope && (path || query.present? || learned.present? || options.any? || default.present?)
         raise ArgumentError, "connect field #{key} names what a connection reads, listed from its credential, so it is not part of the address, learned, listed or defaulted"
@@ -129,6 +133,9 @@ class IntegrationProvider
       raise ArgumentError, "connect field #{key} is part of the address, so it holds one value" if (path || query.present?) && multiple
       raise ArgumentError, "connect field #{key} is both part of the address's path and its query" if path && query.present?
       raise ArgumentError, "connect field #{key} is chosen after connecting, so it cannot be part of the address" if learned.present? && (path || query.present?)
+      if editable && (path || query.present? || learned.present? || scope || multiple)
+        raise ArgumentError, "connect field #{key} is edited after connecting, so it holds one value of the environment's own"
+      end
 
       options = options.map { |option| option.is_a?(ConnectOption) ? option : ConnectOption.new(**option.to_h.symbolize_keys) }
       pattern, allowed = SLUG_PATTERN, SLUG_ALLOWED if path && pattern.blank? && options.empty?
@@ -137,7 +144,7 @@ class IntegrationProvider
       # A field that picks from a list shows its default by the option's label, any other by the value itself.
       placeholder = options.find { |option| option.value == default }&.label || default if placeholder.blank? && default.present?
       super(placeholder:, numeric:, optional:, path:, query: query.presence, pattern:, allowed:, options:, multiple:, default:,
-            learned: learned.presence, scope:, **)
+            learned: learned.presence, scope:, editable:, **)
     end
 
     def address? = path || query.present?
@@ -292,6 +299,9 @@ class IntegrationProvider
 
     # The fields chosen after connecting, from what the connection learned.
     def learned_fields = connect_fields.select(&:learned)
+
+    # The fields a connection's details let a person change after connecting.
+    def editable_fields = connect_fields.select(&:editable)
 
     # The field that names what a connection reads, which may hold several or all of them, or nil.
     def scope_field = connect_fields.find(&:scope)

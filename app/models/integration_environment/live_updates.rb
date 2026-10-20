@@ -100,7 +100,7 @@ module IntegrationEnvironment::LiveUpdates
   end
 
   # Whether an admin sends the provider's changes to the connection's address and pastes the signing secret.
-  def map_events_set_up_by_hand? = map_event_source.then { |source| source.present? && source.setup_steps.any? && !source.registers? }
+  def map_events_set_up_by_hand? = map_event_source.then { |source| source.present? && source.setup_steps.any? && !source.registers_for?(self) }
 
   def map_events_secret_set? = map_events_secret.present?
 
@@ -160,7 +160,7 @@ module IntegrationEnvironment::LiveUpdates
   # Why a person cannot turn live updates on for this connection, or nil.
   def live_updates_turn_on_blocked_reason
     source = map_event_source
-    return "#{integration.name} cannot register for its changes." unless source&.registers?
+    return "#{integration.name} cannot register for its changes." unless source&.registers_for?(self)
     return "#{integration.name} is switched off. Switch it on first." unless integration.operational? && enabled?
 
     "Live updates are already on for #{integration.name}." if map_events_webhook_id.present?
@@ -176,7 +176,7 @@ module IntegrationEnvironment::LiveUpdates
 
   # Nil for a provider Firefight cannot register a webhook with, whose live updates are not a switch.
   def live_updates_toggle
-    return unless map_event_source&.registers?
+    return unless map_event_source&.registers_for?(self)
 
     if map_events_webhook_id.blank?
       Toggle.new(turns_on: true, words: live_updates_turn_on_words, blocked_reason: live_updates_turn_on_blocked_reason)
@@ -221,7 +221,7 @@ module IntegrationEnvironment::LiveUpdates
     return true if source.polls? && map_events_error.blank?
     return map_events_sent_from.present? if source.offers?
     return installation_id.present? && Integrations::MapEvents.app_secret(integration.provider).present? if source.app_wide?
-    return map_events_webhook_id.present? && !map_events_lapsed? if source.registers?
+    return map_events_webhook_id.present? && !map_events_lapsed? if source.registers_for?(self)
 
     map_events_secret_set?
   end
@@ -231,7 +231,7 @@ module IntegrationEnvironment::LiveUpdates
     return "#{name} is switched off, so changes there do not reach the map." unless integration.operational? && enabled?
     return Integrations::Installations.live_updates_reason(self) if installation_stopped?
     # A provider whose change log is read as well keeps following it whether its registration is on or off.
-    return "Live updates were turned off, so the map updates at each sweep." if source.registers? && !source.polls? && map_events_turned_off_at.present?
+    return "Live updates were turned off, so the map updates at each sweep." if source.registers_for?(self) && !source.polls? && map_events_turned_off_at.present?
     if map_events_error.present?
       if source.offers? && map_events_sent_from.present?
         return Integrations::Sentence.join("Firefight could not read #{name}'s change log", map_events_error,
@@ -240,7 +240,7 @@ module IntegrationEnvironment::LiveUpdates
       after = map_events_refused_at ? "Firefight tries again tomorrow. The map still updates at each sweep." : "The map still updates at each sweep."
       return Integrations::Sentence.join("Firefight could not follow #{name}'s changes", map_events_error, after: after)
     end
-    if source.registers? && !source.polls? && map_events_webhook_id.blank? && map_events_confirmation.present?
+    if source.registers_for?(self) && !source.polls? && map_events_webhook_id.blank? && map_events_confirmation.present?
       return "Firefight asks before adding its webhook to #{name}. #{map_events_confirmation}"
     end
     return if source.polls?
@@ -251,10 +251,10 @@ module IntegrationEnvironment::LiveUpdates
 
       return installation_id.present? ? nil : "#{name} was not connected through #{app}, so its changes reach the map at each sweep."
     end
-    return "#{name}'s registration for changes lapsed. Firefight registers again at the next sweep." if source.registers? && map_events_lapsed?
-    return "Firefight registers for #{name}'s changes at the next sweep." if source.registers? && map_events_webhook_id.blank?
+    return "#{name}'s registration for changes lapsed. Firefight registers again at the next sweep." if source.registers_for?(self) && map_events_lapsed?
+    return "Firefight registers for #{name}'s changes at the next sweep." if source.registers_for?(self) && map_events_webhook_id.blank?
 
-    return if source.registers? || map_events_secret_set?
+    return if source.registers_for?(self) || map_events_secret_set?
 
     Integrations::Sentence.all("Send #{name}'s changes to Firefight and save the signing secret under Integrations to turn them on", source.by_hand_note)
   end

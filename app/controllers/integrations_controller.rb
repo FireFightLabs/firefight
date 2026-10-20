@@ -4,11 +4,11 @@ class IntegrationsController < InertiaController
   authorizes Ability::Action::RESOURCE_INTEGRATIONS,
     read: :index,
     create: %i[create oauth_start oauth_callback list_scopes],
-    update: %i[sync toggle_tool mark_tool_read set_all_tools toggle retarget_environment choose scope_options scopes map_events_secret forget_map_events_secrets live_updates
+    update: %i[sync toggle_tool mark_tool_read set_all_tools toggle retarget_environment choose edit_field scope_options scopes map_events_secret forget_map_events_secrets live_updates
                live_updates_setup protected_paths],
     delete: :destroy
   before_action :set_integration,
-                only: [ :sync, :toggle_tool, :mark_tool_read, :set_all_tools, :toggle, :retarget_environment, :choose, :scope_options, :scopes, :map_events_secret,
+                only: [ :sync, :toggle_tool, :mark_tool_read, :set_all_tools, :toggle, :retarget_environment, :choose, :edit_field, :scope_options, :scopes, :map_events_secret,
                       :forget_map_events_secrets,
                       :live_updates, :live_updates_setup, :protected_paths, :destroy ]
   # Connecting leaves for the provider and comes back here, setup or not.
@@ -128,6 +128,21 @@ class IntegrationsController < InertiaController
     return redirect_to integrations_path, alert: refusal if refusal
 
     redirect_to integrations_path, notice: "#{@integration.name} now uses #{field.shown(row.fields[field.key], choices: field.options_from(row.learned))} for #{field.label.downcase_first}."
+  end
+
+  # Changes a field asked on the connect form that the provider lets a person change afterwards, such as a token's id,
+  # and checks the connection again with it at once.
+  def edit_field
+    row = @integration.integration_environments.find(params[:environment_row_id])
+    field = IntegrationProvider.find(@integration.provider)&.editable_fields&.find { |each| each.key == params[:key].to_s }
+    return redirect_to integrations_path, alert: "#{@integration.name} has no such setting to change." unless field
+
+    refusal = row.edit_field!(field, params[:value])
+    return redirect_to integrations_path, alert: refusal if refusal
+
+    Integrations::ConnectionRefresh.run!(@integration)
+    said = row.reload.fields[field.key].present? ? "saved" : "cleared"
+    redirect_to integrations_path, notice: "#{@integration.name}'s #{field.label.downcase_first} was #{said}."
   end
 
   # What the credentials typed on the connect form can read, such as a token's projects, listed before anything is saved

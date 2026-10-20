@@ -26,7 +26,8 @@ class IntegrationSerializer < BaseSerializer
   end
 
   # settings are what the connection was set up with beside its credentials, each with its label. choices are the
-  # fields chosen after connecting, with what the connection learned to choose from.
+  # fields chosen after connecting, with what the connection learned to choose from. edits are the fields a person may
+  # change after connecting, with what each holds now, which is never a secret, since no connect field is one.
   # liveUpdates is null for a provider that cannot say what changed. setup is for a provider an admin sends changes from
   # by hand, and its address is null while Firefight's own address is not set. toggle is the switch for a provider
   # Firefight registers its webhook with, saying which way it turns, what a person confirms and why it cannot be pressed
@@ -46,12 +47,12 @@ class IntegrationSerializer < BaseSerializer
   INSTALLATION_STATE_UNION = Integrations::Installations::STATES.map(&:inspect).join(" | ")
   INSTALLATION_TYPE = "{ app: string; account: string | null; page: string | null; state: #{INSTALLATION_STATE_UNION} | null; label: string | null; reason: string | null } | null".freeze
 
-  type "{ id: string; environmentId: string | null; environmentName: string | null; enabled: boolean; healthStatus: #{HEALTH_UNION}; healthError: string | null; settings: { label: string; value: string }[]; choices: { key: string; label: string; hint: string; value: string | null; options: { value: string; label: string }[] }[]; scopes: #{SCOPES_TYPE}; liveUpdates: #{LIVE_UPDATES_TYPE}; installation: #{INSTALLATION_TYPE} }[]"
+  type "{ id: string; environmentId: string | null; environmentName: string | null; enabled: boolean; healthStatus: #{HEALTH_UNION}; healthError: string | null; settings: { label: string; value: string }[]; choices: { key: string; label: string; hint: string; value: string | null; options: { value: string; label: string }[] }[]; edits: { key: string; label: string; hint: string; placeholder: string; value: string | null }[]; scopes: #{SCOPES_TYPE}; liveUpdates: #{LIVE_UPDATES_TYPE}; installation: #{INSTALLATION_TYPE} }[]"
   def environments
     integration.integration_environments.map do |row|
       { id: row.id, environmentId: row.catalog_entry_id, environmentName: row.environment&.name,
         enabled: row.enabled, healthStatus: row.health_status, healthError: row.health_error, settings: settings_of(row),
-        choices: choices_of(row), scopes: scopes_of(row), liveUpdates: live_updates_of(row), installation: installation_of(row) }
+        choices: choices_of(row), edits: edits_of(row), scopes: scopes_of(row), liveUpdates: live_updates_of(row), installation: installation_of(row) }
     end
   end
 
@@ -108,7 +109,8 @@ class IntegrationSerializer < BaseSerializer
 
     region = ({ label: "Region", value: integration.region.label } if entry.regional? && integration.region)
     values = row.fields.merge(integration.address_fields)
-    shown = integration.native? ? entry.connect_fields.reject { |field| field.learned || field.scope } : entry.connect_fields.reject(&:learned)
+    # A field a person changes after connecting is shown where it is changed, not here as well.
+    shown = (integration.native? ? entry.connect_fields.reject { |field| field.learned || field.scope } : entry.connect_fields.reject(&:learned)).reject(&:editable)
     fields = shown.filter_map { |field| { label: field.label, value: field.shown(values[field.key]) } if values[field.key].present? }
     [ region, *fields ].compact
   end
@@ -146,6 +148,13 @@ class IntegrationSerializer < BaseSerializer
     named = settings.chosen_scopes.map { |id| { value: id, label: settings.scope_name(id) } }
     learned = settings.known_scopes.map { |id| { value: id, label: settings.scope_name(id) } }
     { key: field.key, label: field.label, hint: field.hint, values: settings.chosen_scopes, options: (named + learned).uniq { |option| option[:value] } }
+  end
+
+  def edits_of(row)
+    entry = IntegrationProvider.find(integration.provider)
+    return [] unless entry
+
+    entry.editable_fields.map { |field| { key: field.key, label: field.label, hint: field.hint, placeholder: field.placeholder, value: row.fields[field.key].presence } }
   end
 
   # Only a real choice is offered, two or more learned options. With one there is nothing to choose.

@@ -15,6 +15,9 @@ module Integrations
       { "Authorization" => "Bearer #{OauthClient.access_token(credentials)}" }
     end
 
+    # Whether the connection was made by signing in, so it holds an OAuth token rather than one a person pasted.
+    def self.signed_in?(environment_row) = environment_row&.oauth.present?
+
     # Two callers may find a token stale at once, and a provider that rotates refresh tokens takes each only once, so the
     # row is locked and read again, and only the first refreshes it. A refresh token the provider no longer takes, such
     # as one past the time it keeps a sign-in for, fails the connection's health with how to sign in again.
