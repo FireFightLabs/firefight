@@ -452,6 +452,7 @@ module Integrations
 
         assert_includes text, "Deploying the deployment 41 of #{SHA[0, 12]} to production again by rerunning stage Deploy to production of run 20261001.7 (7)"
         AzureDevopsApi.any_instance.stubs(:list).with("/Shop/_apis/distributedtask/environments", { "$top" => 100 }, pages: 5).returns([ [ { "id" => 3, "name" => "production" } ], false ])
+        stub_get(BUILDS, { "buildIds" => "8" }, "value" => [ build(8, "completed", "succeeded").merge("repository" => { "id" => "web-guid", "name" => "web" }) ])
         assert_match "No deployment 99 among the recent deployments of Shop/checkout", assert_raises(NativePack::Error) { call(:redeploy, "repo" => "Shop/checkout", "deployment" => "99") }.message
         assert_match "No deployment 40 among", assert_raises(NativePack::Error) { call(:redeploy, "repo" => "Shop/checkout", "deployment" => "40") }.message, "another repository's deployment is not this one's"
       end
@@ -468,6 +469,10 @@ module Integrations
         AzureDevopsApi.any_instance.expects(:patch).with("#{BUILDS}/7/stages/Deploy", { "state" => "retry", "forceRetryAllJobs" => true }).twice.returns(nil)
 
         assert_includes call(:redeploy, "repo" => "Shop/checkout", "deployment" => "77"), "deployment 77 of #{SHA[0, 12]} to env-11 again"
+
+        AzureDevopsApi.any_instance.stubs(:list).with("/Shop/_apis/distributedtask/environments", { "$top" => 100 }, pages: 5).returns([ environments.first(10), true ])
+        assert_match "Name the one it went to with deployment_environment", assert_raises(NativePack::Error) { call(:redeploy, "repo" => "Shop/checkout", "deployment" => "77") }.message
+        AzureDevopsApi.any_instance.stubs(:list).with("/Shop/_apis/distributedtask/environments", { "$top" => 100 }, pages: 5).returns([ environments, false ])
 
         stub_get("/Shop/_apis/distributedtask/environments", { "name" => "env-11", "$top" => 50 }, "value" => [ environments.last ])
         assert_includes call(:redeploy, "repo" => "Shop/checkout", "deployment" => "77", "deployment_environment" => "env-11"), "to env-11 again"

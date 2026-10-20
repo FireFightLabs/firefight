@@ -9,7 +9,7 @@ module Integrations
         DEPLOYMENT_LIMIT = 10
         MAX_DEPLOYMENTS = 50
         ENVIRONMENTS_READ = 10
-        # A deployment looked up by its id past the first ENVIRONMENTS_READ environments reads every one, up to this many pages.
+        # A deployment looked up by its id past the first ENVIRONMENTS_READ environments lists them up to this many pages.
         EVERY_ENVIRONMENT_PAGES = 5
         ENVIRONMENTS_SHOWN = 5
         CANDIDATES = 30
@@ -217,16 +217,11 @@ module Integrations
 
         # The deployments the project's environments recorded, newest first, kept to the repository's or pipeline's runs,
         # each with the run that made it. An environment named is read alone.
-        def deployments_of(azure, target, environment, every: false)
+        def deployments_of(azure, target, environment)
           project = AzureDevopsApi.project(target.project)
-          environments = if every
-            azure.list("#{project}/_apis/distributedtask/environments", { "$top" => AzureDevopsApi::PAGE_SIZE }, pages: EVERY_ENVIRONMENT_PAGES).first
-          else
-            azure.values(azure.get("#{project}/_apis/distributedtask/environments", { "name" => environment, "$top" => ENVIRONMENTS_READ * 5 }.compact))
-          end
+          environments = azure.values(azure.get("#{project}/_apis/distributedtask/environments", { "name" => environment, "$top" => ENVIRONMENTS_READ * 5 }.compact))
           environments = environments.select { |each| each["name"].to_s.casecmp?(environment) } if environment
-          environments = environments.sort_by { |each| each["name"].to_s.match?(CodeHost::PRODUCTION) ? 0 : 1 }
-          environments = environments.first(ENVIRONMENTS_READ) unless every
+          environments = environments.sort_by { |each| each["name"].to_s.match?(CodeHost::PRODUCTION) ? 0 : 1 }.first(ENVIRONMENTS_READ)
           records = environments.flat_map do |each|
             azure.values(azure.get("#{project}/_apis/distributedtask/environments/#{each['id']}/environmentdeploymentrecords", "top" => CANDIDATES))
                  .map { |record| record.merge("environmentName" => each["name"]) }
@@ -245,7 +240,27 @@ module Integrations
           matches = ->(deployments) { deployments.find { |deployment| deployment[:record]["id"] == id } }
           return matches.call(deployments_of(azure, target, environment)) if environment
 
-          matches.call(deployments_of(azure, target, nil)) || matches.call(deployments_of(azure, target, nil, every: true))
+          matches.call(deployments_of(azure, target, nil)) || deployment_anywhere(azure, target, id)
+        end
+
+        # Every environment's newest deployments read one environment at a time until one holds the deployment, whose run
+        # is read only then. A project with more environments than were listed is refused with what to name instead.
+        def deployment_anywhere(azure, target, id)
+          project = AzureDevopsApi.project(target.project)
+          environments, more = azure.list("#{project}/_apis/distributedtask/environments", { "$top" => AzureDevopsApi::PAGE_SIZE }, pages: EVERY_ENVIRONMENT_PAGES)
+          environments.each do |environment|
+            record = azure.values(azure.get("#{project}/_apis/distributedtask/environments/#{environment['id']}/environmentdeploymentrecords", "top" => CANDIDATES))
+                          .find { |each| each["id"] == id && each["planType"].to_s.casecmp?(BUILD) }
+            next unless record
+
+            build = builds(azure, target.project, "buildIds" => record.dig("owner", "id").to_s).first
+            return deployment_of(record.merge("environmentName" => environment["name"]), build, target)
+          end
+          return unless more
+
+          fail! "#{target.project} has more environments than were read, and none read holds deployment #{id}. Name the one it went to with deployment_environment."
+        rescue AzureDevopsApi::Refused => error
+          fail! Sentence.join("Azure DevOps refused to read #{target.project}'s environments", error, after: "Reading them needs Environment (Read & manage)")
         end
 
         def runs_by_id(azure, project, ids)
