@@ -20,6 +20,7 @@ module Integrations
       ID = /\A\h[\h-]*\z/
       # Cloudflare takes a share from 0.01 to 100 percent, and the shares add up to 100.
       SMALLEST_SHARE = 0.01
+      CANCELLED = "cancelled".freeze
 
       ACCOUNT = { "type" => "string", "description" => "The Cloudflare account id, as the resource map names it" }.freeze
 
@@ -92,12 +93,29 @@ module Integrations
         given = arguments.to_h.stringify_keys
         said = case tool_name
         when RETRY then "Pages deployment #{given['deployment']} of #{given['project']} is running again as a new deployment. run_history follows it."
-        when CANCEL then "Workers build #{given['build']} is cancelled, so what it built is not deployed."
+        when CANCEL then cancel_words(given["build"], outcome_of(result))
         when SPLIT
           "#{given['worker']} now serves #{Array(given['versions']).map { |version| "#{version['percentage']}% to version #{version['version_id']}" }.join(' and ')}."
         end
         content = Array(result["content"])
         result.merge("content" => [ { "type" => "text", "text" => said }, *content ])
+      end
+
+      # Cloudflare answers a cancel with the build's outcome, which is the one it already had when the build had finished
+      # (Workers Builds API reference, cancel a build).
+      def self.outcome_of(result)
+        text = Array(result["content"]).filter_map { |part| part["text"] }.join
+        JSON.parse(text).dig("result", "build_outcome")
+      rescue JSON::ParserError, TypeError, NoMethodError
+        nil
+      end
+
+      def self.cancel_words(build, outcome)
+        case outcome
+        when CANCELLED then "Workers build #{build} is cancelled, so what it built is not deployed."
+        when nil then "Cloudflare is cancelling Workers build #{build}. run_history says once it has stopped."
+        else "Workers build #{build} had already finished with outcome #{outcome}, so nothing was cancelled."
+        end
       end
 
       def self.matching(given, name, pattern, what)
@@ -134,7 +152,7 @@ module Integrations
         { ReadGuards::Cloudflare::CODE => code, ReadGuards::Cloudflare::ACCOUNT => account }
       end
 
-      private_class_method :matching, :shares, :script
+      private_class_method :outcome_of, :cancel_words, :matching, :shares, :script
     end
   end
 end

@@ -51,6 +51,12 @@ module Integrations
         said = Cloudflare.present("split_worker_traffic", { "worker" => "edge-api", "versions" => [ { "version_id" => "a", "percentage" => 10 }, { "version_id" => "b", "percentage" => 90 } ] }, result)
 
         assert_equal "edge-api now serves 10% to version a and 90% to version b.", said["content"].first["text"]
+        cancel = ->(outcome) { { "content" => [ { "type" => "text", "text" => { "success" => true, "result" => { "build_uuid" => BUILD, "build_outcome" => outcome } }.to_json } ] } }
+        words = ->(outcome) { Cloudflare.present("cancel_workers_build", { "build" => BUILD }, cancel.call(outcome))["content"].first["text"] }
+        assert_equal "Workers build #{BUILD} is cancelled, so what it built is not deployed.", words.call("cancelled")
+        assert_equal "Workers build #{BUILD} had already finished with outcome success, so nothing was cancelled.", words.call("success")
+        assert_match "Cloudflare is cancelling Workers build #{BUILD}.", words.call(nil)
+
         failed = { "isError" => true, "content" => [ { "type" => "text", "text" => "boom" } ] }
         assert_equal failed, Cloudflare.present("cancel_workers_build", { "build" => BUILD }, failed)
       end
