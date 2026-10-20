@@ -34,7 +34,7 @@ module Integrations
       test "the key and workspace are stored trimmed, and only the fixes, deploys and suspending change anything" do
         assert_equal "rnd_key", ConnectionSettings.of(@row.reload).credential(Render::API_KEY)
         assert_nil @row.credentials_hash[Render::WORKSPACE], "the workspace is a connect field, not a credential"
-        assert_equal %w[restart_service rollback_deploy scale_service cancel_deploy trigger_deploy suspend_service resume_service],
+        assert_equal %w[restart_service rollback_deploy scale_service cancel_deploy trigger_deploy set_autodeploy set_autoscaling suspend_service resume_service],
                      Render.tool_definitions.reject(&:read_only).map(&:name)
         assert_equal [ "cancel_deploy" ], IntegrationProvider.find(Render::PROVIDER_KEY).stopping_tools
       end
@@ -173,7 +173,7 @@ module Integrations
         assert_match "cannot restart a Key Value instance", assert_raises(NativePack::Error) { call(:restart_service, "resource" => "cache") }.message
 
         RenderApi.any_instance.expects(:rollback).with("srv-web", "dep-1").returns("id" => "dep-3")
-        assert_match "Render is rolling web back to deploy dep-1, as deploy dep-3. Autodeploy is still on", call(:rollback_deploy, "resource" => "web", "deploy" => "dep-1")
+        assert_match "Render is rolling web back to deploy dep-1, as deploy dep-3. Autodeploy is left as it is, so while it is on the next commit to its branch deploys again. set_autodeploy with trigger off keeps the rollback.", call(:rollback_deploy, "resource" => "web", "deploy" => "dep-1")
 
         RenderApi.any_instance.stubs(:service).returns("serviceDetails" => { "autoscaling" => { "enabled" => true } })
         RenderApi.any_instance.expects(:scale).never

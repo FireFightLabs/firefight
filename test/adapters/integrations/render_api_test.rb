@@ -88,6 +88,11 @@ module Integrations
       expect_call(Net::HTTP::Get, "/v1/workflows", [ { cursor: "c", workflow: { id: "wfl-1" } } ], query: [ "ownerId", "tea-1" ])
       assert_equal [ "wfl-1" ], @api.workflows("tea-1").items.map { |workflow| workflow["id"] }
 
+      expect_call(Net::HTTP::Patch, "/v1/services/srv-1", { id: "srv-1" }, body: { "autoDeployTrigger" => "off" })
+      @api.update_autodeploy("srv-1", "off")
+      config = { "enabled" => true, "min" => 1, "max" => 3, "criteria" => { "cpu" => { "enabled" => true, "percentage" => 60 }, "memory" => { "enabled" => false, "percentage" => 70 } } }
+      expect_call(Net::HTTP::Put, "/v1/services/srv-1/autoscaling", config, body: config)
+      @api.update_autoscaling("srv-1", config)
       expect_call(Net::HTTP::Post, "/v1/services/srv-1/deploys/dep-1/cancel", { id: "dep-1", status: "canceled" })
       assert_equal "canceled", @api.cancel_deploy("srv-1", "dep-1")["status"]
       expect_call(Net::HTTP::Post, "/v1/services/srv-1/deploys", { id: "dep-2" }, body: { "clearCache" => "clear" })

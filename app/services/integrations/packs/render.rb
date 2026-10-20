@@ -215,8 +215,8 @@ module Integrations
       tool :rollback_deploy,
            summary: "Rolls a service back to an earlier deploy.",
            description: "Put a service back on an earlier deploy, by the deploy id list_deployments shows. Render puts that " \
-                        "build back live without building again, while it still keeps the build. Autodeploy stays on, so the " \
-                        "next commit deploys again",
+                        "build back live without building again, while it still keeps the build. Autodeploy is left as it is, so " \
+                        "while it is on the next commit deploys again. set_autodeploy with trigger off keeps the rollback",
            params_schema: {
              "type" => "object",
              "properties" => {
@@ -578,8 +578,8 @@ module Integrations
 
         started = api(environment_row).rollback(resource[:id], deploy)
         Telemetry.result("Render is rolling #{resource[:name]} back to deploy #{deploy}#{", as deploy #{started['id']}" if started['id']}. " \
-                         "Autodeploy is still on, so the next commit to its branch deploys again. Turn autodeploy off in Render " \
-                         "if the rollback should stay.", link: link(resource))
+                         "Autodeploy is left as it is, so while it is on the next commit to its branch deploys again. " \
+                         "set_autodeploy with trigger off keeps the rollback.", link: link(resource))
       end
 
       def scale_service(environment_row:, arguments:)
@@ -593,7 +593,7 @@ module Integrations
         service = api(environment_row).service(resource[:id])
         if service.dig("serviceDetails", "autoscaling", "enabled")
           fail! "Autoscaling is on for #{resource[:name]}, and Render ignores a set number of instances while it is. Change its " \
-                "autoscaling minimum and maximum in Render instead."
+                "autoscaling minimum and maximum with set_autoscaling instead."
         end
 
         api(environment_row).scale(resource[:id], count)

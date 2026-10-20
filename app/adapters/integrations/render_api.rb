@@ -101,6 +101,14 @@ module Integrations
 
     def scale(service_id, instances) = post("/services/#{segment(service_id)}/scale", "numInstances" => instances)
 
+    # Sets when a service deploys on its own, commit, checksPass or off, answering the service (spec, PATCH
+    # /services/{serviceId}, autoDeployTrigger).
+    def update_autodeploy(service_id, trigger) = patch("/services/#{segment(service_id)}", "autoDeployTrigger" => trigger)
+
+    # Replaces a service's autoscaling, enabled, min, max and its cpu and memory criteria, every one required (spec, PUT
+    # /services/{serviceId}/autoscaling).
+    def update_autoscaling(service_id, config) = put("/services/#{segment(service_id)}/autoscaling", config)
+
     # Cancels a deploy still in progress, answering it as Render now has it (spec, POST
     # /services/{serviceId}/deploys/{deployId}/cancel, not for cron jobs).
     def cancel_deploy(service_id, deploy_id) = post("/services/#{segment(service_id)}/deploys/#{segment(deploy_id)}/cancel")
@@ -160,6 +168,8 @@ module Integrations
     def post(path, body = nil) = changing(Net::HTTP::Post, path, body)
 
     def patch(path, body) = changing(Net::HTTP::Patch, path, body)
+
+    def put(path, body) = changing(Net::HTTP::Put, path, body)
 
     def changing(method, path, body)
       uri = URI.parse("#{API_ROOT}#{path}")

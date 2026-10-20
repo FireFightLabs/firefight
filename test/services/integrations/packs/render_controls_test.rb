@@ -78,6 +78,57 @@ module Integrations
         assert_match "a workflow, which Render does not suspend", error(:suspend_service, "resource" => "mailer")
       end
 
+      test "autodeploy is set by its trigger, the one before is named for the undo, and its undo sets it back on its own" do
+        RenderApi.any_instance.stubs(:service).with("srv-web").returns("id" => "srv-web", "autoDeployTrigger" => "commit")
+        RenderApi.any_instance.expects(:update_autodeploy).with("srv-web", "off").returns({})
+
+        result = @pack.call("set_autodeploy", environment_row: @row, arguments: { "resource" => "web", "trigger" => "off" })
+        assert_match "Autodeploy of web is now off. It was on each commit.", result["content"].sole["text"]
+        assert_equal({ "before" => "commit" }, result.dig(Telemetry::STRUCTURED, Telemetry::FACTS))
+
+        @integration.update!(slug: "render")
+        Render.tool_definitions.each do |definition|
+          @integration.tools.create!(name: definition.name, description: definition.description, read_only: definition.read_only, enabled: true,
+                                     params_schema: definition.params_schema)
+        end
+        tool = @integration.tools.find_by!(name: "set_autodeploy")
+        assert SafeChanges.tool?(tool)
+        undo = SafeChanges.inverse(tool, { "resource" => "web", "trigger" => "off" }, result)
+        assert_equal [ "set_autodeploy", { "resource" => "web", "trigger" => "commit" } ], [ undo.tool.name, undo.arguments ]
+
+        assert_match "already on each commit", error(:set_autodeploy, "resource" => "web", "trigger" => "commit")
+        assert_match "trigger must be commit, checksPass or off", error(:set_autodeploy, "resource" => "web", "trigger" => "never")
+        assert_match "is a Postgres database", error(:set_autodeploy, "resource" => "db", "trigger" => "off")
+      end
+
+      test "autoscaling keeps what is not given, sends every field Render requires, and refuses a range or target that cannot work" do
+        RenderApi.any_instance.stubs(:service).with("srv-web").returns("serviceDetails" => {
+          "autoscaling" => { "enabled" => true, "min" => 2, "max" => 4, "criteria" => { "cpu" => { "enabled" => true, "percentage" => 70 }, "memory" => { "enabled" => false, "percentage" => 80 } } }
+        })
+        RenderApi.any_instance.expects(:update_autoscaling).with("srv-web", {
+          "enabled" => true, "min" => 2, "max" => 8,
+          "criteria" => { "cpu" => { "enabled" => true, "percentage" => 70 }, "memory" => { "enabled" => true, "percentage" => 75 } }
+        }).returns({})
+        assert_match "Autoscaling of web is now on, between 2 and 8 instances, aiming for cpu 70% and memory 75%. It was on, between 2 and 4 instances, aiming for cpu 70%.",
+                     call(:set_autoscaling, "resource" => "web", "max" => 8, "memory_percent" => 75)
+
+        RenderApi.any_instance.expects(:update_autoscaling).with("srv-web", has_entries("enabled" => false, "min" => 2, "max" => 4)).returns({})
+        assert_match "now off", call(:set_autoscaling, "resource" => "web", "enabled" => false)
+
+        assert_match "max at least min", error(:set_autoscaling, "resource" => "web", "min" => 5, "max" => 3)
+        assert_match "cpu_percent must be from 1 to 100", error(:set_autoscaling, "resource" => "web", "cpu_percent" => 150)
+        assert_match "needs a CPU or memory target", error(:set_autoscaling, "resource" => "web", "cpu_percent" => 0)
+        assert_match "Render autoscales web services", error(:set_autoscaling, "resource" => "nightly", "max" => 3)
+
+        RenderApi.any_instance.stubs(:service).with("srv-web").returns("serviceDetails" => {})
+        assert_match "Say the fewest and the most instances", error(:set_autoscaling, "resource" => "web", "enabled" => true, "cpu_percent" => 60)
+        RenderApi.any_instance.expects(:update_autoscaling).with("srv-web", {
+          "enabled" => true, "min" => 1, "max" => 3,
+          "criteria" => { "cpu" => { "enabled" => true, "percentage" => 60 }, "memory" => { "enabled" => false, "percentage" => Render::Controls::UNUSED_PERCENT } }
+        }).returns({})
+        assert_match "It was never set up.", call(:set_autoscaling, "resource" => "web", "enabled" => true, "min" => 1, "max" => 3, "cpu_percent" => 60)
+      end
+
       private
 
       def listed(items) = Pages::Read.new(items: items, complete: true)

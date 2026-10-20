@@ -3,12 +3,27 @@ module Integrations
     class Render < NativePack
       # The changes beside restart, rollback and scale, each an endpoint of Render's OpenAPI spec: cancelling a deploy
       # still in progress (POST /services/{serviceId}/deploys/{deployId}/cancel), starting a deploy (POST
-      # /services/{serviceId}/deploys), and suspending or resuming a service or datastore (POST .../suspend and .../resume).
+      # /services/{serviceId}/deploys), suspending or resuming a service or datastore (POST .../suspend and .../resume),
+      # turning autodeploy off or on (PATCH /services/{serviceId}, autoDeployTrigger) and changing autoscaling (PUT
+      # /services/{serviceId}/autoscaling).
       module Controls
         CANCEL_DEPLOY = "cancel_deploy".freeze
         TRIGGER_DEPLOY = "trigger_deploy".freeze
         SUSPEND = "suspend_service".freeze
         RESUME = "resume_service".freeze
+        SET_AUTODEPLOY = "set_autodeploy".freeze
+        SET_AUTOSCALING = "set_autoscaling".freeze
+        # When Render deploys a service on its own (spec, autoDeployTrigger): each commit to its branch, each commit once
+        # its checks pass, or never. The answer names the one before as a fact, which its undo sets again.
+        AUTODEPLOY_TRIGGERS = %w[commit checksPass off].freeze
+        AUTODEPLOY_OFF = "off".freeze
+        BEFORE = "before".freeze
+        AUTODEPLOY_WORDS = { "commit" => "on each commit", "checksPass" => "on each commit once its checks pass", "off" => "off" }.freeze
+        # A criterion's target is a percentage of what the plan allows.
+        PERCENT = (1..100)
+        # Render requires a percentage on each criterion, one switched off included, where it is not used. A criterion never
+        # set before is sent switched off with this one.
+        UNUSED_PERCENT = 70
         History = Capabilities::History
         # Render cancels and starts deploys of every service but a workflow, and cancels none of a cron job's (spec, Cancel
         # deploy, "Not supported for cron jobs"). A cron job deploys only its branch's latest commit (spec, commitId).
@@ -44,6 +59,40 @@ module Integrations
                         "image" => { "type" => "string", "description" => "The image to deploy, by its full address with the tag, for a service that runs an image (optional)" },
                         "clear_cache" => { "type" => "boolean", "description" => "Clear the build cache before building (optional)" },
                         "deploy_only" => { "type" => "boolean", "description" => "Deploy the last build that succeeded again, without building (optional)" }
+                      },
+                      "required" => [ "resource" ]
+                    },
+                    read_only: false
+
+          pack.tool SET_AUTODEPLOY,
+                    summary: "Turns a service's autodeploy off or on.",
+                    description: "Set when Render deploys a service on its own: commit deploys each commit to its branch, checksPass " \
+                                 "each commit once its checks pass, and off never. Turn it off after a rollback so the next commit does " \
+                                 "not deploy the bad code again, and back on once the fix is in",
+                    params_schema: {
+                      "type" => "object",
+                      "properties" => {
+                        "resource" => RESOURCE,
+                        "trigger" => { "type" => "string", "enum" => AUTODEPLOY_TRIGGERS, "description" => "When to deploy on its own, off to stop it" }
+                      },
+                      "required" => %w[resource trigger]
+                    },
+                    read_only: false
+
+          pack.tool SET_AUTOSCALING,
+                    summary: "Changes a service's autoscaling: on or off, its instance range and targets.",
+                    description: "Change the autoscaling of a Render web service, private service or background worker: turn it on or " \
+                                 "off, the fewest and most instances, and the CPU and memory use it aims for, each a percentage of the " \
+                                 "plan. What is left out stays as it is. While autoscaling is on, Render ignores a set number of instances",
+                    params_schema: {
+                      "type" => "object",
+                      "properties" => {
+                        "resource" => RESOURCE,
+                        "enabled" => { "type" => "boolean", "description" => "Autoscaling on or off (optional, as it is)" },
+                        "min" => { "type" => "integer", "description" => "The fewest instances (optional, as it is)" },
+                        "max" => { "type" => "integer", "description" => "The most instances (optional, as it is)" },
+                        "cpu_percent" => { "type" => "integer", "description" => "The average CPU use to aim for, 1 to 100, or 0 to stop scaling on CPU (optional, as it is)" },
+                        "memory_percent" => { "type" => "integer", "description" => "The average memory use to aim for, 1 to 100, or 0 to stop scaling on memory (optional, as it is)" }
                       },
                       "required" => [ "resource" ]
                     },
@@ -106,6 +155,38 @@ module Integrations
           Telemetry.result("Render is resuming #{resource[:name]}. Its events show when it is up again.", link: link(resource))
         end
 
+        # The trigger it had is the answer's before fact, so the undo the registry declares sets it back.
+        def set_autodeploy(environment_row:, arguments:)
+          resource = find_resource(environment_row, arguments["resource"])
+          unless DEPLOYING.include?(resource[:type])
+            fail! "Render deploys web services, private services, background workers, static sites and cron jobs on their own, and #{resource[:name]} is a #{TYPE_WORDS.fetch(resource[:type])}."
+          end
+          trigger = arguments["trigger"].to_s.strip
+          fail! "trigger must be #{AUTODEPLOY_TRIGGERS.to_sentence(last_word_connector: ' or ')}." unless AUTODEPLOY_TRIGGERS.include?(trigger)
+
+          before = api(environment_row).service(resource[:id])["autoDeployTrigger"].presence
+          fail! "Autodeploy of #{resource[:name]} is already #{AUTODEPLOY_WORDS.fetch(trigger)}." if before == trigger
+
+          api(environment_row).update_autodeploy(resource[:id], trigger)
+          was = " It was #{AUTODEPLOY_WORDS.fetch(before, before)}." if before
+          Telemetry.result("Autodeploy of #{resource[:name]} is now #{AUTODEPLOY_WORDS.fetch(trigger)}.#{was}", link: link(resource), facts: { BEFORE => before })
+        end
+
+        # Every field Render requires, the ones not given kept from the service's autoscaling now. A target of 0 stops
+        # scaling on that resource, and turning autoscaling on needs at least one.
+        def set_autoscaling(environment_row:, arguments:)
+          resource = find_resource(environment_row, arguments["resource"])
+          unless SCALABLE.include?(resource[:type])
+            fail! "Render autoscales web services, private services and background workers, and #{resource[:name]} is a #{TYPE_WORDS.fetch(resource[:type])}."
+          end
+
+          now = api(environment_row).service(resource[:id]).dig("serviceDetails", "autoscaling") || {}
+          config = autoscaling_config(now, arguments)
+          api(environment_row).update_autoscaling(resource[:id], config)
+          Telemetry.result("Autoscaling of #{resource[:name]} is now #{autoscaling_words(config)}. It was #{now.empty? ? 'never set up' : autoscaling_words(now)}.",
+                           link: link(resource))
+        end
+
         # Who started the deploy a cancel would stop, from the build or deploy start Render recorded with the person who
         # triggered it (spec, Build Started and Deploy Started, trigger.user). A deploy Render or a commit started has
         # nobody to ask.
@@ -147,6 +228,44 @@ module Integrations
           fail! "Render deploys a cron job's latest commit only, so leave commit out." if commit && resource[:type] == CRON_JOB
 
           { "commitId" => commit, "imageUrl" => image, "clearCache" => (CLEAR_CACHE if clear), "deployMode" => (DEPLOY_ONLY if deploy_only) }.compact
+        end
+
+        def autoscaling_config(now, arguments)
+          enabled = arguments["enabled"].nil? ? now["enabled"] == true : ActiveModel::Type::Boolean.new.cast(arguments["enabled"])
+          min = whole(arguments, "min") || now["min"]
+          max = whole(arguments, "max") || now["max"]
+          criteria = %w[cpu memory].to_h do |name|
+            asked = whole(arguments, "#{name}_percent")
+            kept = now.dig("criteria", name) || {}
+            criterion = if asked.nil? then { "enabled" => kept["enabled"] == true, "percentage" => kept["percentage"] }
+            elsif asked.zero? then { "enabled" => false, "percentage" => kept["percentage"] }
+            else
+              fail!("#{name}_percent must be from 1 to 100, or 0 to stop scaling on #{name}.") unless PERCENT.cover?(asked)
+              { "enabled" => true, "percentage" => asked }
+            end
+            [ name, criterion ]
+          end
+          fail! "Say the fewest and the most instances, since autoscaling has none yet." if min.nil? || max.nil?
+          fail! "min must be 1 or more, and max at least min." unless min.to_i >= 1 && max.to_i >= min.to_i
+          if enabled && criteria.values.none? { |criterion| criterion["enabled"] }
+            fail! "Autoscaling needs a CPU or memory target to scale on. Pass cpu_percent or memory_percent."
+          end
+
+          { "enabled" => enabled, "min" => min, "max" => max,
+            "criteria" => criteria.transform_values { |criterion| criterion.merge("percentage" => criterion["percentage"] || UNUSED_PERCENT) } }
+        end
+
+        def whole(arguments, name)
+          return nil if arguments[name].nil?
+
+          Integer(arguments[name], exception: false) || fail!("#{name} must be a whole number.")
+        end
+
+        def autoscaling_words(config)
+          return "off" unless config["enabled"]
+
+          targets = %w[cpu memory].filter_map { |name| "#{name} #{config.dig('criteria', name, 'percentage')}%" if config.dig("criteria", name, "enabled") }
+          "on, between #{config['min']} and #{config['max']} instances, aiming for #{targets.join(' and ')}"
         end
 
         def suspendable(environment_row, arguments)

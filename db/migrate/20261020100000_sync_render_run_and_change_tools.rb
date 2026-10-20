@@ -1,6 +1,7 @@
 # Render's pack gained cron_runs, job_runs and task_runs, three reads run history answers through, and cancel_deploy,
-# trigger_deploy, suspend_service and resume_service, four changes. Discovery only runs on connect or refresh, so
-# existing connections get them here. Native packs declare their tools locally, so this calls no provider.
+# trigger_deploy, set_autodeploy, set_autoscaling, suspend_service and resume_service, six changes. Discovery only runs on
+# connect or refresh, so existing connections get them here. Native packs declare their tools locally, so this calls no
+# provider.
 class SyncRenderRunAndChangeTools < ActiveRecord::Migration[8.1]
   PROVIDER = "render".freeze
 
