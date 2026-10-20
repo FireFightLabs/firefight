@@ -516,7 +516,7 @@ module Conversation::Watches
 
     gate = deploy_gate(watch, step, reader)
     return if gate && !gate_lets_read?(watch, step, gate)
-    return take_reading(watch, step, reading, progress, now: now, gate: gate) if reading
+    return take_reading(watch, step, reading, progress, now: now, gate: gate) if reading && !follows_tool_run?(step)
 
     follow_reading(watch, step, reader, agent, progress, now: now, gate: gate)
   rescue Conversation::Watches::Reader::Unanswered => unanswered
@@ -538,12 +538,17 @@ module Conversation::Watches
     end
 
     detailed = detailed(run, answer.call.environment_row, step, reader)
-    run = detailed.run
+    run_moved(watch, step, detailed.run, detailed.environment_row, reader, now, progress, call: answer.call)
+  end
+
+  # Where a run stands, by its own status in Firefight's words: its jobs or steps as they move, the first that failed, its
+  # start, running slow, and its end with why it failed. call is the history read that found it, nil for a read tool's.
+  def self.run_moved(watch, step, run, environment_row, reader, now, progress, call:)
     step.seen!(digest: run.status, state: Integrations::Capabilities::History.line(run))
     moved = step.progress!(Array(run.parts).map { |part| [ part.name.to_s, PART_STATES.fetch(part.status, Chat::Watch::Step::PART_WAITING) ] })
     step.summarized!(run_summary(run))
     progress << "#{step.label}: #{moved.join(', ')}." if moved.any? && !run.finished?
-    tell_failed_part(watch, step, run, detailed.environment_row, reader)
+    tell_failed_part(watch, step, run, environment_row, reader)
     unless run.finished?
       said_start = step.started_told_at.nil? && step.started!(run_id: run.id.to_s, at: run.started_at, url: run.url)
       tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "#{step.label} started.") if said_start && step.report_start
@@ -552,7 +557,7 @@ module Conversation::Watches
     end
 
     ended = RUN_ENDS.fetch(run.status)
-    reason = why_failed(watch, step, run, reader, answer.call, environment_row: detailed.environment_row) if ended == Chat::Watch::Step::STATUS_FAILED
+    reason = why_failed(watch, step, run, reader, call, environment_row: environment_row) if ended == Chat::Watch::Step::STATUS_FAILED
     return unless step.finished!(ended, reason: reason, at: run.finished_at, run_id: run.id.to_s, url: run.url, started: run.started_at)
 
     took = step.seconds_taken && " after #{Integrations::Capabilities::History.duration(step.seconds_taken)}"
@@ -861,8 +866,26 @@ module Conversation::Watches
     answer = step.read_tool? ? reader.read_tool(agent, step.tool_name, step.arguments) : reader.read(step.capability, read_arguments(step))
     raise Conversation::Watches::Reader::Unanswered, answer.text.truncate(300) if answer.failed?
 
+    run = tool_run(step, answer.runs) if step.read_tool?
+    return run_moved(watch, step, run, step.integration_environment, reader, now, progress, call: nil) if run
+
     take_reading(watch, step, answer.text, progress, now: now, gate: gate)
   end
+
+  # The run a read tool's answer holds that the step follows: the one it already follows, the one its read names, or
+  # the one that started around when it began. nil when the answer holds no run history, or no such run, so the
+  # reading is judged as before.
+  def self.tool_run(step, runs)
+    return if runs.blank?
+
+    named = step.arguments[RUN_ARG].to_s.presence
+    return runs.find { |run| run.named?(named) } if named && step.followed_run_id.blank?
+
+    step.run_among(runs)
+  end
+
+  # A read tool step already following a run by its status reads it again rather than judging a chat's reading as text.
+  def self.follows_tool_run?(step) = step.read_tool? && step.followed_run_id.present?
 
   def self.logs?(step) = step.capability == Integrations::Capabilities::LOGS
 
@@ -1089,7 +1112,7 @@ module Conversation::Watches
   # explained in a sentence or two when Halon is available, otherwise the lines that name an error.
   def self.why_failed(watch, step, run, reader, call, environment_row: nil)
     part = run.first_failed_part
-    lines = (part && part_log(part, environment_row, reader)) || log_evidence(step, run, reader, call)
+    lines = (part && part_log(part, environment_row, reader)) || (log_evidence(step, run, reader, call) if call)
     evidence = [ run.detail, lines ].compact_blank.join("\n").truncate(EVIDENCE_LIMIT)
     explained = evidence.present? && judge(watch)&.why_failed(what: "#{step.label} (#{run.name || 'run'} #{run.number || run.id})", evidence: evidence)
     said = explained.presence || error_lines(lines) || run.detail.presence || "The provider did not say why."

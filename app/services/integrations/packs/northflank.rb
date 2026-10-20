@@ -17,6 +17,7 @@ module Integrations
       OBSERVE = "observe".freeze
       OBSERVE_LOGS = "logs".freeze
       OBSERVE_METRICS = "metrics".freeze
+      BUILDS_PAGE = "builds".freeze
       KIND_SERVICES = "services".freeze
       KIND_ADDONS = "addons".freeze
       KIND_JOBS = "jobs".freeze
@@ -584,16 +585,16 @@ module Integrations
       end
       private :builder!
 
-      # A service's builds page and one build's, as Northflank's pages write them. A job keeps its own page, since its builds
-      # address has not been checked.
-      def builds_link(environment_row, resource)
-        resource[:kind] == KIND_SERVICES ? resource_link(environment_row, resource, "builds") : resource_link(environment_row, resource)
+      # A service's or a job's builds page and one build's, as Northflank's app writes them (<kind>/<id>/builds/<build>). A
+      # job's address is read from the project, as its runs' is, since a job may carry no appId.
+      def builds_link(environment_row, resource, *build)
+        return project_link(environment_row, KIND_JOBS, resource[:id], BUILDS_PAGE, *build) if resource[:kind] == KIND_JOBS
+
+        resource_link(environment_row, resource, BUILDS_PAGE, *build)
       end
       private :builds_link
 
-      def build_link(environment_row, resource, build_id)
-        resource[:kind] == KIND_SERVICES && build_id.present? ? resource_link(environment_row, resource, "builds", build_id) : nil
-      end
+      def build_link(environment_row, resource, build_id) = (builds_link(environment_row, resource, build_id) if build_id.present?)
       private :build_link
 
       def describe_resource(environment_row:, arguments:)
@@ -1347,9 +1348,12 @@ module Integrations
 
       def secret?(body) = body && Chat::SecretFree::SECRET_PATTERNS.values.any? { |pattern| body.to_json.match?(pattern) }
 
-      # The page of what was changed, when the path names a service, database or job, and the project's otherwise.
+      # The page of what was changed or read, when the path names a service, database or job, a workflow or one of its
+      # runs, or a release flow or one of its runs, and the project's otherwise.
       def change_link(environment_row, path)
         kind, id = path.split("/").first(2)
+        return release_page(environment_row, path) if [ Releases::KIND_WORKFLOWS, Releases::KIND_PIPELINES ].include?(kind) && id.present?
+
         resource = resources(environment_row).find { |each| each[:kind] == kind && each[:id] == id } if [ KIND_SERVICES, KIND_ADDONS ].include?(kind)
         resource ? resource_link(environment_row, resource) : project_link(environment_row, *([ kind, id ] if kind == KIND_JOBS))
       end

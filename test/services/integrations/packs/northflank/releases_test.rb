@@ -42,6 +42,8 @@ module Integrations
           assert_nil runs.first.finished_at
           assert_equal 18 * 60, result.dig(Telemetry::STRUCTURED, History::USUAL_SECONDS)
           assert_match "recent runs of workflow Release", result["content"].sole["text"]
+          assert_equal "https://app.northflank.com/t/firefight-labs/project/firefight/environments/workflows/release/runs/r3", runs.first.url
+          assert_match %r{/project/firefight/environments/workflows/release/runs\z}, result["content"].sole["text"].lines.last
         end
 
         test "one run is read with each node as a part: how it went, its error, its retries and where its log is" do
@@ -49,6 +51,7 @@ module Integrations
 
           run = History.runs_of(@pack.call("workflow_runs", environment_row: @row, arguments: { "workflow" => "release", "run" => "r9" })).sole
           parts = run.parts.index_by(&:name)
+          assert_match %r{/project/firefight/environments/workflows/release/runs/#{run.id}\z}, run.url
 
           assert_equal [ "Build builder", "Run job migrate", "Release web", "Approval", "Build (build-later)" ], run.parts.map(&:name)
           assert_equal "succeeded", parts["Build builder"].status
@@ -76,6 +79,8 @@ module Integrations
 
           assert_equal [ [ "f1", "shop Production", "running" ] ], listed.map { |run| [ run.id, run.name, run.status ] }
           assert_equal 5, one.parts.size
+          assert_equal "https://app.northflank.com/t/firefight-labs/project/firefight/pipelines/shop/release-flows/production/runs/f1", listed.sole.url
+          assert_equal listed.sole.url, one.url
           error = assert_raises(NativePack::Error) { @pack.call("release_flow_runs", environment_row: @row, arguments: { "pipeline" => "shop", "stage" => "Staging" }) }
           assert_match "shop has no release flow for Staging", error.message
           assert_match "stage must be one of", assert_raises(NativePack::Error) { @pack.call("release_flow_runs", environment_row: @row, arguments: { "pipeline" => "shop", "stage" => "qa" }) }.message
