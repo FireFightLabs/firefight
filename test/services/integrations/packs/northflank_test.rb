@@ -581,6 +581,14 @@ module Integrations
         assert_equal [ Northflank::SLOWED ], Northflank.new(@integration).map_of(@row).gap_texts
       end
 
+      test "a rate limit while reading a workflow's definition ends the sweep rather than recording a map missing workflows" do
+        NorthflankApi.any_instance.stubs(:service).returns("id" => "web", "name" => "web", "serviceType" => "combined", "appId" => "/firefight-labs/firefight/web")
+        NorthflankApi.any_instance.stubs(:workflows).returns(listed([ { "id" => "release", "name" => "Release" } ]))
+        NorthflankApi.any_instance.stubs(:workflow).raises(NorthflankApi::RateLimited, "Northflank answered 429")
+
+        assert_raises(NorthflankApi::RateLimited) { @pack.map_of(@row) }
+      end
+
       test "a list cut short at the page bound is a gap naming what it holds, so nothing past it is taken as gone" do
         NorthflankApi.any_instance.stubs(:services).returns(listed([], complete: false))
         NorthflankApi.any_instance.stubs(:addons).returns(listed([], complete: false))
