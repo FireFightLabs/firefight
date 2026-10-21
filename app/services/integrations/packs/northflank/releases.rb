@@ -284,6 +284,8 @@ module Integrations
             workflows = api.workflows(project)
             workflows.items.each { |listed| mapping.workflow(listed, targets_of(workflow_details(api, project, listed, gaps), kinds_of)) }
             gaps << cut_short("workflows", [ ResourceMap::KIND_WORKFLOW ]) if workflows.incomplete?
+          rescue NorthflankApi::RateLimited
+            raise
           rescue NorthflankApi::Error => error
             gaps << ResourceMap::Gap.new(text: Sentence.all(Sentence.join("Workflows could not be read", error), WORKFLOWS_PERMISSION), kinds: [ ResourceMap::KIND_WORKFLOW ])
           end
