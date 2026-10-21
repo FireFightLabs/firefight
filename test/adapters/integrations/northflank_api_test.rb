@@ -36,6 +36,13 @@ module Integrations
       assert_equal NorthflankApi::MAX_PAGES, cut.items.size
     end
 
+    test "a project's workflows are read from the workflows key of the list" do
+      Http.expects(:request).with { |uri, _| uri.path == "/v1/projects/firefight/workflows" }
+          .returns(response(200, { data: { workflows: [ { id: "release" } ] }, pagination: { hasNextPage: false, count: 1 } }))
+
+      assert_equal %w[release], @api.workflows("firefight").items.map { |workflow| workflow["id"] }
+    end
+
     test "Northflank's refusal is raised with its own reason" do
       Http.stubs(:request).returns(response(403, { error: { message: "Missing permission: View Observability" } }))
 
