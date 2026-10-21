@@ -797,6 +797,9 @@ providers:
     description: Function logs, errors, pushes, usage and state of a Convex deployment, and pausing or unpausing it when you allow it.
     # Pausing fails every function call until it is unpaused, a stop customers feel for a while.
     mitigation_tools: [pause_deployment]
+    # A pause is put back by unpausing, which Firefight runs itself once the time the person chose runs out.
+    undo_tools:
+      pause_deployment: { tool: unpause_deployment }
     site: https://dashboard.convex.dev
     server_url: ""
     kind: native

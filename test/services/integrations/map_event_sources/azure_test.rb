@@ -90,7 +90,7 @@ module Integrations
       URL = "https://firefight.example.com/api/v1/map_events/token".freeze
 
       test "turning Event Grid on is a person's choice naming the role, and subscribes each subscription with a secret header once its address is confirmed" do
-        assert_match "needs the EventGrid EventSubscription Contributor role on each subscription", Azure.confirmation_for(@row, url: URL)
+        assert_match "the app registration Firefight signs in with needs the EventGrid EventSubscription Contributor role on each Azure subscription", Azure.confirmation_for(@row, url: URL)
         assert Azure.registers? && Azure.polls? && Azure.asks_first?
 
         AzureApi.any_instance.stubs(:get).with("/subscriptions/#{SUBSCRIPTION}/providers/Microsoft.EventGrid", Azure::PROVIDERS_VERSION).returns("registrationState" => "Registered")
@@ -113,21 +113,48 @@ module Integrations
         Azure.remove(@row, webhook.id)
       end
 
-      test "a principal without the role, Event Grid not registered, or an address Event Grid could not confirm is said in plain words" do
+      test "a principal without the role, Event Grid not registered, an address Azure could not reach or any other answer is said in plain words, naming the subscription" do
+        @row.store_learned!(@row.learned.merge(ConnectionSettings::SCOPES_LEARNED => [ { "value" => SUBSCRIPTION, "label" => "Production" } ]))
         AzureApi.any_instance.stubs(:get).with("/subscriptions/#{SUBSCRIPTION}/providers/Microsoft.EventGrid", Azure::PROVIDERS_VERSION).returns("registrationState" => "NotRegistered")
-        assert_match "Microsoft.EventGrid is not registered on subscription #{SUBSCRIPTION}. Register it in the Azure portal",
-                     assert_raises(Integrations::Error) { Azure.register(@row, url: URL) }.message
+        assert_equal "Microsoft.EventGrid is not registered on Production. Register it under the subscription's Resource providers in the Azure portal, " \
+                     "then turn instant updates on again.", assert_raises(Integrations::Error) { Azure.register(@row, url: URL) }.message
 
         AzureApi.any_instance.stubs(:get).with("/subscriptions/#{SUBSCRIPTION}/providers/Microsoft.EventGrid", Azure::PROVIDERS_VERSION).returns("registrationState" => "Registered")
-        AzureApi.any_instance.stubs(:put).raises(AzureApi::Forbidden, "Azure answered 403: AuthorizationFailed")
+        AzureApi.any_instance.stubs(:delete).returns({})
+        AzureApi.any_instance.stubs(:put).raises(AzureApi::Forbidden, "Azure answered 403: The client '2222' does not have authorization")
         refused = assert_raises(Integrations::Error) { Azure.register(@row, url: URL) }
         assert_not refused.is_a?(MapEventSource::Refused), "a refusal never stops the activity log being read"
-        assert_match "Give it the EventGrid EventSubscription Contributor role on the subscription: Azure answered 403: AuthorizationFailed", refused.message
+        assert_equal "The app registration Firefight signs in with does not have the EventGrid EventSubscription Contributor role on Production. " \
+                     "Give it that role on the subscription in the Azure portal, then turn instant updates on again.", refused.message
+
+        AzureApi.any_instance.stubs(:put).raises(AzureApi::Error, "Azure answered 500: InternalServerError")
+        assert_equal "Azure did not set up instant updates on Production and gave no reason Firefight can act on. Try again in a few minutes.",
+                     assert_raises(Integrations::Error) { Azure.register(@row, url: URL) }.message
 
         AzureApi.any_instance.stubs(:put).returns({})
         AzureApi.any_instance.stubs(:get).with(GRID_PATH, Azure::GRID_VERSION).returns({ "properties" => { "provisioningState" => "Failed" } })
-        AzureApi.any_instance.expects(:delete).with(GRID_PATH, Azure::GRID_VERSION).returns({})
-        assert_match "Event Grid could not confirm Firefight's address", assert_raises(Integrations::Error) { Azure.register(@row, url: URL) }.message
+        assert_match "Azure could not reach Firefight's address from Production, so nothing was set up there.",
+                     assert_raises(Integrations::Error) { Azure.register(@row, url: URL) }.message
+      end
+
+      test "a registration that fails part way takes back what it made in subscriptions it had not covered, and keeps one it had" do
+        other = "99999999-2222-3333-4444-555555555555"
+        kept = "88888888-2222-3333-4444-555555555555"
+        other_path = "/subscriptions/#{other}/providers/Microsoft.EventGrid/eventSubscriptions/firefightliveupdates"
+        kept_path = "/subscriptions/#{kept}/providers/Microsoft.EventGrid/eventSubscriptions/firefightliveupdates"
+        @row.store_fields!(Packs::Azure::TENANT => "contoso.onmicrosoft.com", Packs::Azure::CLIENT => "22222222-2222-3333-4444-555555555555",
+                           Packs::Azure::SUBSCRIPTION => [ kept, SUBSCRIPTION, other ])
+        @row.update!(map_events_webhook_id: { kept => kept_path }.to_json)
+        AzureApi.any_instance.stubs(:get).with { |path, _version| path.end_with?("/providers/Microsoft.EventGrid") }.returns("registrationState" => "Registered")
+        AzureApi.any_instance.stubs(:get).with { |path, _version| path.end_with?("/firefightliveupdates") }.returns({ "properties" => { "provisioningState" => "Succeeded" } })
+        AzureApi.any_instance.stubs(:put).with { |path, _version, _body| path == other_path }.raises(AzureApi::Forbidden, "Azure answered 403: no")
+        AzureApi.any_instance.stubs(:put).with { |path, _version, _body| path != other_path }.returns({})
+        removed = []
+        AzureApi.any_instance.stubs(:delete).with { |path, _version| removed << path }.returns({})
+
+        assert_raises(Integrations::Error) { Azure.register(@row, url: URL) }
+
+        assert_equal [ GRID_PATH, other_path ], removed, "the one made and the one that failed are taken back, and the one from before is kept"
       end
 
       test "Event Grid's confirmation is answered with its code, and each delivery with the secret header names the resource it changed" do
@@ -149,7 +176,8 @@ module Integrations
                        [ "g5", ResourceMap::Event::RESCOPE ] ], events.map { |event| [ event.id, event.action ] }
         assert_equal [ ResourceMap::KIND_DATABASE, SQL_ID ], [ events.second.scope.kind, events.second.scope.external_id ]
         assert_equal WEB_ID, events.third.scope.external_id, "a change to a slot is about its app"
-        assert_match "removes its Event Grid subscription", Azure.turn_off_words
+        assert_match "removes the Event Grid webhook named firefightliveupdates", Azure.turn_off_words
+        assert_no_match(/system topic|service principal/, Azure.turn_off_words + Azure::CONFIRMATION)
       end
 
       def grid(id, type, resource, operation: "x")

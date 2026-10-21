@@ -5,11 +5,11 @@ class IntegrationsController < InertiaController
     read: :index,
     create: %i[create oauth_start oauth_callback list_scopes],
     update: %i[sync toggle_tool mark_tool_read set_all_tools toggle retarget_environment choose edit_field scope_options scopes map_events_secret forget_map_events_secrets live_updates
-               live_updates_setup protected_paths],
+               live_updates_setup protected_paths make_map_events_secret],
     delete: :destroy
   before_action :set_integration,
                 only: [ :sync, :toggle_tool, :mark_tool_read, :set_all_tools, :toggle, :retarget_environment, :choose, :edit_field, :scope_options, :scopes, :map_events_secret,
-                      :forget_map_events_secrets,
+                      :forget_map_events_secrets, :make_map_events_secret,
                       :live_updates, :live_updates_setup, :protected_paths, :destroy ]
   # Connecting leaves for the provider and comes back here, setup or not.
   skip_before_action :continue_setup, only: %i[oauth_start oauth_callback]
@@ -194,10 +194,21 @@ class IntegrationsController < InertiaController
     return redirect_to integrations_path, alert: "Paste the signing secret #{@integration.name} shows for its webhook." if params[:secret].to_s.strip.empty?
 
     row.save_map_events_secret!(params[:secret])
-    return redirect_to integrations_path, notice: "Signing secret saved. Changes #{@integration.name} sends now reach the map." unless row.map_event_source.many_secrets?
+    return redirect_to integrations_path, notice: "Signing secret saved. #{row.map_events_saved_words}" unless row.map_event_source.many_secrets?
 
     saved = "#{row.map_events_secrets.size} signing #{'secret'.pluralize(row.map_events_secrets.size)}"
     redirect_to integrations_path, notice: "Signing secret added. #{@integration.name} now has #{saved} saved, and a change signed with any one reaches the map."
+  end
+
+  # A signing secret Firefight makes for a provider that takes whatever secret its webhook is given, shown once.
+  def make_map_events_secret
+    row = @integration.integration_environments.find(params[:environment_row_id])
+    return redirect_to integrations_path, alert: "Firefight does not make a signing secret for #{@integration.name}." unless row.map_events_secret_made?
+
+    replaced = row.map_events_secret_set?
+    flash.inertia[:map_events_signing_secret] = row.make_map_events_secret!
+    said = replaced ? "replaced. The old one stopped working" : "made"
+    redirect_to integrations_path, notice: "#{@integration.name}'s signing secret was #{said}. Copy the new one now, since it is shown once."
   end
 
   # Forgets every signing secret saved for a provider whose webhooks each sign with their own, so an admin can start over.
@@ -320,16 +331,16 @@ class IntegrationsController < InertiaController
   def turn_live_updates_on(row)
     Integrations::MapEvents.turn_on!(row)
     state = row.reload.live_updates
-    return redirect_to integrations_path, notice: "Live updates are on. Changes #{@integration.name} sends now reach the map." if state.on && row.map_events_webhook_id.present?
+    return redirect_to integrations_path, notice: row.live_updates_switched_words(on: true) if state.on && row.map_events_webhook_id.present?
 
-    redirect_to integrations_path, alert: state.reason
+    redirect_to integrations_path, alert: row.live_updates_turn_on_failed_words
   end
 
   def turn_live_updates_off(row)
     Integrations::MapEvents.turn_off!(row)
-    redirect_to integrations_path, notice: "Live updates are off. Firefight removed its webhook from #{@integration.name}."
+    redirect_to integrations_path, notice: row.live_updates_switched_words(on: false)
   rescue Integrations::Error => error
-    redirect_to integrations_path, alert: Integrations::Sentence.join("Firefight could not remove its webhook from #{@integration.name}", error)
+    redirect_to integrations_path, alert: row.live_updates_turn_off_failed_words(error)
   end
 
   # The same name connects another environment, or replaces the URL of one already connected. The URL is checked before

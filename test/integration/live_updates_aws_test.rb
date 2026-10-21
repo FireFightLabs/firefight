@@ -58,7 +58,7 @@ class LiveUpdatesAwsTest < ActionDispatch::IntegrationTest
     Integrations::MapEvents.poll!(row)
     state = row.reload.live_updates
     assert_not state.on
-    assert_equal "Firefight could not follow AWS's changes: #{Source::DENIED}. #{denied}. The map still updates at each sweep.", state.reason
+    assert_equal "Firefight could not follow AWS's changes: #{Source::DENIED}. #{denied}. The map still updates at each hourly sweep.", state.reason
 
     post api_v1_map_events_path(row.map_events_token), params: stack_status("us-east-1", "CREATE_COMPLETE").to_json, headers: keyed(row)
     assert_response :ok

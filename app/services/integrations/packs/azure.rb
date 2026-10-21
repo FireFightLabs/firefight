@@ -323,8 +323,9 @@ module Integrations
           CredentialField.new(key: SECRET, label: "Client secret", secret: true, placeholder: "",
                               hint: "A client secret of the service principal's app registration. Give it Reader, Monitoring Reader and Log Analytics Reader " \
                                     "on each subscription it reads, and Cost Management Reader for Halon to watch spend. For Halon to apply fixes, add Website Contributor and Contributor on the apps it may change. " \
-                                    "Optionally, to link App Service and Function apps to the databases their settings name, also give it a custom role " \
-                                    "holding only Microsoft.Web/sites/config/list/action.")
+                                    "For instant updates, add #{MapEventSources::Azure::GRID_ROLE} on each subscription. Reader does not cover two " \
+                                    "optional reads, so a custom role may hold Microsoft.Web/sites/config/list/action, to link apps to the databases " \
+                                    "their settings name, and Microsoft.ContainerRegistry/registries/runs/listLogSasUrl/action, to read ACR Tasks run logs.")
         ]
       end
 

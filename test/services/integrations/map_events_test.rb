@@ -215,7 +215,7 @@ module Integrations
       with_app_host { MapEvents.prepare!(row) }
       state = row.reload.live_updates
       assert_not state.on
-      assert_equal "Firefight could not follow Live hook's changes: Live hook answered 403: not allowed. The map still updates at each sweep.", state.reason
+      assert_equal "Firefight could not follow Live hook's changes: Live hook answered 403: not allowed. The map still updates at each hourly sweep.", state.reason
 
       LiveTestHook.failure = nil
       with_app_host { MapEvents.prepare!(row) }
@@ -251,7 +251,7 @@ module Integrations
       LiveTestHook.refusal = "Live hook answered 403: not on this plan"
       with_app_host { MapEvents.prepare!(row) }
       assert_equal "Firefight could not follow Live hook's changes: Live hook answered 403: not on this plan. Firefight tries again tomorrow. " \
-                   "The map still updates at each sweep.", row.reload.live_updates.reason
+                   "The map still updates at each hourly sweep.", row.reload.live_updates.reason
 
       LiveTestHook.refusal = nil
       travel 23.hours do
@@ -292,7 +292,7 @@ module Integrations
       MapEvents.turn_off!(row)
       row.reload
       assert_equal [ "hook-1", nil ], [ LiveTestHook.removed, row.map_events_webhook_id ]
-      assert_equal "Live updates were turned off, so the map updates at each sweep.", row.live_updates.reason
+      assert_equal "Changes reach the map at each hourly sweep until someone turns them on again.", row.live_updates.reason
       LiveTestHook.asking = nil
       with_app_host { MapEvents.prepare!(row, now: true) }
       assert_nil row.reload.map_events_webhook_id, "nothing registers again until a person turns them on"
@@ -315,7 +315,7 @@ module Integrations
       with_app_host { MapEvents.prepare!(row) }
 
       assert_equal "Firefight could not follow Live hook's changes: Live hook asked it to slow down, so Firefight registers again at the next sweep. " \
-                   "The map still updates at each sweep.", row.reload.live_updates.reason
+                   "The map still updates at each hourly sweep.", row.reload.live_updates.reason
     end
 
     test "a registration that no longer covers what the connection reaches is made again at the next sweep, and only then" do
@@ -352,7 +352,7 @@ module Integrations
       assert_equal [ true, "A service added reaches the map at each hourly sweep." ], [ row.live_updates.on, row.live_updates.reason ]
       row.update!(map_events_error: "Live poll answered 403: no")
       assert_not row.live_updates.on
-      assert_equal "Firefight could not follow Live poll's changes: Live poll answered 403: no. The map still updates at each sweep.", row.live_updates.reason
+      assert_equal "Firefight could not follow Live poll's changes: Live poll answered 403: no. The map still updates at each hourly sweep.", row.live_updates.reason
     end
 
     test "a connection set up by hand is off until its signing secret is saved" do

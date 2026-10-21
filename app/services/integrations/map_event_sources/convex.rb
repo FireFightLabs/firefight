@@ -14,8 +14,8 @@ module Integrations
       TOPICS = [ AUDIT_LOG ].freeze
       # Convex's docs suggest refusing an event older than five minutes, against a replay.
       TOLERANCE = 5.minutes
-      ONLY_STREAM = "Convex lets a deployment send to one webhook log stream, so Firefight's would be this deployment's only one " \
-                    "and the team could not add its own. Log streams need Convex's Pro plan.".freeze
+      ONLY_STREAM = "Convex allows one webhook log stream per deployment, so your team could not add its own while this is on. " \
+                    "Log streams need Convex's Pro plan.".freeze
       PLAN_NOTE = "Convex sends log streams on its Pro plan, and a deployment can have one webhook log stream".freeze
       TAKEN = "This deployment already sends a webhook log stream to another address, and Convex allows one".freeze
       REFUSED = /\AConvex answered 4\d\d/
@@ -45,6 +45,11 @@ module Integrations
 
         def limits = "Convex says when code is pushed to the deployment, it is paused or unpaused, or its settings change. What " \
                      "its functions print stays in its logs, which Firefight reads when asked."
+
+        def turn_on_words = "Firefight adds a webhook log stream to this Convex deployment, so a push, a pause or a settings change " \
+                            "reaches Firefight within about a minute."
+
+        def turn_off_words = "Firefight removes its webhook log stream from this Convex deployment, so your team can add its own."
 
         # Firefight's own stream from before at this address is kept, and a webhook stream at another address is the
         # team's, which Convex allows only one of, so it is never replaced.

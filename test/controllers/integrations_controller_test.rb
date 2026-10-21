@@ -904,9 +904,11 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
   private
 
-  def live_toggle(name)
+  def live_toggle(name) = live_state(name)["toggle"]
+
+  def live_state(name)
     get integrations_url, headers: inertia_headers
-    inertia_props["integrations"].find { |each| each["name"] == name }["environments"].sole["liveUpdates"]["toggle"]
+    inertia_props["integrations"].find { |each| each["name"] == name }["environments"].sole["liveUpdates"]
   end
 
   def stub_begin_flow
@@ -987,7 +989,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
     get integrations_url, headers: inertia_headers
     state = inertia_props["integrations"].find { |each| each["name"] == "Live hook" }["environments"].sole["liveUpdates"]
-    assert_equal [ false, { "turnsOn" => true, "words" => LiveTestHook.asking, "blockedReason" => nil } ], [ state["on"], state["toggle"] ]
+    assert_equal [ false, { "turnsOn" => true, "words" => LiveTestHook.asking, "blockedReason" => nil, "subject" => "live updates" } ], [ state["on"], state["toggle"] ]
 
     patch live_updates_integration_url(integration), params: { environment_row_id: row.id, on: true }
     assert_redirected_to integrations_path
@@ -999,15 +1001,15 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal false, live_toggle("Live hook")["turnsOn"]
 
     patch live_updates_integration_url(integration), params: { environment_row_id: row.id, on: false }
-    assert_equal "Live updates are off. Firefight removed its webhook from Live hook.", flash[:notice]
+    assert_equal "Live updates are off. Firefight removed its webhook from Live hook, and changes reach the map at each hourly sweep.", flash[:notice]
     assert_not row.reload.live_updates.on
 
     LiveTestHook.failure = "Live hook answered 500: down"
     patch live_updates_integration_url(integration), params: { environment_row_id: row.id, on: true }
-    assert_equal "Firefight could not follow Live hook's changes: Live hook answered 500: down. The map still updates at each sweep.", flash[:alert]
+    assert_equal "Firefight could not follow Live hook's changes: Live hook answered 500: down. The map still updates at each hourly sweep.", flash[:alert]
 
     row.update_columns(enabled: false)
-    assert_equal({ "turnsOn" => true, "words" => LiveTestHook.asking, "blockedReason" => "Live hook is switched off. Switch it on first." },
+    assert_equal({ "turnsOn" => true, "words" => LiveTestHook.asking, "blockedReason" => "Live hook is switched off. Switch it on first.", "subject" => "live updates" },
                  live_toggle("Live hook"), "a switch that cannot be pressed is shown with why, never hidden")
   ensure
     LiveTestHook.asking = nil
@@ -1015,7 +1017,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     ENV["APP_HOST"] = previous
   end
 
-  test "Azure's Event Grid is turned on beside its activity log, says plainly what access is missing, and turning it off keeps the log read" do
+  test "Azure's instant updates are turned on beside its activity log, a refusal is said on its own until the next try, and turning them off keeps the log read" do
     integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "azure", name: "Azure", slug: "azure")
     row = integration.integration_environments.create!
     previous = ENV["APP_HOST"]
@@ -1024,28 +1026,102 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     Integrations::MapEvents.prepare!(row)
     assert_nil row.reload.map_events_webhook_id, "Event Grid is never turned on without a person"
 
-    toggle = live_toggle("Azure")
-    assert toggle["turnsOn"]
-    assert_match "needs the EventGrid EventSubscription Contributor role", toggle["words"]
+    live = live_state("Azure")
+    assert_equal [ true, "every 5 minutes", { "line" => "Instant updates: off", "on" => false, "reason" => nil } ], live.values_at("on", "checkedEvery", "secondWay")
+    assert_equal "instant updates", live["toggle"]["subject"]
+    assert_equal "#{grid.turn_on_words} #{grid::CONFIRMATION}", live["toggle"]["words"]
     assert_match "reads Azure's activity log every 5 minutes", row.live_updates.reason
 
-    grid.stubs(:register).raises(Integrations::Error, "The service principal may not subscribe. Give it the EventGrid EventSubscription Contributor role")
+    refusal = format(grid::NO_ROLE, role: grid::GRID_ROLE, name: "Production")
+    grid.stubs(:register).raises(Integrations::Error, refusal)
     patch live_updates_integration_url(integration), params: { environment_row_id: row.id, on: true }
-    assert_match "Give it the EventGrid EventSubscription Contributor role", flash[:alert]
-    assert_nil row.reload.map_events_refused_at, "the activity log is not held back"
+    assert_equal "Instant updates could not be turned on. #{refusal}", flash[:alert]
+    assert_equal [ nil, nil, refusal ], row.reload.values_at(:map_events_refused_at, :map_events_error, :map_events_registration_error), "the activity log is not held back"
+    live = live_state("Azure")
+    assert live["on"], "a refused setup never says the activity log is off"
+    assert_equal({ "line" => "Instant updates could not be turned on", "on" => false, "reason" => refusal }, live["secondWay"])
+    Integrations::MapEvents.prepare!(row.reload)
+    assert_equal refusal, row.reload.live_updates.second_way.reason, "the refusal stays until a person tries again"
 
     grid.stubs(:register).returns(Integrations::MapEventSource::Webhook.new(id: { "s" => "/x" }.to_json, secret: "k", scopes: [ "s" ]))
     patch live_updates_integration_url(integration), params: { environment_row_id: row.id, on: true }
-    assert_equal "Live updates are on. Changes Azure sends now reach the map.", flash[:notice]
+    assert_equal "Instant updates are on. Changes Azure sends now reach the map.", flash[:notice]
+    assert_equal({ "line" => "Instant updates: on", "on" => true, "reason" => nil }, live_state("Azure")["secondWay"])
 
-    assert_match "The activity log is still read every 5 minutes.", live_toggle("Azure")["words"]
+    assert_equal grid.turn_off_words, live_toggle("Azure")["words"]
     grid.expects(:remove).once
     patch live_updates_integration_url(integration), params: { environment_row_id: row.id, on: false }
-    assert_equal "Live updates are off. Firefight removed its webhook from Azure.", flash[:notice]
+    assert_equal "Instant updates are off. Firefight removed its webhook from Azure and still checks for changes every 5 minutes.", flash[:notice]
     assert row.reload.live_updates.on, "the activity log is still read"
     assert_match "reads Azure's activity log every 5 minutes", row.live_updates.reason
   ensure
     ENV["APP_HOST"] = previous
+  end
+
+  test "Azure says why its instant updates could not be turned off in plain words" do
+    integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "azure", name: "Azure", slug: "azure")
+    row = integration.integration_environments.create!(map_events_webhook_id: { "s" => "/x" }.to_json, map_events_confirmation: Integrations::MapEventSources::Azure::CONFIRMATION)
+    refusal = format(Integrations::MapEventSources::Azure::NOT_REMOVED, name: "Production")
+    Integrations::MapEventSources::Azure.stubs(:remove).raises(Integrations::Error, refusal)
+
+    patch live_updates_integration_url(integration), params: { environment_row_id: row.id, on: false }
+
+    assert_equal "Instant updates could not be turned off. #{refusal}", flash[:alert]
+    assert row.reload.map_events_webhook_id.present?
+  end
+
+  test "Convex's dialog says what turning on gains before what it costs" do
+    integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "convex", name: "Convex", slug: "convex")
+    integration.integration_environments.create!(map_events_confirmation: Integrations::MapEventSources::Convex::ONLY_STREAM)
+
+    toggle = live_toggle("Convex")
+
+    assert_equal "Firefight adds a webhook log stream to this Convex deployment, so a push, a pause or a settings change reaches Firefight " \
+                 "within about a minute. Convex allows one webhook log stream per deployment, so your team could not add its own while this " \
+                 "is on. Log streams need Convex's Pro plan.", toggle["words"]
+    assert_equal "live updates", toggle["subject"]
+  end
+
+  test "Cloudflare's signing secret is made by Firefight and shown once, and its setup says it is ready once one is saved" do
+    integration = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "cloudflare", name: "Cloudflare", slug: "cloudflare",
+                                                  settings: { "server_url" => "https://mcp.cloudflare.example/mcp" })
+    row = integration.integration_environments.create!
+    row.give_map_events_token!
+
+    live = live_state("Cloudflare")
+    assert_equal({ "line" => "Pages notifications: waiting for setup", "on" => false, "reason" => nil }, live["secondWay"])
+    assert_equal [ true, nil, Integrations::MapEventSources::Cloudflare.setup_steps ], live["setup"].values_at("makesSecret", "replaceSecret", "steps")
+    assert_match "It does not change the map", live["setup"]["note"]
+
+    post map_events_secrets_integration_url(integration), params: { environment_row_id: row.id }
+
+    assert_redirected_to integrations_path
+    assert_equal "Cloudflare's signing secret was made. Copy the new one now, since it is shown once.", flash[:notice]
+    secret = row.reload.map_events_secret
+    assert_equal 64, secret.size
+    assert_equal secret, flash.inertia[:map_events_signing_secret]
+    live = live_state("Cloudflare")
+    assert_equal({ "line" => "Pages notifications: ready (secret saved)", "on" => true, "reason" => nil }, live["secondWay"])
+    assert_match "stops working at once", live["setup"]["replaceSecret"]
+    assert_not_includes live.to_json, secret, "the secret is never in the page"
+
+    post map_events_secrets_integration_url(integration), params: { environment_row_id: row.id }
+    assert_equal "Cloudflare's signing secret was replaced. The old one stopped working. Copy the new one now, since it is shown once.", flash[:notice]
+    assert_not_equal secret, row.reload.map_events_secret
+
+    patch map_events_secret_integration_url(integration), params: { environment_row_id: row.id, secret: "chosen-before" }
+    assert_equal "Signing secret saved. #{Integrations::MapEventSources::Cloudflare.deliveries_words}", flash[:notice]
+    assert_equal "chosen-before", row.reload.map_events_secret, "a secret a person chose before is still accepted"
+  end
+
+  test "a provider whose secret is pasted from it is never given one Firefight made" do
+    integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "livetest", name: "Live test", slug: "livetest")
+    row = integration.integration_environments.create!
+
+    post map_events_secrets_integration_url(integration), params: { environment_row_id: row.id }
+
+    assert_equal "Firefight does not make a signing secret for Live test.", flash[:alert]
+    assert_nil row.reload.map_events_secret
   end
 
   test "a member cannot turn live updates on" do
