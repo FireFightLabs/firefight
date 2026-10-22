@@ -5,11 +5,11 @@ class IntegrationsController < InertiaController
     read: :index,
     create: %i[create oauth_start oauth_callback list_scopes],
     update: %i[sync toggle_tool mark_tool_read set_all_tools toggle retarget_environment choose edit_field scope_options scopes map_events_secret forget_map_events_secrets live_updates
-               live_updates_setup protected_paths make_map_events_secret],
+               live_updates_setup protected_paths make_map_events_secret copy_map_events_secret],
     delete: :destroy
   before_action :set_integration,
                 only: [ :sync, :toggle_tool, :mark_tool_read, :set_all_tools, :toggle, :retarget_environment, :choose, :edit_field, :scope_options, :scopes, :map_events_secret,
-                      :forget_map_events_secrets, :make_map_events_secret,
+                      :forget_map_events_secrets, :make_map_events_secret, :copy_map_events_secret,
                       :live_updates, :live_updates_setup, :protected_paths, :destroy ]
   # Connecting leaves for the provider and comes back here, setup or not.
   skip_before_action :continue_setup, only: %i[oauth_start oauth_callback]
@@ -200,15 +200,25 @@ class IntegrationsController < InertiaController
     redirect_to integrations_path, notice: "Signing secret added. #{@integration.name} now has #{saved} saved, and a change signed with any one reaches the map."
   end
 
-  # A signing secret Firefight makes for a provider that takes whatever secret its webhook is given, shown once.
+  # A signing secret Firefight makes for a provider that takes whatever secret its webhook is given. It never rides in
+  # the page or the session, and is copied with copy_map_events_secret.
   def make_map_events_secret
     row = @integration.integration_environments.find(params[:environment_row_id])
     return redirect_to integrations_path, alert: "Firefight does not make a signing secret for #{@integration.name}." unless row.map_events_secret_made?
 
     replaced = row.map_events_secret_set?
-    flash.inertia[:map_events_signing_secret] = row.make_map_events_secret!
-    said = replaced ? "replaced. The old one stopped working" : "made"
-    redirect_to integrations_path, notice: "#{@integration.name}'s signing secret was #{said}. Copy the new one now, since it is shown once."
+    row.make_map_events_secret!
+    said = replaced ? "replaced. The old one stopped working, so give each webhook the new one" : "made"
+    redirect_to integrations_path, notice: "#{@integration.name}'s signing secret was #{said}. Copy it with Copy secret."
+  end
+
+  # The secret Firefight made, fetched only when someone who may change the connection copies it.
+  def copy_map_events_secret
+    row = @integration.integration_environments.find(params[:environment_row_id])
+    return render(json: { error: "Firefight does not make a signing secret for #{@integration.name}." }, status: :unprocessable_content) unless row.map_events_secret_made?
+    return render(json: { error: "No signing secret is saved for #{@integration.name}. Make one first." }, status: :unprocessable_content) unless row.map_events_secret_set?
+
+    render json: { secret: row.map_events_secret }
   end
 
   # Forgets every signing secret saved for a provider whose webhooks each sign with their own, so an admin can start over.

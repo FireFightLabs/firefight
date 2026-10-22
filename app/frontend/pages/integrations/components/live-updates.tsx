@@ -1,24 +1,18 @@
-import { useEffect, useState } from "react"
-import { router, usePage } from "@inertiajs/react"
+import { useState } from "react"
+import { router } from "@inertiajs/react"
 
 import { Button } from "@/components/ui/button"
 import { Blocked } from "@/components/blocked-tooltip"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { LiveUpdatesOffer } from "@/pages/integrations/components/live-updates-offer"
 import { LiveUpdatesSetup } from "@/pages/integrations/components/live-updates-setup"
-import { TokenRevealedDialog } from "@/pages/settings/components/api-keys/token-revealed-dialog"
 import { liveUpdatesIntegrationPath } from "@/lib/routes"
 import { liveUpdatesStatus } from "@/lib/live-updates"
-import type { SharedProps } from "@/types"
 import type { Integration } from "@/types/serializers"
 
 type Environment = Integration["environments"][number]
 type LiveUpdatesState = NonNullable<Environment["liveUpdates"]>
 type Following = Environment & { liveUpdates: LiveUpdatesState }
-
-const SECRET_TITLE = "Signing secret"
-const SECRET_DESCRIPTION = "Copy this secret now and give it to each webhook that sends to Firefight's address. It cannot be shown again."
-const SECRET_WARNING = "If you lose it, replace the signing secret here and give each webhook the new one. The old one stops working at once."
 
 function following(environment: Environment): environment is Following {
   return environment.liveUpdates !== null
@@ -101,23 +95,10 @@ function LiveUpdates({
 }
 
 // The connection's live updates under a heading of their own, one block for each environment that follows its
-// provider's changes, named once there is more than one. A signing secret Firefight just made is shown once here.
+// provider's changes, named once there is more than one.
 export function LiveUpdatesSection({ integration, canManage }: { integration: Integration; canManage: boolean }) {
-  const { flash } = usePage<SharedProps>()
-  const [revealedSecret, setRevealedSecret] = useState<string | null>(null)
   const rows = integration.environments.filter(following)
   const named = rows.length > 1
-
-  // Lifted out of flash so the dialog survives re-renders. Rails clears flash on the next request.
-  useEffect(() => {
-    if (flash?.map_events_signing_secret) {
-      setRevealedSecret(flash.map_events_signing_secret)
-    }
-  }, [flash?.map_events_signing_secret])
-
-  function closeSecret() {
-    setRevealedSecret(null)
-  }
 
   if (rows.length === 0) {
     return null
@@ -138,13 +119,6 @@ export function LiveUpdatesSection({ integration, canManage }: { integration: In
           />
         ))}
       </div>
-      <TokenRevealedDialog
-        token={revealedSecret}
-        onDismiss={closeSecret}
-        title={SECRET_TITLE}
-        description={SECRET_DESCRIPTION}
-        warning={SECRET_WARNING}
-      />
     </section>
   )
 }

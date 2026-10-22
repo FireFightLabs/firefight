@@ -56,7 +56,7 @@ module Integrations
 
         def setup_steps
           [
-            "Choose Make signing secret below and copy the secret Firefight shows.",
+            "Choose Make signing secret below, then Copy secret.",
             "In the Cloudflare dashboard, go to Alerts, then Destinations, and under Webhooks choose Create.",
             "Paste Firefight's address as its URL and the signing secret as its Secret, then choose Save and Test.",
             "Go to Alerts, then Overview, and choose Create an Alert. Pick Pages, Project updates, choose the projects and the " \
@@ -67,7 +67,8 @@ module Integrations
 
         def deliveries_name = "Pages notifications"
 
-        # Cloudflare takes whatever secret its webhook is given, so Firefight makes one rather than asking a person to.
+        # Cloudflare takes whatever secret its webhook is given, so Firefight makes one rather than asking a person to, and
+        # it is copied from the connection rather than shown.
         def makes_secret? = true
 
         def deliveries_words = "A Pages notification has the watches Halon keeps on this connection's builds check at once, rather than " \

@@ -48,7 +48,7 @@ module Integrations
   #   deliveries_words                        for a provider set up by hand, what a verified delivery does, when that is
   #                                           not a change read again onto the map
   #   makes_secret?                           true for a provider set up by hand that takes whatever secret it is given,
-  #                                           so Firefight makes it and shows it once rather than asking a person to
+  #                                           so Firefight makes it, and a person copies it rather than inventing one
   #   installation_of(payload, headers:)      for a provider that sends every connection's changes to one address for its
   #                                           app, the installation they are about, matched to a connection's own
   #                                           (IntegrationEnvironment#installation_id). The delivery is verified with

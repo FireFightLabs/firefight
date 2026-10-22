@@ -34,7 +34,7 @@ class IntegrationSerializer < BaseSerializer
   # now, and null for any other provider, with subject naming what it switches. offer is for a provider a person sets up
   # from a template. Its link is a redirect (live_updates_setup), so the connection's secret is never in the page.
   # checkedEvery and secondWay are there for a provider whose change log is read and that is sent changes another way as
-  # well (IntegrationEnvironment::LiveUpdates::State). makesSecret says Firefight makes the secret and shows it once,
+  # well (IntegrationEnvironment::LiveUpdates::State). makesSecret says Firefight makes the secret, copied only on request (copy_map_events_secret),
   # and replaceSecret is what replacing a saved one does.
   OFFER_TYPE = "{ words: string; action: string; unavailable: string | null; removal: string; places: { place: string; label: string; sentAt: string | null; unavailable: string | null }[] } | null".freeze
   SETUP_TYPE = "{ address: string | null; steps: string[]; secretSet: boolean; manySecrets: boolean; secretCount: number; forgetSecrets: string | null; " \

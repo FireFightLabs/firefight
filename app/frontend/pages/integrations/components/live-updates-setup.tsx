@@ -1,15 +1,18 @@
 import { useState, type ChangeEvent, type FormEvent } from "react"
 import { router } from "@inertiajs/react"
 import { IconCheck, IconCopy } from "@tabler/icons-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { postJson } from "@/lib/http"
 import {
   mapEventsSecretIntegrationPath,
   mapEventsSecretsIntegrationPath,
+  mapEventsSigningSecretIntegrationPath,
 } from "@/lib/routes"
 import type { Integration } from "@/types/serializers"
 
@@ -63,13 +66,31 @@ function AddressCopy({ address }: { address: string }) {
   )
 }
 
-// A secret Firefight makes, for a provider that takes whatever secret its webhook is given. Replacing one asks first,
-// since the saved one stops working at once.
+// A secret Firefight makes, for a provider that takes whatever secret its webhook is given. It is fetched only when
+// copied, so it never rides in the page. Replacing one asks first, since the saved one stops working at once.
 function MadeSecret({ integrationId, rowId, setup }: { integrationId: string; rowId: string; setup: SetupState }) {
   const [replacing, setReplacing] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
 
   function makeSecret() {
     router.post(mapEventsSecretsIntegrationPath(integrationId), { environment_row_id: rowId }, { preserveScroll: true, preserveState: true })
+  }
+
+  async function copySecret() {
+    setProblem(null)
+    try {
+      const { ok, data } = await postJson<{ secret?: string; error?: string }>(mapEventsSigningSecretIntegrationPath(integrationId), {
+        environment_row_id: rowId,
+      })
+      if (!ok || !data?.secret) {
+        setProblem(data?.error ?? "The secret could not be read. Try again.")
+        return
+      }
+      await navigator.clipboard.writeText(data.secret)
+      toast.success("Signing secret copied.")
+    } catch {
+      setProblem("Firefight could not be reached. Try again.")
+    }
   }
 
   function askReplace() {
@@ -91,17 +112,24 @@ function MadeSecret({ integrationId, rowId, setup }: { integrationId: string; ro
   return (
     <div className="flex flex-col gap-1">
       <p className="text-xs font-medium">Signing secret</p>
-      <div>
-        {setup.secretSet ? (
+      {setup.secretSet ? (
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => void copySecret()}>
+            <IconCopy className="size-3.5" />
+            Copy secret
+          </Button>
           <Button type="button" size="sm" variant="outline" className="h-8" onClick={askReplace}>
             Replace signing secret
           </Button>
-        ) : (
+        </div>
+      ) : (
+        <div>
           <Button type="button" size="sm" variant="outline" className="h-8" onClick={makeSecret}>
             Make signing secret
           </Button>
-        )}
-      </div>
+        </div>
+      )}
+      {problem && <p className="text-destructive text-xs">{problem}</p>}
       <ConfirmDeleteDialog
         open={replacing}
         title="Replace the signing secret?"

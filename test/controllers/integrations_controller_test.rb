@@ -1082,7 +1082,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "live updates", toggle["subject"]
   end
 
-  test "Cloudflare's signing secret is made by Firefight and shown once, and its setup says it is ready once one is saved" do
+  test "Cloudflare's signing secret is made by Firefight, never rides in the page or the session, and is copied only by someone who may change the connection" do
     integration = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "cloudflare", name: "Cloudflare", slug: "cloudflare",
                                                   settings: { "server_url" => "https://mcp.cloudflare.example/mcp" })
     row = integration.integration_environments.create!
@@ -1092,26 +1092,38 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ "line" => "Pages notifications: waiting for setup", "on" => false, "reason" => nil }, live["secondWay"])
     assert_equal [ true, nil, Integrations::MapEventSources::Cloudflare.setup_steps ], live["setup"].values_at("makesSecret", "replaceSecret", "steps")
     assert_match "It does not change the map", live["setup"]["note"]
+    post map_events_signing_secret_integration_url(integration), params: { environment_row_id: row.id }, as: :json
+    assert_equal [ 422, "No signing secret is saved for Cloudflare. Make one first." ], [ response.status, response.parsed_body["error"] ]
 
     post map_events_secrets_integration_url(integration), params: { environment_row_id: row.id }
 
     assert_redirected_to integrations_path
-    assert_equal "Cloudflare's signing secret was made. Copy the new one now, since it is shown once.", flash[:notice]
+    assert_equal "Cloudflare's signing secret was made. Copy it with Copy secret.", flash[:notice]
     secret = row.reload.map_events_secret
     assert_equal 64, secret.size
-    assert_equal secret, flash.inertia[:map_events_signing_secret]
+    assert_not_includes flash.to_hash.to_json, secret, "the secret never rides in the session"
     live = live_state("Cloudflare")
     assert_equal({ "line" => "Pages notifications: ready (secret saved)", "on" => true, "reason" => nil }, live["secondWay"])
     assert_match "stops working at once", live["setup"]["replaceSecret"]
-    assert_not_includes live.to_json, secret, "the secret is never in the page"
+    assert_not_includes response.body, secret, "the secret is never in the page"
+
+    post map_events_signing_secret_integration_url(integration), params: { environment_row_id: row.id }, as: :json
+    assert_response :success
+    assert_equal({ "secret" => secret }, response.parsed_body)
 
     post map_events_secrets_integration_url(integration), params: { environment_row_id: row.id }
-    assert_equal "Cloudflare's signing secret was replaced. The old one stopped working. Copy the new one now, since it is shown once.", flash[:notice]
+    assert_equal "Cloudflare's signing secret was replaced. The old one stopped working, so give each webhook the new one. Copy it with Copy secret.", flash[:notice]
     assert_not_equal secret, row.reload.map_events_secret
 
     patch map_events_secret_integration_url(integration), params: { environment_row_id: row.id, secret: "chosen-before" }
     assert_equal "Signing secret saved. #{Integrations::MapEventSources::Cloudflare.deliveries_words}", flash[:notice]
     assert_equal "chosen-before", row.reload.map_events_secret, "a secret a person chose before is still accepted"
+
+    sign_in(users(:bob), @workspace)
+    post map_events_signing_secret_integration_url(integration), params: { environment_row_id: row.id }, as: :json
+    assert_not_includes response.body, "chosen-before", "a member cannot copy it"
+    post map_events_secrets_integration_url(integration), params: { environment_row_id: row.id }
+    assert_equal "chosen-before", row.reload.map_events_secret, "nor replace it"
   end
 
   test "a provider whose secret is pasted from it is never given one Firefight made" do
@@ -1122,6 +1134,9 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal "Firefight does not make a signing secret for Live test.", flash[:alert]
     assert_nil row.reload.map_events_secret
+    row.update!(map_events_secret: "pasted")
+    post map_events_signing_secret_integration_url(integration), params: { environment_row_id: row.id }, as: :json
+    assert_equal [ 422, "Firefight does not make a signing secret for Live test." ], [ response.status, response.parsed_body["error"] ]
   end
 
   test "a member cannot turn live updates on" do

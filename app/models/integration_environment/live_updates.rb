@@ -79,20 +79,19 @@ module IntegrationEnvironment::LiveUpdates
     accepted = if source.many_secrets?
       "Each webhook signs with a secret of its own, so add each one. Firefight accepts a change signed with any of them, and a secret is never shown again."
     elsif source.makes_secret?
-      "Firefight accepts what #{integration.name} sends only when it carries this secret, and the secret is shown once."
+      "Firefight accepts what #{integration.name} sends only when it carries this secret, which only someone who may change the connection can copy."
     else
       "Firefight accepts a change only when it is signed with this secret, and the secret is never shown again."
     end
     Integrations::Sentence.all(accepted, source.deliveries_words || "A change is never taken as it is sent. Firefight reads what it names again and updates the map.")
   end
 
-  # Whether Firefight makes the signing secret for a provider set up by hand, and shows it once.
+  # Whether Firefight makes the signing secret for a provider set up by hand, copied rather than shown.
   def map_events_secret_made? = map_events_set_up_by_hand? && map_event_source.makes_secret?
 
-  # Makes a new signing secret, replacing any saved, for a provider that takes whatever secret it is given. Answers it, so
-  # it is shown once.
+  # Makes a new signing secret, replacing any saved, for a provider that takes whatever secret it is given.
   def make_map_events_secret!
-    SecureRandom.hex(32).tap { |secret| update!(map_events_secret: secret) }
+    update!(map_events_secret: SecureRandom.hex(32))
   end
 
   # What replacing a secret Firefight made does, said before a person confirms. nil while none is saved.
@@ -100,7 +99,7 @@ module IntegrationEnvironment::LiveUpdates
     return unless map_events_secret_set?
 
     "The secret saved now stops working at once, so what #{integration.name} sends is refused until each of its webhooks has " \
-      "the new one. The new secret is shown once."
+      "the new one. Copy it with Copy secret."
   end
 
   def live_updates_offer
