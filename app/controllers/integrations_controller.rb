@@ -206,9 +206,10 @@ class IntegrationsController < InertiaController
     row = @integration.integration_environments.find(params[:environment_row_id])
     return redirect_to integrations_path, alert: "Firefight does not make a signing secret for #{@integration.name}." unless row.map_events_secret_made?
 
-    replaced = row.map_events_secret_set?
-    row.make_map_events_secret!
-    said = replaced ? "replaced. The old one stopped working, so give each webhook the new one" : "made"
+    replace = ActiveModel::Type::Boolean.new.cast(params[:replace]) == true
+    return redirect_to integrations_path, alert: row.map_events_secret_already_made_words unless row.make_map_events_secret!(replace: replace)
+
+    said = replace ? "replaced. The old one stopped working, so give each webhook the new one" : "made"
     redirect_to integrations_path, notice: "#{@integration.name}'s signing secret was #{said}. Copy it with Copy secret."
   end
 

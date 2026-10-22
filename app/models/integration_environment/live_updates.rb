@@ -89,10 +89,18 @@ module IntegrationEnvironment::LiveUpdates
   # Whether Firefight makes the signing secret for a provider set up by hand, copied rather than shown.
   def map_events_secret_made? = map_events_set_up_by_hand? && map_event_source.makes_secret?
 
-  # Makes a new signing secret, replacing any saved, for a provider that takes whatever secret it is given.
-  def make_map_events_secret!
-    update!(map_events_secret: SecureRandom.hex(32))
+  # Makes a new signing secret for a provider that takes whatever secret it is given. One already saved is replaced only
+  # when replace says so, so a second admin's stale Make never breaks the webhook the first one set up. Answers whether
+  # it made one, under the row's lock, so two at once make one.
+  def make_map_events_secret!(replace: false)
+    with_lock do
+      next false if map_events_secret_set? && !replace
+
+      update!(map_events_secret: SecureRandom.hex(32))
+    end
   end
+
+  def map_events_secret_already_made_words = "A signing secret is already saved for #{integration.name}. Copy it with Copy secret, or replace it."
 
   # What replacing a secret Firefight made does, said before a person confirms. nil while none is saved.
   def replace_map_events_secret_words

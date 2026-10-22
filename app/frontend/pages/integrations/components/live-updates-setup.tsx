@@ -104,7 +104,7 @@ function MadeSecret({ integrationId, rowId, setup }: { integrationId: string; ro
   function confirmReplace() {
     router.post(
       mapEventsSecretsIntegrationPath(integrationId),
-      { environment_row_id: rowId },
+      { environment_row_id: rowId, replace: true },
       { preserveScroll: true, preserveState: true, onFinish: stopReplacing },
     )
   }

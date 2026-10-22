@@ -1112,6 +1112,10 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ "secret" => secret }, response.parsed_body)
 
     post map_events_secrets_integration_url(integration), params: { environment_row_id: row.id }
+    assert_equal "A signing secret is already saved for Cloudflare. Copy it with Copy secret, or replace it.", flash[:alert]
+    assert_equal secret, row.reload.map_events_secret, "a stale Make from a page opened before never replaces it"
+
+    post map_events_secrets_integration_url(integration), params: { environment_row_id: row.id, replace: true }
     assert_equal "Cloudflare's signing secret was replaced. The old one stopped working, so give each webhook the new one. Copy it with Copy secret.", flash[:notice]
     assert_not_equal secret, row.reload.map_events_secret
 
@@ -1122,7 +1126,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     sign_in(users(:bob), @workspace)
     post map_events_signing_secret_integration_url(integration), params: { environment_row_id: row.id }, as: :json
     assert_not_includes response.body, "chosen-before", "a member cannot copy it"
-    post map_events_secrets_integration_url(integration), params: { environment_row_id: row.id }
+    post map_events_secrets_integration_url(integration), params: { environment_row_id: row.id, replace: true }
     assert_equal "chosen-before", row.reload.map_events_secret, "nor replace it"
   end
 
