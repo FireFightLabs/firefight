@@ -21,9 +21,15 @@ class AddMapEventsRegistrationError < ActiveRecord::Migration[8.1]
     self.table_name = "integration_environments"
   end
 
+  # Why an Event Grid setup failed was kept with the activity log's own error, which made the log read as off. It held
+  # Azure's raw answer, which a person is no longer shown, so it is cleared rather than moved, and Instant updates read
+  # as off until someone turns them on again.
+  EVENT_GRID_FAILURES = [ "%Event Grid%", "%EventGrid%" ].freeze
+
   def up
     add_column :integration_environments, :map_events_registration_error, :string
     reword(REWORDED)
+    clear_event_grid_failures
   end
 
   def down
@@ -32,6 +38,10 @@ class AddMapEventsRegistrationError < ActiveRecord::Migration[8.1]
   end
 
   private
+
+  def clear_event_grid_failures
+    IntegrationEnvironment.where("map_events_error ILIKE ANY (ARRAY[?])", EVENT_GRID_FAILURES).update_all(map_events_error: nil)
+  end
 
   def reword(words)
     words.each { |from, to| IntegrationEnvironment.where(map_events_confirmation: from).update_all(map_events_confirmation: to) }
