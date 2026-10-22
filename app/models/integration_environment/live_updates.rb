@@ -79,35 +79,35 @@ module IntegrationEnvironment::LiveUpdates
     accepted = if source.many_secrets?
       "Each webhook signs with a secret of its own, so add each one. Firefight accepts a change signed with any of them, and a secret is never shown again."
     elsif source.makes_secret?
-      "Firefight accepts what #{integration.name} sends only when it carries this secret, which only someone who may change the connection can copy."
+      "Firefight accepts what #{integration.name} sends only when it carries this secret, and the secret is shown once."
     else
       "Firefight accepts a change only when it is signed with this secret, and the secret is never shown again."
     end
     Integrations::Sentence.all(accepted, source.deliveries_words || "A change is never taken as it is sent. Firefight reads what it names again and updates the map.")
   end
 
-  # Whether Firefight makes the signing secret for a provider set up by hand, copied rather than shown.
+  # Whether Firefight makes the signing secret for a provider set up by hand, and shows it once.
   def map_events_secret_made? = map_events_set_up_by_hand? && map_event_source.makes_secret?
 
-  # Makes a new signing secret for a provider that takes whatever secret it is given. One already saved is replaced only
-  # when replace says so, so a second admin's stale Make never breaks the webhook the first one set up. Answers whether
-  # it made one, under the row's lock, so two at once make one.
+  # Makes a new signing secret for a provider that takes whatever secret it is given, and answers it so it is shown once,
+  # or nil. One already saved is replaced only when replace says so, so a second admin's stale Make never breaks the
+  # webhook the first one set up, and it is made under the row's lock, so two at once make one.
   def make_map_events_secret!(replace: false)
     with_lock do
-      next false if map_events_secret_set? && !replace
+      next nil if map_events_secret_set? && !replace
 
-      update!(map_events_secret: SecureRandom.hex(32))
+      SecureRandom.hex(32).tap { |secret| update!(map_events_secret: secret) }
     end
   end
 
-  def map_events_secret_already_made_words = "A signing secret is already saved for #{integration.name}. Copy it with Copy secret, or replace it."
+  def map_events_secret_already_made_words = "A signing secret is already saved for #{integration.name}. Replace it to get a new one."
 
   # What replacing a secret Firefight made does, said before a person confirms. nil while none is saved.
   def replace_map_events_secret_words
     return unless map_events_secret_set?
 
     "The secret saved now stops working at once, so what #{integration.name} sends is refused until each of its webhooks has " \
-      "the new one. Copy it with Copy secret."
+      "the new one. The new secret is shown once."
   end
 
   def live_updates_offer

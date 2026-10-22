@@ -1,7 +1,7 @@
 require "application_system_test_case"
 
 # The connection's Live updates section for the three ways a provider's changes reach Firefight beside or instead of a
-# sweep: Cloudflare set up by hand with a secret Firefight makes and the page never holds, Convex turned on and off at a cost, and Azure, whose
+# sweep: Cloudflare set up by hand with a secret Firefight makes and shows once, Convex turned on and off at a cost, and Azure, whose
 # activity log is read either way while instant updates are turned on, refused and said apart.
 class LiveUpdatesSheetTest < ApplicationSystemTestCase
   SHOTS = "tmp/screenshots/live-updates-ui".freeze
@@ -18,7 +18,7 @@ class LiveUpdatesSheetTest < ApplicationSystemTestCase
     ENV["APP_HOST"] = @previous_host
   end
 
-  test "Cloudflare waits for its Pages notifications, makes the secret, copies it only on request, and says what a notification does" do
+  test "Cloudflare waits for its Pages notifications, makes the secret and shows it once, and says what a notification does" do
     cloudflare = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "cloudflare", name: "Cloudflare", slug: "cloudflare",
                                                  settings: { "server_url" => "https://mcp.cloudflare.example/mcp" })
     row = cloudflare.integration_environments.create!
@@ -39,21 +39,25 @@ class LiveUpdatesSheetTest < ApplicationSystemTestCase
     assert_selector "[role='tooltip']", text: "Copy Firefight's address"
     shot("cloudflare-02-copy-tooltip")
 
+    allow_clipboard!
     click_button "Make signing secret"
-    assert_toast "Cloudflare's signing secret was made. Copy it with Copy secret."
+    assert_toast "Cloudflare's signing secret was made. Copy it now, since it is shown once."
+    secret = row.reload.map_events_secret
+    within(find("[role='dialog']", text: "Copy this secret now")) do
+      assert_text secret
+      click_button "Copy"
+      assert_button "Copied!"
+      shot("cloudflare-03-secret-shown")
+      click_button "I've copied it"
+    end
+    assert_equal secret, page.evaluate_async_script("navigator.clipboard.readText().then(arguments[0])")
     within(section) do
       assert_text "Pages notifications: ready (secret saved)"
       assert_button "Replace signing secret"
+      assert_no_button "Make signing secret"
     end
-    secret = row.reload.map_events_secret
-    assert_not_includes page.html, secret, "the page never holds the secret"
-    shot("cloudflare-03-ready", find("button", text: "Copy secret"))
-
-    allow_clipboard!
-    click_button "Copy secret"
-    assert_toast "Signing secret copied."
-    assert_equal secret, page.evaluate_async_script("navigator.clipboard.readText().then(arguments[0])")
-    shot("cloudflare-04-copied", find("button", text: "Copy secret"))
+    assert_not_includes page.html, secret, "after the dialog closes the page never holds it again"
+    shot("cloudflare-04-ready", find("button", text: "Replace signing secret"))
 
     click_button "Replace signing secret"
     within(find("[role='dialog']", text: "Replace the signing secret?")) do
@@ -61,9 +65,16 @@ class LiveUpdatesSheetTest < ApplicationSystemTestCase
       shot("cloudflare-05-replace-confirm")
       click_button "Replace secret"
     end
-    assert_toast "Cloudflare's signing secret was replaced. The old one stopped working, so give each webhook the new one. Copy it with Copy secret."
-    assert_not_equal secret, row.reload.map_events_secret
-    assert_not_includes page.html, row.map_events_secret
+    assert_toast "Cloudflare's signing secret was replaced. The old one stopped working, so give each webhook the new one. Copy it now, since it is shown once."
+    replaced = row.reload.map_events_secret
+    assert_not_equal secret, replaced
+    within(find("[role='dialog']", text: "Copy this secret now")) do
+      assert_text replaced
+      click_button "I've copied it"
+    end
+    visit integrations_path(Integration::DETAILS_QUERY_PARAM => cloudflare.id)
+    within(section) { assert_button "Replace signing secret" }
+    assert_not_includes page.html, replaced, "a fresh page never shows it again"
   end
 
   test "Convex says what turning on gains and costs, and turning off says the sweep takes over once" do

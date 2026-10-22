@@ -12,8 +12,8 @@ import { postJson } from "@/lib/http"
 import {
   mapEventsSecretIntegrationPath,
   mapEventsSecretsIntegrationPath,
-  mapEventsSigningSecretIntegrationPath,
 } from "@/lib/routes"
+import { TokenRevealedDialog } from "@/pages/settings/components/api-keys/token-revealed-dialog"
 import type { Integration } from "@/types/serializers"
 
 type SetupState = NonNullable<NonNullable<Integration["environments"][number]["liveUpdates"]>["setup"]>
@@ -66,31 +66,44 @@ function AddressCopy({ address }: { address: string }) {
   )
 }
 
-// A secret Firefight makes, for a provider that takes whatever secret its webhook is given. It is fetched only when
-// copied, so it never rides in the page. Replacing one asks first, since the saved one stops working at once.
+const SECRET_TITLE = "Signing secret"
+const SECRET_DESCRIPTION = "Copy this secret now and give it to each webhook that sends to Firefight's address. It cannot be shown again."
+const SECRET_WARNING = "If you lose it, replace the signing secret here and give each webhook the new one. The old one stops working at once."
+
+type MadeAnswer = { secret?: string; notice?: string; error?: string }
+
+// A secret Firefight makes, for a provider that takes whatever secret its webhook is given. The request that makes it
+// answers it once, so it is shown here once and never rides in the page. After that it can only be replaced, which
+// asks first since the saved one stops working at once.
 function MadeSecret({ integrationId, rowId, setup }: { integrationId: string; rowId: string; setup: SetupState }) {
   const [replacing, setReplacing] = useState(false)
+  const [revealed, setRevealed] = useState<string | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
 
-  function makeSecret() {
-    router.post(mapEventsSecretsIntegrationPath(integrationId), { environment_row_id: rowId }, { preserveScroll: true, preserveState: true })
-  }
-
-  async function copySecret() {
+  async function make(replace: boolean) {
     setProblem(null)
     try {
-      const { ok, data } = await postJson<{ secret?: string; error?: string }>(mapEventsSigningSecretIntegrationPath(integrationId), {
-        environment_row_id: rowId,
-      })
+      const { ok, data } = await postJson<MadeAnswer>(mapEventsSecretsIntegrationPath(integrationId), { environment_row_id: rowId, replace })
       if (!ok || !data?.secret) {
-        setProblem(data?.error ?? "The secret could not be read. Try again.")
+        setProblem(data?.error ?? "The secret could not be made. Try again.")
         return
       }
-      await navigator.clipboard.writeText(data.secret)
-      toast.success("Signing secret copied.")
+      setRevealed(data.secret)
+      toast.success(data.notice)
+      router.reload({ only: ["integrations"] })
     } catch {
       setProblem("Firefight could not be reached. Try again.")
+    } finally {
+      setReplacing(false)
     }
+  }
+
+  function makeSecret() {
+    void make(false)
+  }
+
+  function confirmReplace() {
+    void make(true)
   }
 
   function askReplace() {
@@ -101,34 +114,24 @@ function MadeSecret({ integrationId, rowId, setup }: { integrationId: string; ro
     setReplacing(false)
   }
 
-  function confirmReplace() {
-    router.post(
-      mapEventsSecretsIntegrationPath(integrationId),
-      { environment_row_id: rowId, replace: true },
-      { preserveScroll: true, preserveState: true, onFinish: stopReplacing },
-    )
+  function closeSecret() {
+    setRevealed(null)
   }
 
   return (
     <div className="flex flex-col gap-1">
       <p className="text-xs font-medium">Signing secret</p>
-      {setup.secretSet ? (
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => void copySecret()}>
-            <IconCopy className="size-3.5" />
-            Copy secret
-          </Button>
+      <div>
+        {setup.secretSet ? (
           <Button type="button" size="sm" variant="outline" className="h-8" onClick={askReplace}>
             Replace signing secret
           </Button>
-        </div>
-      ) : (
-        <div>
+        ) : (
           <Button type="button" size="sm" variant="outline" className="h-8" onClick={makeSecret}>
             Make signing secret
           </Button>
-        </div>
-      )}
+        )}
+      </div>
       {problem && <p className="text-destructive text-xs">{problem}</p>}
       <ConfirmDeleteDialog
         open={replacing}
@@ -137,6 +140,13 @@ function MadeSecret({ integrationId, rowId, setup }: { integrationId: string; ro
         confirmLabel="Replace secret"
         onConfirm={confirmReplace}
         onCancel={stopReplacing}
+      />
+      <TokenRevealedDialog
+        token={revealed}
+        onDismiss={closeSecret}
+        title={SECRET_TITLE}
+        description={SECRET_DESCRIPTION}
+        warning={SECRET_WARNING}
       />
     </div>
   )
