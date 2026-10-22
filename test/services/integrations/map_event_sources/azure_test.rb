@@ -157,6 +157,25 @@ module Integrations
         assert_equal [ GRID_PATH, other_path ], removed, "the one made and the one that failed are taken back, and the one from before is kept"
       end
 
+      test "a subscription registered before in another case is neither forgotten as gone nor taken back when a later one fails" do
+        other = "99999999-2222-3333-4444-555555555555"
+        other_path = "/subscriptions/#{other}/providers/Microsoft.EventGrid/eventSubscriptions/firefightliveupdates"
+        upper = SUBSCRIPTION.upcase
+        @row.store_fields!(Packs::Azure::TENANT => "contoso.onmicrosoft.com", Packs::Azure::CLIENT => "22222222-2222-3333-4444-555555555555",
+                           Packs::Azure::SUBSCRIPTION => [ SUBSCRIPTION, other ])
+        @row.update!(map_events_webhook_id: { upper => "/subscriptions/#{upper}/providers/Microsoft.EventGrid/eventSubscriptions/firefightliveupdates" }.to_json)
+        AzureApi.any_instance.stubs(:get).with { |path, _version| path.end_with?("/providers/Microsoft.EventGrid") }.returns("registrationState" => "Registered")
+        AzureApi.any_instance.stubs(:get).with { |path, _version| path.end_with?("/firefightliveupdates") }.returns({ "properties" => { "provisioningState" => "Succeeded" } })
+        AzureApi.any_instance.stubs(:put).with { |path, _version, _body| path == other_path }.raises(AzureApi::Forbidden, "Azure answered 403: no")
+        AzureApi.any_instance.stubs(:put).with { |path, _version, _body| path != other_path }.returns({})
+        removed = []
+        AzureApi.any_instance.stubs(:delete).with { |path, _version| removed << path }.returns({})
+
+        assert_raises(Integrations::Error) { Azure.register(@row, url: URL) }
+
+        assert_equal [ other_path ], removed, "only the subscription it had not covered before is taken back"
+      end
+
       test "Event Grid's confirmation is answered with its code, and each delivery with the secret header names the resource it changed" do
         assert Azure.verify(raw_body: "[]", headers: { Azure::KEY_HEADER => "k" }, secret: "k")
         assert_not Azure.verify(raw_body: "[]", headers: { Azure::KEY_HEADER => "x" }, secret: "k")

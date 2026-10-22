@@ -128,8 +128,10 @@ module Integrations
           subscriptions = settings.scopes
           raise Integrations::Error, "This connection reaches no Azure subscription. Choose one on the Integrations page." if subscriptions.empty?
 
+          # A subscription id is a GUID Azure writes in either case, so one registered before is matched whatever its case.
           before = registrations(row.map_events_webhook_id, settings)
-          before.except(*subscriptions).each { |subscription, path| forget(api(row, subscription), path) }
+          chosen = subscriptions.map(&:downcase)
+          before.reject { |subscription, _path| chosen.include?(subscription.downcase) }.each { |subscription, path| forget(api(row, subscription), path) }
           secret = row.map_events_secret.presence || SecureRandom.hex(32)
           row.update!(map_events_secret: secret)
           tried = []
@@ -139,7 +141,8 @@ module Integrations
           end
           MapEventSource::Webhook.new(id: made.to_json, secret: secret, scopes: subscriptions)
         rescue Integrations::Error
-          undo(row, tried.to_a - before.to_h.keys)
+          covered = before.to_h.keys.map(&:downcase)
+          undo(row, tried.to_a.reject { |subscription| covered.include?(subscription.downcase) })
           raise
         end
 
