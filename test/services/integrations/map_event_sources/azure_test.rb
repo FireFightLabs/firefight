@@ -160,9 +160,10 @@ module Integrations
       test "a subscription registered before in another case is neither forgotten as gone nor taken back when a later one fails" do
         other = "99999999-2222-3333-4444-555555555555"
         other_path = "/subscriptions/#{other}/providers/Microsoft.EventGrid/eventSubscriptions/firefightliveupdates"
-        upper = SUBSCRIPTION.upcase
+        chosen = "11111111-aaaa-3333-bbbb-555555555555"
+        upper = chosen.upcase
         @row.store_fields!(Packs::Azure::TENANT => "contoso.onmicrosoft.com", Packs::Azure::CLIENT => "22222222-2222-3333-4444-555555555555",
-                           Packs::Azure::SUBSCRIPTION => [ SUBSCRIPTION, other ])
+                           Packs::Azure::SUBSCRIPTION => [ chosen, other ])
         @row.update!(map_events_webhook_id: { upper => "/subscriptions/#{upper}/providers/Microsoft.EventGrid/eventSubscriptions/firefightliveupdates" }.to_json)
         AzureApi.any_instance.stubs(:get).with { |path, _version| path.end_with?("/providers/Microsoft.EventGrid") }.returns("registrationState" => "Registered")
         AzureApi.any_instance.stubs(:get).with { |path, _version| path.end_with?("/firefightliveupdates") }.returns({ "properties" => { "provisioningState" => "Succeeded" } })
