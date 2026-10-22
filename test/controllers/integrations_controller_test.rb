@@ -1047,6 +1047,10 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     patch live_updates_integration_url(integration), params: { environment_row_id: row.id, on: true }
     assert_equal "Instant updates are on. Changes Azure sends now reach the map.", flash[:notice]
     assert_equal({ "line" => "Instant updates: on", "on" => true, "reason" => nil }, live_state("Azure")["secondWay"])
+    row.update_columns(enabled: false)
+    assert_equal [ false, { "line" => "Instant updates: off", "on" => false, "reason" => nil } ], live_state("Azure").values_at("on", "secondWay"),
+                 "a connection switched off accepts nothing, so neither line says on"
+    row.update_columns(enabled: true)
 
     assert_equal grid.turn_off_words, live_toggle("Azure")["words"]
     grid.expects(:remove).once

@@ -314,22 +314,24 @@ module IntegrationEnvironment::LiveUpdates
   private
 
   # For a provider whose change log is read, the other way its changes reach Firefight, when it has one: a webhook
-  # Firefight registers when a person turns it on, or one an admin sets up by hand with a secret.
+  # Firefight registers when a person turns it on, or one an admin sets up by hand with a secret. A connection that is
+  # switched off or stopped accepts nothing, so neither way reads as on then.
   def live_updates_second_way(source)
     name = source.deliveries_name
     return unless source.polls? && name
 
+    reachable = integration.operational? && enabled? && !installation_stopped?
     if source.registers_for?(self)
-      on = map_events_webhook_id.present? && !map_events_lapsed?
+      on = reachable && map_events_webhook_id.present? && !map_events_lapsed?
       line = if on then "#{name}: on"
-      elsif map_events_registration_error.present? then "#{name} could not be turned on"
+      elsif reachable && map_events_registration_error.present? then "#{name} could not be turned on"
       else "#{name}: off"
       end
-      return SecondWay.new(line: line, on: on, reason: (map_events_registration_error unless on))
+      return SecondWay.new(line: line, on: on, reason: (map_events_registration_error if reachable && !on))
     end
     return unless map_events_set_up_by_hand?
 
-    SecondWay.new(line: map_events_secret_set? ? "#{name}: ready (secret saved)" : "#{name}: waiting for setup", on: map_events_secret_set?, reason: nil)
+    SecondWay.new(line: map_events_secret_set? ? "#{name}: ready (secret saved)" : "#{name}: waiting for setup", on: reachable && map_events_secret_set?, reason: nil)
   end
 
   def live_updates_on?(source)
