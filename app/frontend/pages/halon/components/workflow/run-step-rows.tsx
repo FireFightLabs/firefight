@@ -62,7 +62,17 @@ function reachedSteps(run: WorkflowRunDetail, steps: WorkflowStepNode[]): Reache
     .filter((each) => each.rows.length > 0)
     .sort((left, right) => firstStart(left.rows) - firstStart(right.rows))
     .map(({ step, rows }) => {
-      const row = rows.find((each) => STEP_GOING.includes(each.status)) ?? rows[rows.length - 1]
+      const row = rows.find((each) => STEP_GOING.includes(each.status)) ?? latestFinished(rows)
       return { step, rows, row, line: row.now ?? row.log[row.log.length - 1]?.text ?? null }
     })
+}
+
+// The item that finished last, the last to start among items with the same end, so the line is the newest whatever
+// order the rows arrived in.
+function latestFinished(rows: WorkflowRunStep[]): WorkflowRunStep {
+  const moment = (value: string | null | undefined) => (value ? new Date(value).getTime() : 0)
+  return rows.reduce((latest, row) => {
+    const later = moment(row.finishedAt) - moment(latest.finishedAt) || moment(row.startedAt) - moment(latest.startedAt) || row.iteration.localeCompare(latest.iteration)
+    return later > 0 ? row : latest
+  })
 }

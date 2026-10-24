@@ -7,10 +7,10 @@ class WorkflowCanvasQueriesTest < ActionDispatch::IntegrationTest
   include ManyToolsHelper
 
   # The props the page's polls ask for, as CANVAS_VISIT and RUN_VISIT name them (pages/halon/hooks/use-workflow-edits.ts).
-  P = WorkflowCanvasController
-  CANVAS_POLL = [ P::PROP_WORKFLOW, P::PROP_DOCUMENT, P::PROP_VERSIONS, P::PROP_SUGGESTIONS, P::PROP_HALON_CHANGES,
-                  P::PROP_PUBLISH_REQUESTS, P::PROP_MY_PUBLISH_REQUEST ].freeze
-  RUN_POLL = [ *CANVAS_POLL, P::PROP_RUN, P::PROP_RUNS, P::PROP_LAST_RUN ].freeze
+  CANVAS = WorkflowCanvasController
+  CANVAS_POLL = [ CANVAS::PROP_WORKFLOW, CANVAS::PROP_DOCUMENT, CANVAS::PROP_VERSIONS, CANVAS::PROP_SUGGESTIONS, CANVAS::PROP_HALON_CHANGES,
+                  CANVAS::PROP_PUBLISH_REQUESTS, CANVAS::PROP_MY_PUBLISH_REQUEST ].freeze
+  RUN_POLL = [ *CANVAS_POLL, CANVAS::PROP_RUN, CANVAS::PROP_RUNS, CANVAS::PROP_LAST_RUN ].freeze
   # Pinned, so a query added per prop, step, tool or run shows here. Raise them only for a prop that is new.
   PAGE_QUERIES = 61
   CANVAS_POLL_QUERIES = 27

@@ -5,11 +5,15 @@
 class Workflow::LiveDelivery
   WINDOW = 1.second
 
+  # Runs after the change committed, so a cache, queue or cable that is down is logged and never reaches whoever made
+  # the change. An open page reads every part again when its socket next connects.
   def self.changed(workflow_id:, part:)
     return say(workflow_id, part) if Rails.cache.write(gate_key(workflow_id, part), true, unless_exist: true, expires_in: WINDOW)
     return unless Rails.cache.write(trailing_key(workflow_id, part), true, unless_exist: true, expires_in: WINDOW)
 
     WorkflowPageSignalJob.set(wait: WINDOW).perform_later(workflow_id, part)
+  rescue StandardError => error
+    Rails.logger.error({ event: "workflow_page.signal_failed", workflow_id: workflow_id, part: part, error: error.class.name, message: error.message }.to_json)
   end
 
   # The trailing say goes through the gate too, with its own booking cleared first so a held back say books the next.

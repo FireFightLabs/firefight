@@ -1,6 +1,6 @@
 import { createConsumer } from "@rails/actioncable"
 import { router } from "@inertiajs/react"
-import { type RefObject, useEffect } from "react"
+import { type RefObject, useEffect, useRef } from "react"
 
 import { WORKFLOW_CANVAS_PROPS, WORKFLOW_CHANNEL, WORKFLOW_LIVE_PARTS } from "@/lib/generated/constants"
 import { CANVAS_VISIT } from "@/pages/halon/hooks/use-workflow-edits"
@@ -31,28 +31,58 @@ const RUN_REFRESH_MS = 5000
 // Keeps the canvas in step with changes made anywhere else: another person's edit, Halon's suggestion, a publish, a run
 // starting or moving on. The server says which part changed and only that part is read again, in place and without the
 // progress bar, so nothing asks the server while nothing changes. While the run open on the canvas is going, its own
-// details are read again every few seconds as well, one read at a time and never while the person's own visit waits,
-// since a watch's reads and the tools Halon calls inside a step are not changes the page is told of.
+// details are read again every few seconds as well, since a watch's reads and the tools Halon calls inside a step are
+// not changes the page is told of. Every read goes one at a time, never while the person's own visit waits, and what
+// asks meanwhile is gathered into the next read, so an older answer never lands over a newer one.
 export function useWorkflowLive(workflowId: string, runGoing: boolean, visitInFlight: RefObject<boolean>) {
-  useEffect(() => {
-    const waiting = new Set<WorkflowLivePart>()
-    let gathering: number | undefined
+  const going = useRef(runGoing)
 
-    function readAgain() {
+  useEffect(() => {
+    going.current = runGoing
+  }, [ runGoing ])
+
+  useEffect(() => {
+    const waiting = new Set<string>()
+    let reading = false
+    let gathering: number | undefined
+    let stopped = false
+
+    function readWaiting() {
       gathering = undefined
-      if (visitInFlight.current) {
-        gathering = window.setTimeout(readAgain, GATHER_MS)
+      if (stopped || waiting.size === 0) {
         return
       }
-      const only = [ ...new Set([ ...waiting ].flatMap((part) => PROPS_OF[part])) ]
+      if (reading || visitInFlight.current) {
+        gathering = window.setTimeout(readWaiting, GATHER_MS)
+        return
+      }
+      const only = [ ...waiting ]
       waiting.clear()
-      router.reload({ only, showProgress: false })
+      reading = true
+      router.reload({ only, showProgress: false, onFinish: finishedReading })
+    }
+
+    function finishedReading() {
+      reading = false
+      if (waiting.size > 0 && gathering === undefined) {
+        gathering = window.setTimeout(readWaiting, GATHER_MS)
+      }
+    }
+
+    function ask(props: string[]) {
+      props.forEach((prop) => waiting.add(prop))
+      if (gathering === undefined) {
+        gathering = window.setTimeout(readWaiting, GATHER_MS)
+      }
     }
 
     function gather(parts: WorkflowLivePart[]) {
-      parts.forEach((part) => waiting.add(part))
-      if (gathering === undefined) {
-        gathering = window.setTimeout(readAgain, GATHER_MS)
+      ask(parts.flatMap((part) => PROPS_OF[part]))
+    }
+
+    function refreshRun() {
+      if (going.current) {
+        ask([ WORKFLOW_CANVAS_PROPS.RUN ])
       }
     }
 
@@ -72,39 +102,14 @@ export function useWorkflowLive(workflowId: string, runGoing: boolean, visitInFl
         },
       },
     )
+    const runTimer = window.setInterval(refreshRun, RUN_REFRESH_MS)
 
     return () => {
+      stopped = true
       window.clearTimeout(gathering)
+      window.clearInterval(runTimer)
       subscription.unsubscribe()
       consumer.disconnect()
     }
   }, [ workflowId, visitInFlight ])
-
-  useEffect(() => {
-    if (!runGoing) {
-      return
-    }
-    let timer: number | undefined
-    let stopped = false
-
-    function next() {
-      if (!stopped) {
-        timer = window.setTimeout(refresh, RUN_REFRESH_MS)
-      }
-    }
-
-    function refresh() {
-      if (visitInFlight.current) {
-        next()
-        return
-      }
-      router.reload({ only: [ WORKFLOW_CANVAS_PROPS.RUN ], showProgress: false, onFinish: next })
-    }
-
-    next()
-    return () => {
-      stopped = true
-      window.clearTimeout(timer)
-    }
-  }, [ runGoing, visitInFlight ])
 }
