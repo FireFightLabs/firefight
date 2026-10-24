@@ -62,7 +62,8 @@ class Conversation::Watches::Agent
     @meter.spend!
     value = Chat::ToolCall.run!(
       workspace: workspace, principal: acting_principal, action_key: action_key, params: params, scope: scope,
-      context: { source: Chat::Watch::SOURCE, incident_id: @conversation.try(:incident_id), approval_id: approval_id }.compact,
+      context: { source: Chat::Watch::SOURCE, incident_id: @conversation.try(:incident_id), approval_id: approval_id,
+                 **@conversation.try(:ledger_context).to_h }.compact,
       holdable: holdable, &block
     )
     Chat::ToolCall::Outcome.new(value: value)

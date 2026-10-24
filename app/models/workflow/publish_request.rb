@@ -4,6 +4,10 @@
 class Workflow::PublishRequest < ApplicationRecord
   self.table_name = "workflow_publish_requests"
 
+  include Workflow::LiveSignal
+
+  shown_on_workflow_page PART_CANVAS
+
   WINDOW = Ability::PackRequest::WINDOW
 
   belongs_to :workspace
@@ -20,7 +24,10 @@ class Workflow::PublishRequest < ApplicationRecord
 
   def self.for!(requester, workflow, version)
     request = find_or_create_by!(workspace_id: workflow.workspace_id, workflow: workflow, requester: requester) { |made| made.version = version }
-    request.update_columns(version_id: version.id, updated_at: Time.current) unless request.version_id == version.id
+    unless request.version_id == version.id
+      request.update_columns(version_id: version.id, updated_at: Time.current)
+      request.signal_workflow_page
+    end
     request
   rescue ActiveRecord::RecordNotUnique
     find_by!(workflow: workflow, requester: requester)
@@ -33,6 +40,7 @@ class Workflow::PublishRequest < ApplicationRecord
               .where("requested_at IS NULL OR requested_at < :since OR published_at IS NOT NULL OR dismissed_at IS NOT NULL", since: WINDOW.ago)
               .update_all(requested_at: Time.current, revision: version.reload.revision, published_at: nil, published_by_id: nil, dismissed_at: nil,
                           notifications: [], updated_at: Time.current)
+    signal_workflow_page
     reload
     won == 1
   end
@@ -49,12 +57,14 @@ class Workflow::PublishRequest < ApplicationRecord
   # Settled by whoever published the workflow, in one statement, so the member is told once. True only for that one.
   def published!(by:)
     won = self.class.where(id: id, published_at: nil, dismissed_at: nil).update_all(published_at: Time.current, published_by_id: by&.id, updated_at: Time.current)
+    signal_workflow_page
     reload
     won == 1
   end
 
   def dismiss!(by:)
     won = self.class.where(id: id, published_at: nil, dismissed_at: nil).update_all(dismissed_at: Time.current, published_by_id: by.id, updated_at: Time.current)
+    signal_workflow_page
     reload
     won == 1
   end

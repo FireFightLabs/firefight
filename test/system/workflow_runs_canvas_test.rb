@@ -106,6 +106,6 @@ class WorkflowRunsCanvasTest < ApplicationSystemTestCase
     # seconds. The address carries the run only once the server answered, so wait for that before reading the page.
     assert_current_path(/run=/, wait: 15)
     assert_text "Test run of v1"
-    assert_text "Pick a step on the canvas to see what it took in, gave back and called."
+    assert_text "Pick a step here or on the canvas for everything it did."
   end
 end

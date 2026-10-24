@@ -116,7 +116,7 @@ class Conversation::Watches::Reader
     @meter.spend!
     Chat::ToolCall.run!(
       workspace: @workspace, principal: @principal, action_key: tool.action_key, scope: scope, params: arguments,
-      context: { source: Chat::Watch::SOURCE, incident_id: @conversation.incident_id }.compact
+      context: { source: Chat::Watch::SOURCE, incident_id: @conversation.incident_id, **@conversation.try(:ledger_context).to_h }.compact
     ) do |authorization|
       presented = yield
       Mcp::ToolDispatcher.ledger_failure(authorization, presented)

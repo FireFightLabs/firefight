@@ -105,7 +105,7 @@ module DefinedWorkflow::Reach
     keys = capability_keys(name)
     offered = Integrations::Capabilities.offered(workspace).select { |spec, _able| keys.include?(spec.key) }
     needed = offered.flat_map do |spec, able|
-      next able.filter_map { |tool| read_pack(tool.integration_id) }.uniq.map { |role| Needed.of_role(role) } unless spec.writes
+      next able.filter_map { |tool| workspace.read_packs_by_integration[tool.integration_id] }.uniq.map { |role| Needed.of_role(role) } unless spec.writes
 
       chosen = routed_tool(workspace, spec, arguments)
       (chosen ? [ chosen ] : able).filter_map(&:ability_action).uniq.map { |action| Needed.of_action(action) }

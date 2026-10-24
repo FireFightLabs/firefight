@@ -11,6 +11,9 @@ class Workflow::Version < ApplicationRecord
   include Workflow::Version::History
   include Workflow::Version::Pins
   include Workflow::Version::Trying
+  include Workflow::LiveSignal
+
+  shown_on_workflow_page PART_CANVAS
 
   self.table_name = "workflow_versions"
 

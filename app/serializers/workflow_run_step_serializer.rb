@@ -1,6 +1,7 @@
-# What one step of a run did, as the run's view on the canvas shows it: its state and time, what it was given and gave,
-# the results it kept whole, every gateway call it made with how each was decided and ended, its error, and why it cannot
-# be tried again, skipped or started again from.
+# What one step of a run did, as the run's view on the canvas shows it: its state and time, what it is doing now, its log
+# (every gateway call it made with how each was decided and ended, each tool Halon called for it, what a watch it keeps
+# said and saw), the watch itself, what it was given and gave, the results it kept whole, its error, and why it cannot be
+# tried again, skipped or started again from.
 class WorkflowRunStepSerializer < BaseSerializer
   object_as :step
 
@@ -114,7 +115,34 @@ class WorkflowRunStepSerializer < BaseSerializer
 
   type :boolean
   def waiting_approval
-    step.waiting_approval?
+    activity.waiting_approval?(step)
+  end
+
+  # What it is doing right now in one line while it goes, such as the call it waits on or where a watch stands. Null
+  # once it ended.
+  type :string, optional: true
+  def now
+    activity.now_for(step)
+  end
+
+  LOG_TYPE = "{ id: string; at: string; until: string | null; count: number; text: string; detail: string | null; " \
+             "tone: #{Workflow::Run::Activity::TONES.map(&:inspect).join(' | ')} }[]".freeze
+  WATCH_TYPE = "{ active: boolean; headline: string; reads: string; basis: string; checkedAt: string | null; nextCheckAt: string | null; " \
+               "expiresAt: string; steps: { id: string; label: string; status: #{Chat::Watch::Step::STATUSES.map(&:inspect).join(' | ')}; " \
+               "line: string | null; url: string | null; readAt: string | null; lastSeen: string | null }[] }".freeze
+
+  # Everything it did in the order it happened: its gateway calls, the tools Halon called for it and what a watch it
+  # keeps said and saw, the same while it goes and afterwards.
+  type LOG_TYPE
+  def log
+    activity.log_for(step)
+  end
+
+  # The watch a Watch step keeps: what it follows and how each stands, how often it read, when it reads next and when it
+  # gives up. Null for any other step.
+  type WATCH_TYPE, optional: true
+  def watch
+    activity.watching_for(step)
   end
 
   # What an Ask a person, Approval or Manual step asked people, with whether the person looking may answer it from here.
@@ -123,14 +151,6 @@ class WorkflowRunStepSerializer < BaseSerializer
     case step.kind
     when DefinedWorkflow::Steps::AskPerson.kind, DefinedWorkflow::Steps::Manual.kind then question_ask(step.asked_question)
     when DefinedWorkflow::Steps::Approval.kind then approval_ask(step.asked_approval)
-    end
-  end
-
-  type "{ id: string; actionKey: string; decision: #{Ability::Invocation::DECISIONS.map(&:inspect).join(' | ')}; outcome: string | null; errorSummary: string | null; durationMs: number | null; approvalStatus: string | null; createdAt: string }[]"
-  def invocations
-    step.invocations.map do |call|
-      { id: call.id, actionKey: call.action_key, decision: call.decision, outcome: call.outcome, errorSummary: call.error_summary,
-        durationMs: call.duration_ms, approvalStatus: call.approval&.status, createdAt: call.created_at.iso8601 }
     end
   end
 
@@ -152,6 +172,11 @@ class WorkflowRunStepSerializer < BaseSerializer
   private
 
   def member = options[:member]
+
+  def activity
+    run = step.run
+    run.activity(describe_tool: ->(name, arguments) { Chat::Tools.step(name, arguments, workspace: run.workspace) })
+  end
 
   def question_ask(question)
     return unless question
