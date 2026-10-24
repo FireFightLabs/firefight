@@ -99,9 +99,8 @@ module Integrations
       get("/projects/#{segment(project_id)}/#{kind}/#{segment(service_id)}/build-logs", { "queryType" => "range" }.merge(query))["data"] || []
     end
 
-    # The project's workflows (ListWorkflowsResult), which Northflank lists under pipelines, as its reference and its own
-    # client both write it.
-    def workflows(project_id) = list("/projects/#{segment(project_id)}/workflows", "pipelines")
+    # The project's workflows (ListWorkflowsResult), which Northflank lists under data.workflows.
+    def workflows(project_id) = list("/projects/#{segment(project_id)}/workflows", "workflows")
 
     # A workflow's runs, newest first (ListWorkflowrunsResult), and one run with its nodes and how each went
     # (GetWorkflowrunResult spec, each node's response).
