@@ -126,6 +126,8 @@ class DefinedWorkflow < SolidWorkflow::Interpreter
                   context: { SCOPE_INPUTS => run.inputs, SCOPE_TRIGGER => run.trigger_payload })
     end
 
+    def title_of(step) = Workflow::Edit.title_of(step.label.presence || step.name)
+
     # A pinned output, or an earlier run's result when a run starts again from a later step, in place of running it.
     def stand_in(step, workflow:)
       entry = run_of(workflow)&.stand_in_for(step.name)
@@ -214,7 +216,11 @@ class DefinedWorkflow < SolidWorkflow::Interpreter
       return unless workflow.failed?
 
       stopped = workflow.steps.select(&:failed?).reject(&:failure_tolerated?).min_by(&:completed_at)
-      stopped ? "#{stopped.label} failed. #{error_words(stopped.last_error)}" : "The run ran past its time limit."
+      return "The run ran past its time limit." unless stopped
+      # A route that ended the run already names its step.
+      return error_words(stopped.last_error) if stopped.last_error.to_s.start_with?("#{SolidWorkflow::RouteFailed.name}:")
+
+      "#{stopped.label} failed. #{error_words(stopped.last_error)}"
     end
   end
 end

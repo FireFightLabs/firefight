@@ -32,6 +32,9 @@ module SolidWorkflow
       # to run the step.
       def stand_in(_step, workflow:) = nil
 
+      # A step as a person reads it in a sentence the engine writes, such as why it failed.
+      def title_of(step) = step.label.presence || step.name
+
       # Starts the run a run_workflow step names, as a run of this class with parent_step: step, and returns it.
       def start_sub_workflow(_config, workflow:, step:)
         raise SolidWorkflow::UnknownStepKind, "#{name} cannot start a sub workflow"
@@ -120,7 +123,7 @@ module SolidWorkflow
       case result
       when SolidWorkflow::Park then result
       when SolidWorkflow::Skipped then SolidWorkflow::Skipped.new(reason: result.reason, output: kept_output(result.output, workflow, step))
-      when SolidWorkflow::Routed then SolidWorkflow::Routed.new(output: kept_output(result.output, workflow, step), route: result.route)
+      when SolidWorkflow::Routed then result.with(output: kept_output(result.output, workflow, step))
       else kept_output(result, workflow, step)
       end
     end
@@ -197,7 +200,8 @@ module SolidWorkflow
       deadline = deadline_of(step)
       if deadline && deadline <= Time.current
         return SolidWorkflow::Routed.new(output: { SolidWorkflow::Definition::OUTPUT_OUTCOME => SolidWorkflow::Definition::ROUTE_TIMED_OUT },
-                                         route: SolidWorkflow::Definition::ROUTE_TIMED_OUT)
+                                         route: SolidWorkflow::Definition::ROUTE_TIMED_OUT,
+                                         failure: "#{self.class.title_of(step)} timed out after #{ActiveSupport::Duration.build(step.timeout_seconds.to_i).inspect}.")
       end
 
       SolidWorkflow::Park.new(wake_at: deadline, signal_key: [ config["event"], config["key"].presence ].compact.join(":"))

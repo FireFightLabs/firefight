@@ -68,6 +68,36 @@ class WorkflowRunsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ run.id ], inertia_props["runs"].map { |row| row["id"] }
   end
 
+  test "a step its identity cannot run yet says Needs grant while it is built, never on a run that already happened" do
+    steps!(step("look", "call_tool", { "tool" => FirefightTools::SEARCH_INCIDENTS, "arguments" => { "query" => "database" } }))
+    run = try!
+    sign_in(users(:alice), @workspace)
+
+    get workflow_path(@workflow), headers: inertia_headers
+    assert_match "Needs read incidents", inertia_props["document"]["steps"].sole["grantNeeded"]
+
+    get workflow_path(@workflow, run: run.id), headers: inertia_headers
+    assert_nil inertia_props["document"]["steps"].sole["grantNeeded"]
+  end
+
+  test "a run started by hand says who started it, and one a trigger started does not" do
+    steps!(step("pause", "delay", { "seconds" => 0 }))
+    by_hand = try!(inputs: {})
+    triggered = nil
+    perform_enqueued_jobs do
+      triggered = WorkflowRunService.new(@workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_TRIGGER, test: true,
+                                                           trigger_kind: Workflow::Trigger::KIND_INCIDENT_DECLARED, trigger_payload: { "incident" => { "identifier" => "INC-1" } })
+    end
+    sign_in(users(:alice), @workspace)
+
+    get workflow_path(@workflow, run: by_hand.id), headers: inertia_headers
+    assert_equal "Started by hand by Alice Smith.", inertia_props["run"]["startedByHand"]
+
+    get workflow_path(@workflow, run: triggered.id), headers: inertia_headers
+    assert_nil inertia_props["run"]["startedByHand"]
+    assert_equal({ "incident" => { "identifier" => "INC-1" } }, inertia_props["run"]["triggerPayload"])
+  end
+
   test "the run shows what it spent on AI and on its sandbox apart, each step's sandbox time, and why a change was skipped" do
     steps!(step("pause", "delay", { "seconds" => 0 }))
     run = try!

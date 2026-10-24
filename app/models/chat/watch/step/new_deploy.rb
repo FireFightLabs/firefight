@@ -1,6 +1,8 @@
 # A step waiting for a deploy to go live keeps the deploy live when the watch began and counts only a newer one, or the
 # commit, tag or branch named. A status reading only says what is true now, so the previous release's finished rollout
-# once read as the new one done. It is all kept on the step, so a restart or a repair keeps the same baseline.
+# once read as the new one done. It is all kept on the step, so a restart or a repair keeps the same baseline. A commit
+# or tag named that is the one live, whether it already was when the watch began or went live since, ends the step at
+# once, since there is nothing left to wait for.
 module Chat::Watch::Step::NewDeploy
   extend ActiveSupport::Concern
 
@@ -30,6 +32,8 @@ module Chat::Watch::Step::NewDeploy
   # The new deploy that failed with nothing newer after it, told once, and what the step ends with at the time limit.
   FAILED_SEEN = "failed_seen".freeze
   FAILED_WORDS = "failed_words".freeze
+  # The commit or tag named was found live, which ended the step, so the watch's end says so.
+  ARRIVED = "arrived".freeze
 
   WAITING = "waiting".freeze
   ROLLING_OUT = "rolling_out".freeze
@@ -40,7 +44,10 @@ module Chat::Watch::Step::NewDeploy
   FAILED_FOR_NOW = "failed_for_now".freeze
   # The newest deploy was cancelled or replaced, so the next one is waited for.
   CANCELLED = "cancelled".freeze
-  Gate = Data.define(:state, :deploy, :words) do
+  # arrived is the commit or tag named being the one live, which ends the step.
+  Gate = Data.define(:state, :deploy, :words, :arrived) do
+    def initialize(state:, deploy:, words:, arrived: false) = super
+
     def open? = state == LIVE
   end
 
@@ -117,7 +124,24 @@ module Chat::Watch::Step::NewDeploy
     true
   end
 
-  def deploy_start_words = deploy_identity? ? waiting_words : no_identity_words
+  def deploy_start_words
+    return no_identity_words unless deploy_identity?
+
+    already_live? ? arrived_words(deploy_baseline) : waiting_words
+  end
+
+  # The commit or tag named was the one live at a read, which ended the step.
+  def deploy_arrived! = update_columns(new_deploy: new_deploy.merge(ARRIVED => true), updated_at: Time.current)
+
+  def deploy_arrived? = waits_for_deploy? && new_deploy[ARRIVED] == true
+
+  # The resource deployed by its name on the map, as the step was given it when the map does not know it.
+  def deploy_resource_words
+    reference = deploy_resource
+    return if reference.blank?
+
+    ResourceMap::Resource.referenced(watch.workspace, reference).pick(:name) || reference
+  end
 
   # A reading that has not changed since the watch began cannot show a deploy that finished after it.
   def unchanged_since_baseline?(digest) = waits_for_deploy? && !deploy_identity? && new_deploy[BASELINE_DIGEST] == digest
@@ -125,12 +149,12 @@ module Chat::Watch::Step::NewDeploy
   def deploy_gate(deploys)
     deploys = deploys.select { |deploy| deploy.in?(new_deploy[ENVIRONMENT]) }
     target_live = live_target(deploys)
-    return gate(LIVE, target_live) if target_live
+    return gate(LIVE, target_live, arrived: true) if target_live
 
     candidates = deploys.select { |deploy| newer?(deploy, deploys) && wanted?(deploy) }
     live = Deploys.live(deploys)
     serving = candidates.find { |deploy| deploy.serving? && (live.nil? || live.same?(deploy)) }
-    return gate(LIVE, serving) if serving
+    return gate(LIVE, serving, arrived: pinned?) if serving
 
     newest = candidates.reject(&:cancelled?).first
     return candidates.empty? ? gate(WAITING, nil) : gate(CANCELLED, candidates.first, replaced: deploys.first != candidates.first) unless newest
@@ -172,6 +196,11 @@ module Chat::Watch::Step::NewDeploy
   end
 
   private
+
+  def already_live?
+    baseline = deploy_baseline
+    pinned? && baseline.present? && baseline.serving? && wanted?(baseline)
+  end
 
   # The commit or tag named, already the one serving, as when the watch began after it went out.
   def live_target(deploys)
@@ -217,13 +246,19 @@ module Chat::Watch::Step::NewDeploy
     (deploy.started_at && deploy.started_at >= since - Chat::Watch::Step::STARTED_BEFORE_WATCH) || (deploy.finished_at && deploy.finished_at > since)
   end
 
-  def gate(state, deploy, replaced: false) = Gate.new(state: state, deploy: deploy, words: gate_words(state, deploy, replaced))
+  def gate(state, deploy, replaced: false, arrived: false)
+    Gate.new(state: state, deploy: deploy, words: arrived ? arrived_words(deploy) : gate_words(state, deploy, replaced), arrived: arrived)
+  end
+
+  def arrived_words(deploy)
+    return "#{target_words} is already live on #{target_resource_words}." if deploy_baseline&.same?(deploy)
+
+    "#{target_words} is live on #{target_resource_words}#{" (finished #{clock(deploy.finished_at)})" if deploy.finished_at}."
+  end
 
   def gate_words(state, deploy, replaced)
     case state
     when LIVE
-      return "#{deploy_name(deploy)} was already live on #{target_resource_words} when the watch began." if deploy_baseline&.same?(deploy)
-
       "The new deploy of #{target_resource_words} is live (#{[ deploy.short, (" finished #{clock(deploy.finished_at)}" if deploy.finished_at) ].compact.join(',')})."
     when ROLLING_OUT
       "A new deploy of #{target_resource_words} is rolling out (#{[ deploy.short, (" started #{clock(deploy.started_at)}" if deploy.started_at) ].compact.join(',')})."
@@ -252,10 +287,8 @@ module Chat::Watch::Step::NewDeploy
     "a deploy from #{new_deploy[BRANCH]}"
   end
 
-  def deploy_name(deploy) = pinned? ? target_words : deploy.short
-
   def target_resource_words
-    resource = deploy_resource.presence || label
+    resource = deploy_resource_words.presence || label
     new_deploy.to_h[ENVIRONMENT].present? ? "#{resource} in #{new_deploy[ENVIRONMENT]}" : resource
   end
 
