@@ -45,6 +45,18 @@ class DefinedWorkflow::ReachTest < ActiveSupport::TestCase
     assert_empty needed.filter_map(&:role)
   end
 
+  test "a change whose size the run fills in later still needs the ability of the connection it would reach" do
+    [ @shop, @blog ].each do |integration|
+      integration.tools.create!(name: "api_request", description: "Call the API", read_only: false, enabled: true,
+                                params_schema: { "type" => "object", "properties" => { "method" => {}, "path" => {}, "body" => {} } })
+    end
+    scale = Integrations::Capabilities.spec(Integrations::Capabilities::SCALE).tool_name
+
+    needed = DefinedWorkflow::Reach.for_tool(@workspace, scale, { "resource" => "shop-web", "instances" => "{{inputs.instances}}" })
+
+    assert_includes needed.filter_map(&:action).map(&:key), @shop.tools.find_by!(name: "api_request").ability_action.key
+  end
+
   test "a watch step reaches only the connection of the resource it watches, and publishing grants just that" do
     watch = { "steps" => [ { "label" => "Rollout", "capability" => "status", "resource" => "shop-web", "done_when" => "running" } ] }
 

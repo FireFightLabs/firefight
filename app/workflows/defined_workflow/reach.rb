@@ -124,7 +124,8 @@ module DefinedWorkflow::Reach
   end
 
   # The tools a run reaches for the resource and connection written out, as the run routes them, none when the run
-  # could never route them. nil when the run fills either in later, so every connection that could answer counts.
+  # could never route them. nil when the run fills either in later, or a value it refused on, so every connection that
+  # could answer counts.
   def routed_tools(workspace, spec, arguments)
     given = arguments.to_h.stringify_keys
     named = given.slice(Integrations::Capabilities::RESOURCE_ARG, Integrations::Capabilities::CONNECTION_ARG).compact_blank
@@ -132,7 +133,7 @@ module DefinedWorkflow::Reach
 
     Integrations::Capabilities.planned_calls(workspace, spec.key, literal(given)).map(&:tool).compact
   rescue Integrations::Capabilities::Unroutable
-    []
+    literal(given).size == given.size ? [] : nil
   rescue StandardError
     nil
   end
