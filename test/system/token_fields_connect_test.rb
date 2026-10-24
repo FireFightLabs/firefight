@@ -20,7 +20,8 @@ class TokenFieldsConnectTest < ApplicationSystemTestCase
       click_button "Connect & discover tools"
     end
 
-    assert_text "ClickHouse is connected."
+    assert_toast "ClickHouse is connected."
+    assert_no_selector "[role=dialog]"
     row = @workspace.integrations.find_by!(provider: "clickhouse").integration_environments.sole
     assert_equal "Basic #{Base64.strict_encode64('id-1:s3cret')}", Integrations::Credentials.headers_for(row)["Authorization"]
   end
@@ -37,7 +38,8 @@ class TokenFieldsConnectTest < ApplicationSystemTestCase
       click_button "Connect & discover tools"
     end
 
-    assert_text "Upstash is connected."
+    assert_toast "Upstash is connected."
+    assert_no_selector "[role=dialog]"
     row = @workspace.integrations.find_by!(provider: "upstash").integration_environments.sole
     assert_equal "Bearer ops@example.com:k3y", Integrations::Credentials.headers_for(row)["Authorization"]
   end

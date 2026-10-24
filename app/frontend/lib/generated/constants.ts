@@ -1207,6 +1207,8 @@ export const INCIDENT_LIVE_PARTS = {
   "INVESTIGATION": "investigation"
 } as const
 
+export const LIVE_READ_HEADER = "X-Live-Read" as const
+
 export const AGENT_CHAT_PROPS = {
   "CONVERSATIONS": "conversations",
   "ARCHIVED_COUNT": "archivedCount",

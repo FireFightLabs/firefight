@@ -167,6 +167,30 @@ class IncidentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal incident.declared_by.user.name, declared_by["name"]
   end
 
+  # The page reads itself again when it hears of a change, its own change included, and that read can reach the server
+  # while the change's redirect is still on its way. Both carry the session that holds the notice, so both said it and
+  # the page toasted twice.
+  test "a live read leaves the notice of a change made on the page to the change's own redirect" do
+    incident = incidents(:manual_incident_ws1)
+    stub_successful_slack_workflow
+    session_key = Rails.application.config.session_options[:key]
+
+    post incident_actions_path(incident_id: incident.id), params: {
+      action_type: IncidentAction::ACTION_TYPE_ACTION, description: "Roll back the deploy"
+    }
+    assert_redirected_to incident_path(incident)
+    session_with_notice = cookies[session_key]
+
+    live_read = inertia_partial_headers("incidents/index", %w[actions incident]).merge(InertiaController::LIVE_READ_HEADER => "true")
+    get incident_path(incident), headers: live_read
+    assert_response :success
+    assert_nil response.parsed_body["flash"]
+
+    cookies[session_key] = session_with_notice
+    get incident_path(incident), headers: inertia_headers
+    assert_equal "The action item was added.", response.parsed_body.dig("flash", "notice")
+  end
+
   # Dropping declared_by from with_list_associations makes this fail.
   test "the incidents table names who declared each one from the preload" do
     seen = queries_sent(cached: true) { get dashboard_path, headers: inertia_headers }
