@@ -257,6 +257,7 @@ Rails.application.routes.draw do
         patch :scopes
         patch :map_events_secret
         delete :map_events_secrets, action: :forget_map_events_secrets
+        post :map_events_secrets, action: :make_map_events_secret
         patch :live_updates
         get :live_updates_setup
         patch :protected_paths

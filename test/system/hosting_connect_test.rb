@@ -6,7 +6,7 @@ class HostingConnectTest < ApplicationSystemTestCase
   end
 
   test "Trigger.dev, Convex and Modal ask for their secret beside the plain settings the form checks" do
-    { "trigger_dev" => [ "Secret API key", "Project ref" ], "convex" => [ "Deploy key", "Deployment URL" ],
+    { "trigger_dev" => [ "Secret API key", "Project ID (project ref)" ], "convex" => [ "Deploy key", "Deployment address (deployment URL)" ],
       "modal" => [ "Token ID", "Token secret", "Environment" ] }.each do |key, labels|
       visit integrations_path(Integration::CONNECT_QUERY_PARAM => key)
 

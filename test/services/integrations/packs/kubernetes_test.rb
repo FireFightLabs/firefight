@@ -54,7 +54,7 @@ module Integrations
         refusal = ->(changed_values = {}, changed_fields = {}) { Kubernetes.credential_refusal(values.merge(changed_values), fields: fields.merge(changed_fields)) }
 
         assert_equal "Paste a service account token.", refusal.call(Kubernetes::TOKEN => " ")
-        assert_equal "Enter the API server address.", refusal.call({}, Kubernetes::SERVER => "")
+        assert_equal "Enter the cluster address (API server).", refusal.call({}, Kubernetes::SERVER => "")
         assert_equal "Enter the namespaces, or * for every namespace.", refusal.call({}, Kubernetes::NAMESPACES => " ")
         assert_match "must start with https://", refusal.call({}, Kubernetes::SERVER => "http://cluster.example.com")
         assert_match "Paste certificate-authority-data from your kubeconfig", refusal.call(Kubernetes::CA => "nope")

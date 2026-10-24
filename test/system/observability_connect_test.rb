@@ -52,9 +52,9 @@ class ObservabilityConnectTest < ApplicationSystemTestCase
       find("#connect-region").click
     end
     find("[role=option]", text: "India (in.signoz.cloud)").click
-    within("[role=dialog]") { assert_field "MCP server URL", with: "https://mcp.in.signoz.cloud/mcp" }
+    within("[role=dialog]") { assert_field "Server address", with: "https://mcp.in.signoz.cloud/mcp" }
     within("[role=dialog]") { find("#connect-region").click }
     find("[role=option]", text: "US2 (us2.signoz.cloud)").click
-    within("[role=dialog]") { assert_field "MCP server URL", with: "https://mcp.us2.signoz.cloud/mcp" }
+    within("[role=dialog]") { assert_field "Server address", with: "https://mcp.us2.signoz.cloud/mcp" }
   end
 end

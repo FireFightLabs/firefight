@@ -82,7 +82,7 @@ class SetupChecklistTest < ApplicationSystemTestCase
       screenshot("stack-connect-dialog")
       click_button "Connect & discover tools"
     end
-    assert_text "Grafana is connected."
+    assert_toast "Grafana is connected."
     within("section[aria-label='Observability']") do
       assert_text "Connected"
       assert_button "Connect another"

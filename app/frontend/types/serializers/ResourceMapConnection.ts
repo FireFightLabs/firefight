@@ -5,7 +5,7 @@ export default interface ResourceMapConnection {
   baselineError?: string
   error?: string
   gaps: string[]
-  liveUpdates: { on: boolean; lastEventAt: string | null; reason: string | null } | null
+  liveUpdates: { on: boolean; lastEventAt: string | null; reason: string | null; checkedEvery: string | null } | null
   logPatternsError?: string
   name: string
   sweptAt?: string

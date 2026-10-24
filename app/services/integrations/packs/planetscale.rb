@@ -15,7 +15,8 @@ module Integrations
       SERVICE_TOKEN = "pscale_tkn_".freeze
       TOKEN_ID = "service_token_id".freeze
       NEEDS_TOKEN_ID = "This PlanetScale connection was made with a service token, and PlanetScale's API takes the token's id beside " \
-                       "its secret. Connect PlanetScale again with the service token's id, or sign in to PlanetScale, so Firefight can reach it.".freeze
+                       "its secret. On Integrations, open PlanetScale's details and choose Add beside Service token ID to give it the id, or sign in to " \
+                       "PlanetScale instead, so Firefight can reach it.".freeze
       POSTGRES = MapReaders::Planetscale::POSTGRES
       DEPLOY_LIMIT = 20
       DEPLOY_MOST = 100

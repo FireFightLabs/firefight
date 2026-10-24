@@ -31,10 +31,17 @@ class IntegrationSerializer < BaseSerializer
   # liveUpdates is null for a provider that cannot say what changed. setup is for a provider an admin sends changes from
   # by hand, and its address is null while Firefight's own address is not set. toggle is the switch for a provider
   # Firefight registers its webhook with, saying which way it turns, what a person confirms and why it cannot be pressed
-  # now, and null for any other provider. offer is for a provider a person sets up from a template. Its link is a
-  # redirect (live_updates_setup), so the connection's secret is never in the page.
+  # now, and null for any other provider, with subject naming what it switches. offer is for a provider a person sets up
+  # from a template. Its link is a redirect (live_updates_setup), so the connection's secret is never in the page.
+  # checkedEvery and secondWay are there for a provider whose change log is read and that is sent changes another way as
+  # well (IntegrationEnvironment::LiveUpdates::State). makesSecret says Firefight makes the secret, answered once by make_map_events_secret and never in the page,
+  # and replaceSecret is what replacing a saved one does.
   OFFER_TYPE = "{ words: string; action: string; unavailable: string | null; removal: string; places: { place: string; label: string; sentAt: string | null; unavailable: string | null }[] } | null".freeze
-  LIVE_UPDATES_TYPE = "{ on: boolean; lastEventAt: string | null; reason: string | null; setup: { address: string | null; steps: string[]; secretSet: boolean; manySecrets: boolean; secretCount: number; forgetSecrets: string | null; forgetSecretsBlockedReason: string | null } | null; offer: #{OFFER_TYPE}; toggle: { turnsOn: boolean; words: string; blockedReason: string | null } | null } | null".freeze
+  SETUP_TYPE = "{ address: string | null; steps: string[]; secretSet: boolean; manySecrets: boolean; secretCount: number; forgetSecrets: string | null; " \
+               "forgetSecretsBlockedReason: string | null; makesSecret: boolean; replaceSecret: string | null; note: string } | null".freeze
+  LIVE_UPDATES_TYPE = "{ on: boolean; lastEventAt: string | null; reason: string | null; checkedEvery: string | null; " \
+                      "secondWay: { line: string; on: boolean; reason: string | null } | null; setup: #{SETUP_TYPE}; offer: #{OFFER_TYPE}; " \
+                      "toggle: { turnsOn: boolean; words: string; blockedReason: string | null; subject: string } | null } | null".freeze
 
   # scopes is what the connection reads at its provider for a provider that names it by a scope field, such as a host's
   # projects. It holds the field, the values chosen (one value, the field's all, for every one the credentials can
@@ -130,14 +137,17 @@ class IntegrationSerializer < BaseSerializer
       setup = { address: Integrations::MapEvents.url_for(row), steps: row.map_event_source.setup_steps, secretSet: row.map_events_secret_set?,
                 manySecrets: row.map_event_source.many_secrets?, secretCount: row.map_events_secrets.size,
                 forgetSecrets: (row.forget_map_events_secrets_words unless row.forget_map_events_secrets_blocked_reason),
-                forgetSecretsBlockedReason: row.forget_map_events_secrets_blocked_reason }
+                forgetSecretsBlockedReason: row.forget_map_events_secrets_blocked_reason, makesSecret: row.map_events_secret_made?,
+                replaceSecret: row.replace_map_events_secret_words, note: row.map_events_secret_note }
     end
     offer = row.live_updates_offer&.then do |offered|
       { words: offered.words, action: offered.action, unavailable: offered.unavailable, removal: offered.removal,
         places: offered.places.map { |place| { place: place.place, label: place.label, sentAt: place.sent_at&.utc&.iso8601, unavailable: place.unavailable } } }
     end
-    toggle = row.live_updates_toggle&.then { |found| { turnsOn: found.turns_on, words: found.words, blockedReason: found.blocked_reason } }
-    { on: state.on, lastEventAt: state.last_event_at&.utc&.iso8601, reason: state.reason, setup: setup, offer: offer, toggle: toggle }
+    toggle = row.live_updates_toggle&.then { |found| { turnsOn: found.turns_on, words: found.words, blockedReason: found.blocked_reason, subject: found.subject } }
+    second_way = state.second_way&.then { |way| { line: way.line, on: way.on, reason: way.reason } }
+    { on: state.on, lastEventAt: state.last_event_at&.utc&.iso8601, reason: state.reason, checkedEvery: state.checked_every, secondWay: second_way,
+      setup: setup, offer: offer, toggle: toggle }
   end
 
   def scopes_of(row)

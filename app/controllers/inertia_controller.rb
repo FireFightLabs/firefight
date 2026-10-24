@@ -7,6 +7,9 @@ class InertiaController < ApplicationController
   before_action :authorize_web_action!
   include ContinuesSetup
 
+  # Sent by a read the page makes by itself because something changed, never by a person's own visit.
+  LIVE_READ_HEADER = "X-Live-Read"
+
   # Each is read only when a response carries it, so a partial reload that names other props never computes them.
   inertia_share currentUser: -> { current_user && CurrentUserSerializer.one(current_user) },
                 currentWorkspace: -> { current_workspace && CurrentWorkspaceSerializer.one(current_workspace) },
@@ -19,6 +22,14 @@ class InertiaController < ApplicationController
                 agentAvailable: -> { agent_available? }
 
   private
+
+  # A live read can reach the server while the redirect after a change made on the page is still on its way, both
+  # carrying the session that holds the change's notice. The redirect is the one that says it, so the live read still
+  # uses the flash up and shows none of it.
+  def inertia_collect_flash_data
+    flash_data = super
+    request.headers[LIVE_READ_HEADER].present? ? {} : flash_data
+  end
 
   def agent_available?
     return false unless current_workspace && Investigation.available_for?(current_workspace)

@@ -26,9 +26,9 @@ class ResourceMapConnectionSerializer < BaseSerializer
   def log_patterns_error = row.log_patterns_error
 
   # Whether the provider's changes reach the map between sweeps, null for a provider that cannot say what changed.
-  type "{ on: boolean; lastEventAt: string | null; reason: string | null } | null"
+  type "{ on: boolean; lastEventAt: string | null; reason: string | null; checkedEvery: string | null } | null"
   def live_updates
     state = row.live_updates
-    state && { on: state.on, lastEventAt: state.last_event_at&.utc&.iso8601, reason: state.reason }
+    state && { on: state.on, lastEventAt: state.last_event_at&.utc&.iso8601, reason: state.reason, checkedEvery: state.checked_every }
   end
 end
