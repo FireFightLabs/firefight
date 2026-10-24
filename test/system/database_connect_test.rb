@@ -13,7 +13,7 @@ class DatabaseConnectTest < ApplicationSystemTestCase
         assert_text "Continue with #{name}"
         assert_no_text "Where your #{name} account is"
         click_button "Use a token instead"
-        assert_field "MCP server URL", with: server
+        assert_field "Server address", with: server
       end
       page.save_screenshot(Rails.root.join("tmp/screenshots/#{key}-connect.png"))
     end

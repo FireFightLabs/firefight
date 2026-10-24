@@ -15,15 +15,15 @@ class CloudConnectTest < ApplicationSystemTestCase
 
     within("[role=dialog]") do
       assert_field "Client secret", type: "password"
-      assert_field "Tenant"
-      assert_field "Client ID"
+      assert_field "Directory (tenant ID)"
+      assert_field "App registration (client ID)"
       find("#connect-region").click
     end
     find("[role=option]", text: "US Government (portal.azure.us)").click
     within("[role=dialog]") do
       fill_in "Client secret", with: "s3cret"
-      fill_in "Tenant", with: "contoso.onmicrosoft.us"
-      fill_in "Client ID", with: "22222222-2222-3333-4444-555555555555"
+      fill_in "Directory (tenant ID)", with: "contoso.onmicrosoft.us"
+      fill_in "App registration (client ID)", with: "22222222-2222-3333-4444-555555555555"
       click_button "Choose subscriptions"
     end
     assert_selector "[role=option]", text: IntegrationProvider::ConnectField::ALL_LABEL

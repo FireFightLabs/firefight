@@ -1086,6 +1086,19 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "live updates", toggle["subject"]
   end
 
+  test "Render's and PlanetScale's dialogs say what turning live updates on gains before what it costs" do
+    render = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "render", name: "Render", slug: "render")
+    render.integration_environments.create!(map_events_confirmation: Integrations::MapEventSources::Render::ONLY_WEBHOOK)
+
+    assert_equal "#{Integrations::MapEventSources::Render.turn_on_words} #{Integrations::MapEventSources::Render::ONLY_WEBHOOK}", live_toggle("Render")["words"]
+    assert_match "instead of at the next hourly sweep", Integrations::MapEventSources::Planetscale.turn_on_words
+    planetscale = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "planetscale", name: "PlanetScale", slug: "planetscale",
+                                                  settings: { "server_url" => "https://mcp.pscale.dev/mcp/planetscale" })
+    row = planetscale.integration_environments.create!(map_events_confirmation: "Two databases already hold four webhooks.")
+    row.stubs(:map_event_source).returns(Integrations::MapEventSources::Planetscale)
+    assert_equal "#{Integrations::MapEventSources::Planetscale.turn_on_words} Two databases already hold four webhooks.", row.live_updates_turn_on_words
+  end
+
   test "Cloudflare's signing secret is made by Firefight and answered once, never in the session, the page or a later answer" do
     integration = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "cloudflare", name: "Cloudflare", slug: "cloudflare",
                                                   settings: { "server_url" => "https://mcp.cloudflare.example/mcp" })
