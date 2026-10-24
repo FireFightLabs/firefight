@@ -92,11 +92,30 @@ class WorkflowRunsControllerTest < ActionDispatch::IntegrationTest
     sign_in(users(:alice), @workspace)
 
     get workflow_path(@workflow, run: by_hand.id), headers: inertia_headers
-    assert_equal "Started by hand by Alice Smith.", inertia_props["run"]["startedByHand"]
+    assert_equal "Started by hand by Alice Smith.", inertia_props["run"]["startedLine"]
 
     get workflow_path(@workflow, run: triggered.id), headers: inertia_headers
-    assert_nil inertia_props["run"]["startedByHand"]
+    assert_nil inertia_props["run"]["startedLine"]
     assert_equal({ "incident" => { "identifier" => "INC-1" } }, inertia_props["run"]["triggerPayload"])
+  end
+
+  test "a run Halon started for someone says so, with what it was given, like a run started by hand" do
+    steps!(step("pause", "delay", { "seconds" => 0 }))
+    for_alice = nil
+    for_nobody = nil
+    perform_enqueued_jobs do
+      for_alice = WorkflowRunService.new(@workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_HALON, started_by: @alice, test: true,
+                                                           trigger_payload: { "runbook" => { "name" => "Release" } })
+      for_nobody = WorkflowRunService.new(@workflow).start!(started_by_kind: Workflow::Run::STARTED_BY_HALON, test: true)
+    end
+    sign_in(users(:alice), @workspace)
+
+    get workflow_path(@workflow, run: for_alice.id), headers: inertia_headers
+    assert_equal "Started by Halon for Alice Smith.", inertia_props["run"]["startedLine"]
+    assert_equal({ "runbook" => { "name" => "Release" } }, inertia_props["run"]["triggerPayload"])
+
+    get workflow_path(@workflow, run: for_nobody.id), headers: inertia_headers
+    assert_equal "Started by Halon.", inertia_props["run"]["startedLine"]
   end
 
   test "the run shows what it spent on AI and on its sandbox apart, each step's sandbox time, and why a change was skipped" do

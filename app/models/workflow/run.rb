@@ -79,8 +79,8 @@ class Workflow::Run < ApplicationRecord
   def failed? = status == STATUS_FAILED
   def succeeded? = status == STATUS_SUCCEEDED
 
-  # A person pressed run, so nothing happening started it and its trigger holds nothing of its own.
-  def by_hand? = started_by_kind == STARTED_BY_PERSON && trigger_kind == Workflow::Trigger::KIND_MANUAL
+  # A person pressed run, or asked Halon to, so nothing happening started it and its trigger holds nothing of its own.
+  def asked_for? = [ STARTED_BY_PERSON, STARTED_BY_HALON ].include?(started_by_kind) && trigger_kind == Workflow::Trigger::KIND_MANUAL
 
   # Where a step asks people in a channel: the incident's channel, else the channel of the team that owns the workflow,
   # else the workspace's incidents channel.

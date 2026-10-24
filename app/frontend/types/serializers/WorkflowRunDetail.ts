@@ -19,9 +19,9 @@ export default interface WorkflowRunDetail {
   rerunOfId?: string
   sandboxSpentMicros: number
   startedAt?: string
-  startedByHand?: string
   startedByKind: string
   startedByWords: string
+  startedLine?: string
   startedSentence: string
   status: string
   steps: WorkflowRunStep[]

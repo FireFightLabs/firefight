@@ -11,10 +11,16 @@ class WorkflowRunDetailSerializer < WorkflowRunRowSerializer
     run.outputs
   end
 
-  # Who started it by hand, in place of what started it, which a run a person started holds nothing of.
+  # Who started it, in place of what started it, for a run a person or Halon for a person asked for, which holds
+  # nothing of what started it.
   type :string, optional: true
-  def started_by_hand
-    "Started by hand by #{run.started_by&.display_name || 'someone'}." if run.by_hand?
+  def started_line
+    return unless run.asked_for?
+
+    name = run.started_by&.display_name
+    return "Started by hand by #{name || 'someone'}." if run.started_by_kind == Workflow::Run::STARTED_BY_PERSON
+
+    name ? "Started by Halon for #{name}." : "Started by Halon."
   end
 
   type "string[]"
