@@ -2,7 +2,7 @@ import { createConsumer } from "@rails/actioncable"
 import { router } from "@inertiajs/react"
 import { useEffect, useState } from "react"
 
-import { INCIDENT_CHANNEL, INCIDENT_LIVE_PARTS } from "@/lib/generated/constants"
+import { INCIDENT_CHANNEL, INCIDENT_LIVE_PARTS, LIVE_READ_HEADER } from "@/lib/generated/constants"
 import type { IncidentPageProp } from "@/pages/incidents/lib/after-mutation"
 
 type IncidentLivePart = (typeof INCIDENT_LIVE_PARTS)[keyof typeof INCIDENT_LIVE_PARTS]
@@ -27,6 +27,10 @@ const EVERY_PART: IncidentLivePart[] = Object.values(INCIDENT_LIVE_PARTS)
 // within this long is read in one reload.
 const GATHER_MS = 300
 
+// Marks the reload as the page's own, so a change made here is toasted by its redirect alone, even when this read
+// reaches the server while that redirect is still on its way.
+const LIVE_READ = { headers: { [LIVE_READ_HEADER]: "true" }, showProgress: false }
+
 // Keeps the incident page in step with changes made anywhere else: Slack, the API, MCP, Halon, a workflow or another
 // tab. Only the props a change touched are read again, in place and without the progress bar, so a dialog or picker
 // open on the page keeps what was typed. The toast for a change made here comes from its own response, never from this.
@@ -43,7 +47,7 @@ export function useIncidentLive(incidentId: string): number {
       const parts = [ ...waiting ]
       waiting.clear()
       const only = [ ...new Set(parts.flatMap((part) => PROPS_OF[part])) ]
-      router.reload({ only, showProgress: false })
+      router.reload({ ...LIVE_READ, only })
       if (only.includes("incident")) {
         setIncidentReads((reads) => reads + 1)
       }

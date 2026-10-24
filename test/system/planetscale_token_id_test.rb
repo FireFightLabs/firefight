@@ -35,7 +35,7 @@ class PlanetscaleTokenIdTest < ApplicationSystemTestCase
       click_button "Save"
     end
 
-    assert_text "PlanetScale's service token ID was saved."
+    assert_toast "PlanetScale's service token ID was saved."
     assert_button "Change"
     assert_no_text "pscale_tkn_secret"
     assert_equal "tok123", row.reload.fields["service_token_id"]

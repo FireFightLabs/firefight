@@ -242,6 +242,7 @@ module TypescriptConstants
       Export.new("AGENT_CHANNEL", ConversationChannel.name, nil),
       Export.new("INCIDENT_CHANNEL", IncidentChannel.name, nil),
       Export.new("INCIDENT_LIVE_PARTS", Incident::LiveSignal::PARTS, nil),
+      Export.new("LIVE_READ_HEADER", InertiaController::LIVE_READ_HEADER, nil),
       Export.new("AGENT_CHAT_PROPS", AgentChatsController::PROPS, nil),
       Export.new("AGENT_CHAT_HEAD_PROPS", AgentChatsController::HEAD_PROPS, nil),
       Export.new("AGENT_CHAT_THREAD_PROPS", AgentChatsController::THREAD_PROPS, nil),
