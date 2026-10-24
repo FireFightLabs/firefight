@@ -1173,8 +1173,10 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     fallback = "#{incident.identifier}: #{headline}"
     subscriber_user_ids.each do |user_id|
       with_rich_blocks do |rich|
-        post_message(channel_id: user_id, text: fallback,
-                     blocks: Slack::Messages::Subscription.wrap_update(incident, reply.call(rich), homepage_url: homepage_url))
+        # The wrapper adds four blocks, so a reply near Slack's limit goes in parts that each fit.
+        Slack::Messages::Formatting.message_parts(reply.call(rich)).map do |part|
+          post_message(channel_id: user_id, text: fallback, blocks: Slack::Messages::Subscription.wrap_update(incident, part, homepage_url: homepage_url))
+        end
       end
     rescue AdapterError => e
       Rails.logger.warn({ event: "slack.subscriber_dm_failed", user_id: user_id, error: e.message }.to_json)

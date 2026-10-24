@@ -14,8 +14,8 @@ module Slack
         blocks << Slack::Blocks.context(TEST_NOTE) if test
         blocks.concat(summary_blocks(summary))
         blocks << { type: "divider" }
-        blocks << Slack::Blocks.section("#{Slack::Emoji::SEVERITY} *Severity:* #{severity_name}")
-        blocks << Slack::Blocks.section("#{Slack::Emoji::STATUS} *Status:* #{status_name}")
+        blocks << Slack::Blocks.section("#{Slack::Emoji::SEVERITY} *Severity:* #{Mrkdwn.escape(severity_name)}")
+        blocks << Slack::Blocks.section("#{Slack::Emoji::STATUS} *Status:* #{Mrkdwn.escape(status_name)}")
         blocks << Slack::Blocks.section("#{Slack::Emoji::LEAD} *Lead:* #{Mrkdwn.person(lead_id, lead_name)}") if lead_id.present? || lead_name.present?
         blocks << Slack::Blocks.section("#{Slack::Emoji::DECLARED_BY} *Declared by:* #{Mrkdwn.person(reporter_id, reporter_name)}")
         blocks << Slack::Blocks.section("#{Slack::Emoji::CHANNEL} *Channel:* <##{channel_id}>") if channel_id.present?

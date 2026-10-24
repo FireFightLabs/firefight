@@ -144,7 +144,8 @@ happened ("Resolved by @Dana after 1h 12m", `StatusUpdate.headline` for an updat
 `Slack::Messages::Subscription.wrap_update`: the incident's title and channel on top, the reply untouched in the
 middle, and Open channel, Open in Firefight and Unsubscribe underneath. A thread reply needs no title because the
 announcement sits above it. A DM sits under nothing, which is why the wrapper exists and why the reply itself never
-gets a DM-only variant. The fallback text is the identifier and the headline.
+gets a DM-only variant. A reply too long to fit with the wrapper under Slack's block limit is sent in parts
+(`Formatting.message_parts`), each wrapped. The fallback text is the identifier and the headline.
 
 Subscription confirmations are ephemeral, built by `Subscription.notice`. Each
 carries an Unsubscribe button, which the shared Subscribe button cannot,

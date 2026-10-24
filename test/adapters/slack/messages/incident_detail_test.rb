@@ -43,6 +43,14 @@ class Slack::Messages::IncidentDetailTest < ActiveSupport::TestCase
     assert_equal Slack::Messages::IncidentDetail::HEADER_LIMIT, header.dig(:text, :text).length
   end
 
+  test "a severity or status name is escaped, so it can never ping the channel" do
+    @incident.incident_severity.update_columns(name: "<!channel> Sev")
+
+    rows = Slack::Messages::Announcement.build(@incident.reload).filter_map { |block| block.dig(:text, :text) }
+
+    assert_includes rows, "#{Slack::Emoji::SEVERITY} *Severity:* &lt;!channel&gt; Sev"
+  end
+
   test "titles use the middle dot, never a pipe" do
     title = Slack::Messages::IncidentDetail.title_for(@incident)
 
