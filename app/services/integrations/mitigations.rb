@@ -6,6 +6,7 @@ module Integrations
   module Mitigations
     # What undoing a change means, which labels when it is undone on its confirmation.
     STARTS_AGAIN = "Start it again automatically".freeze
+    RESUMES = "Resume it automatically".freeze
     SCALES_BACK = "Scale it back up automatically".freeze
 
     def self.call?(tool, arguments)
@@ -23,6 +24,15 @@ module Integrations
       return unless reader.respond_to?(:undo_words)
 
       reader.undo_words(tool, arguments.to_h.stringify_keys).presence
+    end
+
+    # The arguments that put one call back through the same tool, for a general tool whose provider's mitigation_reader
+    # answers undo_arguments(tool, arguments), since only it knows the tool's own argument names. nil otherwise.
+    def self.undo_arguments(tool, arguments)
+      reader = Provider.for(tool.integration.provider).mitigation_reader
+      return unless reader.respond_to?(:undo_arguments)
+
+      reader.undo_arguments(tool, arguments.to_h.stringify_keys).presence
     end
   end
 end

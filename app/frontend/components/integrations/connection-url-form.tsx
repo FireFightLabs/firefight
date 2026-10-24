@@ -107,7 +107,7 @@ export function ConnectionUrlForm({ provider, environments, returnTo, onDismiss,
         </div>
       )}
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="connect-connection-url">Connection URL</Label>
+        <Label htmlFor="connect-connection-url">Connection address (connection URL)</Label>
         <Input
           id="connect-connection-url"
           type="password"

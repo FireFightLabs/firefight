@@ -74,6 +74,9 @@ module Integrations
                                ref: request["branch"], url: request["html_url"], environment: request["into_branch"]) ]
         end
 
+        def turn_on_words = "Firefight adds a webhook to each database the map holds, so changes to a branch or deploy request reach " \
+                            "Firefight as they happen instead of at the next hourly sweep."
+
         def limits = "PlanetScale says when a branch or a deploy request changes in a database with Firefight's webhook. A database " \
                      "added since is given one at the next hourly sweep, and resizes and settings changes reach the map at each sweep."
 

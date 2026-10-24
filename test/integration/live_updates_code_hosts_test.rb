@@ -64,7 +64,7 @@ class LiveUpdatesCodeHostsTest < ActionDispatch::IntegrationTest
     post api_v1_app_events_path("github"), params: body, headers: github_headers(body, "repository", "d-1")
 
     assert_response :not_found
-    assert_equal "Firefight's GitHub app is not set up to send changes, so the map updates at each sweep.", row.live_updates.reason
+    assert_equal "Firefight's GitHub app is not set up to send changes, so the map updates at each daily sweep.", row.live_updates.reason
   end
 
   test "GitLab: Firefight registers a group webhook, a delivery with its secret re-reads a project, and removing the connection takes only Firefight's back" do
@@ -106,7 +106,7 @@ class LiveUpdatesCodeHostsTest < ActionDispatch::IntegrationTest
     state = row.reload.live_updates
     assert_not state.on
     assert_equal "Firefight could not follow GitLab's changes: GitLab answered 403: 403 Forbidden. #{Integrations::MapEventSources::Gitlab::ROLE_NOTE}. " \
-                 "Firefight tries again tomorrow. The map still updates at each sweep.", state.reason
+                 "Firefight tries again tomorrow. The map still updates at each daily sweep.", state.reason
     assert_not row.map_events_registration_due?
   end
 

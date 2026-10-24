@@ -47,8 +47,8 @@ class IntegrationConnectOptionsTest < ApplicationSystemTestCase
 
     within("[role=dialog]") do
       click_button "Use a server you run"
-      assert_equal "", find_field("MCP server URL").value
-      assert_equal "https://mcp-grafana.example.com/mcp", find_field("MCP server URL")[:placeholder]
+      assert_equal "", find_field("Server address").value
+      assert_equal "https://mcp-grafana.example.com/mcp", find_field("Server address")[:placeholder]
       assert_text "Paste the address of the mcp-grafana server you run"
     end
     page.save_screenshot(Rails.root.join("tmp/screenshots/grafana-own-server.png"))

@@ -9,8 +9,8 @@ class PostgresConnectTest < ApplicationSystemTestCase
     visit integrations_path(Integration::CONNECT_QUERY_PARAM => "postgresql")
 
     within("[role=dialog]") do
-      assert_text "Paste a connection URL for each environment."
-      fill_in "Connection URL", with: "postgresql://reader:secret@10.1.2.3:5432/orders"
+      assert_text "Paste a connection address (connection URL) for each environment."
+      fill_in "Connection address (connection URL)", with: "postgresql://reader:secret@10.1.2.3:5432/orders"
       click_button "Connect"
       assert_text "10.1.2.3 is on a private network, which Firefight does not connect to."
     end
@@ -19,7 +19,7 @@ class PostgresConnectTest < ApplicationSystemTestCase
     within("[role=dialog]") do
       click_button "Add certificates"
       fill_in "CA certificate (optional)", with: "not a certificate"
-      fill_in "Connection URL", with: "postgresql://reader:secret@203.0.113.5:5432/orders"
+      fill_in "Connection address (connection URL)", with: "postgresql://reader:secret@203.0.113.5:5432/orders"
       click_button "Connect"
       assert_text "The CA certificate is not a PEM certificate."
     end
@@ -27,9 +27,9 @@ class PostgresConnectTest < ApplicationSystemTestCase
 
     within("[role=dialog]") do
       click_button "Use an MCP server instead"
-      assert_field "MCP server URL"
-      click_button "Back to connection URL"
-      assert_field "Connection URL"
+      assert_field "Server address"
+      click_button "Back to connection address"
+      assert_field "Connection address (connection URL)"
     end
     assert_equal 0, workspaces(:slack_workspace_one).integrations.where(provider: "postgresql").count
   end

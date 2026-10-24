@@ -144,7 +144,7 @@ module Integrations
         end
 
         def limits = "Azure DevOps says when a repository is pushed to, created, renamed or deleted, and when a run or release moves. " \
-                     "A pipeline added, renamed or removed reaches the map at each hourly sweep."
+                     "A pipeline added, renamed or removed reaches the map at each daily sweep."
 
         private
 

@@ -48,6 +48,22 @@ module Integrations
       GRID_POLL = 5
       GRID_FAILED = %w[Failed Canceled AwaitingManualAction].freeze
       GRID_ROLE = "EventGrid EventSubscription Contributor".freeze
+      # What a person reads before turning instant updates on, and why they could not be, in the connect form's words.
+      # Azure's own answer is only logged.
+      CONFIRMATION = "To set this up, the app registration Firefight signs in with needs the #{GRID_ROLE} role on each Azure " \
+                     "subscription it reads, and each subscription needs #{GRID_PROVIDER} registered under Resource providers in the " \
+                     "Azure portal. Firefight then adds an Event Grid webhook named #{SUBSCRIPTION_NAME} to each subscription, and " \
+                     "turning instant updates off removes it.".freeze
+      NO_ROLE = "The app registration Firefight signs in with does not have the %<role>s role on %<name>s. Give it that role on " \
+                "the subscription in the Azure portal, then turn instant updates on again.".freeze
+      NOT_REGISTERED = "%<provider>s is not registered on %<name>s. Register it under the subscription's Resource providers in the " \
+                       "Azure portal, then turn instant updates on again.".freeze
+      NOT_REACHED = "Azure could not reach Firefight's address from %<name>s, so nothing was set up there. Check that Firefight's " \
+                    "address can be reached from the internet, then turn instant updates on again.".freeze
+      NOT_SET_UP = "Azure did not set up instant updates on %<name>s and gave no reason Firefight can act on. Try again in a few minutes.".freeze
+      NO_ROLE_TO_REMOVE = "The app registration Firefight signs in with no longer has the %<role>s role on %<name>s, so its Event Grid " \
+                          "webhook could not be removed. Give the role back, or remove the webhook in the Azure portal.".freeze
+      NOT_REMOVED = "Azure did not remove the Event Grid webhook from %<name>s and gave no reason Firefight can act on. Try again in a few minutes.".freeze
 
       class << self
         # Every delivery carries the secret header Firefight gave the event subscription. The key is compared as digests,
@@ -94,14 +110,14 @@ module Integrations
         end
 
         def limits = "Firefight reads Azure's activity log every 5 minutes, and Azure takes 3 to 20 minutes to add a change to it, " \
-                     "so a change reaches the map within about 25 minutes. With Event Grid turned on, a change arrives within about a minute."
+                     "so a change reaches the map within about 25 minutes. With instant updates on, a change arrives within about a minute."
+
+        def deliveries_name = "Instant updates"
+
+        def turn_on_words = "Changes in your Azure subscriptions reach the map within about a minute, instead of up to 25 minutes."
 
         # Turning Event Grid on is always a person's choice, since it needs a role the connection was not asked for.
-        def confirmation_for(row, url:)
-          "Firefight subscribes this connection to each subscription's resource changes through Event Grid, so a change reaches the map " \
-            "within about a minute. Azure makes an Event Grid system topic for the subscription to send them. The service principal needs the #{GRID_ROLE} role on each subscription, and Microsoft.EventGrid " \
-            "registered as a resource provider there. The activity log is still read every 5 minutes."
-        end
+        def confirmation_for(_row, url:) = CONFIRMATION
 
         # An event subscription at each subscription's scope, made or made again at this connection's address with the
         # secret header, and followed until Event Grid confirmed the address. A subscription the connection no longer
@@ -112,33 +128,76 @@ module Integrations
           subscriptions = settings.scopes
           raise Integrations::Error, "This connection reaches no Azure subscription. Choose one on the Integrations page." if subscriptions.empty?
 
-          registrations(row.map_events_webhook_id, settings).except(*subscriptions).each { |subscription, path| forget(api(row, subscription), path) }
+          # A subscription id is a GUID Azure writes in either case, so one registered before is matched whatever its case.
+          before = registrations(row.map_events_webhook_id, settings)
+          chosen = subscriptions.map(&:downcase)
+          before.reject { |subscription, _path| chosen.include?(subscription.downcase) }.each { |subscription, path| forget(api(row, subscription), path) }
           secret = row.map_events_secret.presence || SecureRandom.hex(32)
           row.update!(map_events_secret: secret)
-          made = subscriptions.to_h { |subscription| [ subscription, subscribe(api(row, subscription), subscription, url, secret) ] }
+          tried = []
+          made = subscriptions.to_h do |subscription|
+            tried << subscription
+            [ subscription, subscribe(row, api(row, subscription), subscription, url, secret) ]
+          end
           MapEventSource::Webhook.new(id: made.to_json, secret: secret, scopes: subscriptions)
+        rescue Integrations::Error
+          covered = before.to_h.keys.map(&:downcase)
+          undo(row, tried.to_a.reject { |subscription| covered.include?(subscription.downcase) })
+          raise
         end
 
         # Every event subscription Firefight made, which takes the system topic Event Grid made for it with it. One
         # already gone is taken back all the same.
         def remove(row, webhook_id)
-          registrations(webhook_id, ConnectionSettings.of(row)).each { |subscription, path| forget(api(row, subscription), path) }
+          settings = ConnectionSettings.of(row)
+          registrations(webhook_id, settings).each do |subscription, path|
+            forget(api(row, subscription), path)
+          rescue AzureApi::Forbidden => error
+            logged(row, subscription, error)
+            raise Integrations::Error, format(NO_ROLE_TO_REMOVE, role: GRID_ROLE, name: settings.scope_name(subscription))
+          rescue AzureApi::Error => error
+            logged(row, subscription, error)
+            raise Integrations::Error, format(NOT_REMOVED, name: settings.scope_name(subscription))
+          end
         end
 
-        def turn_off_words = "Firefight removes its Event Grid subscription, and Azure removes the system topic it made for it. " \
-                             "The activity log is still read every 5 minutes."
+        def turn_off_words = "Firefight removes the Event Grid webhook named #{SUBSCRIPTION_NAME} from each Azure subscription. It still " \
+                             "checks the activity log every 5 minutes, so a change reaches the map within about 25 minutes."
 
         private
 
-        def subscribe(api, subscription, url, secret)
-          registered!(api, subscription)
-          path = "/subscriptions/#{api.segment(subscription)}/providers/#{GRID_PROVIDER}/eventSubscriptions/#{SUBSCRIPTION_NAME}"
+        # A subscription is named as the connect form lists it, and what Azure answered is only logged.
+        def subscribe(row, api, subscription, url, secret)
+          name = ConnectionSettings.of(row).scope_name(subscription)
+          registered!(api, subscription, name)
+          path = grid_path(api, subscription)
           api.put(path, GRID_VERSION, body(url, secret))
-          confirmed!(api, path, subscription)
+          confirmed!(api, path, name)
           path
         rescue AzureApi::Forbidden => error
-          raise Integrations::Error, Sentence.join("The service principal may not subscribe to subscription #{subscription}'s changes. Give it " \
-                                                   "the #{GRID_ROLE} role on the subscription", error)
+          logged(row, subscription, error)
+          raise Integrations::Error, format(NO_ROLE, role: GRID_ROLE, name: name)
+        rescue AzureApi::Error => error
+          logged(row, subscription, error)
+          raise Integrations::Error, format(NOT_SET_UP, name: name)
+        end
+
+        def grid_path(api, subscription) = "/subscriptions/#{api.segment(subscription)}/providers/#{GRID_PROVIDER}/eventSubscriptions/#{SUBSCRIPTION_NAME}"
+
+        # A registration that failed part way takes back what it tried in subscriptions it had not covered before, so
+        # nothing is left sending to Firefight while instant updates read as off. One that cannot be taken back is logged.
+        def undo(row, subscriptions)
+          subscriptions.each do |subscription|
+            api = api(row, subscription)
+            forget(api, grid_path(api, subscription))
+          rescue Integrations::Error => error
+            logged(row, subscription, error)
+          end
+        end
+
+        def logged(row, subscription, error)
+          Rails.logger.warn({ event: "map_events.azure_grid_refused", integration_environment_id: row.id, subscription: subscription,
+                              error: error.message.truncate(500) }.to_json)
         end
 
         def body(url, secret)
@@ -159,25 +218,23 @@ module Integrations
 
         # Microsoft.EventGrid must be registered on the subscription before anything can subscribe to it (Resource
         # providers and types), which needs a role the connection is not asked for, so a person does it.
-        def registered!(api, subscription)
+        def registered!(api, subscription, name)
           state = api.get("/subscriptions/#{api.segment(subscription)}/providers/#{GRID_PROVIDER}", PROVIDERS_VERSION)["registrationState"]
           return if state == REGISTERED
 
-          raise Integrations::Error, "#{GRID_PROVIDER} is not registered on subscription #{subscription}. Register it in the Azure portal, under the " \
-                                     "subscription's Resource providers, then turn live updates on again."
+          raise Integrations::Error, format(NOT_REGISTERED, provider: GRID_PROVIDER, name: name)
         end
 
         # Event Grid confirms the address before it makes the subscription, so its state says whether that worked. One
         # still being made after GRID_WAIT is left to finish.
-        def confirmed!(api, path, subscription)
+        def confirmed!(api, path, name)
           (GRID_WAIT / GRID_POLL).times do
             state = api.get(path, GRID_VERSION).dig("properties", "provisioningState").to_s
             return if state == "Succeeded"
 
             if GRID_FAILED.include?(state)
               forget(api, path)
-              raise Integrations::Error, "Event Grid could not confirm Firefight's address for subscription #{subscription}, so nothing was " \
-                                         "subscribed. Check that Firefight's address is reachable from Azure, then turn live updates on again."
+              raise Integrations::Error, format(NOT_REACHED, name: name)
             end
             pause(GRID_POLL)
           end
@@ -246,7 +303,7 @@ module Integrations
           settings = ConnectionSettings.of(row)
           tenant, client = settings.field(Packs::Azure::TENANT), settings.field(Packs::Azure::CLIENT)
           secret = settings.credential(Packs::Azure::SECRET)
-          raise Integrations::Error, "This connection has no Azure service principal. Reconnect it on the Integrations page." if [ tenant, client, secret, subscription ].any?(&:blank?)
+          raise Integrations::Error, "This connection has no Azure sign-in. Reconnect it on the Integrations page." if [ tenant, client, secret, subscription ].any?(&:blank?)
 
           AzureApi.new(tenant: tenant, client_id: client, client_secret: secret, subscription: subscription,
                        cloud: Packs::Azure.cloud_of(settings.region), token_cache: settings)

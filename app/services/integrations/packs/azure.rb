@@ -321,10 +321,11 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: SECRET, label: "Client secret", secret: true, placeholder: "",
-                              hint: "A client secret of the service principal's app registration. Give it Reader, Monitoring Reader and Log Analytics Reader " \
+                              hint: "A client secret of the app registration. Give it Reader, Monitoring Reader and Log Analytics Reader " \
                                     "on each subscription it reads, and Cost Management Reader for Halon to watch spend. For Halon to apply fixes, add Website Contributor and Contributor on the apps it may change. " \
-                                    "Optionally, to link App Service and Function apps to the databases their settings name, also give it a custom role " \
-                                    "holding only Microsoft.Web/sites/config/list/action.")
+                                    "For instant updates, add #{MapEventSources::Azure::GRID_ROLE} on each subscription. Reader does not cover two " \
+                                    "optional reads, so a custom role may hold Microsoft.Web/sites/config/list/action, to link apps to the databases " \
+                                    "their settings name, and Microsoft.ContainerRegistry/registries/runs/listLogSasUrl/action, to read ACR Tasks run logs.")
         ]
       end
 
@@ -337,21 +338,21 @@ module Integrations
         subscriptions = Array(fields[SUBSCRIPTION]).map { |each| each.to_s.strip }.compact_blank
         return "Paste the client secret." if secret.empty?
         return "Enter the tenant and client id." if [ tenant, client ].any?(&:empty?)
-        return "Choose at least one subscription, or all the service principal can read." if subscriptions.empty?
+        return "Choose at least one subscription, or all the app registration can read." if subscriptions.empty?
 
         if subscriptions == [ IntegrationProvider::ConnectField::ALL ]
-          return "This service principal can read no Azure subscription. Give it Reader on one." if scope_options(values, region: region, fields: fields).empty?
+          return "This app registration can read no Azure subscription. Give it Reader on one." if scope_options(values, region: region, fields: fields).empty?
 
           return nil
         end
         subscriptions.each do |subscription|
           AzureApi.new(tenant: tenant, client_id: client, client_secret: secret, subscription: subscription, cloud: cloud_of(region)).subscription_details
         rescue AzureApi::Error => error
-          return Sentence.join("Azure refused this service principal or subscription #{subscription}", error)
+          return Sentence.join("Azure refused this app registration or subscription #{subscription}", error)
         end
         nil
       rescue AzureApi::Error, NativePack::Error => error
-        Sentence.join("Azure refused this service principal or subscription", error)
+        Sentence.join("Azure refused this app registration or subscription", error)
       end
 
       # The subscriptions the principal can read that are not disabled or deleted (Integrations::AzureApi#subscriptions),
@@ -372,7 +373,7 @@ module Integrations
                                                  label: subscription["displayName"].presence || subscription["subscriptionId"].to_s)
         end
       rescue AzureApi::Error => error
-        raise NativePack::Error, Sentence.join("Azure did not list this service principal's subscriptions", error)
+        raise NativePack::Error, Sentence.join("Azure did not list this app registration's subscriptions", error)
       end
 
       # A subscription in these states holds nothing to read (Subscription, SubscriptionState).
@@ -741,7 +742,7 @@ module Integrations
         settings = ConnectionSettings.of(environment_row)
         tenant, client, subscription = settings.field(TENANT), settings.field(CLIENT), subscription_of(environment_row)
         secret = settings.credential(SECRET)
-        fail! "This environment has no Azure service principal. Reconnect it on the Integrations page." if [ tenant, client, secret, subscription ].any?(&:blank?)
+        fail! "This environment has no Azure sign-in. Reconnect it on the Integrations page." if [ tenant, client, secret, subscription ].any?(&:blank?)
 
         @api ||= AzureApi.new(tenant: tenant, client_id: client, client_secret: secret, subscription: subscription,
                               cloud: self.class.cloud_of(settings.region), token_cache: settings)

@@ -177,8 +177,8 @@ function ConnectForm({
   const credentialComplete = credentialFields.every((field) => (credentialValues[field.key] ?? "").trim() !== "");
   // The header the provider's server reads the token from, when it is not Authorization, takes the key alone.
   const tokenHeader = provider.token?.header;
-  const tokenLabel = tokenHeader ? `${tokenHeader} header` : "Authorization header";
-  const tokenPlaceholder = tokenHeader ? "Key (optional, use a read-only key)" : "Bearer …  (optional, use a read-only key)";
+  const tokenLabel = `Access key (sent as the ${tokenHeader ?? "Authorization"} header)`;
+  const tokenPlaceholder = tokenHeader ? "The key (optional, a read-only key is best)" : "Bearer followed by the key (optional, a read-only key is best)";
   const [environmentId, setEnvironmentId] = useState(ALL_ENVIRONMENTS);
   const [submitting, setSubmitting] = useState(false);
   const [useToken, setUseToken] = useState(false);
@@ -285,8 +285,8 @@ function ConnectForm({
               : "Enter credentials for each environment. What Halon can read and change is what their role allows."
             : connectsWithUrl
             ? alreadyConnected
-              ? "Use the same name to add an environment or replace its URL, or a new name for another database."
-              : "Paste a connection URL for each environment. Halon reads tables, runs read-only queries and sees what the database is doing."
+              ? "Use the same name to add an environment or replace its address, or a new name for another database."
+              : "Paste a connection address (connection URL) for each environment. Halon reads tables, runs read-only queries and sees what the database is doing."
             : alreadyConnected
             ? "Authorize another environment on the connection you have, or name this one to keep a second account's permissions separate."
             : nativeConnect
@@ -469,7 +469,7 @@ function ConnectForm({
               className="text-muted-foreground hover:text-foreground -mt-1 flex items-center gap-1 self-start text-xs"
             >
               <IconArrowLeft className="size-3.5" />
-              {connectsWithUrl ? "Back to connection URL" : "Back to one-click connect"}
+              {connectsWithUrl ? "Back to connection address" : "Back to one-click connect"}
             </button>
           )}
           <div className="flex flex-col gap-1.5">
@@ -492,7 +492,7 @@ function ConnectForm({
             </div>
           )}
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="connect-url">MCP server URL</Label>
+            <Label htmlFor="connect-url">Server address</Label>
             <Input
               id="connect-url"
               value={serverUrl}

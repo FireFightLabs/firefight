@@ -164,7 +164,8 @@ module Integrations
           CredentialField.new(key: TOKEN, label: "Access token", secret: true, placeholder: "glpat-...",
                               hint: "A group access token with the read_api and read_repository scopes, which reaches every project in its group and acts as a bot " \
                                     "rather than a person (Premium or Ultimate on GitLab.com). A personal or project access token works too. " \
-                                    "Retrying, running or canceling a pipeline needs the api scope in place of read_api. So does following " \
+                                    "Any change Halon makes there, such as running, retrying or canceling a pipeline or a job, redeploying, " \
+                                    "approving a deployment or stopping an environment, needs the api scope in place of read_api. So does following " \
                                     "changes live, with the Maintainer role on a project or the Owner role on a group on Premium or Ultimate.")
         ]
       end
