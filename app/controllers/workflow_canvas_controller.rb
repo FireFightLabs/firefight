@@ -4,6 +4,7 @@ class WorkflowCanvasController < InertiaController
   include WorkflowCanvas
 
   authorizes Ability::Action::RESOURCE_WORKFLOWS, read: :show
+  around_action :holding_reads, only: :show
 
   # Shared with the page through lib/typescript_constants.rb, since partial reloads ask for props by name.
   PROP_WORKFLOW = "workflow"
@@ -38,6 +39,9 @@ class WorkflowCanvasController < InertiaController
   PROP_CHARTS = "charts"
   PROP_CHAT_WAITING = "chatWaiting"
   PROP_CHAT_UNAVAILABLE = "chatUnavailable"
+  # When the page's props were read, which its live connection names so it is told only what changed since
+  # (WorkflowChannel).
+  PROP_LIVE_READ_AT = "liveReadAt"
   PROPS = {
     "WORKFLOW" => PROP_WORKFLOW, "DOCUMENT" => PROP_DOCUMENT, "VERSIONS" => PROP_VERSIONS, "SUGGESTIONS" => PROP_SUGGESTIONS,
     "HALON_CHANGES" => PROP_HALON_CHANGES, "STEP_KINDS" => PROP_STEP_KINDS, "TRIGGER_KINDS" => PROP_TRIGGER_KINDS, "TOOLS" => PROP_TOOLS,
@@ -45,7 +49,8 @@ class WorkflowCanvasController < InertiaController
     "TEAMS" => PROP_TEAMS, "MY_PUBLISH_REQUEST" => PROP_MY_PUBLISH_REQUEST, "ACCESS" => PROP_ACCESS,
     "PLACES" => PROP_PLACES, "WATCH_READS" => PROP_WATCH_READS,
     "RUNS" => PROP_RUNS, "RUN" => PROP_RUN, "LAST_RUN" => PROP_LAST_RUN, "CHAT" => PROP_CHAT, "CHAT_MESSAGES" => PROP_CHAT_MESSAGES,
-    "HELPERS" => PROP_HELPERS, "CHARTS" => PROP_CHARTS, "CHAT_WAITING" => PROP_CHAT_WAITING, "CHAT_UNAVAILABLE" => PROP_CHAT_UNAVAILABLE
+    "HELPERS" => PROP_HELPERS, "CHARTS" => PROP_CHARTS, "CHAT_WAITING" => PROP_CHAT_WAITING, "CHAT_UNAVAILABLE" => PROP_CHAT_UNAVAILABLE,
+    "LIVE_READ_AT" => PROP_LIVE_READ_AT
   }.freeze
   # The address names an older version to look at by its id, and the view the canvas shows.
   VERSION_QUERY_PARAM = "version"
@@ -59,7 +64,9 @@ class WorkflowCanvasController < InertiaController
 
   # Each prop is worked out only when the visit asks for it, so asking Halon beside the canvas reads back the chat alone.
   def show
+    read_at = Time.current.to_f
     render inertia: "halon/workflow", props: {
+      PROP_LIVE_READ_AT => -> { read_at },
       PROP_WORKFLOW => -> { WorkflowDetailSerializer.one(current_workspace.workflows.with_run_counts.includes(:latest_run, :owner_team, :agent).find(workflow.id)) },
       PROP_DOCUMENT => -> { document },
       PROP_RUNS => -> { WorkflowRunRowSerializer.many(workflow.runs.where(parent_run_id: nil).includes(:version, :started_by).newest_first.limit(RUNS_SHOWN)) },
@@ -83,6 +90,15 @@ class WorkflowCanvasController < InertiaController
   end
 
   private
+
+  # The header, the steps and the tools list ask the same of the workspace's connections, such as what a step reaches,
+  # so a visit works each out once rather than once a prop (Workspace::HeldReads).
+  def holding_reads
+    current_workspace.hold_reads!
+    yield
+  ensure
+    current_workspace.release_reads!
+  end
 
   # Read through the workspace so every prop shares its one copy, and the connections' tools a step's reach and problems
   # read are read once a visit rather than once for each copy of the workspace.

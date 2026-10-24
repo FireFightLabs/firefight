@@ -1,8 +1,10 @@
 # Reads a reply repeats while it gets ready, such as the models the workspace names and the AI accounts that can pay,
-# read once for as long as the runner holds them (Conversation::Runner). They are kept on this workspace instance and
-# nowhere else, so a reply never sees what another read, and a read made while nothing holds them is read as ever. A
-# reply stops holding them before the model works, since what its tools and its calls change is then read again. Nothing
-# that is billed or that a billing write reads is held, so the credit a call is charged to stays exact.
+# read once for as long as the runner holds them (Conversation::Runner), and what a workflow's canvas asks of each step
+# and tool for its header, its steps and its tools list, held for one visit of the canvas. They are kept on this
+# workspace instance and nowhere else, so a reply never sees what another read, and a read made while nothing holds them
+# is read as ever. A reply stops holding them before the model works, since what its tools and its calls change is then
+# read again. Nothing that is billed or that a billing write reads is held, so the credit a call is charged to stays
+# exact.
 module Workspace::HeldReads
   extend ActiveSupport::Concern
 

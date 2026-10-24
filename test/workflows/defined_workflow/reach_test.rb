@@ -73,9 +73,29 @@ class DefinedWorkflow::ReachTest < ActiveSupport::TestCase
     assert_equal [ read_pack(@shop).id ], needed.filter_map(&:role).map(&:id)
   end
 
+  test "while the workspace holds its reads a tool's reach is worked out once for the same arguments, and a copy is handed out" do
+    @workspace.hold_reads!
+    first = DefinedWorkflow::Reach.for_tool(@workspace, status_tool, { "resource" => "shop-web" })
+    Integrations::Capabilities.expects(:planned_calls).never
+
+    again = DefinedWorkflow::Reach.for_tool(@workspace, status_tool, { "resource" => "shop-web" })
+    again.clear
+
+    assert_equal first.map(&:key), DefinedWorkflow::Reach.for_tool(@workspace, status_tool, { "resource" => "shop-web" }).map(&:key)
+  ensure
+    @workspace.release_reads!
+  end
+
+  test "without held reads a tool's reach is worked out each time it is asked" do
+    DefinedWorkflow::Reach.for_tool(@workspace, status_tool, { "resource" => "shop-web" })
+    Integrations::Capabilities.expects(:planned_calls).once.returns([])
+
+    DefinedWorkflow::Reach.for_tool(@workspace, status_tool, { "resource" => "shop-web" })
+  end
+
   private
 
-  def status_tool = Integrations::Capabilities.spec(Integrations::Capabilities::STATUS).tool_name
+  def status_tool =Integrations::Capabilities.spec(Integrations::Capabilities::STATUS).tool_name
 
   def read_pack(integration) = Ability::Role.find_by!(integration_id: integration.id, pack: Ability::Role::PACK_READ)
 
