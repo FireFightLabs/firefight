@@ -25,7 +25,7 @@ class Workflow::LimitsTest < ActiveSupport::TestCase
       @workflow.run_skipped!
     end
 
-    hours = @workflow.recent_skips(Time.zone.parse("2026-10-14 15:30 UTC"))
+    hours = @workflow.recent_skips
     assert_equal [ Time.zone.parse("2026-10-14 15:00 UTC"), Time.zone.parse("2026-10-14 14:00 UTC") ], hours.map(&:hour)
     assert_equal [ 1, 2 ], hours.map(&:count)
     assert_equal Time.zone.parse("2026-10-14 14:25 UTC"), hours.last.last_at
