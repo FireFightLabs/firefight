@@ -308,6 +308,7 @@ module Integrations
       spec = spec(key)
       candidates, reference = candidates_for(workspace, spec, given, tools, nil, within: ResourceMap::Resource.where(workspace_id: workspace.id))
       if given[CONNECTION_ARG].to_s == ALL && !spec.writes
+        one_resource!(candidates, reference)
         return candidates.uniq { |candidate| candidate.row.id }.filter_map do |candidate|
           call_for(workspace, spec, candidate, given, tools)
         rescue Unroutable

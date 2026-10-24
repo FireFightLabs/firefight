@@ -33,7 +33,7 @@ module SolidWorkflow
         return skip_itself!(result) if result.is_a?(SolidWorkflow::Skipped)
 
         output, route = result.is_a?(SolidWorkflow::Routed) ? [ result.output, result.route ] : [ result, nil ]
-        fail_on_route!(result) if result.is_a?(SolidWorkflow::Routed) && result.failure.present? && !route_leads_on?(route)
+        return fail_on_route!(result) if result.is_a?(SolidWorkflow::Routed) && result.failure.present? && !route_leads_on?(route)
 
         current_updated_at = updated_at
         rows_updated = SolidWorkflow::Step.where(
@@ -103,9 +103,18 @@ module SolidWorkflow
       MAX_ERROR_MESSAGE_BYTES = 2_000
 
       # The route it took and what it handed back stay on the step, so the run shows which way it went, and the step
-      # fails through the usual path, where its failure setting decides whether the run carries on.
+      # fails through the usual path, where its failure setting decides whether the run carries on. Guarded like a
+      # success, so an attempt that no longer holds the step never writes over what the step did since.
       def fail_on_route!(result)
-        SolidWorkflow::Step.where(id: id, status: :running).update_all(output: result.output || {}, route: result.route, updated_at: Time.current)
+        moved = SolidWorkflow::Step.where(id: id, status: :running, updated_at: updated_at)
+                                   .update_all(output: result.output || {}, route: result.route, updated_at: Time.current)
+        if moved.zero?
+          reload
+          return unless running?
+
+          raise "Step status changed unexpectedly during execution"
+        end
+
         raise SolidWorkflow::RouteFailed, result.failure
       end
 

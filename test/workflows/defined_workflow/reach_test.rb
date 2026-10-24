@@ -31,6 +31,20 @@ class DefinedWorkflow::ReachTest < ActiveSupport::TestCase
     assert_equal [ read_pack(@blog).id, read_pack(@shop).id ].sort, needed.filter_map(&:role).map(&:id).sort
   end
 
+  test "a read whose connection the run fills in later may reach any connection that could answer it" do
+    needed = DefinedWorkflow::Reach.for_tool(@workspace, status_tool, { "resource" => "shop-web", "connection" => "{{inputs.connection}}" })
+
+    assert_equal [ read_pack(@blog).id, read_pack(@shop).id ].sort, needed.filter_map(&:role).map(&:id).sort
+  end
+
+  test "a read the run could never route asks for no connection it would not reach" do
+    @shop.tools.update_all(enabled: false)
+
+    needed = DefinedWorkflow::Reach.for_tool(@workspace, status_tool, { "resource" => "shop-web" })
+
+    assert_empty needed.filter_map(&:role)
+  end
+
   test "a watch step reaches only the connection of the resource it watches, and publishing grants just that" do
     watch = { "steps" => [ { "label" => "Rollout", "capability" => "status", "resource" => "shop-web", "done_when" => "running" } ] }
 

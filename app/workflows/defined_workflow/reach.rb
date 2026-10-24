@@ -105,7 +105,7 @@ module DefinedWorkflow::Reach
     keys = capability_keys(name)
     offered = Integrations::Capabilities.offered(workspace).select { |spec, _able| keys.include?(spec.key) }
     needed = offered.flat_map do |spec, able|
-      reached = routed_tools(workspace, spec, arguments).presence || able
+      reached = routed_tools(workspace, spec, arguments) || able
       next reached.filter_map { |tool| workspace.read_packs_by_integration[tool.integration_id] }.uniq.map { |role| Needed.of_role(role) } unless spec.writes
 
       reached.filter_map(&:ability_action).uniq.map { |action| Needed.of_action(action) }
@@ -123,15 +123,18 @@ module DefinedWorkflow::Reach
     end
   end
 
-  # The tools a run reaches for the resource and connection written out, as the run routes them. None when the run
-  # fills them in later or nothing routes them, so every connection that could answer counts.
+  # The tools a run reaches for the resource and connection written out, as the run routes them, none when the run
+  # could never route them. nil when the run fills either in later, so every connection that could answer counts.
   def routed_tools(workspace, spec, arguments)
-    given = literal(arguments).stringify_keys
-    return [] if given[Integrations::Capabilities::RESOURCE_ARG].blank?
+    given = arguments.to_h.stringify_keys
+    named = given.slice(Integrations::Capabilities::RESOURCE_ARG, Integrations::Capabilities::CONNECTION_ARG).compact_blank
+    return if named[Integrations::Capabilities::RESOURCE_ARG].blank? || named.values.any? { |value| Workflow::Version.references_in(value).any? }
 
-    Integrations::Capabilities.planned_calls(workspace, spec.key, given).map(&:tool).compact
-  rescue Integrations::Capabilities::Unroutable, StandardError
+    Integrations::Capabilities.planned_calls(workspace, spec.key, literal(given)).map(&:tool).compact
+  rescue Integrations::Capabilities::Unroutable
     []
+  rescue StandardError
+    nil
   end
 
   def reads?(action) = action.key.split(".").last == Ability::Action::ACTION_READ

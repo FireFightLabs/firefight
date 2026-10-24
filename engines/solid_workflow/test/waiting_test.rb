@@ -109,6 +109,21 @@ class SolidWorkflow::WaitingTest < ActiveSupport::TestCase
     assert_equal "cancelled", status_of(workflow, "got_it")
   end
 
+  test "an attempt that no longer holds its step leaves the route the step took since alone" do
+    workflow = run_definition({ "steps" => [ step("reply", "wait_for_event", { "event" => "reply" }, timeout_seconds: 600) ], "edges" => [] })
+    reply = workflow.steps.sole
+    reply.update_columns(status: "running")
+    moved_on = SolidWorkflow::Routed.new(output: { "outcome" => "timed_out" }, route: "timed_out", failure: "reply timed out.")
+    TestDefinedWorkflow.any_instance.stubs(:run_step).with do |*|
+      SolidWorkflow::Step.where(id: reply.id).update_all(route: "received", updated_at: 1.minute.from_now)
+      true
+    end.returns(moved_on)
+
+    assert_raises(RuntimeError) { reply.reload.execute! }
+
+    assert_equal "received", reply.reload.route
+  end
+
   test "a wait for event alone that runs out of time fails the run, and its failure setting still decides whether the run carries on" do
     alone = run_definition({ "steps" => [ step("reply", "wait_for_event", { "event" => "reply" }, timeout_seconds: 600) ], "edges" => [] })
     tolerated = run_definition({ "steps" => [ step("reply", "wait_for_event", { "event" => "reply" }, timeout_seconds: 600, on_failure: "continue") ], "edges" => [] })
