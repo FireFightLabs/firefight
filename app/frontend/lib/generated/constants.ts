@@ -1211,6 +1211,8 @@ export const WORKFLOW_CHANNEL = "WorkflowChannel" as const
 
 export const WORKFLOW_CHANNEL_READ_AT_PARAM = "read_at" as const
 
+export const WORKFLOW_CHANNEL_CATCH_UP = "catch_up" as const
+
 export const WORKFLOW_LIVE_PARTS = {
   "CANVAS": "canvas",
   "RUNS": "runs"

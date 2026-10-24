@@ -30,6 +30,7 @@ class Workflow::LiveDeliveryTest < ActiveSupport::TestCase
 
   test "a change held back in the window counts as said when its trailing say is made, for a page that listens later" do
     freeze_time
+    Workflow::LiveDelivery.watching(@workflow.id)
     read_at = 3.seconds.from_now.to_f
     Workflow::LiveDelivery.changed(workflow_id: @workflow.id, part: PART)
     travel(0.4.seconds) { Workflow::LiveDelivery.changed(workflow_id: @workflow.id, part: PART) }

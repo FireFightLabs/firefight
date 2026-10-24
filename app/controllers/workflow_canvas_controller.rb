@@ -64,6 +64,7 @@ class WorkflowCanvasController < InertiaController
 
   # Each prop is worked out only when the visit asks for it, so asking Halon beside the canvas reads back the chat alone.
   def show
+    Workflow::LiveDelivery.watching(workflow.id) unless request.inertia_partial?
     read_at = Time.current.to_f
     render inertia: "halon/workflow", props: {
       PROP_LIVE_READ_AT => -> { read_at },

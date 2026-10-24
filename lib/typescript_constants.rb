@@ -244,6 +244,7 @@ module TypescriptConstants
       Export.new("INCIDENT_LIVE_PARTS", Incident::LiveSignal::PARTS, nil),
       Export.new("WORKFLOW_CHANNEL", WorkflowChannel.name, nil),
       Export.new("WORKFLOW_CHANNEL_READ_AT_PARAM", WorkflowChannel::READ_AT_PARAM, nil),
+      Export.new("WORKFLOW_CHANNEL_CATCH_UP", WorkflowChannel::CATCH_UP_ACTION, nil),
       Export.new("WORKFLOW_LIVE_PARTS", Workflow::LiveSignal::PARTS, nil),
       Export.new("WORKFLOW_RUN_LOG_TONES", Workflow::Run::Activity::TONES.to_h { |tone| [ tone.upcase, tone ] }, nil),
       Export.new("LIVE_READ_HEADER", InertiaController::LIVE_READ_HEADER, nil),

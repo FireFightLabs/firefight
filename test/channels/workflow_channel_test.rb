@@ -31,21 +31,9 @@ class WorkflowChannelTest < ActionCable::Channel::TestCase
     assert subscription.rejected?
   end
 
-  test "a page that says when it was read is told only the parts said since, so it does not read the rest again" do
+  test "nothing is said while subscribing, only once the page asks to catch up and so already hears every say" do
     Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
     stub_connection(current_user: users(:bob))
-    read_at = Time.current.to_f
-    Workflow::LiveDelivery.say(@workflow.id, Workflow::LiveSignal::PART_RUNS)
-
-    subscribe(id: @workflow.id, WorkflowChannel::READ_AT_PARAM => read_at)
-
-    assert_equal [ { "part" => Workflow::LiveSignal::PART_RUNS } ], transmissions
-  end
-
-  test "a page read after the last change is told nothing when it starts listening" do
-    Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
-    stub_connection(current_user: users(:bob))
-    travel_to(1.minute.ago) { Workflow::LiveDelivery.say(@workflow.id, Workflow::LiveSignal::PART_CANVAS) }
 
     subscribe(id: @workflow.id, WorkflowChannel::READ_AT_PARAM => Time.current.to_f)
 
@@ -53,11 +41,62 @@ class WorkflowChannelTest < ActionCable::Channel::TestCase
     assert_empty transmissions
   end
 
+  test "a page that says when it was read is told only the parts said since, so it does not read the rest again" do
+    Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+    stub_connection(current_user: users(:bob))
+    Workflow::LiveDelivery.watching(@workflow.id)
+    read_at = Time.current.to_f
+    Workflow::LiveDelivery.say(@workflow.id, Workflow::LiveSignal::PART_RUNS)
+
+    subscribe(id: @workflow.id, WorkflowChannel::READ_AT_PARAM => read_at)
+    perform WorkflowChannel::CATCH_UP_ACTION
+
+    assert_equal [ { "part" => Workflow::LiveSignal::PART_RUNS } ], transmissions
+  end
+
+  test "a page read after the last change, or while all was quiet, is told nothing" do
+    Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+    stub_connection(current_user: users(:bob))
+    travel_to(1.minute.ago) { Workflow::LiveDelivery.say(@workflow.id, Workflow::LiveSignal::PART_CANVAS) }
+    Workflow::LiveDelivery.watching(@workflow.id)
+
+    subscribe(id: @workflow.id, WorkflowChannel::READ_AT_PARAM => Time.current.to_f)
+    perform WorkflowChannel::CATCH_UP_ACTION
+
+    assert_empty transmissions
+  end
+
+  test "a part with no note, which the cache let go, is told rather than taken as unchanged" do
+    Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+    stub_connection(current_user: users(:bob))
+    Workflow::LiveDelivery.watching(@workflow.id)
+    read_at = Time.current.to_f
+    Rails.cache.delete(Workflow::LiveDelivery.said_key(@workflow.id, Workflow::LiveSignal::PART_CANVAS))
+
+    subscribe(id: @workflow.id, WorkflowChannel::READ_AT_PARAM => read_at)
+    perform WorkflowChannel::CATCH_UP_ACTION
+
+    assert_equal [ { "part" => Workflow::LiveSignal::PART_CANVAS } ], transmissions
+  end
+
+  test "a part noted quiet only after the page was read is told, since what came between cannot be told" do
+    Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+    stub_connection(current_user: users(:bob))
+    read_at = 1.minute.ago.to_f
+    Workflow::LiveDelivery.watching(@workflow.id)
+
+    subscribe(id: @workflow.id, WorkflowChannel::READ_AT_PARAM => read_at)
+    perform WorkflowChannel::CATCH_UP_ACTION
+
+    assert_equal Workflow::LiveSignal::PARTS.values.map { |part| { "part" => part } }, transmissions
+  end
+
   test "a page that does not say when it was read is told every part" do
     Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
     stub_connection(current_user: users(:bob))
 
     subscribe(id: @workflow.id)
+    perform WorkflowChannel::CATCH_UP_ACTION
 
     assert_equal Workflow::LiveSignal::PARTS.values.map { |part| { "part" => part } }, transmissions
   end
@@ -67,6 +106,7 @@ class WorkflowChannelTest < ActionCable::Channel::TestCase
     stub_connection(current_user: users(:bob))
 
     subscribe(id: @workflow.id, WorkflowChannel::READ_AT_PARAM => (Workflow::LiveDelivery::SAID_KEPT + 1.minute).ago.to_f)
+    perform WorkflowChannel::CATCH_UP_ACTION
 
     assert_equal Workflow::LiveSignal::PARTS.values.map { |part| { "part" => part } }, transmissions
   end
@@ -76,6 +116,7 @@ class WorkflowChannelTest < ActionCable::Channel::TestCase
     Rails.cache.stubs(:read_multi).raises(IOError, "cache down")
 
     subscribe(id: @workflow.id, WorkflowChannel::READ_AT_PARAM => Time.current.to_f)
+    perform WorkflowChannel::CATCH_UP_ACTION
 
     assert_equal Workflow::LiveSignal::PARTS.values.map { |part| { "part" => part } }, transmissions
   end

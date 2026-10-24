@@ -2,7 +2,7 @@ import { createConsumer } from "@rails/actioncable"
 import { router } from "@inertiajs/react"
 import { type RefObject, useEffect, useRef } from "react"
 
-import { LIVE_READ_HEADER, WORKFLOW_CANVAS_PROPS, WORKFLOW_CHANNEL, WORKFLOW_CHANNEL_READ_AT_PARAM, WORKFLOW_LIVE_PARTS } from "@/lib/generated/constants"
+import { LIVE_READ_HEADER, WORKFLOW_CANVAS_PROPS, WORKFLOW_CHANNEL, WORKFLOW_CHANNEL_CATCH_UP, WORKFLOW_CHANNEL_READ_AT_PARAM, WORKFLOW_LIVE_PARTS } from "@/lib/generated/constants"
 import { CANVAS_VISIT } from "@/pages/halon/hooks/use-workflow-edits"
 
 type WorkflowLivePart = (typeof WORKFLOW_LIVE_PARTS)[keyof typeof WORKFLOW_LIVE_PARTS]
@@ -94,10 +94,14 @@ export function useWorkflowLive(workflowId: string, readAt: number, runGoing: bo
 
     const consumer = createConsumer()
     const subscription = consumer.subscriptions.create(
-      // Nothing sent before the socket listened is sent again, whether the page had just opened or the socket was away,
-      // so each time it starts listening the server says every part that changed since readAt, as it says any change.
       { channel: WORKFLOW_CHANNEL, id: workflowId, [WORKFLOW_CHANNEL_READ_AT_PARAM]: readAt },
       {
+        // Nothing sent before the socket listened is sent again, whether the page had just opened or the socket was
+        // away, so once it listens it asks to catch up and the server says every part that changed since readAt, as it
+        // says any change.
+        connected() {
+          subscription.perform(WORKFLOW_CHANNEL_CATCH_UP)
+        },
         received(signal: LiveSignal) {
           if (EVERY_PART.includes(signal.part)) {
             gather(signal.part)
