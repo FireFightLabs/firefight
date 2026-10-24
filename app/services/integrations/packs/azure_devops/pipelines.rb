@@ -83,6 +83,7 @@ module Integrations
                       "name" => { "type" => "string", "description" => "Only runs of pipelines whose name contains this, such as release, or else deployments to an environment it names (optional)" },
                       "ref" => { "type" => "string", "description" => "Only runs for this branch (optional)" },
                       "run" => { "type" => "string", "description" => "Only this run, by its id, with each job and how it ended, or a deployment by the id this answer gives it (optional)" },
+                      "deployment_environment" => { "type" => "string", "description" => "The environment a deployment named by run went to, by name, e.g. production (optional)" },
                       "limit" => { "type" => "integer", "description" => "At most this many (optional, #{HISTORY_LIMIT}, at most #{MAX_HISTORY})" }
                     }, []),
                     read_only: true
@@ -186,7 +187,9 @@ module Integrations
           azure = api(environment_row)
           target = ci_target(azure, arguments)
           asked = arguments["run"].to_s.strip
-          return one_deployment(azure, target, asked.delete_prefix(Deployments::DEPLOYMENT_RUN)) if asked.start_with?(Deployments::DEPLOYMENT_RUN)
+          if asked.start_with?(Deployments::DEPLOYMENT_RUN)
+            return one_deployment(azure, target, asked.delete_prefix(Deployments::DEPLOYMENT_RUN), arguments["deployment_environment"].to_s.strip.presence)
+          end
           return one_run(azure, target, positive_id(arguments, "run")) if asked.present?
 
           limit = whole_number_argument(arguments, "limit", HISTORY_LIMIT, MAX_HISTORY)
