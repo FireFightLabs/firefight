@@ -945,7 +945,7 @@ module Conversation::Watches
     resolve_tag!(step, reader) if step.unresolved_tag
     answer = deploys_answer(reader, step.new_deploy)
     deploys = answer && Integrations::Capabilities::Deploys.deploys_of(answer.result)
-    raise Conversation::Watches::Reader::Unanswered, "the deploys of #{step.deploy_resource} could not be read" if deploys.nil?
+    raise Conversation::Watches::Reader::Unanswered, "the deploys of #{step.deploy_resource_words} could not be read" if deploys.nil?
 
     step.deploy_gate(deploys)
   end
@@ -962,10 +962,17 @@ module Conversation::Watches
   end
 
   # Before the new deploy starts the step's reading only shows the old one, so it is not read. A newest deploy that was
-  # cancelled or replaced is waited past, and one that failed is told at once while a newer one may still come.
+  # cancelled or replaced is waited past, and one that failed is told at once while a newer one may still come. The commit
+  # or tag named being the one live ends the step at once, whatever a reading would say, with nothing left to wait for.
   def self.gate_lets_read?(watch, step, gate)
     step.summarized!(gate.words)
     keys = Chat::Watch::Step::NewDeploy
+    if gate.arrived
+      step.deploy_arrived!
+      finish_reading(watch, step, Chat::Watch::Step::STATUS_SUCCEEDED, gate.words)
+      return false
+    end
+
     case gate.state
     when keys::WAITING, keys::CANCELLED then false
     when keys::FAILED
@@ -1200,9 +1207,10 @@ module Conversation::Watches
     took = Integrations::Capabilities::History.duration(Time.current - watch.created_at)
     skipped = steps.count { |step| step.status == Chat::Watch::Step::STATUS_SKIPPED }
     lost = lost_words(steps.size - followed.size - skipped, skipped)
-    happened = "Done in #{took}.#{lost}"
+    arrived = followed.select(&:deploy_arrived?).filter_map { |step| step.reason.presence }
+    happened = [ *arrived, "Done in #{took}.#{lost}" ].join(" ")
     said = verdict(watch, happened, offer: false)
-    finish!(watch, Chat::Watch::STATUS_SUCCEEDED, with_standing(watch, happened, said), end_reason: [ "Took #{took}.#{lost}", said ].compact.join(" "),
+    finish!(watch, Chat::Watch::STATUS_SUCCEEDED, with_standing(watch, happened, said), end_reason: [ *arrived, "Took #{took}.#{lost}", said ].compact.join(" "),
             steps_added_at: added)
   end
 
@@ -1274,7 +1282,7 @@ module Conversation::Watches
   def self.time_out!(watch, now = Time.current)
     return if deploy_failed_out!(watch, now)
 
-    state = watch.open_steps.map { |step| "#{step.label}: #{step.ready? ? step.last_state.presence || 'nothing seen yet' : step.prerequisites_words}" }.join(" ")
+    state = watch.open_steps.map { |step| "#{step.label}: #{step.ready? ? step.last_state.presence || step.summary.presence || 'nothing seen yet' : step.prerequisites_words}" }.join(" ")
     took = Integrations::Capabilities::History.duration(watch.expires_at - watch.created_at)
     happened = "I stopped #{Chat::Watch::Shown.named(watch)} after #{took}, its time limit. Last I saw: #{state.truncate(600)}"
     said = verdict(watch, happened)

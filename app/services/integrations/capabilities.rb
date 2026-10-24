@@ -300,6 +300,25 @@ module Integrations
       routed(workspace, spec, candidates, given, reference, tools)
     end
 
+    # The calls a request would make once someone runs it, worked out before anyone does, such as for what a workflow's
+    # step needs granted: the one call, with the platform it falls back to, or every connection for connection: all.
+    # Routed over the whole map through every switched on tool, with nobody's reach, since a grant is what it asks.
+    def self.planned_calls(workspace, key, given)
+      tools = workspace.switched_on_tools
+      spec = spec(key)
+      candidates, reference = candidates_for(workspace, spec, given, tools, nil, within: ResourceMap::Resource.where(workspace_id: workspace.id))
+      if given[CONNECTION_ARG].to_s == ALL && !spec.writes
+        return candidates.uniq { |candidate| candidate.row.id }.filter_map do |candidate|
+          call_for(workspace, spec, candidate, given, tools)
+        rescue Unroutable
+          nil
+        end
+      end
+
+      call = routed(workspace, spec, candidates, given, reference, tools)
+      [ call, call.fallback ].compact
+    end
+
     # The call for a read Firefight makes on its own about a resource it picked, such as the daily read of its usual log
     # lines. It is routed as any request is, through every switched on tool, with nobody's reach, since nobody asked.
     # The tool's own recording (Integration::Tool#swept!) is what puts it in the activity log.
@@ -448,11 +467,11 @@ module Integrations
     # One connection's answer under connection: all, headed with where it came from.
     def self.headed(environment_row, text) = "From #{connection_label(environment_row)}:\n#{text}"
 
-    def self.candidates_for(workspace, spec, given, tools, principal)
+    def self.candidates_for(workspace, spec, given, tools, principal, within: nil)
       reference = given[RESOURCE_ARG].to_s.strip
       raise Unroutable, "Say which resource, by its name or its id on the resource map." if reference.empty?
 
-      visible = ResourceMap::Resource.visible_to(principal, workspace)
+      visible = within || ResourceMap::Resource.visible_to(principal, workspace)
       named = visible.referenced(workspace, reference).present.to_a
       raise Unroutable, "Nothing on the resource map is called #{reference}. get_resource_map lists what is there." if named.empty?
 

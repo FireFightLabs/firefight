@@ -41,6 +41,11 @@ module SolidWorkflow
         end
       end
 
+      # Whether any step of the run follows this one on the route named.
+      def route_leads_on?(route_name)
+        workflow.steps.any? { |other| Array(other.incoming).any? { |edge| edge["from"] == name && edge["route"] == route_name } }
+      end
+
       private
 
       def incoming_edges = Array(incoming)

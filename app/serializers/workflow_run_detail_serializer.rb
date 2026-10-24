@@ -11,6 +11,12 @@ class WorkflowRunDetailSerializer < WorkflowRunRowSerializer
     run.outputs
   end
 
+  # Who started it by hand, in place of what started it, which a run a person started holds nothing of.
+  type :string, optional: true
+  def started_by_hand
+    "Started by hand by #{run.started_by&.display_name || 'someone'}." if run.by_hand?
+  end
+
   type "string[]"
   def real_step_keys
     run.real_step_keys

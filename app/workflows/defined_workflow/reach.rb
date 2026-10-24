@@ -99,16 +99,16 @@ module DefinedWorkflow::Reach
   end
 
   # A capability, a key query, new log patterns or what changed reaches whichever connection answers it for the resource
-  # the run names. A change names one tool when its resource is written out. Otherwise every connection that could
-  # answer is reached, a read through its read pack.
+  # and connection the run names, routed as the run routes it. With them written out that is one tool, a read through
+  # its connection's read pack and a change its one ability. Otherwise every connection that could answer is reached.
   def capability_reach(workspace, name, arguments)
     keys = capability_keys(name)
     offered = Integrations::Capabilities.offered(workspace).select { |spec, _able| keys.include?(spec.key) }
     needed = offered.flat_map do |spec, able|
-      next able.filter_map { |tool| read_pack(tool.integration_id) }.uniq.map { |role| Needed.of_role(role) } unless spec.writes
+      reached = routed_tools(workspace, spec, arguments).presence || able
+      next reached.filter_map { |tool| workspace.read_packs_by_integration[tool.integration_id] }.uniq.map { |role| Needed.of_role(role) } unless spec.writes
 
-      chosen = routed_tool(workspace, spec, arguments)
-      (chosen ? [ chosen ] : able).filter_map(&:ability_action).uniq.map { |action| Needed.of_action(action) }
+      reached.filter_map(&:ability_action).uniq.map { |action| Needed.of_action(action) }
     end
     map = Ability::Action.lookup(Ability::Action::MAP_READ, workspace)
     (needed + [ (Needed.of_action(map) if map) ].compact).uniq(&:key)
@@ -123,13 +123,15 @@ module DefinedWorkflow::Reach
     end
   end
 
-  def routed_tool(workspace, spec, arguments)
+  # The tools a run reaches for the resource and connection written out, as the run routes them. None when the run
+  # fills them in later or nothing routes them, so every connection that could answer counts.
+  def routed_tools(workspace, spec, arguments)
     given = literal(arguments).stringify_keys
-    return if given[Integrations::Capabilities::RESOURCE_ARG].blank?
+    return [] if given[Integrations::Capabilities::RESOURCE_ARG].blank?
 
-    Integrations::Capabilities.resolve(workspace, spec.key, given, principal: nil).tool
+    Integrations::Capabilities.planned_calls(workspace, spec.key, given).map(&:tool).compact
   rescue Integrations::Capabilities::Unroutable, StandardError
-    nil
+    []
   end
 
   def reads?(action) = action.key.split(".").last == Ability::Action::ACTION_READ

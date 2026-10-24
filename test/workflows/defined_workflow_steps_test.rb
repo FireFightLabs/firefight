@@ -416,6 +416,63 @@ class DefinedWorkflowStepsTest < ActiveSupport::TestCase
     assert_equal "succeeded", run.steps.find_by!(step_key: "follow").route
   end
 
+  # A watch step whose watch is made, not read, so each test ends it as it likes.
+  def watching(name, edges_from_follow)
+    spec = { "title" => "Deploy of web", "steps" => [ { "label" => "web", "capability" => "status", "resource" => "web", "done_when" => "running" } ] }
+    Conversation::Watches.stubs(:start).with do |host, given|
+      Chat::Watch.create!(chat: host.chat, workspace: host.workspace, asker: host.asker, title: given["title"], expires_at: 1.hour.from_now,
+                          limit_basis: Chat::Watch::BASIS_DEFAULT)
+      true
+    end.returns("Started")
+    Workflow::Version.any_instance.stubs(:step_problems).returns([])
+    after = step("after", "delay", { "seconds" => 0 })
+    workflow = published(name, steps: [ step("follow", "watch", spec, name: "watch_the_rollout"), after ], edges: edges_from_follow.map { |route| edge("follow", "after", route) })
+    run = start(workflow)
+    [ workflow, run, Chat::Watch.find_by!(chat: Chat.where(owner: run.steps.find_by!(step_key: "follow"))) ]
+  end
+
+  test "a watch that times out with nothing after its timed out route fails the run, says why everywhere and is heard as a failed run" do
+    workflow, run, kept = watching("Rollout", [ "succeeded" ])
+    Workflow::Trigger::Events.expects(:fire!).with(@workspace, Workflow::Trigger::KIND_RUN_FAILED, key: run.id, subject: run, actor: workflow.agent)
+
+    travel 61.minutes do
+      perform_enqueued_jobs { Conversation::Watches.finish!(kept, Chat::Watch::STATUS_TIMED_OUT, "I stopped watching after 1 hour, its time limit.") }
+    end
+
+    run.reload
+    assert_equal Workflow::Run::STATUS_FAILED, run.status
+    assert_equal "Watch the rollout timed out after 1 hour.", run.error
+    row = run.steps.find_by!(step_key: "follow")
+    assert_equal Workflow::Run::Step::STATUS_FAILED, row.status
+    assert_equal "timed_out", row.route
+    assert_equal "Watch the rollout timed out after 1 hour.", row.error
+    assert_equal "timed_out", row.output["status"]
+    assert_equal DefinedWorkflow::STEP_CANCELLED, run.steps.find_by!(step_key: "after").status
+  end
+
+  test "a watch that fails with nothing after its failed route fails the run with the watch's own reason" do
+    _workflow, run, kept = watching("Rollout", [ "succeeded", "timed_out" ])
+
+    perform_enqueued_jobs do
+      Conversation::Watches.finish!(kept, Chat::Watch::STATUS_FAILED, "web failed, so I stopped watching.", end_reason: "web failed after 3 minutes. The new deploy of web failed (a924eed).")
+    end
+
+    run.reload
+    assert_equal Workflow::Run::STATUS_FAILED, run.status
+    assert_equal "Watch the rollout failed. web failed after 3 minutes. The new deploy of web failed (a924eed).", run.error
+  end
+
+  test "a watch whose failed or timed out route leads somewhere carries on there, and one that was stopped succeeds" do
+    _workflow, run, kept = watching("Rollout", [ "timed_out" ])
+    perform_enqueued_jobs { Conversation::Watches.finish!(kept, Chat::Watch::STATUS_TIMED_OUT, "Out of time.") }
+    assert_equal Workflow::Run::STATUS_SUCCEEDED, run.reload.status, run.error
+    assert_equal Workflow::Run::Step::STATUS_SUCCEEDED, run.steps.find_by!(step_key: "after").status
+
+    _workflow, stopped_run, stopped = watching("Stopped rollout", [ "succeeded" ])
+    perform_enqueued_jobs { Conversation::Watches.finish!(stopped, Chat::Watch::STATUS_STOPPED, "Alice stopped it.") }
+    assert_equal Workflow::Run::STATUS_SUCCEEDED, stopped_run.reload.status, stopped_run.error
+  end
+
   test "a run that ends stops the watches its steps still keep" do
     workflow = published("Pause", steps: [ step("pause", "delay", { "minutes" => 5 }) ])
     run = start(workflow)
