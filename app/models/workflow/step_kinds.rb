@@ -109,9 +109,10 @@ module Workflow::StepKinds
   }.freeze
 
   # What a kind's lambdas may ask about the workspace it is drawn for, and the tools Halon can call there by name, each
-  # answering name, read_only and action_key. workspace is nil where nothing is known of one, such as a test.
-  Facts = Data.define(:workspace, :tools) do
-    def initialize(tools: [], workspace: nil) = super
+  # answering name, read_only and action_key. workspace is nil where nothing is known of one, such as a test. viewer is
+  # whose view of the map a step's reach is planned over (Workflow#map_viewer), the whole map when nil.
+  Facts = Data.define(:workspace, :tools, :viewer) do
+    def initialize(tools: [], workspace: nil, viewer: nil) = super
 
     def tool(name) = tools.find { |each| each.name == name }
   end
@@ -187,7 +188,7 @@ module Workflow::StepKinds
       defaults: defaults, routes: routes, conditions: conditions, route_labels: route_labels, waits: klass.waits?,
       outputs: ->(step, _facts) { klass.output_fields(step["config"].to_h) },
       effect: ->(step, facts) { facts.workspace && klass.changes?(step["config"].to_h, facts.workspace) ? EFFECT_CHANGES : EFFECT_READS },
-      reach: ->(step, facts) { facts.workspace ? klass.reach(step["config"].to_h, facts.workspace).to_a : [] },
+      reach: ->(step, facts) { facts.workspace ? klass.reach(step["config"].to_h, facts.workspace, viewer: facts.viewer).to_a : [] },
       checks_first: ->(step, facts) { facts.workspace.present? && klass.checks_first?(step["config"].to_h, facts.workspace) }
     ))
   end

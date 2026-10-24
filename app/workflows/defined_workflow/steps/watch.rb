@@ -47,10 +47,10 @@ class DefinedWorkflow::Steps::Watch < DefinedWorkflow::Steps::Base
       end
     end
 
-    def reach(config, workspace)
+    def reach(config, workspace, viewer: nil)
       Array(config[KEY_STEPS]).select { |each| each.is_a?(Hash) }.flat_map do |each|
         tool = each[KEY_TOOL].presence || Chat::Watch::Step.read_key(each[KEY_CAPABILITY])&.then { |key| Integrations::Capabilities.spec(key).tool_name }
-        tool ? DefinedWorkflow::Reach.for_tool(workspace, tool, each[KEY_ARGUMENTS].to_h.merge(each.slice(KEY_RESOURCE, KEY_CONNECTION))) : []
+        tool ? DefinedWorkflow::Reach.for_tool(workspace, tool, each[KEY_ARGUMENTS].to_h.merge(each.slice(KEY_RESOURCE, KEY_CONNECTION)), viewer: viewer) : []
       end.uniq(&:key)
     end
 

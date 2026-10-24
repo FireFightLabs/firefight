@@ -43,7 +43,7 @@ class DefinedWorkflow::Steps::PageOnCall < DefinedWorkflow::Steps::FirefightTool
     def output_fields(_config) = [ OUTPUT_ON_CALL, OUTPUT_PAGED, OUTPUT_ANSWER, OUTPUT_DATA ]
 
     # Paging needs the change, and reading who is on call the on-call connection's reads.
-    def reach(config, workspace)
+    def reach(config, workspace, **)
       integration = workspace.paging_connection(config[KEY_TOOL])
       reads = integration ? [ DefinedWorkflow::Reach.read_pack(integration.id) ].compact.map { |role| DefinedWorkflow::Reach::Needed.of_role(role) } : []
       (super + reads).uniq(&:key)

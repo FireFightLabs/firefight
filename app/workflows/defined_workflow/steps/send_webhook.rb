@@ -48,7 +48,7 @@ class DefinedWorkflow::Steps::SendWebhook < DefinedWorkflow::Steps::CallTool
       found
     end
 
-    def reach(_config, workspace)
+    def reach(_config, workspace, **)
       action = Ability::Action.lookup(ACTION, workspace)
       action ? [ DefinedWorkflow::Reach::Needed.of_action(action) ] : []
     end

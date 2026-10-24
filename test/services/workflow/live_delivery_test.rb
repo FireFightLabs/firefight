@@ -28,6 +28,19 @@ class Workflow::LiveDeliveryTest < ActiveSupport::TestCase
     assert_broadcasts @stream, 2
   end
 
+  test "a trailing say that fails to queue is booked again by the next change in the window" do
+    Workflow::LiveDelivery.changed(workflow_id: @workflow.id, part: PART)
+
+    ActiveJob::ConfiguredJob.any_instance.stubs(:perform_later).raises(ActiveJob::EnqueueError, "queue down")
+    assert_no_enqueued_jobs(only: WorkflowPageSignalJob) { Workflow::LiveDelivery.changed(workflow_id: @workflow.id, part: PART) }
+
+    ActiveJob::ConfiguredJob.any_instance.stubs(:perform_later).returns(false)
+    assert_no_enqueued_jobs(only: WorkflowPageSignalJob) { Workflow::LiveDelivery.changed(workflow_id: @workflow.id, part: PART) }
+
+    ActiveJob::ConfiguredJob.any_instance.unstub(:perform_later)
+    assert_enqueued_jobs(1, only: WorkflowPageSignalJob) { Workflow::LiveDelivery.changed(workflow_id: @workflow.id, part: PART) }
+  end
+
   test "a delivery that fails is logged and never fails the change that committed" do
     ActionCable.server.stubs(:broadcast).raises(IOError, "cable down")
 

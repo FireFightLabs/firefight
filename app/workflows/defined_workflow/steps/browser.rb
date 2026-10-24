@@ -68,7 +68,7 @@ class DefinedWorkflow::Steps::Browser < DefinedWorkflow::Steps::CallTool
     end
 
     # Looking is open to everyone. Sending needs browser.update granted.
-    def reach(config, workspace)
+    def reach(config, workspace, **)
       action = sends?(config) && Ability::Action.lookup(Ability::Action::BROWSER_SUBMIT, workspace)
       action ? [ DefinedWorkflow::Reach::Needed.of_action(action) ] : []
     end
