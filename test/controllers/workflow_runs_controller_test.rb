@@ -49,7 +49,7 @@ class WorkflowRunsControllerTest < ActionDispatch::IntegrationTest
     assert_empty @workflow.runs
   end
 
-  test "the canvas shows a run with each step's input, output and ledger rows, and the newest run's states" do
+  test "the canvas shows a run with each step's input, output and log, and the newest run's states" do
     steps!(step("pause", "delay", { "seconds" => 0 }))
     run = try!
     sign_in(users(:bob), @workspace)
@@ -59,7 +59,8 @@ class WorkflowRunsControllerTest < ActionDispatch::IntegrationTest
     detail = inertia_props["run"]
     assert_equal [ run.id, "succeeded", true ], detail.values_at("id", "status", "test")
     pause = detail["steps"].sole
-    assert_equal [ "pause", "succeeded", [] ], pause.values_at("stepKey", "status", "invocations")
+    assert_equal [ "pause", "succeeded", nil, nil ], pause.values_at("stepKey", "status", "now", "watch")
+    assert_equal [ "Started.", "Done." ], pause["log"].map { |entry| entry["text"] }
     assert pause["output"].key?("waited_until")
     assert_not inertia_props["document"]["editable"]
 

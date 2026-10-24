@@ -19,6 +19,9 @@ class Workflow < ApplicationRecord
   include Workflow::Chatting
   include Workflow::Showing
   include Workflow::ForHalon
+  include Workflow::LiveSignal
+
+  shown_on_workflow_page PART_CANVAS
 
   AUTHOR_PERSON = "person".freeze
   AUTHOR_HALON = "halon".freeze
@@ -79,11 +82,24 @@ class Workflow < ApplicationRecord
 
   def draft = versions.find_by(status: Workflow::Version::STATUS_DRAFT)
 
+  # The live version holds this copy of its workflow, as a draft does through versions, so what its steps read of the
+  # workspace (its connections' tools, its abilities) is read once rather than again for a second copy.
+  def live_version
+    super&.tap { |version| version.association(:workflow).target = self }
+  end
+
   # The notification channel of the team that owns it, from the catalog, where it says what happened when nothing
   # nearer is named.
   def team_channel_id = owner_team&.role_value(CatalogAttributeDefinition::ROLE_NOTIFICATION_CHANNEL).presence
 
   def live? = live_version_id.present?
+
+  # Whether someone may follow its page as it changes, by the page's own rule: a member of its workspace who may read
+  # workflows.
+  def watchable_by?(user)
+    member = user && workspace.workspace_memberships.find_by(user: user)
+    member.present? && member.may?(Ability::Action::RESOURCE_WORKFLOWS, Ability::Action::ACTION_READ, workspace)
+  end
 
   # Why a run cannot start now, as a sentence, or nil when it can.
   def start_blocked_reason

@@ -7,9 +7,10 @@ export default interface WorkflowRunStep {
   error?: string
   finishedAt?: string
   input?: Record<string, unknown>
-  invocations: { id: string; actionKey: string; decision: "allow" | "deny" | "pending"; outcome: string | null; errorSummary: string | null; durationMs: number | null; approvalStatus: string | null; createdAt: string }[]
   iteration: string
+  log: { id: string; at: string; until: string | null; count: number; text: string; detail: string | null; tone: "neutral" | "good" | "bad" | "waiting" }[]
   note?: string
+  now?: string
   output?: Record<string, unknown>
   rerunBlockedReason?: string
   retryBlockedReason?: string
@@ -25,4 +26,5 @@ export default interface WorkflowRunStep {
   stepKey: string
   stoodIn: boolean
   waitingApproval: boolean
+  watch?: { active: boolean; headline: string; reads: string; basis: string; checkedAt: string | null; nextCheckAt: string | null; expiresAt: string; steps: { id: string; label: string; status: "waiting" | "running" | "repairing" | "succeeded" | "failed" | "unfollowable" | "skipped"; line: string | null; url: string | null; readAt: string | null; lastSeen: string | null }[] }
 }

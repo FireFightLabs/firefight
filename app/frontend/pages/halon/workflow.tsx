@@ -1,6 +1,6 @@
-import { Head, usePage, usePoll } from "@inertiajs/react"
+import { Head, usePage } from "@inertiajs/react"
 import { IconFlask, IconSparkles } from "@tabler/icons-react"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { Button } from "@/components/ui/button"
@@ -23,12 +23,11 @@ import { useCanvasActionsValue } from "@/pages/halon/hooks/use-canvas-actions-va
 import { useCanvasView } from "@/pages/halon/hooks/use-canvas-view"
 import { useVisitInFlight } from "@/pages/halon/hooks/use-visit-in-flight"
 import { useWorkflowAccess } from "@/pages/halon/hooks/use-workflow-access"
-import { CANVAS_VISIT, RUN_VISIT, useWorkflowEdits } from "@/pages/halon/hooks/use-workflow-edits"
+import { useWorkflowEdits } from "@/pages/halon/hooks/use-workflow-edits"
+import { useWorkflowLive } from "@/pages/halon/hooks/use-workflow-live"
 import { CanvasActionsContext } from "@/pages/halon/lib/workflow/canvas-actions"
 import { type Selection, VIEWS, type WorkflowPageProps } from "@/pages/halon/lib/workflow/types"
 
-// Someone else's change, a suggestion of Halon's or a run moving on shows on the canvas within this long.
-const REFRESH_EVERY_MS = 5000
 const OPEN_RUN: readonly string[] = WORKFLOW_RUN_OPEN_STATUSES
 
 export default function WorkflowCanvasPage() {
@@ -46,13 +45,7 @@ export default function WorkflowCanvasPage() {
   const current = document.editable
   const runGoing = run !== null && OPEN_RUN.includes(run.status)
   const visitInFlight = useVisitInFlight()
-  const { start, stop } = usePoll(REFRESH_EVERY_MS, { only: runGoing ? RUN_VISIT.only : CANVAS_VISIT.only, onBefore: () => !visitInFlight.current },
-    { autoStart: false })
-
-  useEffect(() => {
-    start()
-    return stop
-  }, [ start, stop, runGoing ])
+  useWorkflowLive(workflow.id, runGoing, visitInFlight)
 
   function tryWorkflow() {
     setTrying({ upTo: null })

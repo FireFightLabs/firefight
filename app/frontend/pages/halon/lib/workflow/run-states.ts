@@ -35,6 +35,9 @@ export const RUN_STATUS_LABELS: Record<RunStatus, string> = {
   cancelled: "Cancelled",
 }
 
+// A step still at work, whose log is still being written.
+export const STEP_GOING: readonly StepStatus[] = [ WORKFLOW_STEP_STATUS.RUNNING, WORKFLOW_STEP_STATUS.WAITING ]
+
 // The colour a state is told in, beside its words, never instead of them.
 export const STEP_STATUS_TONES: Record<StepStatus, string> = {
   pending: "text-fg-muted",
@@ -57,17 +60,35 @@ export const RUN_STATUS_TONES: Record<RunStatus, string> = {
   cancelled: "border-border-strong text-fg-muted",
 }
 
-// How long something took, as 0.4s, 12s or 3m 4s, or nothing when it has not started.
-export function durationLabel(startedAt: string | null | undefined, finishedAt: string | null | undefined): string {
+// How long something took, as 0.4s, 12s or 3m 4s, or nothing when it has not started. now is the moment a step still
+// going counts to, which a ticking panel passes so the time moves between reloads.
+export function durationLabel(startedAt: string | null | undefined, finishedAt: string | null | undefined, now: number = Date.now()): string {
   if (!startedAt) {
     return ""
   }
-  const milliseconds = (finishedAt ? new Date(finishedAt) : new Date()).getTime() - new Date(startedAt).getTime()
+  const milliseconds = (finishedAt ? new Date(finishedAt).getTime() : now) - new Date(startedAt).getTime()
   if (milliseconds < 10000) {
-    return `${(milliseconds / 1000).toFixed(1)}s`
+    return `${(Math.max(milliseconds, 0) / 1000).toFixed(1)}s`
   }
-  const seconds = Math.round(milliseconds / 1000)
-  return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+  return secondsLabel(Math.round(milliseconds / 1000))
+}
+
+function secondsLabel(seconds: number): string {
+  if (seconds < 60) {
+    return `${seconds}s`
+  }
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+}
+
+// How long until a moment, as "in 35s" or "in 2m 10s", or "any moment now" once it is due.
+export function untilLabel(at: string, now: number): string {
+  const seconds = Math.round((new Date(at).getTime() - now) / 1000)
+  return seconds <= 0 ? "any moment now" : `in ${secondsLabel(seconds)}`
+}
+
+// A moment to the second, in the viewer's own time, for a log where several lines land in one minute.
+export function clockLabel(at: string): string {
+  return new Date(at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })
 }
 
 // One state for a step that ran once for each item of a for each: a failure or a wait shows first, then how many were done.

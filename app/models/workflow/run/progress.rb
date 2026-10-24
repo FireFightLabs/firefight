@@ -15,6 +15,7 @@ module Workflow::Run::Progress
     row = attributes.merge(run_id: id, step_key: step_key, iteration: iteration)
     row[:error] = self.class.redacted(row[:error].to_s.lines.first.to_s.strip).truncate(ERROR_LIMIT).presence
     Workflow::Run::Step.upsert_all([ row ], unique_by: %i[run_id step_key iteration], update_only: (attributes.keys + [ :error ]).uniq)
+    signal_workflow_page
   end
 
   # Moves the run to what the engine says, with a started step making a queued run running.

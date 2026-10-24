@@ -11,16 +11,39 @@ import { cn } from "@/lib/utils"
 import { dollars, dollarsFromMicros, formatDateTime } from "@/lib/formatters"
 import { cancelWorkflowRunPath, pinWorkflowRunPath, unpinWorkflowRunPath } from "@/lib/routes"
 import { JsonBlock } from "@/pages/halon/components/workflow/json-block"
+import { RunStepRows } from "@/pages/halon/components/workflow/run-step-rows"
+import { useNow } from "@/pages/halon/hooks/use-now"
 import { WhatStartedIt } from "@/pages/halon/components/workflow/what-started-it"
 import { useWorkflowAccess } from "@/pages/halon/hooks/use-workflow-access"
 import { RUN_VISIT } from "@/pages/halon/hooks/use-workflow-edits"
-import { durationLabel, RUN_STATUS_LABELS, RUN_STATUS_TONES } from "@/pages/halon/lib/workflow/run-states"
-import type { WorkflowRunDetail } from "@/types/serializers"
+import { durationLabel, RUN_STATUS_LABELS, RUN_STATUS_TONES, STEP_GOING, untilLabel } from "@/pages/halon/lib/workflow/run-states"
+import { WORKFLOW_RUN_OPEN_STATUSES, WORKFLOW_RUN_STATUS } from "@/lib/generated/constants"
+import type { WorkflowRunDetail, WorkflowStepNode } from "@/types/serializers"
 
-// The run shown, when no step is picked: how it ended, who started it and with what, what it handed back and the error
-// that stopped it, with Stop for a run still going and Pin, which keeps its details past the workspace's run history.
-export function RunSummary({ workflowId, run }: { workflowId: string; run: WorkflowRunDetail }) {
+const OPEN_RUN: readonly string[] = WORKFLOW_RUN_OPEN_STATUSES
+
+interface RunSummaryProps {
+  workflowId: string
+  run: WorkflowRunDetail
+  steps: WorkflowStepNode[]
+  // Opens a step's whole log.
+  onPick: (stepId: string) => void
+}
+
+interface NowLine {
+  key: string
+  text: string
+}
+
+// The run shown, when no step is picked: how it stands, what each step still going is doing right now, every step it
+// reached with its state and latest line (each opening its whole log), who started it and with what, what it handed back
+// and the error that stopped it, with Stop for a run still going and Pin, which keeps its details past the workspace's
+// run history.
+export function RunSummary({ workflowId, run, steps, onPick }: RunSummaryProps) {
   const canManage = useWorkflowAccess().manage
+  const going = OPEN_RUN.includes(run.status)
+  const now = useNow(going)
+  const happening = going ? nowLines(run, steps, now) : []
   const [ cancelling, setCancelling ] = useState(false)
 
   function askCancel() {
@@ -49,11 +72,25 @@ export function RunSummary({ workflowId, run }: { workflowId: string; run: Workf
         </div>
         <p className="text-xs text-fg-muted">
           {run.startedSentence} · {formatDateTime(run.createdAt)}
-          {run.startedAt && ` · ${durationLabel(run.startedAt, run.finishedAt)}`}
+          {run.startedAt && ` · ${durationLabel(run.startedAt, run.finishedAt, now)}`}
         </p>
-        <p className="text-xs text-fg-muted">Pick a step on the canvas to see what it took in, gave back and called.</p>
       </header>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
+        {going && (
+          <section className="space-y-1 rounded-sm border border-warning-border bg-warning-tint px-2.5 py-2" aria-label="Now" aria-live="polite">
+            <h5 className="text-[11px] font-medium text-warning">Now</h5>
+            {happening.map((line) => (
+              <p key={line.key} className="text-xs text-fg-primary [overflow-wrap:anywhere]">{line.text}</p>
+            ))}
+          </section>
+        )}
+        {!run.detailsPruned && (
+          <section className="space-y-1" aria-label="Steps">
+            <h5 className="text-[11px] font-medium text-fg-secondary">Steps</h5>
+            <RunStepRows run={run} steps={steps} now={now} onPick={onPick} />
+            <p className="text-[11px] text-fg-muted">Pick a step here or on the canvas for everything it did.</p>
+          </section>
+        )}
         {run.detailsPruned && <p className="text-xs text-fg-muted">This run&apos;s details went with the workspace&apos;s run history. Its one line stays.</p>}
         {run.error && <p className="rounded-sm border border-error-border bg-error-tint px-2.5 py-2 text-xs text-error [overflow-wrap:anywhere]">{run.error}</p>}
         {run.notes.length > 0 && (
@@ -108,4 +145,24 @@ export function RunSummary({ workflowId, run }: { workflowId: string; run: Workf
       />
     </div>
   )
+}
+
+// What the run is doing this moment: each step still going with what it is doing and when a watch reads next, or why
+// nothing is moving yet.
+function nowLines(run: WorkflowRunDetail, steps: WorkflowStepNode[], now: number): NowLine[] {
+  const lines = run.steps.filter((row) => STEP_GOING.includes(row.status)).map((row) => {
+    const title = steps.find((step) => step.id === row.stepKey)?.title ?? row.stepKey
+    const next = row.watch?.active && row.watch.nextCheckAt ? ` It reads next ${untilLabel(row.watch.nextCheckAt, now)}.` : ""
+    return { key: row.id, text: `${title}: ${row.now ?? "Working on it."}${next}` }
+  })
+  if (lines.length > 0) {
+    return lines
+  }
+  if (run.status === WORKFLOW_RUN_STATUS.QUEUED) {
+    return [ { key: WORKFLOW_RUN_STATUS.QUEUED, text: "Waiting for a worker to start it." } ]
+  }
+  if (run.status === WORKFLOW_RUN_STATUS.PAUSED) {
+    return [ { key: WORKFLOW_RUN_STATUS.PAUSED, text: "Paused. It carries on once it is resumed." } ]
+  }
+  return [ { key: "between", text: "Moving on to the next step." } ]
 }

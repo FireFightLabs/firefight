@@ -41,6 +41,9 @@ class Workflow::Run::Step < ApplicationRecord
     { workflow_run_id: run.id, workflow_step_key: record&.step_key, workflow_iteration: record&.iteration.presence }.compact
   end
 
+  # What a gateway call made for this step carries, such as each read a watch it keeps makes.
+  def ledger_context = self.class.ledger_context(run, self)
+
   # The gateway's record of each call the step made: what it called, whether it was allowed, held or refused, and how it
   # ended.
   def invocations

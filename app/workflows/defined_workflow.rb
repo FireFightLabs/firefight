@@ -36,6 +36,7 @@ class DefinedWorkflow < SolidWorkflow::Interpreter
   STEP_SKIPPED = SolidWorkflow::Step.statuses.fetch("skipped")
   STEP_CANCELLED = SolidWorkflow::Step.statuses.fetch("cancelled")
   STEP_WAITING = SolidWorkflow::Step.statuses.fetch("waiting")
+  STEP_RUNNING = SolidWorkflow::Step.statuses.fetch("running")
   # What a step does when it fails, and the routes and fields the engine's own steps hand on, which the canvas offers.
   ON_FAILURE = SolidWorkflow::Definition::ON_FAILURE
   ON_FAILURE_STOP = SolidWorkflow::Definition::ON_FAILURE_STOP

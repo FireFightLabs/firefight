@@ -60,7 +60,7 @@ class WorkflowCanvasController < InertiaController
   # Each prop is worked out only when the visit asks for it, so asking Halon beside the canvas reads back the chat alone.
   def show
     render inertia: "halon/workflow", props: {
-      PROP_WORKFLOW => -> { WorkflowDetailSerializer.one(Workflow.with_run_counts.includes(:latest_run, :owner_team, :agent).find(workflow.id)) },
+      PROP_WORKFLOW => -> { WorkflowDetailSerializer.one(current_workspace.workflows.with_run_counts.includes(:latest_run, :owner_team, :agent).find(workflow.id)) },
       PROP_DOCUMENT => -> { document },
       PROP_RUNS => -> { WorkflowRunRowSerializer.many(workflow.runs.where(parent_run_id: nil).includes(:version, :started_by).newest_first.limit(RUNS_SHOWN)) },
       PROP_RUN => -> { shown_run && WorkflowRunDetailSerializer.one(shown_run, member: current_membership) },
@@ -68,8 +68,8 @@ class WorkflowCanvasController < InertiaController
       PROP_VERSIONS => -> { WorkflowVersionRowSerializer.many(workflow.versions.includes(:author, :published_by).newest_first.limit(VERSIONS_SHOWN)) },
       PROP_SUGGESTIONS => -> { suggestions_shown },
       PROP_HALON_CHANGES => -> { WorkflowHalonChangeSerializer.many(workflow.halon_changes(shown), workflow: workflow) },
-      PROP_STEP_KINDS => -> { WorkflowStepKindSerializer.many(Workflow::StepKinds.offered, facts: Workflow::StepKinds::Facts.new(workspace: current_workspace)) },
-      PROP_TRIGGER_KINDS => -> { WorkflowTriggerKindSerializer.many(Workflow::TriggerKinds.all, facts: Workflow::StepKinds::Facts.new(workspace: current_workspace)) },
+      PROP_STEP_KINDS => -> { WorkflowStepKindSerializer.many(Workflow::StepKinds.offered, facts: step_facts) },
+      PROP_TRIGGER_KINDS => -> { WorkflowTriggerKindSerializer.many(Workflow::TriggerKinds.all, facts: step_facts) },
       PROP_TOOLS => InertiaRails.defer { tools_offered },
       PROP_PUBLISH_REQUESTS => -> { publish_requests },
       PROP_MY_PUBLISH_REQUEST => -> { my_publish_request },
@@ -84,10 +84,16 @@ class WorkflowCanvasController < InertiaController
 
   private
 
+  # Read through the workspace so every prop shares its one copy, and the connections' tools a step's reach and problems
+  # read are read once a visit rather than once for each copy of the workspace.
+  def workflow
+    @workflow ||= current_workspace.workflows.find(params[:id])
+  end
+
   def shown_run
     return @shown_run if defined?(@shown_run)
 
-    @shown_run = params[RUN_QUERY_PARAM].presence && workflow.runs.find_by(id: params[RUN_QUERY_PARAM])
+    @shown_run = params[RUN_QUERY_PARAM].presence && workflow.runs.includes(steps: :chat).find_by(id: params[RUN_QUERY_PARAM])
   end
 
   def shown
@@ -95,7 +101,7 @@ class WorkflowCanvasController < InertiaController
   end
 
   def document
-    WorkflowDocumentSerializer.one(shown, facts: facts_for(Workflow::Version.all_steps(shown.steps)), workflow: workflow,
+    WorkflowDocumentSerializer.one(shown, facts: step_facts, workflow: workflow,
                                           last_changes: shown_run || !shown.persisted? ? {} : shown.last_changes, pins: shown.pins,
                                           read_only: shown_run.present?)
   end
@@ -103,7 +109,7 @@ class WorkflowCanvasController < InertiaController
   def suggestions_shown
     suggestions = workflow.proposals.includes(:workflow, :source_run, source_chat: :owner).to_a
     WorkflowSuggestionSerializer.many(suggestions, document: (workflow.draft || workflow.live_version || workflow.empty_version).snapshot,
-                                                   facts: facts_for(suggestions.map { |suggestion| suggestion.payload["step"].to_h }),
+                                                   facts: step_facts,
                                                    workflow: workflow)
   end
 
@@ -171,13 +177,9 @@ class WorkflowCanvasController < InertiaController
     @last_run ||= workflow.runs.where(version: version, parent_run_id: nil).includes(:steps).newest_first.first
   end
 
-  # Tools are only looked up when a step calls one, since building the list reads every connection's schemas.
-  def facts_for(steps)
-    calls_tool = steps.any? { |step| step["kind"] == Workflow::StepKinds::KIND_CALL_TOOL }
-    calls_tool ? tool_facts : Workflow::StepKinds::Facts.new(workspace: current_workspace)
-  end
-
-  def tool_facts = @tool_facts ||= Workflow::StepKinds::Facts.new(workspace: current_workspace, tools: tool_choices)
+  # What a kind's lambdas read of the workspace. The tools list stays out, since no node, kind or suggestion reads it
+  # and building it reads every connection's schemas, which every poll of the canvas would pay for.
+  def step_facts = @step_facts ||= Workflow::StepKinds::Facts.new(workspace: current_workspace)
 
   def tool_choices = @tool_choices ||= Chat::Tools::Choices.tools(current_workspace)
 

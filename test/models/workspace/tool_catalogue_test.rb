@@ -9,6 +9,7 @@ class Workspace::ToolCatalogueTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+    Workspace::ToolCatalogue::IN_PROCESS.clear
     @fake = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "fake", name: "Fake", slug: "fake")
     @environment = @fake.integration_environments.create!(credentials: { token: "secret-token-value" }.to_json)
     @echo = @fake.tools.create!(name: "echo_text", description: "Echoes", params_schema: { "type" => "object" }, enabled: true, read_only: true)
@@ -42,6 +43,16 @@ class Workspace::ToolCatalogueTest < ActiveSupport::TestCase
     Workspace.find(@workspace.id).switched_on_tools
 
     assert_equal 0, whole_reads { Workspace.find(@workspace.id).switched_on_tools }
+  end
+
+  test "a process reads the kept rows from the shared cache once while they stay the same, and again once they change" do
+    Workspace.find(@workspace.id).switched_on_tools
+    Rails.cache.expects(:fetch).never
+    3.times { Workspace.find(@workspace.id).switched_on_tools }
+
+    Rails.cache.unstub(:fetch)
+    @echo.update!(description: "Echoes back")
+    assert_equal "Echoes back", Workspace.find(@workspace.id).switched_on_tools.find { |tool| tool.id == @echo.id }.description
   end
 
   test "reading them again on the same workspace reads nothing whole, however many times" do
