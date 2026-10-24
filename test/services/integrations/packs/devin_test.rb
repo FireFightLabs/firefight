@@ -186,7 +186,7 @@ module Integrations
       end
 
       test "the key is checked against Devin, and a service user of another organization is refused on the form" do
-        assert_equal "Enter the ACU limit as a whole number above zero, or leave it empty.",
+        assert_equal "Enter the spending limit (ACUs) as a whole number above zero, or leave it empty.",
                      Devin.credential_refusal({ Devin::API_KEY => "cog_key" }, fields: { Devin::ORGANIZATION => "org-abc", Devin::MAX_ACUS => "0" })
         DevinApi.any_instance.stubs(:whoami).returns("principal_type" => "service_user", "org_id" => "org-other")
         assert_equal "This service user belongs to the organization org-other, not org-abc.",

@@ -12,7 +12,7 @@ class TokenFieldsConnectTest < ApplicationSystemTestCase
 
     within("[role=dialog]") do
       click_button "Use a token instead"
-      assert_no_field "Authorization header"
+      assert_no_field "Access key (sent as the Authorization header)"
       fill_in "Key ID", with: "id-1"
       fill_in "Key secret", with: "s3cret"
       assert_equal "password", find_field("Key secret")[:type]

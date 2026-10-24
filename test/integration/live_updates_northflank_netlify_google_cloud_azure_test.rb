@@ -106,7 +106,7 @@ class LiveUpdatesNorthflankNetlifyGoogleCloudAzureTest < ActionDispatch::Integra
     Integrations::GoogleCloudApi.any_instance.stubs(:log_entries_since).raises(Integrations::GoogleCloudApi::Forbidden, "Google Cloud answered 403: Permission denied")
     Integrations::MapEventPollJob.perform_now(row)
     assert_not row.reload.live_updates.on
-    assert_equal "Firefight could not follow Google Cloud's changes: Google Cloud answered 403: Permission denied. The map still updates at each sweep.", row.live_updates.reason
+    assert_equal "Firefight could not follow Google Cloud's changes: Google Cloud answered 403: Permission denied. The map still updates at each hourly sweep.", row.live_updates.reason
   end
 
   test "Azure: each five minutes the activity log is read, and an app deleted there is taken off the map" do

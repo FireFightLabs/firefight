@@ -21,7 +21,7 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
   test "an admin sends a provider's changes to the connection's address and saves its secret, and the map says live updates are on" do
     visit integrations_path(Integration::DETAILS_QUERY_PARAM => @row.integration_id)
 
-    assert_text "Live updates: off"
+    assert_selector "[data-live-status]", exact_text: "Off"
     assert_text "Send Northflank's changes to Firefight and save the signing secret under Integrations to turn them on."
     assert_text "/api/v1/map_events/#{@row.map_events_token}"
     assert_text LiveTestEvents.setup_steps.first
@@ -32,7 +32,7 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
     click_button "Save secret"
 
     assert_toast "Signing secret saved. Changes Northflank sends now reach the map."
-    assert_text "Live updates: on, no change received yet"
+    assert_selector "[data-live-status]", exact_text: "On, no change received yet"
     assert_equal "whsec", @row.reload.map_events_secret
     page.scroll_to(find("#map-events-secret-#{@row.id}"), align: :center)
     page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-saved.png"))
@@ -56,12 +56,12 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
     vercel.update!(map_events_error: "Vercel answered 403: Webhooks are not available on the Hobby plan. #{Integrations::MapEventSources::Vercel::PLAN_NOTE}")
 
     visit integrations_path(Integration::DETAILS_QUERY_PARAM => render.integration_id)
-    assert_text "Live updates: on, last event 3 minutes ago"
+    assert_selector "[data-live-status]", exact_text: "On, last event 3 minutes ago"
     assert_no_selector "#map-events-secret-#{render.id}"
     page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-render.png"))
 
     visit integrations_path(Integration::DETAILS_QUERY_PARAM => vercel.integration_id)
-    assert_text "Live updates: off"
+    assert_selector "[data-live-status]", exact_text: "Off"
     assert_text "Firefight could not follow Vercel's changes: Vercel answered 403: Webhooks are not available on the Hobby plan."
     page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-vercel-refused.png"))
   end
@@ -76,11 +76,11 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
     Integrations::MapEvents.prepare!(render)
 
     visit integrations_path(Integration::DETAILS_QUERY_PARAM => render.integration_id)
-    assert_text "Live updates: off"
+    assert_selector "[data-live-status]", exact_text: "Off"
     assert_text "Firefight asks before adding its webhook to Render."
     page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-render-turn-on.png"))
 
-    click_button "Turn on"
+    click_button "Turn on live updates"
     within(find("[role='dialog']", text: "Turn on live updates?")) do
       assert_text Integrations::MapEventSources::Render::ONLY_WEBHOOK
       page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-render-confirm.png"))
@@ -89,17 +89,17 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
     # The toast is hidden from view until the dialog has closed.
     assert_no_selector "[role='dialog']", text: "Turn on live updates?"
     assert_toast "Live updates are on. Changes Render sends now reach the map."
-    assert_text "Live updates: on, no change received yet"
+    assert_selector "[data-live-status]", exact_text: "On, no change received yet"
     assert_equal({ "tea-1" => "whk-1" }, JSON.parse(render.reload.map_events_webhook_id))
 
     # A fresh page, so the turn on toast is gone before the turn off one shows.
     visit integrations_path(Integration::DETAILS_QUERY_PARAM => render.integration_id)
-    click_button "Turn off"
+    click_button "Turn off live updates"
     within(find("[role='dialog']", text: "Turn off live updates?")) { click_button "Turn off" }
     # The toast is hidden from view until the dialog has closed.
     assert_no_selector "[role='dialog']", text: "Turn off live updates?"
-    assert_toast "Live updates are off. Firefight removed its webhook from Render."
-    assert_text "Live updates were turned off, so the map updates at each sweep."
+    assert_toast "Live updates are off. Firefight removed its webhook from Render, and changes reach the map at each hourly sweep."
+    assert_text "Changes reach the map at each hourly sweep until someone turns them on again."
   end
 
   test "an admin adds each PlanetScale database's signing secret, and can forget them all to start over" do
@@ -109,7 +109,7 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
     row.give_map_events_token!
 
     visit integrations_path(Integration::DETAILS_QUERY_PARAM => planetscale.id)
-    assert_text "Live updates: off"
+    assert_selector "[data-live-status]", exact_text: "Off"
     assert_text Integrations::MapEventSources::Planetscale.setup_steps.first
     assert_button "Forget secrets", disabled: true
     page.scroll_to(find("#map-events-secret-#{row.id}"), align: :center)
@@ -122,7 +122,7 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
     fill_in "map-events-secret-#{row.id}", with: "second-database-secret"
     click_button "Add secret"
     assert_toast "Signing secret added. PlanetScale now has 2 signing secrets saved, and a change signed with any one reaches the map."
-    assert_text "Live updates: on, no change received yet"
+    assert_selector "[data-live-status]", exact_text: "On, no change received yet"
     assert_selector "#map-events-secret-#{row.id}[placeholder='2 saved. Paste another to add it']"
     page.scroll_to(find("#map-events-secret-#{row.id}"), align: :center)
     page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-planetscale-saved.png"))
@@ -137,7 +137,7 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
     # The toast is hidden from view until the dialog has closed.
     assert_no_selector "[role='dialog']", text: "Forget signing secrets?"
     assert_toast "Signing secrets forgotten. Changes PlanetScale sends no longer reach the map until you add a secret again."
-    assert_text "Live updates: off"
+    assert_selector "[data-live-status]", exact_text: "Off"
     assert_empty row.reload.map_events_secrets
   end
 
@@ -154,7 +154,7 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
 
     visit integrations_path(Integration::DETAILS_QUERY_PARAM => integration.id)
 
-    assert_text "Live updates: on"
+    assert_selector "[data-live-status]", text: "On"
     assert_text "Get changes instantly"
     assert_text "Sending, last heard from just now"
     assert_text "Not sending yet"

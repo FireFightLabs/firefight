@@ -490,10 +490,10 @@ module Chat::Tools
     end
 
     made_with = Integration::Tool.by_action_key(workspace, mitigation.action_key)
-    return ASK_HALON_TO_PUT_BACK unless mitigation.undo_steps.any? || (made_with && Integrations::SafeChanges.declares_undo?(made_with))
+    put_back = made_with && (Integrations::SafeChanges.declares_undo?(made_with) || Integrations::Mitigations.undo_arguments(made_with, mitigation.arguments))
+    return ASK_HALON_TO_PUT_BACK unless mitigation.undo_steps.any? || put_back
 
-    tool = Target.label(workspace, mitigation.tool_name)
-    tool && Integrations::Mitigations.undo_words(tool, mitigation.arguments)
+    Integrations::Mitigations.undo_words(made_with, mitigation.arguments) if made_with
   end
 
   # How the plan step this call carries out says to put it back, while that step is running. A step of a plan's own undo

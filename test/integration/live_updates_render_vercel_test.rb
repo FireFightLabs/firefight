@@ -60,7 +60,7 @@ class LiveUpdatesRenderVercelTest < ActionDispatch::IntegrationTest
     state = row.reload.live_updates
     assert_not state.on
     assert_equal "Firefight could not follow Render's changes: Render answered 400: webhook limit reached. " \
-                 "#{Integrations::MapEventSources::Render::PLAN_NOTE}. Firefight tries again tomorrow. The map still updates at each sweep.", state.reason
+                 "#{Integrations::MapEventSources::Render::PLAN_NOTE}. Firefight tries again tomorrow. The map still updates at each hourly sweep.", state.reason
     Integrations::MapEvents.connection_removed(row.integration)
 
     row.update!(map_events_webhook_id: "whk-1", map_events_secret: RENDER_SECRET, map_events_error: nil)

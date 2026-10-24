@@ -38,7 +38,7 @@ class LiveUpdatesKubernetesFlyTest < ActionDispatch::IntegrationTest
     assert_not state.on
     assert_equal "Firefight could not follow Kubernetes's changes: The token's role may not watch deployments in production, which following " \
                  "changes as they happen needs. Allow watch beside get and list on what Firefight reads. Firefight tries again tomorrow. " \
-                 "The map still updates at each sweep.", state.reason
+                 "The map still updates at each hourly sweep.", state.reason
   end
 
   test "Fly.io: an app whose machines changed is read again, and one removed goes" do

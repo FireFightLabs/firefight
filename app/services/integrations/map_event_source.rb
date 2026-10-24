@@ -39,8 +39,16 @@ module Integrations
   #   handshake(payload, headers:)            for a provider that confirms the address it was given before it sends
   #                                           anything, the answer to a verified delivery that asks for that
   #                                           confirmation, or nil for any other delivery
-  #   turn_off_words                          for a provider that both polls and registers, what turning its
-  #                                           registration off does, since its change log is still read
+  #   turn_on_words                           for a provider that registers, what turning it on gains, said before what
+  #                                           confirmation_for says it costs
+  #   turn_off_words                          for a provider that registers, what turning its registration off does,
+  #                                           such as its change log still being read
+  #   deliveries_name                         for a provider that both polls and is sent changes, what the second way in
+  #                                           is called, such as instant updates, so the connection says each apart
+  #   deliveries_words                        for a provider set up by hand, what a verified delivery does, when that is
+  #                                           not a change read again onto the map
+  #   makes_secret?                           true for a provider set up by hand that takes whatever secret it is given,
+  #                                           so Firefight makes it and shows it once rather than asking a person to
   #   installation_of(payload, headers:)      for a provider that sends every connection's changes to one address for its
   #                                           app, the installation they are about, matched to a connection's own
   #                                           (IntegrationEnvironment#installation_id). The delivery is verified with
@@ -162,7 +170,15 @@ module Integrations
 
       def handshake(_payload, headers:) = nil
 
+      def turn_on_words = nil
+
       def turn_off_words = nil
+
+      def deliveries_name = nil
+
+      def deliveries_words = nil
+
+      def makes_secret? = false
 
       def registers? = respond_to?(:register)
 

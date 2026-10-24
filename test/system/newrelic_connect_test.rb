@@ -30,7 +30,7 @@ class NewrelicConnectTest < ApplicationSystemTestCase
     end
     find("[role=option]", text: "Japan (one.jp.newrelic.com)").click
     within("[role=dialog]") do
-      assert_field "MCP server URL", with: "https://mcp.jp.newrelic.com/mcp/"
+      assert_field "Server address", with: "https://mcp.jp.newrelic.com/mcp/"
       fill_in "Account ID", with: ""
       assert_button "Connect & discover tools", disabled: true
       fill_in "Account ID", with: "7654321"
