@@ -372,7 +372,7 @@ The canvas never decides a kind on its own. `Workflow::StepKinds` (`app/models/w
 | `teams`, `myPublishRequest`, `workflowAccess` | | The owning teams the settings offer, the person's request to publish, and what they may do |
 | `places`, `watchReads` | `RunbookPlaceSerializer`, `RunbookWatchReadSerializer` | Deferred. What is on the map, and what a watch can read of it, which a step's settings pick from (`hooks/use-canvas-choices.ts`) |
 | `otherWorkflows`, `timeZones` | | What the Run workflow and Delay editors pick from |
-| `liveReadAt` | | When the props were read, which the live connection names ([The page keeps itself up to date](#the-page-keeps-itself-up-to-date)) |
+| `liveReadAt` | | The time taken before the visit reads any prop, so everything it shows is at least that new, which the live connection names as where to catch up from ([The page keeps itself up to date](#the-page-keeps-itself-up-to-date)) |
 | `runs` | `WorkflowRunRowSerializer` | The newest 50 runs, test runs among them |
 | `run` | `WorkflowRunDetailSerializer` | The run `?run=` names, with each step's row (`WorkflowRunStepSerializer`), or null |
 | `lastRun` | `WorkflowRunStatesSerializer` | The newest run of the version shown, for Last run |
