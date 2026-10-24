@@ -24,6 +24,7 @@ module Workflow::Version::Publishing
       raise ActiveRecord::Rollback unless moved == 1
 
       Workflow.where(id: workflow_id).update_all(live_version_id: id, updated_at: Time.current)
+      signal_workflow_page
       true
     end
     raise Workflow::Edit::Refused, "Someone changed the draft since you looked, so look again before publishing." unless published
@@ -38,6 +39,7 @@ module Workflow::Version::Publishing
                       .update_all(status: Workflow::Version::STATUS_DISCARDED, updated_at: Time.current)
     raise Workflow::Edit::Refused, "Only a draft can be thrown away." unless moved == 1
 
+    signal_workflow_page
     reload
   end
 

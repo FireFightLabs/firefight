@@ -27,6 +27,8 @@ module Ability
     scope :live, -> { where(expires_at: nil).or(where(expires_at: Time.current..)) }
 
     after_commit :bust_principal_cache
+    # What a workflow's own identity holds shows on its canvas, as Needs grant and in its reach.
+    after_commit :signal_workflow_pages, if: -> { principal_type == Agent.name }
     after_create_commit :settle_pack_requests, if: -> { role_id.present? && principal_type == WorkspaceMembership.name && !no_access? }
 
     def self.grantable_actions(workspace)
@@ -158,6 +160,10 @@ module Ability
       settled = requests.pluck(:id)
       requests.update_all(given_at: Time.current, given_by_id: (granted_by_id if granted_by.is_a?(WorkspaceMembership)), updated_at: Time.current)
       settled.each { |id| PackRequestSettledJob.perform_later(id) }
+    end
+
+    def signal_workflow_pages
+      Workflow.where(agent_id: principal_id).pluck(:id).each { |workflow_id| Workflow::LiveSignal.signal!(workflow_id, Workflow::LiveSignal::PART_CANVAS) }
     end
 
     def bust_principal_cache

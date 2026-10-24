@@ -96,6 +96,10 @@ export function WorkflowEditor(props: WorkflowEditorProps) {
     setShowLastRun(!showLastRun)
   }
 
+  function backToRun() {
+    onSelect(null)
+  }
+
   function closeSide(open: boolean) {
     if (!open) {
       onSelect(null)
@@ -115,8 +119,8 @@ export function WorkflowEditor(props: WorkflowEditorProps) {
     />
   )
   const runPanel = run && (selectedStep
-    ? <RunStepPanel key={selectedStep.id} workflowId={workflowId} run={run} step={selectedStep} canPin={hasDraft} />
-    : <RunSummary workflowId={workflowId} run={run} />)
+    ? <RunStepPanel key={selectedStep.id} workflowId={workflowId} run={run} step={selectedStep} canPin={hasDraft} onBack={backToRun} />
+    : <RunSummary workflowId={workflowId} run={run} steps={document.steps} onPick={opened} />)
   const side = runPanel ?? (
     <Inspector
       workflowId={workflowId}

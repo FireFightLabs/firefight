@@ -24,6 +24,8 @@ module Workflow::Identity
       made = workspace.agents.create!(name: agent_name, slug: free_agent_slug, description: "Runs the #{name} workflow. It holds only what an admin granted it.")
       claimed = self.class.where(id: id, agent_id: nil).update_all(agent_id: made.id, updated_at: Time.current) == 1
       raise ActiveRecord::Rollback unless claimed
+
+      signal_workflow_page
     end
     reload.agent
   end
