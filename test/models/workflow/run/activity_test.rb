@@ -83,6 +83,12 @@ class Workflow::Run::ActivityTest < ActiveSupport::TestCase
     assert_nil activity.watching_for(@row)
   end
 
+  test "a step that failed on a route with nothing after it says which way it went and why" do
+    @row.update!(status: DefinedWorkflow::STEP_FAILED, route: "timed_out", error: "Watch the rollout timed out after 1 hour.", finished_at: Time.current)
+
+    assert_equal [ "Failed. It took the timed out way.", "Watch the rollout timed out after 1 hour." ], activity.log_for(@row).last.values_at(:text, :detail)
+  end
+
   test "a watch kept by a workflow step ledgers each read under the run and the step" do
     watch = watch!
     reader = Conversation::Watches::Reader.new(workspace: @workspace, principal: @alice, conversation: watch.conversation)

@@ -89,6 +89,61 @@ class Conversation::Watches::NewDeployTest < ActiveSupport::TestCase
     assert_equal Chat::Watch::Step::STATUS_SUCCEEDED, watch.steps.sole.reload.status
   end
 
+  test "a commit already live when the watch starts ends it at once as succeeded, saying so by the resource's name, without asking the model" do
+    FirefightAi::WatchJudge.any_instance.unstub(:reading)
+    FirefightAi::WatchJudge.any_instance.expects(:reading).never
+    deploys([ @old ])
+    start(rollout_step("resource" => @service.id, "new_deploy" => { "commit" => OLD }))
+    watch = @conversation.chat.watches.sole
+    step = watch.steps.sole
+    assert_equal "cf0bcbe is already live on web.", step.summary
+
+    check!(watch)
+
+    assert_equal Chat::Watch::Step::STATUS_SUCCEEDED, step.reload.status
+    assert_equal "cf0bcbe is already live on web.", step.reason
+    assert_equal Chat::Watch::STATUS_SUCCEEDED, watch.reload.status
+    assert_match "cf0bcbe is already live on web.", watch.outcome
+  end
+
+  test "a resource the person who asked cannot see on the map is never named, only kept as they gave it" do
+    deploys([ @old ])
+    start(rollout_step("resource" => @service.id, "new_deploy" => { "commit" => NEW }))
+    step = @conversation.chat.watches.sole.steps.sole
+    ResourceMap::Resource.stubs(:visible_to).with(@alice, @workspace).returns(ResourceMap::Resource.none)
+
+    assert_equal @service.id, step.reload.deploy_resource_words
+  end
+
+  test "a named commit that goes live at a later read ends the step at once, whatever the reading says" do
+    FirefightAi::WatchJudge.any_instance.stubs(:reading).returns(Reading.new(state: "running", said: "Still rolling.", parts: []))
+    deploys([ @old ])
+    start(rollout_step("resource" => @service.id, "new_deploy" => { "commit" => NEW }))
+    watch = @conversation.chat.watches.sole
+    step = watch.steps.sole
+    assert_equal "Waiting for f23b4dc to deploy to web (live now: cf0bcbe since #{clock(@old.finished_at)}).", step.summary
+
+    named = Deploys::Deploy.new(id: "dep-named", commit: NEW, status: History::SUCCEEDED, live: true, started_at: @began + 4.minutes, finished_at: @began + 6.minutes)
+    deploys([ named, @old.with(live: false) ])
+    travel(7.minutes) { check!(watch) }
+
+    assert_equal Chat::Watch::Step::STATUS_SUCCEEDED, step.reload.status
+    assert_equal "f23b4dc is live on web (finished #{clock(@began + 6.minutes)}).", step.reason
+    assert_match "f23b4dc is live on web", watch.reload.outcome
+  end
+
+  test "a watch that runs out of time before its deploy came says what it was waiting for" do
+    deploys([ @old ])
+    start(rollout_step("resource" => @service.id, "new_deploy" => { "commit" => NEW }))
+    watch = @conversation.chat.watches.sole
+
+    travel(Chat::Watch::LONGEST + 1.minute) { check!(watch) }
+
+    assert_equal Chat::Watch::STATUS_TIMED_OUT, watch.reload.status
+    assert_match "Last I saw: Production web rollout: Waiting for f23b4dc to deploy to web", watch.outcome
+    assert_no_match "nothing seen yet", watch.outcome
+  end
+
   test "a named tag is read as its commit through the code host, once the release pushed it" do
     github = connect!("github", "GitHub", %w[commit_lookup])
     repository = place!(github, ResourceMap::KIND_REPOSITORY, "firefight", "acme/firefight")

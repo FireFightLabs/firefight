@@ -21,6 +21,7 @@ export default interface WorkflowRunDetail {
   startedAt?: string
   startedByKind: string
   startedByWords: string
+  startedLine?: string
   startedSentence: string
   status: string
   steps: WorkflowRunStep[]

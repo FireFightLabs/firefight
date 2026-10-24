@@ -142,7 +142,8 @@ class Workflow::Run::Activity
     words = ENDED_WORDS[row.status]
     return unless words && row.finished_at
 
-    took = " It took the #{row.route.tr('_', ' ')} way." if row.route.present? && row.status == DefinedWorkflow::STEP_SUCCEEDED
+    # A step fails on a route with nothing after it, so a failed step that took one says which.
+    took = " It took the #{row.route.tr('_', ' ')} way." if row.route.present? && [ DefinedWorkflow::STEP_SUCCEEDED, DefinedWorkflow::STEP_FAILED ].include?(row.status)
     detail = row.error.presence || row.note
     Entry.new(id: "#{row.id}-ended", at: row.finished_at, until_at: nil, count: 1, text: "#{words}#{took}", detail: detail, tone: ENDED_TONES.fetch(row.status))
   end

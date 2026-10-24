@@ -22,6 +22,7 @@ module SolidWorkflow
     SolidWorkflow::SubWorkflowFailed
     SolidWorkflow::UnknownStepKind
     SolidWorkflow::Stopped
+    SolidWorkflow::RouteFailed
   ]
 
   def configure

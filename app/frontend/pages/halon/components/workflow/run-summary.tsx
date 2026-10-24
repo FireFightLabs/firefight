@@ -13,6 +13,7 @@ import { cancelWorkflowRunPath, pinWorkflowRunPath, unpinWorkflowRunPath } from 
 import { JsonBlock } from "@/pages/halon/components/workflow/json-block"
 import { RunStepRows } from "@/pages/halon/components/workflow/run-step-rows"
 import { useNow } from "@/pages/halon/hooks/use-now"
+import { WhatStartedIt } from "@/pages/halon/components/workflow/what-started-it"
 import { useWorkflowAccess } from "@/pages/halon/hooks/use-workflow-access"
 import { RUN_VISIT } from "@/pages/halon/hooks/use-workflow-edits"
 import { durationLabel, RUN_STATUS_LABELS, RUN_STATUS_TONES, STEP_GOING, untilLabel } from "@/pages/halon/lib/workflow/run-states"
@@ -111,8 +112,7 @@ export function RunSummary({ workflowId, run, steps, onPick }: RunSummaryProps) 
             <dd className="text-fg-secondary">{run.costCapCents ? dollars(run.costCapCents) : "None"}</dd>
           </dl>
         </section>
-        <JsonBlock label="Inputs" value={run.inputs} />
-        <JsonBlock label="What started it" value={run.triggerPayload} />
+        <WhatStartedIt run={run} />
         <JsonBlock label="What it handed back" value={run.outputs} />
         {canManage && !run.detailsPruned && (
           <div className="flex items-start justify-between gap-3 rounded-sm border border-border p-2.5">

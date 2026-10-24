@@ -114,8 +114,11 @@ class WorkflowStepNodeSerializer < BaseSerializer
     Workflow::StepKinds.checks_first_of(step, facts)
   end
 
+  # What publishing would grant is about the workflow as it is built, so a run that already happened never asks.
   type :string, optional: true
   def grant_needed
+    return if options[:read_only]
+
     options[:workflow]&.grant_needed_for(Workflow::StepKinds.reach_of(step, facts))
   end
 

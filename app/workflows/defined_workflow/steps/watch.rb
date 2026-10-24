@@ -2,6 +2,7 @@
 # runbook's watch is written in: each step a capability or a read tool with when it counts as done or failed, steps that
 # wait for each other, a reads per hour ceiling and a time limit. It only reads, as whoever the run acts as. The run waits
 # while it watches, and the step takes the route named for how the watch ended: succeeded, failed, timed_out or stopped.
+# Failed or timed out with no step on that route fails the run.
 class DefinedWorkflow::Steps::Watch < DefinedWorkflow::Steps::Base
   kind "watch"
   label "Watch"
@@ -14,6 +15,7 @@ class DefinedWorkflow::Steps::Watch < DefinedWorkflow::Steps::Base
   KEY_ARGUMENTS = Chat::Watch::SPEC_KEYS[:arguments]
   KEY_CAPABILITY = Chat::Watch::SPEC_KEYS[:capability]
   KEY_RESOURCE = Chat::Watch::SPEC_KEYS[:resource]
+  KEY_CONNECTION = Integrations::Capabilities::CONNECTION_ARG
   OUTPUT_STATUS = "status".freeze
   OUTPUT_OUTCOME = "outcome".freeze
   ROUTES = Chat::Watch::ENDED
@@ -48,7 +50,7 @@ class DefinedWorkflow::Steps::Watch < DefinedWorkflow::Steps::Base
     def reach(config, workspace)
       Array(config[KEY_STEPS]).select { |each| each.is_a?(Hash) }.flat_map do |each|
         tool = each[KEY_TOOL].presence || Chat::Watch::Step.read_key(each[KEY_CAPABILITY])&.then { |key| Integrations::Capabilities.spec(key).tool_name }
-        tool ? DefinedWorkflow::Reach.for_tool(workspace, tool, each[KEY_ARGUMENTS].to_h.merge(each.slice(KEY_RESOURCE))) : []
+        tool ? DefinedWorkflow::Reach.for_tool(workspace, tool, each[KEY_ARGUMENTS].to_h.merge(each.slice(KEY_RESOURCE, KEY_CONNECTION))) : []
       end.uniq(&:key)
     end
 
@@ -72,7 +74,19 @@ class DefinedWorkflow::Steps::Watch < DefinedWorkflow::Steps::Base
   private
 
   def ended(status, outcome)
-    SolidWorkflow::Routed.new(output: { OUTPUT_STATUS => status, OUTPUT_OUTCOME => outcome }, route: status)
+    SolidWorkflow::Routed.new(output: { OUTPUT_STATUS => status, OUTPUT_OUTCOME => outcome }, route: status, failure: failure_words(status))
+  end
+
+  # Why the run fails when nothing follows the route, named for the step. A watch someone stopped never fails it.
+  def failure_words(status)
+    title = Workflow::Edit.title_of(@step.label)
+    watch = started_watch
+    case status
+    when Chat::Watch::STATUS_TIMED_OUT
+      limit = watch && Integrations::Capabilities::History.duration(watch.expires_at - watch.created_at)
+      limit ? "#{title} timed out after #{limit}." : "#{title} timed out."
+    when Chat::Watch::STATUS_FAILED then [ "#{title} failed.", watch&.end_reason.presence ].compact.join(" ")
+    end
   end
 
   def started_watch

@@ -87,6 +87,69 @@ class SolidWorkflow::WaitingTest < ActiveSupport::TestCase
     assert_equal "bypassed", status_of(workflow, "got_it")
   end
 
+  test "a wait for event that runs out of time with nothing on its timed out route fails the run saying why, without trying again" do
+    definition = {
+      "steps" => [ step("reply", "wait_for_event", { "event" => "reply" }, timeout_seconds: 600, retry: { "max_attempts" => 3 }), step("got_it", "echo") ],
+      "edges" => [ edge("reply", "got_it", "received") ]
+    }
+    workflow = run_definition(definition)
+    reply = workflow.steps.find_by!(name: "reply")
+
+    travel 11.minutes do
+      perform_enqueued_jobs { SolidWorkflow::WakeJob.perform_now(reply.id) }
+    end
+
+    assert workflow.reload.failed?
+    reply.reload
+    assert reply.failed?
+    assert_equal 1, reply.attempts
+    assert_match "reply timed out after 10 minutes.", reply.last_error
+    assert_equal "timed_out", reply.route
+    assert_equal "timed_out", reply.output["outcome"]
+    assert_equal "cancelled", status_of(workflow, "got_it")
+  end
+
+  test "an attempt that no longer holds its step leaves the route the step took since alone" do
+    workflow = run_definition({ "steps" => [ step("reply", "wait_for_event", { "event" => "reply" }, timeout_seconds: 600) ], "edges" => [] })
+    reply = workflow.steps.sole
+    reply.update_columns(status: "running")
+    moved_on = SolidWorkflow::Routed.new(output: { "outcome" => "timed_out" }, route: "timed_out", failure: "reply timed out.")
+    TestDefinedWorkflow.any_instance.stubs(:run_step).with do |*|
+      SolidWorkflow::Step.where(id: reply.id).update_all(route: "received", updated_at: 1.minute.from_now)
+      true
+    end.returns(moved_on)
+
+    assert_raises(RuntimeError) { reply.reload.execute! }
+
+    assert_equal "received", reply.reload.route
+  end
+
+  test "a wait for event alone that runs out of time fails the run, and its failure setting still decides whether the run carries on" do
+    alone = run_definition({ "steps" => [ step("reply", "wait_for_event", { "event" => "reply" }, timeout_seconds: 600) ], "edges" => [] })
+    tolerated = run_definition({ "steps" => [ step("reply", "wait_for_event", { "event" => "reply" }, timeout_seconds: 600, on_failure: "continue") ], "edges" => [] })
+
+    travel 11.minutes do
+      [ alone, tolerated ].each do |workflow|
+        perform_enqueued_jobs { SolidWorkflow::WakeJob.perform_now(workflow.steps.sole.id) }
+      end
+    end
+
+    assert alone.reload.failed?
+    assert tolerated.reload.succeeded?
+    assert tolerated.steps.sole.failed?
+  end
+
+  test "a wait for event that hears its event with nothing on its received route succeeds as before" do
+    definition = { "steps" => [ step("reply", "wait_for_event", { "event" => "reply" }, timeout_seconds: 600), step("gave_up", "echo") ],
+                   "edges" => [ edge("reply", "gave_up", "timed_out") ] }
+    workflow = run_definition(definition)
+
+    perform_enqueued_jobs { SolidWorkflow.signal!("reply", { "said" => "yes" }) }
+
+    assert workflow.reload.succeeded?
+    assert_equal "bypassed", status_of(workflow, "gave_up")
+  end
+
   test "a wake that lands while the step is still running is not lost" do
     workflow = run_definition({ "steps" => [ step("reply", "wait_for_event", { "event" => "reply" }, timeout_seconds: 600) ], "edges" => [] })
     reply = workflow.steps.find_by!(name: "reply")
