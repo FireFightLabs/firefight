@@ -45,10 +45,12 @@ class Slack::Messages::IncidentDetailTest < ActiveSupport::TestCase
 
   test "a severity or status name is escaped, so it can never ping the channel" do
     @incident.incident_severity.update_columns(name: "<!channel> Sev")
+    @incident.incident_status.update_columns(name: "<!here> Status")
 
     rows = Slack::Messages::Announcement.build(@incident.reload).filter_map { |block| block.dig(:text, :text) }
 
     assert_includes rows, "#{Slack::Emoji::SEVERITY} *Severity:* &lt;!channel&gt; Sev"
+    assert_includes rows, "#{Slack::Emoji::STATUS} *Status:* &lt;!here&gt; Status"
   end
 
   test "titles use the middle dot, never a pipe" do

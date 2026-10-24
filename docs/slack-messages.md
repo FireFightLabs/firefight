@@ -134,7 +134,8 @@ _Card payments fail at the last step_                             summary
 An update is its title, a divider, the update quoted, what changed on one line ("Severity: *Minor*  ·  Status:
 ~Investigating~ → *Identified*") and who wrote it and when the next one is due as its footer. In the channel its title
 carries the identifier (`scope: :inline`), in the announcement thread it does not (`scope: :announcement`), and a
-cancellation there takes a header block, since it ends the incident.
+cancellation there takes a header block, since it ends the incident. An update too long for one message runs on into
+further messages (`Formatting.message_parts`), in the channel and the thread alike.
 
 ## The announcement thread has subscribers
 

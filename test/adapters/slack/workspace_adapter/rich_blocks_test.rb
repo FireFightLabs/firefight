@@ -16,6 +16,17 @@ class Slack::WorkspaceAdapter::RichBlocksTest < ActiveSupport::TestCase
     assert_nil @workspace.reload.platform_data["plan_blocks_refused_at"]
   end
 
+  test "an update too long for one message runs on into the next in the channel, each part within Slack's block limit" do
+    posted = []
+    Slack::Client.stubs(:post_message).with { |**arguments| posted << arguments }.returns({ ok: true, ts: "1.1", channel: "C1" })
+    message = Array.new(48) { |index| "#{index}#{"x" * 2990}" }.join("\n")
+
+    @adapter.post_incident_update_message(channel_id: "C1", incident: @incident, message: message, updated_by_platform_user_id: "U1")
+
+    assert_equal 2, posted.size
+    assert posted.all? { |arguments| arguments[:blocks].size <= 50 }
+  end
+
   test "a refused card is posted plain at once, remembered, and tried again after a week" do
     posted = []
     Slack::Client.stubs(:update_message).with do |blocks:, **|

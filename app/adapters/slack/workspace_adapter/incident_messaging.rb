@@ -135,7 +135,8 @@ module Slack::WorkspaceAdapter::IncidentMessaging
       previous_severity_name: previous_severity_name,
       previous_type_name: previous_type_name
     )
-    post_message(channel_id: channel_id, text: notification_text(incident), blocks: blocks)
+    # A long update runs on into further messages rather than passing Slack's block limit. The first one stands for it.
+    Slack::Messages::Formatting.message_parts(blocks).map { |part| post_message(channel_id: channel_id, text: notification_text(incident), blocks: part) }.first
   end
 
   def post_incident_update_announcement_thread(channel_id:, parent_message_id:, incident:, message:, updated_by_platform_user_id:, updated_by_name: nil, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil, subscriber_user_ids: [])
@@ -1165,7 +1166,9 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   # is logged and skipped so one person who left the workspace or blocked the app does not stop the rest from hearing.
   def reply_and_notify_subscribers(channel_id, parent_message_id, subscriber_user_ids, incident:, text:, reply:, headline:)
     result = with_rich_blocks do |rich|
-      post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: text, blocks: reply.call(rich))
+      Slack::Messages::Formatting.message_parts(reply.call(rich)).map do |part|
+        post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: text, blocks: part)
+      end.first
     end
     return result if subscriber_user_ids.empty?
 

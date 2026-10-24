@@ -33,7 +33,7 @@ class IncidentUpdateServiceTest < ActiveSupport::TestCase
     end
   end
 
-  test "a reply too long for one direct message reaches a subscriber in parts that each fit Slack's block limit" do
+  test "an update too long for one message reaches the thread and each subscriber in parts that each fit Slack's block limit" do
     @incident.subscribe!(@alice)
     calls = []
     Slack::Client.stubs(:post_message).with { |**kwargs| calls << kwargs }.returns({ ok: true, ts: "1.1", channel: "C1" })
@@ -42,9 +42,10 @@ class IncidentUpdateServiceTest < ActiveSupport::TestCase
     @service.post_incident_update_announcement_thread(@incident, message: message, updated_by_platform_user_id: @alice.platform_user_id,
                                                       previous_status_name: "Investigating", previous_severity_name: "Critical")
 
-    dms = calls.select { |call| call[:channel] == @alice.platform_user_id }
+    thread, dms = calls.partition { |call| call[:thread_ts] == @incident.announcement_message_ts }
+    assert_equal 2, thread.size
     assert_equal 2, dms.size
-    assert dms.all? { |dm| dm[:blocks].size <= 50 }
+    assert calls.all? { |call| call[:blocks].size <= 50 }
   end
 
   test "a subscriber whose DM fails does not stop the others" do
