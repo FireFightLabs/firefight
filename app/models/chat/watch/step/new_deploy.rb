@@ -135,12 +135,13 @@ module Chat::Watch::Step::NewDeploy
 
   def deploy_arrived? = waits_for_deploy? && new_deploy[ARRIVED] == true
 
-  # The resource deployed by its name on the map, as the step was given it when the map does not know it.
+  # The resource deployed by its name on the map, as the step was given it when the map does not know it or the person
+  # who asked may not read it there.
   def deploy_resource_words
     reference = deploy_resource
     return if reference.blank?
 
-    ResourceMap::Resource.referenced(watch.workspace, reference).pick(:name) || reference
+    ResourceMap::Resource.visible_to(watch.asker, watch.workspace).referenced(watch.workspace, reference).pick(:name) || reference
   end
 
   # A reading that has not changed since the watch began cannot show a deploy that finished after it.

@@ -106,6 +106,15 @@ class Conversation::Watches::NewDeployTest < ActiveSupport::TestCase
     assert_match "cf0bcbe is already live on web.", watch.outcome
   end
 
+  test "a resource the person who asked cannot see on the map is never named, only kept as they gave it" do
+    deploys([ @old ])
+    start(rollout_step("resource" => @service.id, "new_deploy" => { "commit" => NEW }))
+    step = @conversation.chat.watches.sole.steps.sole
+    ResourceMap::Resource.stubs(:visible_to).with(@alice, @workspace).returns(ResourceMap::Resource.none)
+
+    assert_equal @service.id, step.reload.deploy_resource_words
+  end
+
   test "a named commit that goes live at a later read ends the step at once, whatever the reading says" do
     FirefightAi::WatchJudge.any_instance.stubs(:reading).returns(Reading.new(state: "running", said: "Still rolling.", parts: []))
     deploys([ @old ])
