@@ -142,6 +142,10 @@ module Integrations
           end
         end
 
+        def turn_on_words = "Firefight adds a webhook to each Render workspace, so a build, deploy, suspend, resume or scale, a cron job or " \
+                            "one-off job run, a failed instance and a datastore change reach Firefight as they happen instead of at the " \
+                            "next hourly sweep."
+
         def limits = "Render says when a service builds, deploys, is suspended or resumed, or scales, when a cron job or one-off job " \
                      "runs or an instance fails, and when a datastore changes. A workflow's task runs send nothing, so a watch on one " \
                      "reads it each minute. A service created or deleted, and a change to its settings, reach the map at each hourly sweep."

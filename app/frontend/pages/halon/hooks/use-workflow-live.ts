@@ -2,7 +2,7 @@ import { createConsumer } from "@rails/actioncable"
 import { router } from "@inertiajs/react"
 import { type RefObject, useEffect, useRef } from "react"
 
-import { WORKFLOW_CANVAS_PROPS, WORKFLOW_CHANNEL, WORKFLOW_LIVE_PARTS } from "@/lib/generated/constants"
+import { LIVE_READ_HEADER, WORKFLOW_CANVAS_PROPS, WORKFLOW_CHANNEL, WORKFLOW_LIVE_PARTS } from "@/lib/generated/constants"
 import { CANVAS_VISIT } from "@/pages/halon/hooks/use-workflow-edits"
 
 type WorkflowLivePart = (typeof WORKFLOW_LIVE_PARTS)[keyof typeof WORKFLOW_LIVE_PARTS]
@@ -23,6 +23,10 @@ const EVERY_PART: WorkflowLivePart[] = Object.values(WORKFLOW_LIVE_PARTS)
 // One change usually commits several rows (an edit and its draft, a step and its run), each saying so, so what arrives
 // within this long is read in one reload.
 const GATHER_MS = 300
+
+// Marks each read as the page's own, so a change made here is toasted by its redirect alone, even when this read reaches
+// the server while that redirect is still on its way.
+const LIVE_READ = { headers: { [LIVE_READ_HEADER]: "true" }, showProgress: false }
 
 // What a step still going does between the moves the server says, such as a watch reading or Halon calling a tool, shows
 // within this long.
@@ -59,7 +63,7 @@ export function useWorkflowLive(workflowId: string, runGoing: boolean, visitInFl
       const only = [ ...waiting ]
       waiting.clear()
       reading = true
-      router.reload({ only, showProgress: false, onFinish: finishedReading })
+      router.reload({ ...LIVE_READ, only, onFinish: finishedReading })
     }
 
     function finishedReading() {

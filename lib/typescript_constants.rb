@@ -245,6 +245,7 @@ module TypescriptConstants
       Export.new("WORKFLOW_CHANNEL", WorkflowChannel.name, nil),
       Export.new("WORKFLOW_LIVE_PARTS", Workflow::LiveSignal::PARTS, nil),
       Export.new("WORKFLOW_RUN_LOG_TONES", Workflow::Run::Activity::TONES.to_h { |tone| [ tone.upcase, tone ] }, nil),
+      Export.new("LIVE_READ_HEADER", InertiaController::LIVE_READ_HEADER, nil),
       Export.new("AGENT_CHAT_PROPS", AgentChatsController::PROPS, nil),
       Export.new("AGENT_CHAT_HEAD_PROPS", AgentChatsController::HEAD_PROPS, nil),
       Export.new("AGENT_CHAT_THREAD_PROPS", AgentChatsController::THREAD_PROPS, nil),

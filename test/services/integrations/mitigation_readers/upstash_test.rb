@@ -10,9 +10,9 @@ class Integrations::MitigationReaders::UpstashTest < ActiveSupport::TestCase
                                                                                             "scheduleId" => { "type" => "string" } } })
   end
 
-  test "pausing a QStash schedule is a change customers feel, undone by starting it again, and resuming or deleting one is not" do
+  test "pausing a QStash schedule is a change customers feel, undone by resuming it, and resuming or deleting one is not" do
     assert Integrations::Mitigations.call?(@schedule, { "action" => "pause", "scheduleId" => "scd_1", "region" => "eu" })
-    assert_equal Integrations::Mitigations::STARTS_AGAIN, Integrations::Mitigations.undo_words(@schedule, { "action" => "pause", "scheduleId" => "scd_1" })
+    assert_equal Integrations::Mitigations::RESUMES, Integrations::Mitigations.undo_words(@schedule, { "action" => "pause", "scheduleId" => "scd_1" })
     assert_not Integrations::Mitigations.call?(@schedule, { "action" => "resume", "scheduleId" => "scd_1" })
     assert_not Integrations::Mitigations.call?(@schedule, { "action" => "delete", "scheduleId" => "scd_1" })
     assert_nil Integrations::Mitigations.undo_words(@schedule, { "action" => "delete", "scheduleId" => "scd_1" })

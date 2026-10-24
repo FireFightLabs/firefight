@@ -43,7 +43,7 @@ module Integrations
     def self.inverse(tool, arguments, result)
       entry = entry_of(tool)
       spec = (entry.undo_tools.to_h[tool.name] if entry && entry.kind == tool.integration.kind)
-      return nil unless spec
+      return mitigation_inverse(tool, arguments) unless spec
 
       undo = tool.integration.tools.find_by(name: spec["tool"], enabled: true)
       return nil unless undo && inverse_allowed?(undo)
@@ -53,10 +53,18 @@ module Integrations
       sources = spec["arguments"].to_h.transform_keys(&:to_s).transform_values(&:to_s)
       built = sources.to_h { |name, from| [ name, value_of(from, given, facts) ] }.reject { |_name, value| value.blank? }
       return nil if sources.any? { |name, from| from.start_with?(RESULT) && !built.key?(name) }
-      # Something must differ from the call itself, such as a label to take off, or the undo would do nothing.
-      return nil unless built.any? { |name, _value| sources[name] != name }
+      # Something must differ from the call itself, another tool or an argument such as a label to take off, or the undo
+      # would do nothing.
+      return nil unless undo.name != tool.name || built.any? { |name, _value| sources[name] != name }
 
       Inverse.new(tool: undo, arguments: built)
+    end
+
+    # The undo a general tool's provider builds for one temporary change it made, through the same tool, such as resuming
+    # a schedule it paused (Integrations::Mitigations.undo_arguments), or nil when it builds none.
+    def self.mitigation_inverse(tool, arguments)
+      built = Mitigations.undo_arguments(tool, arguments)
+      Inverse.new(tool: tool, arguments: built) if built.present? && tool.enabled? && inverse_allowed?(tool)
     end
 
     # Whether a tool may be the undo of a change made without asking.

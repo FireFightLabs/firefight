@@ -187,7 +187,7 @@ module Integrations
 
       environment_row.give_map_events_token!
       environment_row.give_map_events_secret! if source.offers?
-      environment_row.update_columns(map_events_refused_at: nil, map_events_polled_at: nil) if now && source.polls? && !source.registers_for?(environment_row)
+      environment_row.update_columns(map_events_refused_at: nil, map_events_polled_at: nil) if now && source.polls?
       return unless source.registers_for?(environment_row)
 
       register!(environment_row, source) if environment_row.map_events_registration_due?(now: now) || register_again?(environment_row, source)
@@ -227,7 +227,7 @@ module Integrations
     # A person turned live updates on, having read what it costs when the source asked first. Tried at once.
     def turn_on!(environment_row)
       source = source_of(environment_row.integration.provider)
-      environment_row.update!(map_events_turned_off_at: nil)
+      environment_row.update!(map_events_turned_off_at: nil, map_events_registration_error: nil)
       environment_row.give_map_events_token!
       register!(environment_row, source, decided: true)
     end
@@ -237,7 +237,7 @@ module Integrations
     def turn_off!(environment_row)
       source = source_of(environment_row.integration.provider)
       remove!(environment_row, source) if environment_row.map_events_webhook_id.present?
-      environment_row.update!(map_events_turned_off_at: Time.current, map_events_error: nil, map_events_refused_at: nil)
+      environment_row.update!(map_events_turned_off_at: Time.current, **registration_cleared(source))
     end
 
     # Registers the webhook, unless the source says what it would cost the account and nobody decided yet, in which case
@@ -245,21 +245,32 @@ module Integrations
     # turned it on can turn it off.
     def register!(environment_row, source, decided: false)
       url = url_for(environment_row)
-      return environment_row.update!(map_events_error: "Firefight's own address is not set, so there is nowhere to send changes.") unless url
+      return registration_failed!(environment_row, source, "Firefight's own address is not set, so there is nowhere to send changes.") unless url
 
       asked = source.asks_first? ? source.confirmation_for(environment_row, url: url) : nil
-      return environment_row.update!(map_events_confirmation: asked, map_events_error: nil, map_events_refused_at: nil) if asked && !decided
+      return environment_row.update!(map_events_confirmation: asked, **registration_cleared(source)) if asked && !decided
 
       webhook = environment_row.record_map_events_webhook!(IntegrationEnvironment::WEBHOOK_REGISTER) { source.register(environment_row, url: url) }
       environment_row.update!(map_events_webhook_id: webhook.id, map_events_secret: webhook.secret, map_events_expires_at: webhook.expires_at,
-                              map_events_scopes: webhook.scopes, map_events_confirmation: asked,
-                              map_events_error: nil, map_events_refused_at: nil)
+                              map_events_scopes: webhook.scopes, map_events_confirmation: asked, **registration_cleared(source))
     rescue RateLimited
-      environment_row.update!(map_events_error: format(SLOWED_REGISTERING, name: environment_row.integration.name))
+      registration_failed!(environment_row, source, format(SLOWED_REGISTERING, name: environment_row.integration.name))
     rescue MapEventSource::Refused => error
-      environment_row.update!(map_events_error: error.message, map_events_refused_at: Time.current)
+      registration_failed!(environment_row, source, error.message, refused: true)
     rescue Integrations::Error => error
-      environment_row.update!(map_events_error: error.message)
+      registration_failed!(environment_row, source, error.message)
+    end
+
+    # A provider whose change log is read as well keeps following it whatever happens to its registration, so a
+    # registration that failed is said on its own until a person tries again, and never holds the log back.
+    def registration_failed!(environment_row, source, words, refused: false)
+      return environment_row.update!(map_events_registration_error: words) if source.polls?
+
+      environment_row.update!(map_events_error: words, **(refused ? { map_events_refused_at: Time.current } : {}))
+    end
+
+    def registration_cleared(source)
+      source.polls? ? { map_events_registration_error: nil } : { map_events_error: nil, map_events_refused_at: nil }
     end
 
     def remove!(environment_row, source)

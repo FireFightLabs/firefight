@@ -222,7 +222,7 @@ module Integrations
       def self.credential_refusal(values, region: nil, fields: {})
         token, ca = values.values_at(TOKEN, CA).map { |value| value.to_s.strip }
         server = fields[SERVER].to_s.strip
-        return "Enter the API server address." if server.empty?
+        return "Enter the cluster address (API server)." if server.empty?
         return "Paste a service account token." if token.empty?
         return "Paste the cluster's CA certificate." if ca.empty?
 

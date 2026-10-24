@@ -63,7 +63,7 @@ class LiveUpdatesRailwayPlanetscaleSupabaseTest < ActionDispatch::IntegrationTes
     state = row.reload.live_updates
     assert_not state.on
     assert_equal "Firefight could not follow Railway's changes: Railway refused this: Not Authorized. Firefight tries again tomorrow. " \
-                 "The map still updates at each sweep.", state.reason
+                 "The map still updates at each hourly sweep.", state.reason
   end
 
   test "PlanetScale: each database's secret is added, a delivery signed with any of them re-reads the branch it names through the tools" do

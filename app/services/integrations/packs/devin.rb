@@ -52,7 +52,7 @@ module Integrations
         limit = fields[MAX_ACUS].to_s
         return "Paste an API key." if key.empty?
         return "Enter the organization id." if organization.empty?
-        return "Enter the ACU limit as a whole number above zero, or leave it empty." unless limit.empty? || limit.match?(WHOLE_NUMBER)
+        return "Enter the spending limit (ACUs) as a whole number above zero, or leave it empty." unless limit.empty? || limit.match?(WHOLE_NUMBER)
 
         organization_refusal(DevinApi.new(key, organization).whoami, organization)
       rescue DevinApi::Error => error

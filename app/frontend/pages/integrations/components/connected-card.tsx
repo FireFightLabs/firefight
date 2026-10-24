@@ -31,7 +31,7 @@ import { CodeChanges } from "@/pages/integrations/components/code-changes";
 import { DisconnectDialog } from "@/pages/integrations/components/disconnect-dialog";
 import { FieldEdit } from "@/pages/integrations/components/field-edit";
 import { InstallationStopped } from "@/pages/integrations/components/installation-stopped";
-import { LiveUpdates } from "@/pages/integrations/components/live-updates";
+import { LiveUpdatesSection } from "@/pages/integrations/components/live-updates";
 import { RepositorySetups } from "@/pages/integrations/components/repository-setups";
 import { ScopeChoice } from "@/pages/integrations/components/scope-choice";
 import { ToolReadMark } from "@/pages/integrations/components/tool-read-mark";
@@ -272,14 +272,6 @@ export function ConnectedCard({
                       canManage={canManage}
                     />
                   )}
-                  {environment.liveUpdates && (
-                    <LiveUpdates
-                      integrationId={integration.id}
-                      rowId={environment.id}
-                      state={environment.liveUpdates}
-                      canManage={canManage}
-                    />
-                  )}
                 </div>
               );
             })}
@@ -289,6 +281,8 @@ export function ConnectedCard({
             to it.
           </p>
         </div>
+
+        <LiveUpdatesSection integration={integration} canManage={canManage} />
 
         {provider?.retiring && (
           <div className="border-warning-border bg-warning-tint rounded-md border px-3 py-2 text-xs">
