@@ -9,24 +9,27 @@ module Slack
         ]
       end
 
-      # What a subscriber is sent for each update to an incident: one short card naming the incident, what happened as
-      # its subtitle and the words of the update as its body, with Open channel, Open in Firefight and Unsubscribe. The
-      # announcement thread's reply itself is never copied, a direct message sits under nothing and is read in one glance.
-      def self.digest(incident, headline:, body:, icon:, homepage_url:, rich:)
-        WholeCard.build(
-          rich: rich, title: Slack::Mrkdwn.escape(IncidentDetail.title_for(incident)), subtitle: headline,
-          body: (Formatting.markdown_to_mrkdwn(body) if body.present?), quoted: true,
-          actions: digest_buttons(incident, homepage_url: homepage_url), icon: icon
-        )
+      # A direct message has no announcement above it, so a subscriber's copy of a thread reply gets the incident's name
+      # and channel on top and the ways out underneath.
+      def self.wrap_update(incident, blocks, homepage_url:)
+        heading = [ Slack::Blocks.section(heading_text(incident)), { type: "divider" } ]
+        footer = [ { type: "divider" }, { type: "actions", elements: footer_buttons(incident, homepage_url: homepage_url) } ]
+        heading + blocks + footer
       end
 
-      def self.digest_buttons(incident, homepage_url:)
+      def self.heading_text(incident)
+        title = "#{Slack::Emoji::DECLARED} *#{Slack::Mrkdwn.escape(IncidentDetail.title_for(incident))}*"
+        incident.channel_id.present? ? "#{title} in <##{incident.channel_id}>" : title
+      end
+      private_class_method :heading_text
+
+      def self.footer_buttons(incident, homepage_url:)
         buttons = []
         buttons << IncidentDetail.join_channel_button(incident, label: "Open channel") if incident.channel_id.present?
         buttons << IncidentDetail.homepage_button(homepage_url) if homepage_url
         buttons << unsubscribe_button(incident)
       end
-      private_class_method :digest_buttons
+      private_class_method :footer_buttons
 
       def self.subscribe_button(incident)
         {

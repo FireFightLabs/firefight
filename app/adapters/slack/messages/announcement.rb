@@ -1,40 +1,24 @@
 module Slack
   module Messages
-    # An incident in #incidents, as one card: its title, its state on one line, its summary, and Join channel, Subscribe
-    # and Open in Firefight. Who declared it, and custom fields and linked incidents when it has them, follow the card.
+    # An incident in #incidents: its details a row per field, then Join channel, Subscribe and Open in Firefight.
     # `build_from` takes a plain hash for the install-time preview, when there is no incident yet.
     module Announcement
-      def self.build(incident, rich:)
-        card = WholeCard.build(
-          rich: rich,
-          title: Mrkdwn.escape(IncidentDetail.title_for(incident)),
-          subtitle: IncidentDetail.state_line_for(incident),
-          body: body_from(incident.summary), quoted: true,
-          actions: [
-            (IncidentDetail.join_channel_button(incident) if incident.channel_id.present?),
-            IncidentDetail.subscribe_button(incident.id),
-            IncidentDetail.homepage_button(Slack::DashboardUrl.incident(incident))
-          ].compact,
-          icon: Slack::Emoji::DECLARED
-        )
-        footer = [ IncidentDetail.declared_by_line(incident), (IncidentDetail::TEST_NOTE if incident.is_test?) ].compact
-        card + [ Slack::Blocks.context(footer.join(Formatting::SEPARATOR)) ] + IncidentDetail.extra_blocks(incident)
+      def self.build(incident)
+        buttons = [
+          (IncidentDetail.join_channel_button(incident) if incident.channel_id.present?),
+          IncidentDetail.subscribe_button(incident.id),
+          IncidentDetail.homepage_button(Slack::DashboardUrl.incident(incident))
+        ].compact
+        IncidentDetail.for_incident(incident, channel_id: incident.channel_id) + footer(buttons)
       end
 
-      def self.build_from(title:, summary:, severity_name:, status_name:, reporter_id:, rich:, homepage_url: nil)
-        card = WholeCard.build(
-          rich: rich,
-          title: Mrkdwn.escape(title),
-          subtitle: IncidentDetail.state_line(severity_name: severity_name, status_name: status_name),
-          body: body_from(summary), quoted: true,
-          actions: [ IncidentDetail.subscribe_button(nil), IncidentDetail.homepage_button(homepage_url) ],
-          icon: Slack::Emoji::DECLARED
-        )
-        card + [ Slack::Blocks.context("Declared by #{Mrkdwn.person(reporter_id, nil)}") ]
+      def self.build_from(title:, summary:, severity_name:, status_name:, reporter_id:, homepage_url: nil)
+        IncidentDetail.blocks(title: title, summary: summary, severity_name: severity_name, status_name: status_name, reporter_id: reporter_id) +
+          footer([ IncidentDetail.subscribe_button(nil), IncidentDetail.homepage_button(homepage_url) ])
       end
 
-      def self.body_from(text) = (Formatting.markdown_to_mrkdwn(text) if text.present?)
-      private_class_method :body_from
+      def self.footer(buttons) = [ { type: "divider" }, { type: "actions", elements: buttons } ]
+      private_class_method :footer
     end
   end
 end

@@ -1,38 +1,40 @@
 module Slack
   module Messages
-    # An incident update as a card: the title, what changed as its subtitle, and the update as its body, with who wrote it
-    # and when the next one is due under it. A cancellation ends the incident, so it never reads as an update.
+    # An incident update: the title, a divider, the update quoted, what changed on one line, then who wrote it and when
+    # the next one is due. A cancellation ends the incident, so it never reads as an update.
     module StatusUpdate
-      def self.build(incident, message:, updated_by_platform_user_id:, scope:, rich:, updated_by_name: nil, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
+      def self.build(incident, message:, updated_by_platform_user_id:, scope:, updated_by_name: nil, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
         canceled = incident.canceled?
+        icon = canceled ? Slack::Emoji::CANCELED : Slack::Emoji::UPDATED
         noun = canceled ? "Incident canceled" : "Incident updated"
-        title = scope == :inline ? "#{incident.identifier}#{IncidentDetail::SEPARATOR}#{noun}" : noun
 
-        card = WholeCard.build(
-          rich: rich,
-          title: title,
-          subtitle: change_line(incident, previous_status_name, previous_severity_name, previous_type_name),
-          body: (Formatting.markdown_to_mrkdwn(message) if message.present?),
-          icon: canceled ? Slack::Emoji::CANCELED : Slack::Emoji::UPDATED,
-          quoted: true
-        )
-        card << Slack::Blocks.context(context_text(incident, updated_by_platform_user_id, updated_by_name))
+        # A cancellation in the announcement thread takes a header block, as the end of the incident.
+        blocks = if canceled && scope == :announcement
+          [ { type: "header", text: { type: "plain_text", text: "#{icon} #{noun}", emoji: true } } ]
+        else
+          title = scope == :inline ? "#{incident.identifier}#{IncidentDetail::SEPARATOR}#{noun}" : noun
+          [ Slack::Blocks.section("#{icon}  *#{title}*") ]
+        end
+
+        blocks << { type: "divider" }
+        blocks.concat(Formatting.quoted_blocks(message))
+        blocks << Slack::Blocks.section(changes(incident, previous_status_name, previous_severity_name, previous_type_name).join(Formatting::SEPARATOR))
+        blocks << Slack::Blocks.context(context_text(incident, updated_by_platform_user_id, updated_by_name))
       end
 
-      def self.change_line(incident, previous_status_name, previous_severity_name, previous_type_name)
-        lines = [
+      def self.changes(incident, previous_status_name, previous_severity_name, previous_type_name)
+        [
           Formatting.diff_text("Severity", previous_severity_name, incident.incident_severity.name),
-          Formatting.diff_text("Status", previous_status_name, incident.incident_status.name)
-        ]
-        type_text = Formatting.type_diff_text(previous_type_name, incident.incident_type&.name)
-        lines << type_text if type_text
-        lines.join(IncidentDetail::SEPARATOR)
+          Formatting.diff_text("Status", previous_status_name, incident.incident_status.name),
+          Formatting.type_diff_text(previous_type_name, incident.incident_type&.name)
+        ].compact
       end
+      private_class_method :changes
 
-      # What changed and who changed it, the subtitle of a subscriber's card.
-      def self.digest_line(incident, updated_by_platform_user_id, updated_by_name, previous_status_name, previous_severity_name, previous_type_name)
+      # What changed and who changed it in one line, the fallback text of a subscriber's direct message.
+      def self.headline(incident, updated_by_platform_user_id, updated_by_name, previous_status_name, previous_severity_name, previous_type_name)
         verb = incident.canceled? ? "Canceled" : "Updated"
-        [ change_line(incident, previous_status_name, previous_severity_name, previous_type_name),
+        [ *changes(incident, previous_status_name, previous_severity_name, previous_type_name),
           "#{verb} by #{Mrkdwn.person(updated_by_platform_user_id, updated_by_name)}" ].join(IncidentDetail::SEPARATOR)
       end
 

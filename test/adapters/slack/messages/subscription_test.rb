@@ -19,38 +19,28 @@ class Slack::Messages::SubscriptionTest < ActiveSupport::TestCase
     assert_equal @incident.id, buttons(unsubscribed).first[:value]
   end
 
-  test "a subscriber's update is one short card naming the incident, what happened and the words, with the ways out" do
-    blocks = digest(rich: true)
-    card = blocks.sole
+  test "a subscriber's update names the incident and its channel on top, keeps the reply intact, and offers the ways out below" do
+    reply = [ { type: "section", text: { type: "mrkdwn", text: "Severity went up" } } ]
 
-    assert_equal "card", card[:type]
-    assert_equal "#{Slack::Emoji::RESOLVED}  #{@incident.identifier} · #{@incident.name}", card.dig(:title, :text)
-    assert_equal "Resolved by <@U1> after 5m", card.dig(:subtitle, :text)
-    assert_equal "Rolled back the deploy", card.dig(:body, :text)
-    assert_equal [ Identifiers::OPEN_INCIDENT_CHANNEL, Identifiers::INCIDENT_HOMEPAGE, Identifiers::UNSUBSCRIBE_INCIDENT ], card[:actions].pluck(:action_id)
-    assert_includes card[:actions].first[:url], "C_SUB_TEST"
-    assert_includes card[:actions].first[:url], @workspace.platform_id
-  end
+    blocks = Slack::Messages::Subscription.wrap_update(@incident, reply, homepage_url: "https://app.example.com/incidents/1")
 
-  test "a subscriber's card reads the same as plain blocks where cards are not drawn" do
-    blocks = digest(rich: false)
-
-    assert_equal %w[section context divider section actions], blocks.pluck(:type)
-    assert_equal "> Rolled back the deploy", blocks.fourth.dig(:text, :text), "a body is never folded into the title, so it stays quoted"
+    assert_equal "#{Slack::Emoji::DECLARED} *#{@incident.identifier} · #{@incident.name}* in <#C_SUB_TEST>", blocks.first.dig(:text, :text)
+    assert_equal %w[section divider section divider actions], blocks.pluck(:type)
+    assert_equal reply.first, blocks.third
+    assert_equal [ Identifiers::OPEN_INCIDENT_CHANNEL, Identifiers::INCIDENT_HOMEPAGE, Identifiers::UNSUBSCRIBE_INCIDENT ], action_ids(blocks)
+    assert_equal [ "Open channel", "Open in Firefight", "#{Slack::Emoji::UNSUBSCRIBE} Unsubscribe" ], buttons(blocks).map { |button| button.dig(:text, :text) }
+    open_channel = buttons(blocks).first
+    assert_includes open_channel[:url], "C_SUB_TEST"
+    assert_includes open_channel[:url], @workspace.platform_id
   end
 
   test "without a dashboard host the homepage button is left out rather than dead" do
-    blocks = Slack::Messages::Subscription.digest(@incident, headline: "Updated", body: nil, icon: Slack::Emoji::UPDATED, homepage_url: nil, rich: false)
+    blocks = Slack::Messages::Subscription.wrap_update(@incident, [], homepage_url: nil)
 
     assert_equal [ Identifiers::OPEN_INCIDENT_CHANNEL, Identifiers::UNSUBSCRIBE_INCIDENT ], action_ids(blocks)
   end
 
   private
-
-  def digest(rich:)
-    Slack::Messages::Subscription.digest(@incident, headline: "Resolved by <@U1> after 5m", body: "Rolled back the deploy", icon: Slack::Emoji::RESOLVED,
-                                                    homepage_url: "https://app.example.com/incidents/1", rich: rich)
-  end
 
   def buttons(blocks)
     blocks.select { |block| block[:type] == "actions" }.flat_map { |block| block[:elements] }

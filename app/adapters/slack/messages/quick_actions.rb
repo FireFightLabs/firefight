@@ -1,17 +1,10 @@
 module Slack
   module Messages
     module QuickActions
-      # The pinned message in the incident's channel: the title, the state and who declared it on one line, the summary,
-      # then the buttons. The announcement says the same in its own card, so neither lists the fields one by one.
+      # The pinned message in the incident's channel: the same details as the announcement, then the quick actions.
       def self.build(incident)
-        state = [ IncidentDetail.state_line_for(incident), IncidentDetail.declared_by_line(incident) ]
-        blocks = [
-          { type: "section", text: { type: "mrkdwn", text: "#{Slack::Emoji::DECLARED}  *#{Mrkdwn.escape(IncidentDetail.title_for(incident))}*" } },
-          Slack::Blocks.context(state.join(IncidentDetail::SEPARATOR))
-        ]
-        blocks << Slack::Blocks.context(IncidentDetail::TEST_NOTE) if incident.is_test?
-        blocks.concat(Formatting.quoted_blocks(incident.summary))
-        blocks.concat(IncidentDetail.extra_blocks(incident))
+        # No channel row, this message is pinned inside that channel.
+        blocks = IncidentDetail.for_incident(incident)
 
         # Slack rejects an empty actions block, so a terminal incident drops
         # the block and its divider.
