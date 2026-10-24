@@ -1,6 +1,6 @@
 # The box Halon reads code in. Commands arrive over HTTP from the app and run as an unprivileged user,
 # so nothing a repository contains can change the service or the copies other commands read.
-FROM ruby:3.4-slim-bookworm
+FROM ruby:3.4.12-slim-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
