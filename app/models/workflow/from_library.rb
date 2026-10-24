@@ -89,7 +89,10 @@ module Workflow::FromLibrary
   def upgrade_from_library!
     item = library_item
     return unless follows_library? && item && item.version > library_version.to_i
-    return update_columns(follows_library: false, updated_at: Time.current) if changed_from_library? || needs_more_for?(item)
+    if changed_from_library? || needs_more_for?(item)
+      update_columns(follows_library: false, updated_at: Time.current)
+      return signal_workflow_page
+    end
 
     transaction do
       claimed = self.class.where(id: id, library_version: library_version)
@@ -98,6 +101,7 @@ module Workflow::FromLibrary
 
       publish_library_body!(item) if live_version
       move_draft_body!(item)
+      signal_workflow_page
     end
     reload.schedule!
     self

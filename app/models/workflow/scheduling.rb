@@ -13,6 +13,7 @@ module Workflow::Scheduling
   def schedule!(from: Time.current)
     following = (Workflow::Trigger::Schedule.next_after(live_version.trigger, from) if enabled? && live_version)
     self.class.where(id: id).update_all(next_run_at: following, updated_at: Time.current)
+    signal_workflow_page
     self.next_run_at = following
   end
 
@@ -25,6 +26,7 @@ module Workflow::Scheduling
     taken = self.class.enabled.where(id: id, next_run_at: due_at).update_all(next_run_at: following, updated_at: now) == 1
     return nil unless taken
 
+    signal_workflow_page
     self.next_run_at = following
     due_at
   end
@@ -58,6 +60,7 @@ module Workflow::Scheduling
   # Why its trigger could not start a run when it was due, kept for its page until a run starts.
   def trigger_refused!(reason, at: Time.current)
     self.class.where(id: id).update_all(trigger_refusal: reason, trigger_refused_at: at, updated_at: at)
+    signal_workflow_page
   end
 
   # A trigger's start its limits refused. Past the hour's limit it is counted as skipped, anything else is kept as why.
@@ -66,6 +69,7 @@ module Workflow::Scheduling
   end
 
   def trigger_started!
-    self.class.where(id: id).where.not(trigger_refusal: nil).update_all(trigger_refusal: nil, trigger_refused_at: nil, updated_at: Time.current)
+    cleared = self.class.where(id: id).where.not(trigger_refusal: nil).update_all(trigger_refusal: nil, trigger_refused_at: nil, updated_at: Time.current)
+    signal_workflow_page if cleared.positive?
   end
 end

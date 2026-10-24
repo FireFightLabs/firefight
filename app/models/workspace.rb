@@ -203,9 +203,11 @@ class Workspace < ApplicationRecord
     self.class.with_connection { |connection| connection.select_rows(query, "Reach version").first }
   end
 
-  # Each connection's read pack by its id, read once, as a list of tools names each tool's connection.
+  # Each connection's read pack by its id, with the connection its label names, read once, as a list of tools names each
+  # tool's connection.
   def read_packs_by_integration
-    @read_packs_by_integration ||= Ability::Role.where(workspace_id: id, pack: Ability::Role::PACK_READ).where.not(integration_id: nil).index_by(&:integration_id)
+    @read_packs_by_integration ||= Ability::Role.where(workspace_id: id, pack: Ability::Role::PACK_READ).where.not(integration_id: nil)
+                                                .includes(:integration).index_by(&:integration_id)
   end
 
   # The ability a key names, Firefight's own or this workspace's, as Ability::Action.lookup finds it, with every

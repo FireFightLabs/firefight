@@ -35,6 +35,9 @@ class Workflow::Edit < ApplicationRecord
 
   include Workflow::Edit::Wording
   include Workflow::Edit::Changes
+  include Workflow::LiveSignal
+
+  shown_on_workflow_page PART_CANVAS
 
   belongs_to :workflow, inverse_of: :edits
   belongs_to :version, class_name: "Workflow::Version", optional: true, inverse_of: :edits
@@ -73,6 +76,7 @@ class Workflow::Edit < ApplicationRecord
         end
       end
     end
+    signal_workflow_page
     reload
   end
 
@@ -81,6 +85,7 @@ class Workflow::Edit < ApplicationRecord
                       .update_all(status: STATUS_DISMISSED, decided_by_id: by&.id, decided_at: Time.current, updated_at: Time.current)
     raise Refused, "This suggestion was already decided." unless moved == 1
 
+    signal_workflow_page
     reload
   end
 end

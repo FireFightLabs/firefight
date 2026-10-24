@@ -24,6 +24,7 @@ module Workflow::Version::Pins
                       .update_all([ "pins = pins || ?::jsonb, updated_at = ?", { step_id => entry }.to_json, Time.current ])
     raise Workflow::Edit::Refused, "Only a draft's steps are pinned, so open a draft first." unless moved == 1
 
+    signal_workflow_page
     reload
   end
 
@@ -32,6 +33,7 @@ module Workflow::Version::Pins
                       .update_all([ "pins = pins - ?, updated_at = ?", step_id, Time.current ])
     raise Workflow::Edit::Refused, "That step's output is not pinned." unless moved == 1
 
+    signal_workflow_page
     reload
   end
 

@@ -43,6 +43,7 @@ module Workflow::Version::Drafting
                           .update_all(**changed.slice(*Workflow::Version::CONTENT).symbolize_keys, **kept_column, revision: current + 1, updated_at: Time.current)
         next :again unless moved == 1
 
+        signal_workflow_page
         yield current + 1, base_revision
       end
       next if result == :again

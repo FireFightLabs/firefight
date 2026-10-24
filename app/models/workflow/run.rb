@@ -37,6 +37,9 @@ class Workflow::Run < ApplicationRecord
   include Workflow::Run::Retention
   include Workflow::Run::Acting
   include Workflow::Run::Testing
+  include Workflow::LiveSignal
+
+  shown_on_workflow_page PART_RUNS
 
   belongs_to :workspace
   belongs_to :workflow, inverse_of: :runs
@@ -70,6 +73,9 @@ class Workflow::Run < ApplicationRecord
   scope :real, -> { where(test: false) }
 
   def finished? = FINISHED.include?(status)
+
+  # What each step did, read once for the whole run however many steps ask (Workflow::Run::Activity).
+  def activity(describe_tool:) = @activity ||= Workflow::Run::Activity.new(self, describe_tool: describe_tool)
   def failed? = status == STATUS_FAILED
   def succeeded? = status == STATUS_SUCCEEDED
 
@@ -104,6 +110,7 @@ class Workflow::Run < ApplicationRecord
     raise Refused, blocked if blocked
 
     self.class.where(id: id, details_pruned_at: nil).update_all(pinned: pinned, updated_at: Time.current)
+    signal_workflow_page
     reload
   end
 
@@ -136,6 +143,7 @@ class Workflow::Run < ApplicationRecord
 
   def move!(to:, from:, **columns)
     moved = self.class.where(id: id, status: from).update_all(columns.merge(status: to, updated_at: Time.current)) == 1
+    signal_workflow_page if moved
     reload if moved
     moved
   end

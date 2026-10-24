@@ -1,7 +1,7 @@
 # The workspace's connection tools whole, with their connections and actions, as a chat's catalogue, a specialist, a
 # watch, an investigation and the MCP server read them. Read once for everything holding this workspace while nothing
-# they are read from changed, and kept across requests and jobs in Rails.cache as the rows they were read from, keyed on
-# those rows' versions (tool_catalogue_version), so most replies read none of them. A connection's environments hold its
+# they are read from changed, and kept across requests and jobs in Rails.cache and in each process's memory as the rows
+# they were read from, keyed on those rows' versions (tool_catalogue_version), so most replies read none of them. A connection's environments hold its
 # credentials, so they are never kept. They are read beside the kept rows, in one query.
 module Workspace::ToolCatalogue
   extend ActiveSupport::Concern
@@ -16,6 +16,11 @@ module Workspace::ToolCatalogue
          JOIN integrations ON integrations.id = integration_tools.integration_id WHERE integrations.workspace_id = :workspace),
       (SELECT #{format(ROWS_VERSION, table: 'ability_actions')} FROM ability_actions WHERE workspace_id = :workspace AND source_type = :source_type)
   SQL
+
+  # The kept rows are a megabyte or more for a workspace with many connections, and the shared cache sits in the database,
+  # so reading them on every request crossed the network each time and took seconds. Each process keeps the newest few in
+  # memory too, under the same key, so only the first request after they change reads them from the shared cache.
+  IN_PROCESS = ActiveSupport::Cache::MemoryStore.new(size: 64.megabytes)
 
   # The tools switched on in a connection that is on, as Integration::Tool.in_workspace reads them.
   def switched_on_tools = tool_catalogue.last
@@ -39,9 +44,15 @@ module Workspace::ToolCatalogue
     version = tool_catalogue_version
     return @tool_catalogue if @tool_catalogue&.first == version
 
-    tools = tools_from(Rails.cache.fetch([ "workspace_tool_catalogue", id, version, self.class.tool_catalogue_shape ]) { tool_catalogue_rows })
+    key = [ "workspace_tool_catalogue", id, version, self.class.tool_catalogue_shape ]
+    tools = tools_from(kept_rows(key) { Rails.cache.fetch(key) { tool_catalogue_rows } })
     switched_on = tools.select { |tool| tool.enabled? && tool.available? && tool.integration.disabled_at.nil? }
     @tool_catalogue = [ version, tools.freeze, switched_on.freeze ]
+  end
+
+  # Kept in memory only beside a shared cache, so where nothing is shared, as in tests, every read is as it was.
+  def kept_rows(key, &)
+    Rails.cache.is_a?(ActiveSupport::Cache::NullStore) ? yield : IN_PROCESS.fetch(key, &)
   end
 
   # The rows as the database returned them, so a kept copy is plain values and never an object or a decrypted value.

@@ -1207,6 +1207,20 @@ export const INCIDENT_LIVE_PARTS = {
   "INVESTIGATION": "investigation"
 } as const
 
+export const WORKFLOW_CHANNEL = "WorkflowChannel" as const
+
+export const WORKFLOW_LIVE_PARTS = {
+  "CANVAS": "canvas",
+  "RUNS": "runs"
+} as const
+
+export const WORKFLOW_RUN_LOG_TONES = {
+  "NEUTRAL": "neutral",
+  "GOOD": "good",
+  "BAD": "bad",
+  "WAITING": "waiting"
+} as const
+
 export const AGENT_CHAT_PROPS = {
   "CONVERSATIONS": "conversations",
   "ARCHIVED_COUNT": "archivedCount",

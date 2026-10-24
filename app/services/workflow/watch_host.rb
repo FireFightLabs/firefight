@@ -11,6 +11,7 @@ class Workflow::WatchHost
     def incident = nil
     def incident_id = nil
     def code_box_key = record.code_box_key
+    def ledger_context = record.ledger_context
   end
 
   attr_reader :workspace, :chat
