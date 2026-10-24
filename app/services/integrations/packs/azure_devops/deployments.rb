@@ -318,11 +318,11 @@ module Integrations
 
         def deployment_runs(azure, target) = deployments_of(azure, target, nil).map { |deployment| deployment_run(deployment) }
 
-        def one_deployment(azure, target, given)
+        def one_deployment(azure, target, given, environment)
           id = Integer(given.to_s, exception: false)
           fail! "run must be a deployment's id as ci_runs gives it, such as #{DEPLOYMENT_RUN}41" unless id&.positive?
 
-          found = deployment_by_id(azure, target, id, nil)
+          found = deployment_by_id(azure, target, id, environment)
           fail! "No deployment #{id} among the recent deployments of #{target.what}. ci_runs with an environment's name lists them." unless found
 
           Capabilities::History.result([ deployment_run(found) ], what: "deployments of #{target.what}")

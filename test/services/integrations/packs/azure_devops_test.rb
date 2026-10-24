@@ -476,6 +476,9 @@ module Integrations
 
         stub_get("/Shop/_apis/distributedtask/environments", { "name" => "env-11", "$top" => 50 }, "value" => [ environments.last ])
         assert_includes call(:redeploy, "repo" => "Shop/checkout", "deployment" => "77", "deployment_environment" => "env-11"), "to env-11 again"
+
+        followed = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "Shop/checkout", "run" => "deployment-77", "deployment_environment" => "env-11" })).sole
+        assert_equal [ "deployment-77", "deployment to env-11" ], [ followed.id, followed.name ], "ci_runs follows it in the environment named too"
       end
 
       test "a deployment that failed is no version to go back to" do
