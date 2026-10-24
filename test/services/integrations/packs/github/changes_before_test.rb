@@ -4,6 +4,9 @@ class Integrations::Packs::Github::ChangesBeforeTest < ActiveSupport::TestCase
   STARTED = Time.utc(2026, 9, 24, 14, 5)
 
   setup do
+    # Which repositories a stack trace is looked for in counts back from now, so the tests run on the day it started
+    # rather than expire a month after their date.
+    travel_to STARTED + 1.hour
     installation([ repository("acme/checkout", "2026-09-24T13:00:00Z"), repository("acme/billing", "2026-09-20T09:00:00Z") ])
     api(merge_search_path, { "items" => [] })
     deployments("acme/checkout", [])
