@@ -1,6 +1,8 @@
 require "application_system_test_case"
 
 class HalonPerformanceTest < ApplicationSystemTestCase
+  include PreventedProblemHelper
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
     Entitlements.stubs(:allows?).returns(true)
@@ -31,5 +33,36 @@ class HalonPerformanceTest < ApplicationSystemTestCase
   test "a workspace Halon has not worked in yet says so" do
     visit halon_performance_path
     assert_text "Halon has not investigated anything in the last 30 days."
+    assert_text "0 risky changes caught in the last 30 days"
+    assert_text "No pull request merged in the last 30 days with a serious or major finding fixed first."
+  end
+
+  test "a member opens each problem Halon's reviews prevented, and shows more when there are many" do
+    review = reviewed_pull_request!(@workspace, number: 812, merged_at: 2.days.ago)
+    (PullRequestReview::ProblemsPrevented::PER_PAGE + 1).times { |index| review_finding!(review, claim: "Problem #{index}", fixed_at: 3.days.ago) }
+
+    visit halon_performance_path
+
+    assert_text "#{PullRequestReview::ProblemsPrevented::PER_PAGE + 1} risky changes caught in the last 30 days"
+    within(find("li", text: "Problem 0", match: :first)) do
+      assert_link "acme/checkout #812", href: "https://github.com/acme/checkout/pull/812"
+      assert_link "Open the comment on the pull request", href: "https://github.com/acme/checkout/pull/812#discussion_r4253331341"
+      click_button "Show how it would have failed"
+      assert_text "Customers are charged twice, as in INC-012"
+      assert_link "INC-012 Double charges at checkout"
+      assert_text "config/payments.yml:4, fixed in 1cb47a9"
+    end
+    page.save_screenshot(Rails.root.join("tmp/screenshots/halon-prevented.png"))
+    assert_no_text "Problem #{PullRequestReview::ProblemsPrevented::PER_PAGE}"
+
+    click_button "Show more"
+
+    assert_text "Problem #{PullRequestReview::ProblemsPrevented::PER_PAGE}"
+    assert_no_button "Show more"
+
+    click_button "7 days"
+    assert_text "#{PullRequestReview::ProblemsPrevented::PER_PAGE + 1} risky changes caught in the last 7 days"
+    assert_no_text "Problem #{PullRequestReview::ProblemsPrevented::PER_PAGE}"
+    assert_button "Show more"
   end
 end

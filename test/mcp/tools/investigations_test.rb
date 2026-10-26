@@ -2,6 +2,7 @@ require "test_helper"
 
 class Mcp::Tools::InvestigationsTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
+  include PreventedProblemHelper
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -180,6 +181,23 @@ class Mcp::Tools::InvestigationsTest < ActiveSupport::TestCase
     mistake = body[:marked_wrong].sole
     assert_equal [ @incident.identifier, "The deploy did it" ], [ mistake[:incident], mistake[:answer] ]
     assert_equal [ { id: lesson.id, text: "A 5xx after a deploy has meant a full disk", confirmed: false } ], mistake[:lessons]
+  end
+
+  test "an agent reads the problems Halon's reviews prevented, a page at a time, each with how it fails and its comment" do
+    review = reviewed_pull_request!(@workspace, number: 812, merged_at: 2.days.ago)
+    (Mcp::Tools::GetHalonPerformance::PREVENTED_PER_PAGE + 1).times { |index| review_finding!(review, claim: "Problem #{index}", fixed_at: 3.days.ago) }
+
+    first = Mcp::Tools::GetHalonPerformance.perform(workspace: @workspace, args: {}).structured_content[:problems_prevented]
+    second = Mcp::Tools::GetHalonPerformance.perform(workspace: @workspace, args: { prevented_page: 2 }).structured_content[:problems_prevented]
+
+    assert_equal [ Mcp::Tools::GetHalonPerformance::PREVENTED_PER_PAGE + 1, 1, 2 ], first.values_at(:count, :page, :next_page)
+    problem = first[:problems].first
+    assert_equal [ "acme/checkout", 812, "Problem 0", "Major" ], problem.values_at(:repository, :pull_request, :claim, :severity)
+    assert_equal "Customers are charged twice, as in INC-012", problem[:failure_chain].last
+    assert_equal "INC-012 Double charges at checkout", problem[:evidence].first["title"]
+    assert_equal "https://github.com/acme/checkout/pull/812#discussion_r4253331341", problem[:comment_url]
+    assert_equal [ 2, nil ], second.values_at(:page, :next_page)
+    assert_equal [ "Problem #{Mcp::Tools::GetHalonPerformance::PREVENTED_PER_PAGE}" ], second[:problems].pluck(:claim)
   end
 
   test "a workspace without Halon is told why rather than given zeros" do

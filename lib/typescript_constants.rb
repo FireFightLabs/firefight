@@ -441,7 +441,9 @@ module TypescriptConstants
       Export.new("WORKFLOW_CONDITION_LIMIT", Workflow::Trigger::CONDITION_LIMIT, nil),
       Export.new("TRIGGER_NUMBER_OPERATORS", PolicyRule::NUMBER_OPERATORS, "TriggerNumberOperator"),
       Export.new("TRIGGER_NUMBER_OPERATOR", PolicyRule::NUMBER_OPERATORS.to_h { |operator| [ operator.upcase, operator ] }, nil),
-      Export.new("WORKFLOW_INPUT_LIMIT", Workflow::Trigger::INPUT_LIMIT, nil)
+      Export.new("WORKFLOW_INPUT_LIMIT", Workflow::Trigger::INPUT_LIMIT, nil),
+      Export.new("HALON_PERFORMANCE_PROPS", HalonPerformanceController::PROPS, nil),
+      Export.new("REVIEW_EVIDENCE_KINDS", PullRequestReview::Finding::EVIDENCE_KINDS, "ReviewEvidenceKind")
     ]
   end
 
