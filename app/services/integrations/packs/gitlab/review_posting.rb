@@ -139,13 +139,15 @@ module Integrations
           threads = comments.map do |comment|
             position = { "position_type" => "text", "base_sha" => refs["base_commit_sha"], "start_sha" => refs["start_commit_sha"], "head_sha" => refs["head_commit_sha"],
                          "new_path" => comment[:path], "old_path" => comment[:path], "new_line" => comment[:line] }
-            # A line GitLab will not place is left without a thread rather than stopping the rest, and the caller places it. A
-            # refusal for the token's access says the same for every line, so it stops the review with why.
+            # A line GitLab will not place is left without a thread rather than stopping the rest, and the caller places it. Any
+            # other failure, a refusal for the token's access included, stops the review with why.
             made = posting("comment on #{comment[:path]} line #{comment[:line]} of merge request !#{iid} in #{repo}") do
               gitlab.post("#{project}/merge_requests/#{iid}/discussions", { "body" => comment[:body], "position" => position })
             rescue GitlabApi::NotFound, GitlabApi::Refused
               raise
-            rescue GitlabApi::Error
+            rescue GitlabApi::Error => error
+              raise unless PullRequestReviews.unplaceable?(error)
+
               nil
             end
             made && { "thread" => "#{made['id']}/#{Array(made['notes']).first&.dig('id')}", "url" => note_url(request, Array(made["notes"]).first&.dig("id")) }

@@ -46,6 +46,15 @@ module Integrations
         assert_equal [ nil ], Gitlab.review_posted(PullRequestReviews::REVIEW, result.dig(Telemetry::STRUCTURED, Telemetry::FACTS)).comments
       end
 
+      test "a failure that is not about the line stops the review so it is tried again" do
+        GitlabApi.any_instance.stubs(:post).with("#{PROJECT}/merge_requests/7/discussions", anything).raises(GitlabApi::Error, "GitLab answered 503: unavailable")
+        GitlabApi.any_instance.expects(:post).with("#{PROJECT}/merge_requests/7/notes", anything).never
+
+        name, arguments = Gitlab.review_call(PullRequestReviews::REVIEW, repository: "acme/web", number: 7, body: "Summary",
+                                                                         comments: [ PullRequestReviews::LineComment.new(path: "a.rb", line: 3, body: "One") ])
+        assert_raises(GitlabApi::Error) { @pack.public_send(name, environment_row: @row, arguments: arguments) }
+      end
+
       test "a line comment's thread is replied to and resolved by its discussion, and its note edited by its own id" do
         GitlabApi.any_instance.expects(:post).with("#{PROJECT}/merge_requests/7/discussions/6a9c1d3e5f7b/notes", { "body" => "Fixed in abc1234." }).returns("id" => 502)
         name, arguments = Gitlab.review_call(PullRequestReviews::REPLY, repository: "acme/web", number: 7, reference: "6a9c1d3e5f7b/501", body: "Fixed in abc1234.")

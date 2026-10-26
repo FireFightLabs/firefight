@@ -169,6 +169,10 @@ module Integrations
       line&.split(": ")&.last&.strip.presence
     end
 
+    # A host's answer that a comment cannot sit on the line given, as a line outside the diff gets, which leaves that one
+    # line comment out. Any other failure, such as a rate limit or the host being down, stops the review so it is retried.
+    def unplaceable?(error) = error.message.to_s.match?(/answered (400|422):/)
+
     # The lines a diff lets a comment sit on, by path: every line of the new file a hunk shows, added or unchanged.
     def commentable(diff)
       lines = Hash.new { |hash, key| hash[key] = Set.new }

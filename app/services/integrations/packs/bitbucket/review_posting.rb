@@ -132,14 +132,16 @@ module Integrations
           pull = bitbucket.get("#{BitbucketApi.repository(repo)}/pullrequests/#{number}")
           fail! "PR ##{number} in #{repo} is #{pull['state'].to_s.downcase}, so it takes no review." unless pull["state"] == "OPEN"
 
-          # A line Bitbucket will not place is left without a comment rather than stopping the rest, and the caller places it. A
-          # refusal for the token's access says the same for every line, so it stops the review with why.
+          # A line Bitbucket will not place is left without a comment rather than stopping the rest, and the caller places it.
+          # Any other failure, a refusal for the token's access included, stops the review with why.
           ids = lines.map do |comment|
             posting("comment on #{comment[:path]} line #{comment[:line]} of PR ##{number} in #{repo}") do
               bitbucket.post(comments_path(repo, number), { "content" => { "raw" => comment[:body] }, "inline" => { "path" => comment[:path], "to" => comment[:line] } })
             rescue BitbucketApi::NotFound, BitbucketApi::Refused
               raise
-            rescue BitbucketApi::Error
+            rescue BitbucketApi::Error => error
+              raise unless PullRequestReviews.unplaceable?(error)
+
               nil
             end
           end
