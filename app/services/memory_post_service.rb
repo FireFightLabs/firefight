@@ -7,10 +7,7 @@ class MemoryPostService
   Shown = Data.define(:post_id, :kind, :incident_identifier, :memories, :reminder) do
     def initialize(post_id:, kind:, incident_identifier:, memories:, reminder: nil) = super
   end
-  # approved_by names who approved a lesson that reviews check now, and strict says a review fails a check on it.
-  ShownMemory = Data.define(:id, :text, :about, :about_removed, :state, :reason, :decided_by, :correction, :approved_by, :strict) do
-    def initialize(approved_by: nil, strict: false, **) = super
-  end
+  ShownMemory = Data.define(:id, :text, :about, :about_removed, :state, :reason, :decided_by, :correction)
   # What a reminder is about: how many of its memories the person it went to taught, how many the team's runs and
   # incidents taught, and whether it went to a person rather than a channel.
   ShownReminder = Data.define(:taught, :learned, :direct)
@@ -72,7 +69,7 @@ class MemoryPostService
     return false unless memory
 
     if confirmed
-      memory.confirm_or_approve!(by: member)
+      memory.confirm!(by: member)
     else
       memory.reject!(by: member, reason: "Marked not right in #{post.place}")
     end
@@ -95,7 +92,7 @@ class MemoryPostService
     return "That memory is gone. Close this and look on the Memory page." unless memory
     return "Write what is right instead." if correction.blank?
 
-    replacement = memory.correct!(by: member, reason: reason.presence || "Corrected in #{post.place}", correction: correction.strip)
+    replacement = memory.reject!(by: member, reason: reason.presence || "Corrected in #{post.place}", correction: correction.strip)
     return memory.reject_blocked_reason unless replacement
 
     redraw(post)
@@ -139,8 +136,7 @@ class MemoryPostService
   def shown_memory(memory)
     ShownMemory.new(id: memory.id, text: memory.text, about: memory.about, about_removed: memory.about_removed?, state: memory.state,
                     reason: memory.state_reason, decided_by: (memory.decider if [ Chat::Memory::STATE_CONFIRMED, Chat::Memory::STATE_REJECTED ].include?(memory.state)),
-                    correction: memory.replaced_by&.text, approved_by: (memory.approved_by&.display_name if memory.approved_lesson?),
-                    strict: memory.approved_lesson? && memory.strict)
+                    correction: memory.replaced_by&.text)
   end
 
   # A memory about a resource outside the person's map reach answers as one the message does not show.

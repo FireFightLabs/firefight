@@ -41,20 +41,18 @@ class MemoryController < InertiaController
   # Deciding works from the Memory page and from a card in a chat, and each goes back to where it was pressed.
   def confirm_memory
     memory = memories.find(params[:id])
-    return redirect_back_or_to(memory_path, alert: memory.confirm_blocked_reason) unless memory.confirm_or_approve!(by: current_membership)
+    return redirect_back_or_to(memory_path, alert: memory.confirm_blocked_reason) unless memory.confirm!(by: current_membership)
 
     kept = memory.contradicted_by ? "Kept as still right. Halon stops using what contradicted it." : "Confirmed. Halon now reads it as confirmed by you."
-    kept = "#{kept} #{REVIEWS_CHECK_IT}" if memory.approved_lesson?
     redirect_back_or_to memory_path, notice: kept
   end
 
   def correct_memory
     memory = memories.find(params[:id])
-    replacement = memory.correct!(by: current_membership, reason: params[:reason].to_s.strip, correction: params[:text].to_s.strip)
+    replacement = memory.reject!(by: current_membership, reason: params[:reason].to_s.strip, correction: params[:text].to_s.strip)
     return redirect_back_or_to(memory_path, alert: memory.reject_blocked_reason) unless replacement
 
-    corrected = "Corrected. Halon keeps the old wording as rejected so it does not learn it again."
-    redirect_back_or_to memory_path, notice: replacement.approved_lesson? ? "#{corrected} #{REVIEWS_CHECK_IT}" : corrected
+    redirect_back_or_to memory_path, notice: "Corrected. Halon keeps the old wording as rejected so it does not learn it again."
   rescue ActiveRecord::RecordInvalid => error
     redirect_back_or_to memory_path, alert: error.record.errors.full_messages.to_sentence
   end

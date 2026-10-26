@@ -235,19 +235,6 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_equal bob, lesson.reload.approved_by
   end
 
-  test "an admin confirming or correcting a lesson on the Memories tab approves it too, and says so" do
-    confirmed = taught("Web runs three replicas")
-    corrected = taught("The cache warms up in five minutes")
-
-    post confirm_memory_path(confirmed)
-    assert_equal "Confirmed. Halon now reads it as confirmed by you. Pull request reviews check it from now on.", flash[:notice]
-    assert confirmed.reload.approved_lesson?
-
-    post correct_memory_path(corrected), params: { text: "The cache warms up in ten minutes" }
-    assert_equal "Corrected. Halon keeps the old wording as rejected so it does not learn it again. Pull request reviews check it from now on.", flash[:notice]
-    assert corrected.reload.replaced_by.approved_lesson?
-  end
-
   test "a pull request a strict lesson holds is listed on the Lessons tab and overridden with a reason, with a toast" do
     lesson = taught("Checkout retries go up when the payment timeout changes").tap { |each| each.approve!(by: @member, strict: true) }
     review = PullRequestReview.create!(workspace: @workspace, repository: "acme/api", number: 7, head_sha: "a" * 40, title: "Raise the timeout",

@@ -11,8 +11,7 @@ module Slack
         Chat::MemoryPost::KIND_DISPUTED => ":grey_question:  *Halon disputed a memory*",
         Chat::MemoryPost::KIND_REMINDER => ":bell:  *Memories nobody confirmed yet*"
       }.freeze
-      LESSONS = "Halon already uses these, marked unconfirmed. Confirm the ones that are right, and mark the rest not right so it stops using them. " \
-                "Once the incident lead or an admin confirms one, Halon also checks it in every pull request review.".freeze
+      LESSONS = "Halon already uses these, marked unconfirmed. Confirm the ones that are right, and mark the rest not right so it stops using them.".freeze
       FOOTERS = {
         Chat::MemoryPost::KIND_INCIDENT => LESSONS,
         Chat::MemoryPost::KIND_POSTMORTEM => LESSONS,
@@ -100,7 +99,7 @@ module Slack
       def self.standing(memory)
         by = " by #{Slack::Mrkdwn.escape(memory.decided_by)}" if memory.decided_by
         case memory.state
-        when Chat::Memory::STATE_CONFIRMED then memory.approved_by ? approved(memory) : ":white_check_mark: Confirmed#{by}"
+        when Chat::Memory::STATE_CONFIRMED then ":white_check_mark: Confirmed#{by}"
         when Chat::Memory::STATE_REJECTED
           return ":no_entry_sign: Marked not right#{by}" unless memory.correction
 
@@ -109,12 +108,6 @@ module Slack
         when Chat::Memory::STATE_OUTDATED then [ ":warning: Possibly outdated.", reason(memory), "Halon still uses it, flagged." ].compact.join(" ")
         when Chat::Memory::STATE_EXPIRED then [ ":hourglass: Expired.", reason(memory), "Halon stopped using it." ].compact.join(" ")
         end
-      end
-
-      # A lesson its incident lead or an admin approved, which pull request reviews check.
-      def self.approved(memory)
-        checks = memory.strict ? "Pull request reviews check it, and fail a check on a pull request that goes against it." : "Pull request reviews check it."
-        ":white_check_mark: Approved by #{Slack::Mrkdwn.escape(memory.approved_by)}. #{checks}"
       end
 
       # Why it stands where it does, as a sentence of its own.

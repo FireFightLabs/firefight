@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_26_180100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_26_190200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -2803,9 +2803,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_180100) do
     t.datetime "updated_at", null: false
     t.datetime "review_posted_at"
     t.string "review_comment_id"
-    t.string "check_state"
-    t.string "check_sha"
-    t.string "check_error"
     t.string "commit_status"
     t.string "commit_status_sha"
     t.string "commit_status_error"

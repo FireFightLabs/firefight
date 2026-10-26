@@ -77,19 +77,16 @@ module Chat::Memory::Lesson
     lesson_blocked_reason(member) || reject_blocked_reason
   end
 
-  # Approving vouches for it as well, so a lesson waiting on a person is confirmed by them too. Guarded on it still
-  # being confirmed, so someone turning it down at the same moment wins. Returns whether it is approved now.
+  # Approval is the lesson's own and leaves how Halon trusts the memory as it was. Guarded on it still being in use,
+  # so someone turning it down at the same moment wins. Returns whether it is approved now.
   def approve!(by:, strict: false)
     return false if approve_blocked_reason(by)
 
-    transaction do
-      confirm!(by: by) unless confirmed?
-      approved = self.class.where(id: id, state: Chat::Memory::STATE_CONFIRMED)
-                           .update_all(approved_by_id: by.id, approved_at: Time.current, strict: strict, updated_at: Time.current) > 0
-      reload
-      announce_lesson_change if approved
-      approved
-    end
+    approved = self.class.where(id: id, state: Chat::Memory::USED_STATES)
+                         .update_all(approved_by_id: by.id, approved_at: Time.current, strict: strict, updated_at: Time.current) > 0
+    reload
+    announce_lesson_change if approved
+    approved
   end
 
   # The lead or an admin rewording it. New words replace it as a lesson approved by them, and the old wording is kept as
@@ -119,24 +116,6 @@ module Chat::Memory::Lesson
     reject!(by: by, reason: reason.presence || "#{TURNED_DOWN} by #{by.display_name}")
   end
 
-  # A person confirming it from a channel or the Memory page. The lead or an admin confirming a lesson approves it, so it
-  # is checked in reviews from then on. Anyone else confirms it as before.
-  def confirm_or_approve!(by:)
-    return confirm!(by: by) if lesson_blocked_reason(by)
-
-    approve!(by: by, strict: strict)
-  end
-
-  # A person correcting it from a channel or the Memory page. The correction is a lesson approved by the lead or an
-  # admin who wrote it, and keeps whether the lesson was strict.
-  def correct!(by:, reason:, correction:)
-    transaction do
-      replacement = reject!(by: by, reason: reason, correction: correction)
-      replacement.approve!(by: by, strict: strict) if replacement && replacement.from_incident? && replacement.lesson_blocked_reason(by).nil?
-      replacement
-    end
-  end
-
   # The reviews of pull requests not merged yet where a finding it produced is still open.
   def held_review_ids
     PullRequestReview::Finding.still_open.where(lesson_id: id).joins(:review).where(pull_request_reviews: { merged_at: nil })
@@ -155,6 +134,7 @@ module Chat::Memory::Lesson
   def approve_state_blocked_reason
     return TURNED_DOWN_REASON if state == Chat::Memory::STATE_REJECTED
     return "It is approved already." if approved_lesson?
+    return "Halon stopped using it, so reviews cannot check it. Settle it on the Memories tab first." unless in_use?
 
     nil
   end

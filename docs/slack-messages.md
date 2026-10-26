@@ -513,10 +513,6 @@ channel or by direct message. A reminder opens with one line saying how many wai
 memory with Confirm, Not right and Correct, and a footer linking the Memory page. See docs/ai.md, Reminders reach the
 person who should know.
 
-A memory an incident taught that its lead or an admin approved says so in place of who confirmed it ("Approved by Ana.
-Pull request reviews check it."), adding that reviews fail a check on it when it is strict, and the footer of a lesson
-message says confirming by the lead or an admin also puts it in every pull request review.
-
 ## A high risk pull request
 
 `HighRiskPullRequest` (`:octagonal_sign:`) is posted in the channel of the service that owns a repository when Halon
