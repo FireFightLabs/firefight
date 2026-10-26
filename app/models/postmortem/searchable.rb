@@ -3,6 +3,8 @@ module Postmortem::Searchable
   extend ActiveSupport::Concern
   include SearchEmbedding::Writing
 
+  def workspace = incident.workspace
+
   def search_embeddable? = status == Postmortem::STATUS_COMPLETED
 
   class_methods do

@@ -6,6 +6,11 @@ class PostmortemTest < ActiveSupport::TestCase
     assert_equal incidents(:resolved_minor_ws1), postmortem.incident
   end
 
+  test "reaches its workspace through its incident" do
+    postmortem = postmortems(:postmortem_resolved_ws1)
+    assert_equal incidents(:resolved_minor_ws1).workspace, postmortem.workspace
+  end
+
   test "belongs to generated_by membership" do
     postmortem = postmortems(:postmortem_resolved_ws1)
     assert_equal workspace_memberships(:alice_workspace_one), postmortem.generated_by
