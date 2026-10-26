@@ -75,12 +75,13 @@ class PullRequestReview::Runner
   end
 
   # A path at the head, or one the pull request removed.
-  def known_path?(path) = path.present? && (@checkout.holds?(path) || @patches.key?(path))
+  def known_path?(path) = path.present? && (@checkout.holds?(path) || @changed_paths.include?(path))
 
   # A line a comment cannot sit on, since no hunk of the file's diff holds it, or a file the pull request did not change.
   def outside_diff?(path, line)
-    return true unless @patches.key?(path)
+    return true unless @changed_paths.include?(path)
     return false if line.nil?
+    return true unless @patches.key?(path)
 
     Integrations::ReviewHost.commentable_lines(@patches[path]).none? { |range| range.cover?(line) }
   end
@@ -120,7 +121,13 @@ class PullRequestReview::Runner
     [
       "#{review.repository} PR ##{review.number}: #{review.title}",
       "The head is #{@checkout.ref} in #{@checkout.repository}, and the base is #{review.base_sha}. Read the code with those as the ref.",
-      (diff ? "The pull request's diff of #{path}:\n#{FirefightAi::Evidence.frame('pull_request_diff', diff.truncate(CHECK_DIFF_LIMIT))}" : "The pull request does not change #{path}.")
+      if diff
+        "The pull request's diff of #{path}:\n#{FirefightAi::Evidence.frame('pull_request_diff', diff.truncate(CHECK_DIFF_LIMIT))}"
+      elsif @changed_paths.include?(path)
+        "The pull request changes #{path}, but its diff is left out of the review."
+      else
+        "The pull request does not change #{path}."
+      end
     ].join("\n\n")
   end
 
@@ -141,8 +148,9 @@ class PullRequestReview::Runner
     end
     @files = files
     @diffs = Integrations::ReviewHost.diffs(@row, files, checkout: @checkout, base_sha: base_sha, key: review.code_box_key)
-    @patches = files.each_with_object({}) { |file, patches| patches[file.path] = file.patch.to_s }
-    @diffs.select(&:read?).each { |diff| @patches[diff.path] = diff.text }
+    # Only the diffs the review reads, so a file left out, such as one that may hold secrets, never reaches a check.
+    @changed_paths = files.to_set(&:path)
+    @patches = @diffs.select(&:read?).to_h { |diff| [ diff.path, diff.text ] }
     left = @diffs.reject(&:read?).map { |diff| { "path" => diff.path, "reason" => diff.left_out } }
     review.update!(left_out: (review.left_out.reject { |item| left.any? { |each| each["path"] == item["path"] } } + left))
   end

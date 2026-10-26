@@ -2745,10 +2745,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_180100) do
     t.uuid "lesson_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "host_comment_url"
     t.string "serious_comment_id"
     t.jsonb "answered_comment_ids", default: [], null: false
     t.string "rechecked_sha"
-    t.string "host_comment_url"
     t.index ["lesson_id"], name: "index_pull_request_review_findings_on_lesson_id"
     t.index ["pull_request_review_id", "fingerprint"], name: "index_pull_request_review_findings_on_fingerprint", unique: true
     t.index ["pull_request_review_id", "position"], name: "index_pull_request_review_findings_in_order", unique: true

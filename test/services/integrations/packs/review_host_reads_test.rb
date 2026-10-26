@@ -69,6 +69,11 @@ module Integrations
         assert_equal [ ReviewHost::STATE_MERGED, BASE, HEAD, "ada/web" ], [ pull.state, pull.base_sha, pull.head_sha, pull.head_repository ]
         assert_equal "acme/web", gitlab.review_head_repository(pull)
 
+        GitlabApi.any_instance.stubs(:get).with("/projects/9").raises(GitlabApi::NotFound, "404 Project Not Found")
+        unreadable = gitlab.pull_request_for_review(row, repository: "acme/web", number: 42)
+        assert_equal [ HEAD, "project 9" ], [ unreadable.head_sha, unreadable.head_repository ], "a fork this token cannot read still reads as a fork"
+        assert unreadable.fork?
+
         GitlabApi.any_instance.stubs(:list).with("/projects/acme%2Fweb/merge_requests/42/diffs", {}, pages: Gitlab::FLAG_FILE_PAGES).returns([ [
           { "new_path" => "db/migrate/1.rb", "old_path" => "db/migrate/1.rb", "new_file" => true, "diff" => "@@ -0,0 +1 @@\n+x\n" },
           { "new_path" => "big.sql", "old_path" => "big.sql", "diff" => "", "too_large" => true },
