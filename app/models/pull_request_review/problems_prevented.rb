@@ -18,7 +18,7 @@ class PullRequestReview::ProblemsPrevented
   # One page of problems. A row over the page says whether another follows, without counting again.
   def page(number, per_page: PER_PAGE)
     number = [ number.to_i, 1 ].max
-    rows = findings.includes(:review).reorder("pull_request_reviews.merged_at DESC", "pull_request_review_findings.position")
+    rows = findings.includes(:review).reorder("pull_request_reviews.merged_at DESC", "pull_request_reviews.id", "pull_request_review_findings.position")
                    .offset((number - 1) * per_page).limit(per_page + 1).to_a
     Page.new(number: number, problems: rows.first(per_page), next_page: rows.size > per_page ? number + 1 : nil)
   end
