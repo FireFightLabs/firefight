@@ -24,6 +24,7 @@ class Slack::Messages::HighRiskPullRequestTest < ActiveSupport::TestCase
     assert_includes listed, "• *Critical*  Raises the &lt;!channel&gt; timeout  ·  _Lesson from INC-052_"
     assert listed.end_with?("and 1 more on the pull request")
     assert_includes blocks.third.dig(:text, :text), "&lt;b&gt;Timeout&lt;/b&gt;"
+    assert_equal "High risk pull request in acme/auth: #7 &lt;b&gt;Timeout&lt;/b&gt;", Slack::Messages::HighRiskPullRequest.fallback(shown(title: "<b>Timeout</b>"))
   end
 
   private

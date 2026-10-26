@@ -12,13 +12,25 @@ module PullRequestReview::StrictCheck
     validates :commit_status, inclusion: { in: COMMIT_STATUSES }, allow_nil: true
   end
 
-  # The findings holding the check failing.
-  def holding_findings = findings.holding.preload(lesson: :source).to_a
+  # Every review of the same pull request people see, each head's, since a finding on an earlier head holds until it is
+  # fixed whichever review found it.
+  def reviews_of_pull_request
+    PullRequestReview.seen.where(workspace_id: workspace_id, number: number).where("lower(repository) = ?", repository.downcase)
+  end
+
+  # The findings holding the check failing, the same problem found again on a later head counted once.
+  def holding_findings
+    PullRequestReview::Finding.holding.where(pull_request_review_id: reviews_of_pull_request.select(:id)).preload(lesson: :source)
+                              .order(:created_at).to_a.uniq(&:fingerprint)
+  end
 
   # What the check should say now, or nil when no strict lesson was ever involved and no check was set before.
   def commit_status_due
     return COMMIT_STATUS_FAILING if holding_findings.any?
-    return COMMIT_STATUS_PASSING if commit_status || findings.joins(:lesson).where(chat_memories: { strict: true }).exists?
+
+    reviews = reviews_of_pull_request
+    strict_before = PullRequestReview::Finding.where(pull_request_review_id: reviews.select(:id)).joins(:lesson).where(chat_memories: { strict: true }).exists?
+    return COMMIT_STATUS_PASSING if strict_before || reviews.where.not(commit_status: nil).exists?
 
     nil
   end

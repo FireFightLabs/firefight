@@ -25,7 +25,7 @@ class MemoryController < InertiaController
     render inertia: "memory/index", props: {
       memories: ChatMemorySerializer.many(memories),
       lessons: ChatLessonSerializer.many(lessons, member: current_membership),
-      heldPullRequests: HeldPullRequestFindingSerializer.many(PullRequestReview::Finding.from_strict_lessons(current_workspace, memories)),
+      heldPullRequests: HeldPullRequestFindingSerializer.many(held_pull_requests),
       instructions: ChatInstructionSerializer.many(Chat::Instruction.with_history(current_workspace, principal: current_membership)),
       subjects: MemorySubjectOptionSerializer.many(Chat::Memory.subject_choices(current_workspace, principal: current_membership))
     }
@@ -83,7 +83,7 @@ class MemoryController < InertiaController
   def edit_lesson
     lesson = lessons.find(params[:id])
     edited = lesson.edit_lesson!(by: current_membership, text: params[:text].to_s.strip, strict: strict_param)
-    return redirect_to(lessons_page, alert: lesson.edit_lesson_blocked_reason(current_membership)) unless edited
+    return redirect_to(lessons_page, alert: lesson.edit_lesson_blocked_reason(current_membership) || lesson.approve_blocked_reason(current_membership)) unless edited
 
     redirect_to lessons_page, notice: "Saved the #{lesson.lesson_origin} lesson. #{edited.strict ? STRICT_CHECKS : REVIEWS_CHECK_IT}"
   rescue ActiveRecord::RecordInvalid => error
@@ -140,6 +140,12 @@ class MemoryController < InertiaController
   def instructions_page = memory_path(TAB_QUERY => TAB_INSTRUCTIONS)
 
   def lessons_page = memory_path(TAB_QUERY => TAB_LESSONS)
+
+  # The same problem found again on a later head of a pull request is listed once, as its newest review found it.
+  def held_pull_requests
+    PullRequestReview::Finding.from_strict_lessons(current_workspace, memories).to_a
+                              .uniq { |finding| [ finding.review.repository.downcase, finding.review.number, finding.fingerprint ] }
+  end
 
   # What an incident taught, apart from wordings an edit or a correction replaced, which the Memories tab keeps.
   def lessons = memories.lessons.where(replaced_by_id: nil).includes(:subject, :approved_by, :confirmed_by, :rejected_by, :source)

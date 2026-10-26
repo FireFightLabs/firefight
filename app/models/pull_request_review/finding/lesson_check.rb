@@ -9,6 +9,8 @@ module PullRequestReview::Finding::LessonCheck
     belongs_to :lesson, class_name: "Chat::Memory", optional: true
     belongs_to :overridden_by, class_name: "WorkspaceMembership", optional: true
 
+    before_create :keep_override
+
     # Open findings from lessons that are strict now, which nobody overrode.
     scope :holding, lambda {
       still_open.where(overridden_at: nil).joins(:lesson).merge(Chat::Memory.approved_lessons.where(strict: true))
@@ -23,6 +25,15 @@ module PullRequestReview::Finding::LessonCheck
           .where(lesson_id: lessons.approved_lessons.where(strict: true).select(:id))
           .preload(:overridden_by, :review, lesson: :source).order(created_at: :desc)
     end
+  end
+
+  # The same problem found again on a later head of the same pull request stays overridden, so a person is not asked twice.
+  def keep_override
+    return if lesson_id.nil? || review.nil?
+
+    earlier = PullRequestReview::Finding.where(pull_request_review_id: review.reviews_of_pull_request.where.not(id: review.id).select(:id),
+                                               fingerprint: fingerprint).where.not(overridden_at: nil).order(:overridden_at).last
+    self.overridden_by_id, self.overridden_at, self.override_reason = earlier.overridden_by_id, earlier.overridden_at, earlier.override_reason if earlier
   end
 
   # Whether its lesson is one a review fails a check on, now.

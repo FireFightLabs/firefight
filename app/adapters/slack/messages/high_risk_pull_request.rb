@@ -20,7 +20,7 @@ module Slack
         ].compact
       end
 
-      def self.fallback(alert) = "#{title(alert)}: ##{alert.number} #{alert.title}"
+      def self.fallback(alert) = "#{title(alert)}: ##{alert.number} #{Slack::Mrkdwn.escape(alert.title)}"
 
       def self.title(alert) = "High risk pull request in #{Slack::Mrkdwn.escape(alert.repository)}"
 

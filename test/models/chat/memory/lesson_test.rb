@@ -62,6 +62,11 @@ class Chat::Memory::LessonTest < ActiveSupport::TestCase
     assert_equal edited, edited.edit_lesson!(by: @admin, text: "Checkout reads from the primary", strict: false)
     assert_not edited.reload.strict
     assert_nil lesson.edit_lesson!(by: @admin, text: "Anything", strict: false)
+
+    disputed = taught("Checkout keeps sessions in Redis")
+    disputed.dispute!("A postmortem says otherwise")
+    assert_nil disputed.edit_lesson!(by: @admin, text: disputed.text, strict: true), "the same words cannot make a lesson Halon stopped using approved"
+    assert_not disputed.reload.strict
   end
 
   test "turning it down rejects it so reviews and Halon stop using it" do

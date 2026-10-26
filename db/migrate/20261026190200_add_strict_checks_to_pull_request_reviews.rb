@@ -12,6 +12,7 @@ class AddStrictChecksToPullRequestReviews < ActiveRecord::Migration[8.1]
     add_column :pull_request_reviews, :commit_status_sha, :string
     add_column :pull_request_reviews, :commit_status_error, :string
     add_column :pull_request_reviews, :high_risk_posted_at, :datetime
+    add_column :pull_request_reviews, :high_risk_posted_channels, :jsonb, default: [], null: false
     add_check_constraint :pull_request_reviews, "commit_status IS NULL OR commit_status IN ('passing', 'failing')", name: "pull_request_reviews_commit_status"
   end
 end

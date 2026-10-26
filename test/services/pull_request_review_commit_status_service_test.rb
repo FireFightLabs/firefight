@@ -29,6 +29,16 @@ class PullRequestReviewCommitStatusServiceTest < ActiveSupport::TestCase
     assert_equal "https://firefight.test/app/memory?review=#{@review.id}&tab=lessons", sent.first.url
   end
 
+  test "a change on an earlier review's finding sets the check on the newest head" do
+    held = finding
+    newer = PullRequestReview.create!(workspace: @workspace, integration_environment: @row, repository: "acme/api", number: 7, head_sha: "b" * 40,
+                                      trigger: PullRequestReview::TRIGGER_AUTOMATIC, max_spend_cents: 400, status: PullRequestReview::STATUS_DONE)
+    Integrations::ReviewHost.expects(:set_check!).with { |_row, sha:, check:, **| sha == "b" * 40 && check.state == Integrations::ReviewHost::CHECK_FAILING }
+
+    assert_equal PullRequestReview::COMMIT_STATUS_FAILING, PullRequestReviewCommitStatusService.new(held.review).update!
+    assert_equal "b" * 40, newer.reload.commit_status_sha
+  end
+
   test "a host that refuses keeps why on the review and tries again at the next change" do
     finding
     Integrations::ReviewHost.stubs(:set_check!).raises(Integrations::Error, "GitHub answered 403")

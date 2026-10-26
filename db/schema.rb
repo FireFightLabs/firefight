@@ -2810,6 +2810,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_190300) do
     t.string "commit_status_sha"
     t.string "commit_status_error"
     t.datetime "high_risk_posted_at"
+    t.jsonb "high_risk_posted_channels", default: [], null: false
     t.index ["integration_environment_id"], name: "index_pull_request_reviews_on_integration_environment_id"
     t.index ["workspace_id", "repository", "number"], name: "index_pull_request_reviews_on_pull_request"
     t.index ["workspace_id", "repository", "number"], name: "index_pull_request_reviews_one_live", unique: true, where: "(((status)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying])::text[])) AND (rehearsal = false))"

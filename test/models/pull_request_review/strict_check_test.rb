@@ -62,6 +62,26 @@ class PullRequestReview::StrictCheckTest < ActiveSupport::TestCase
     assert_equal "Only a finding from a strict lesson holds a check.", held.override_blocked_reason
   end
 
+  test "a finding on an earlier head holds the newest head's check, the same problem found again counts once, and its override carries over" do
+    held = finding(lesson: @strict)
+    newer = PullRequestReview.create!(workspace: @workspace, repository: "acme/api", number: 7, head_sha: "b" * 40,
+                                      trigger: PullRequestReview::TRIGGER_AUTOMATIC, max_spend_cents: 400, status: PullRequestReview::STATUS_DONE)
+    again = newer.findings.create!(position: 1, fingerprint: held.fingerprint, category: held.category, severity: held.severity, effort: held.effort,
+                                   claim: held.claim, why: held.why, lesson: @strict)
+
+    assert_equal PullRequestReview::COMMIT_STATUS_FAILING, newer.commit_status_due
+    assert_equal "1 finding from a strict lesson is open: Lesson from INC-001.", newer.commit_status_words(PullRequestReview::COMMIT_STATUS_FAILING)
+
+    held.override!(by: @admin, reason: "Behind a flag")
+    again.override!(by: @admin, reason: "Behind a flag")
+    third = PullRequestReview.create!(workspace: @workspace, repository: "acme/api", number: 7, head_sha: "c" * 40,
+                                      trigger: PullRequestReview::TRIGGER_AUTOMATIC, max_spend_cents: 400, status: PullRequestReview::STATUS_DONE)
+    carried = third.findings.create!(position: 1, fingerprint: held.fingerprint, category: held.category, severity: held.severity, effort: held.effort,
+                                     claim: held.claim, why: held.why, lesson: @strict)
+    assert_equal [ @admin, "Behind a flag" ], [ carried.overridden_by, carried.override_reason ]
+    assert_equal PullRequestReview::COMMIT_STATUS_PASSING, third.commit_status_due
+  end
+
   test "the same state on the same commit is claimed once, and a refusal lets the next change try again" do
     assert @review.claim_commit_status!(PullRequestReview::COMMIT_STATUS_FAILING, "a" * 40)
     assert_not @review.claim_commit_status!(PullRequestReview::COMMIT_STATUS_FAILING, "a" * 40)

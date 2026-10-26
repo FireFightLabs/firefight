@@ -63,7 +63,8 @@ class PullRequestLessonService
       edits = outcome.commits.each_with_index.reject { |commit, _index| commit.merge || commit.email.to_s.casecmp?(CodeAgentSession::COMMIT_EMAIL) }
       return nil if edits.empty?
 
-      from = outcome.commits[edits.first.last - 1]&.sha
+      first = edits.first.last
+      from = outcome.commits[first - 1].sha if first.positive?
       changes = from ? Integrations::ReviewHost.changes_between(row, repository: @session.repository, from: from, to: outcome.commits.last.sha) : ""
       words = [ *edits.map { |commit, _index| "Commit by #{commit.author}: #{commit.message.strip}" }, *people_comments(outcome) ].join("\n")
       FirefightAi::PullRequestLessonExtractor::Handled.new(kind: FirefightAi::PullRequestLessonExtractor::EDITED, person: person, words: words, changes: changes)

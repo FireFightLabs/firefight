@@ -121,7 +121,8 @@ module Chat::Memory::Lesson
 
     words = text.to_s.strip
     if words == self.text.strip
-      approve!(by: by, strict: strict) unless approved_lesson?
+      return nil unless approved_lesson? || approve!(by: by, strict: strict)
+
       update!(strict: strict)
       announce_lesson_change
       return self

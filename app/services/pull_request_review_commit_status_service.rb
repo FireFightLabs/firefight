@@ -2,8 +2,9 @@
 # involved: failing while a finding from one is open and nobody overrode it, passing once none is. The same state on
 # the same commit is set once, and a host that refuses is tried again at the next change, with why kept on the review.
 class PullRequestReviewCommitStatusService
+  # The check always lands on the newest head reviewed, whichever review's finding changed.
   def initialize(review)
-    @review = review
+    @review = review.rehearsal? ? review : (PullRequestReview.latest_of(review.workspace, review.repository, review.number) || review)
   end
 
   # Returns the state set, or nil when nothing was due or the host could not take it.

@@ -54,6 +54,18 @@ class PullRequestReviewAlertServiceTest < ActiveSupport::TestCase
     assert_empty service.post!
   end
 
+  test "a channel Slack asks to try later is tried again by the job, and one posted in already is never posted in twice" do
+    @workspace.catalog_entries.create!(catalog_type: @service.catalog_type, name: "Payments", slug: "payments",
+                                       attributes: { "code" => "acme/auth", "slack_channel" => "C-PAY" })
+    @adapter.expects(:post_high_risk_pull_request).with { |channel_id:, **| channel_id == "C-AUTH" }.once.returns(message_id: "1", channel_id: "C-AUTH")
+    @adapter.expects(:post_high_risk_pull_request).with { |channel_id:, **| channel_id == "C-PAY" }.twice
+            .raises(AdapterError::RateLimited.new(1)).then.returns(message_id: "2", channel_id: "C-PAY")
+
+    assert_raises(PullRequestReviewAlertService::Retry) { service.post! }
+    assert_equal [ "C-PAY" ], service.post!
+    assert_equal %w[C-AUTH C-PAY], @review.reload.high_risk_posted_channels
+  end
+
   test "a review that finished is posted from a job" do
     running = review!(number: 11, status: PullRequestReview::STATUS_RUNNING)
 

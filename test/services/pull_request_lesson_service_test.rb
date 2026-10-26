@@ -42,6 +42,14 @@ class PullRequestLessonServiceTest < ActiveSupport::TestCase
     assert_nil service.learn!, "a pull request is read once"
   end
 
+  test "an edit that is the first commit on the pull request is read from what was said, never compared with the last commit" do
+    outcome!(Host::STATE_MERGED, commits: [ person_commit("b0", "Start over"), halon_commit("a1") ])
+    Host.expects(:changes_between).never
+    Extractor.any_instance.expects(:extract).with { |handled:, **| handled.changes.blank? && handled.words.include?("Start over") }.returns(nil)
+
+    service.learn!
+  end
+
   test "a pull request closed by Halon itself, a bot or the host teaches nothing" do
     Extractor.any_instance.expects(:extract).never
 
