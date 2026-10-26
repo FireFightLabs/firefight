@@ -524,6 +524,63 @@ module Integrations
         fail! error.message
       end
 
+      # Bitbucket's pull request states as the review reads them. A superseded one was closed for another.
+      REVIEW_STATES = {
+        "OPEN" => ReviewHost::STATE_OPEN, MERGED => ReviewHost::STATE_MERGED, "DECLINED" => ReviewHost::STATE_CLOSED, "SUPERSEDED" => ReviewHost::STATE_CLOSED
+      }.freeze
+      REVIEW_STATUSES = { "added" => ReviewHost::STATUS_ADDED, "removed" => ReviewHost::STATUS_REMOVED, "renamed" => ReviewHost::STATUS_RENAMED }.freeze
+
+      # A pull request as Halon's review reads it (Integrations::ReviewHost.pull_request). Bitbucket names its commits
+      # by a short hash, so each is read back whole. Its base is the destination branch's commit, which the review diffs
+      # against where the branch left it, as Bitbucket does. Bitbucket gives no merge time, and a merged pull request's
+      # last update is its merge.
+      def pull_request_for_review(environment_row, repository:, number:)
+        bitbucket = api(environment_row)
+        request = bitbucket.get("#{BitbucketApi.repository(repository)}/pullrequests/#{number}")
+        head_repository = request.dig("source", "repository", "full_name").presence || repository
+        base_repository = request.dig("destination", "repository", "full_name").presence || repository
+        ReviewHost::PullRequest.new(
+          repository: repository, number: number, title: request["title"].to_s, body: request["description"], author: request.dig("author", "display_name"),
+          url: request.dig("links", "html", "href"), state: REVIEW_STATES.fetch(request["state"], ReviewHost::STATE_CLOSED), draft: request["draft"] == true,
+          base_ref: request.dig("destination", "branch", "name"), base_sha: commit_of(bitbucket, base_repository, request.dig("destination", "commit", "hash")),
+          head_ref: request.dig("source", "branch", "name"), head_sha: commit_of(bitbucket, head_repository, request.dig("source", "commit", "hash")),
+          head_repository: head_repository, merged_at: (Time.iso8601(request["updated_on"]) if request["state"] == MERGED && request["updated_on"])
+        )
+      rescue BitbucketApi::Error => error
+        fail! "Bitbucket could not read PR ##{number} in #{repository}: #{error.message}"
+      end
+
+      # Every file a pull request changes, from its diffstat, with the patches of its diff when Bitbucket sends that
+      # whole. A diff too large for one read is read from the sandbox instead. A list Bitbucket cuts short is refused
+      # rather than taken for the whole (Integrations::ReviewHost.changed_files).
+      def pull_request_files_for_review(environment_row, repository:, number:)
+        bitbucket = api(environment_row)
+        stats, more = bitbucket.list("#{BitbucketApi.repository(repository)}/pullrequests/#{number}/diffstat", {}, pages: FLAG_FILE_PAGES)
+        fail! "PR ##{number} in #{repository} changes more files than Bitbucket lists." if more
+
+        diff = bitbucket.text("#{BitbucketApi.repository(repository)}/pullrequests/#{number}/diff")
+        patched = diff.bytesize < BitbucketApi::TEXT_LIMIT ? ReviewHost.parse_git_diff(diff).index_by(&:path) : {}
+        stats.map do |stat|
+          path = stat.dig("new", "path") || stat.dig("old", "path")
+          given = patched[path]
+          ReviewHost::ChangedFile.new(
+            path: path, previous_path: (stat.dig("old", "path") if stat["status"] == "renamed"), status: REVIEW_STATUSES.fetch(stat["status"], ReviewHost::STATUS_MODIFIED),
+            additions: stat["lines_added"].to_i, deletions: stat["lines_removed"].to_i, patch: given&.patch, binary: given&.binary || false
+          )
+        end
+      rescue BitbucketApi::Error => error
+        fail! "Bitbucket could not list the files of PR ##{number} in #{repository}: #{error.message}"
+      end
+
+      # A file at a commit on Bitbucket, at a line when one is given.
+      def pull_request_file_link(environment_row, repository:, sha:, path:, line: nil)
+        site = ConnectionSettings.of(environment_row).site
+        "#{[ site, repository, 'src', sha, path.split('/').map { |part| ERB::Util.url_encode(part) }.join('/') ].join('/')}#{"#lines-#{line}" if line}"
+      end
+
+      # Bitbucket keeps no refs for another repository's pull requests, so the head of one from a fork is read from the fork.
+      def review_head_repository(pull) = pull.head_repository.presence || pull.repository
+
       private
 
       # Every tool reaches the API first, so the site its links open is known by the time it links.

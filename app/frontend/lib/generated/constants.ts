@@ -1500,7 +1500,8 @@ export const LEDGER_SOURCES = [
   "watch",
   "handbook_sync",
   "paging",
-  "workflow"
+  "workflow",
+  "pull_request_review"
 ] as const
 export type LedgerSource = (typeof LEDGER_SOURCES)[number]
 

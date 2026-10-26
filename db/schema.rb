@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_21_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_26_120100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -2703,6 +2703,99 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_21_090000) do
     t.index ["provider", "kind", "ref"], name: "index_provider_sandboxes_on_provider_and_kind_and_ref", unique: true
   end
 
+  create_table "pull_request_review_checks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "pull_request_review_id", null: false
+    t.uuid "finding_id"
+    t.text "claim", null: false
+    t.string "path"
+    t.string "verdict"
+    t.text "reason"
+    t.bigint "spent_micros", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["finding_id"], name: "index_pull_request_review_checks_on_finding_id"
+    t.index ["pull_request_review_id"], name: "index_pull_request_review_checks_on_pull_request_review_id"
+    t.check_constraint "verdict IS NULL OR (verdict::text = ANY (ARRAY['kept'::character varying, 'dropped'::character varying]::text[]))", name: "pull_request_review_checks_verdict"
+  end
+
+  create_table "pull_request_review_findings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "pull_request_review_id", null: false
+    t.integer "position", null: false
+    t.string "fingerprint", null: false
+    t.string "category", null: false
+    t.string "severity", null: false
+    t.string "effort", null: false
+    t.text "claim", null: false
+    t.text "why", null: false
+    t.jsonb "failure_chain", default: [], null: false
+    t.jsonb "evidence", default: [], null: false
+    t.jsonb "checks", default: [], null: false
+    t.jsonb "cross_checks", default: [], null: false
+    t.string "path"
+    t.integer "line"
+    t.boolean "outside_diff", default: false, null: false
+    t.text "suggested_fix"
+    t.text "agent_instructions"
+    t.string "status", default: "open", null: false
+    t.text "withdrawn_reason"
+    t.boolean "serious", default: false, null: false
+    t.string "fixed_in_sha"
+    t.datetime "fixed_at"
+    t.string "host_comment_id"
+    t.uuid "lesson_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["lesson_id"], name: "index_pull_request_review_findings_on_lesson_id"
+    t.index ["pull_request_review_id", "fingerprint"], name: "index_pull_request_review_findings_on_fingerprint", unique: true
+    t.index ["pull_request_review_id", "position"], name: "index_pull_request_review_findings_in_order", unique: true
+    t.check_constraint "severity::text = ANY (ARRAY['critical'::character varying, 'major'::character varying, 'minor'::character varying, 'trivial'::character varying]::text[])", name: "pull_request_review_findings_severity"
+    t.check_constraint "status::text = ANY (ARRAY['open'::character varying, 'fixed'::character varying, 'withdrawn'::character varying]::text[])", name: "pull_request_review_findings_status"
+  end
+
+  create_table "pull_request_reviews", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "integration_environment_id"
+    t.string "repository", null: false
+    t.integer "number", null: false
+    t.string "title"
+    t.string "url"
+    t.string "base_ref"
+    t.string "base_sha"
+    t.string "head_ref"
+    t.string "head_sha", null: false
+    t.string "status", default: "queued", null: false
+    t.string "trigger", null: false
+    t.boolean "rehearsal", default: false, null: false
+    t.string "risk"
+    t.text "risk_reason"
+    t.text "summary"
+    t.jsonb "reviewed_paths", default: [], null: false
+    t.jsonb "left_out", default: [], null: false
+    t.string "summary_comment_id"
+    t.string "model"
+    t.string "provider"
+    t.string "model_override"
+    t.string "provider_override"
+    t.integer "max_spend_cents", null: false
+    t.bigint "spent_micros", default: 0, null: false
+    t.integer "turns_used", default: 0, null: false
+    t.integer "attempts", default: 0, null: false
+    t.string "lease_holder"
+    t.datetime "lease_until"
+    t.string "error_summary"
+    t.datetime "started_at"
+    t.datetime "finished_at"
+    t.datetime "merged_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["integration_environment_id"], name: "index_pull_request_reviews_on_integration_environment_id"
+    t.index ["workspace_id", "repository", "number"], name: "index_pull_request_reviews_on_pull_request"
+    t.index ["workspace_id", "repository", "number"], name: "index_pull_request_reviews_one_live", unique: true, where: "(((status)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying])::text[])) AND (rehearsal = false))"
+    t.check_constraint "risk IS NULL OR (risk::text = ANY (ARRAY['low'::character varying, 'medium'::character varying, 'high'::character varying]::text[]))", name: "pull_request_reviews_risk"
+    t.check_constraint "status::text = ANY (ARRAY['queued'::character varying, 'running'::character varying, 'done'::character varying, 'failed'::character varying]::text[])", name: "pull_request_reviews_status"
+    t.check_constraint "trigger::text = ANY (ARRAY['requested'::character varying, 'automatic'::character varying]::text[])", name: "pull_request_reviews_trigger"
+  end
+
   create_table "repository_setups", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.jsonb "commands", default: [], null: false
     t.datetime "created_at", null: false
@@ -3913,6 +4006,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_21_090000) do
   add_foreign_key "prepared_copies", "workspaces"
   add_foreign_key "provider_doc_chunks", "provider_doc_pages", on_delete: :cascade
   add_foreign_key "provider_doc_pages", "provider_doc_sources", on_delete: :cascade
+  add_foreign_key "pull_request_review_checks", "pull_request_review_findings", column: "finding_id", on_delete: :nullify
+  add_foreign_key "pull_request_review_checks", "pull_request_reviews", on_delete: :cascade
+  add_foreign_key "pull_request_review_findings", "pull_request_reviews", on_delete: :cascade
+  add_foreign_key "pull_request_reviews", "integration_environments", on_delete: :nullify
+  add_foreign_key "pull_request_reviews", "workspaces"
   add_foreign_key "repository_setups", "integrations"
   add_foreign_key "repository_setups", "workspaces"
   add_foreign_key "resource_map_baselines", "integration_environments", on_delete: :cascade

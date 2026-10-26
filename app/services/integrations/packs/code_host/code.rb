@@ -264,6 +264,40 @@ module Integrations
           [ at(repo, result), preparation(prepared, setup), output(result) ].compact.join("\n\n")
         end
 
+        # A pull request's head in the review's sandbox (Integrations::ReviewHost.checkout!). The box holds the
+        # repository's every ref, the host's pull request refs among them, and fetches again once for a commit pushed
+        # after it was given the repository.
+        def pull_request_checkout(environment_row, pull:)
+          repository = review_head_repository(pull)
+          result = code(environment_row).exec(repository, ref: pull.head_sha, where: Sandboxes::Client::IN_GIT,
+                                                          argv: [ "-c", "core.quotePath=false", "ls-tree", "-r", "--name-only", Sandboxes::Client::COMMIT ])
+          fail! "The sandbox could not list #{pull.head_sha.to_s[0, 12]} in #{repository}." unless result["exit_code"].to_i.zero?
+
+          ReviewHost::Checkout.new(repository: repository, ref: result["commit"].presence || pull.head_sha, paths: result["stdout"].lines.map(&:chomp))
+        rescue Sandboxes::Error => error
+          fail! "The sandbox could not check out #{pull.head_sha.to_s[0, 12]} from #{repository}: #{error.message}"
+        end
+
+        # What the checked out commit changes against base_sha, as the pull request shows it: against where its branch
+        # left the base, so what the base gained since is not part of it (Integrations::ReviewHost.sandbox_files).
+        # path keeps it to one file.
+        def pull_request_sandbox_files(environment_row, checkout:, base_sha:, path: nil)
+          base = ref_argument({ "base" => base_sha }, "base", required: true)
+          result = code(environment_row).exec(checkout.repository, ref: checkout.ref, where: Sandboxes::Client::IN_GIT, argv: [
+            "-c", "core.quotePath=false", "diff", "--merge-base", "--find-renames", "--no-color", "--no-ext-diff", base, Sandboxes::Client::COMMIT,
+            "--", *optional_path({ "path" => path }, "path")
+          ])
+          fail! "The sandbox could not compare #{checkout.ref[0, 12]} with #{base[0, 12]}: #{result['stderr'].to_s.strip.lines.last}" unless result["exit_code"].to_i.zero?
+
+          ReviewHost.parse_git_diff(result["stdout"])
+        rescue Sandboxes::Error => error
+          fail! "The sandbox could not compare #{checkout.ref.to_s[0, 12]} with #{base_sha.to_s[0, 12]}: #{error.message}"
+        end
+
+        # Where a pull request's head is read from. Its own repository, whose refs hold the head of a pull request from a
+        # fork too, on a host that keeps one. A host that keeps none reads the fork.
+        def review_head_repository(pull) = pull.repository
+
         private
 
         # How the repository is set up before its tests in this connection, read from its CI the first time

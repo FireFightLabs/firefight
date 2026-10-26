@@ -459,7 +459,67 @@ module Integrations
         fail! error.message
       end
 
+      # GitLab's merge request states as the review reads them. A locked one is still open, mid merge.
+      REVIEW_STATES = {
+        "opened" => ReviewHost::STATE_OPEN, "locked" => ReviewHost::STATE_OPEN, "merged" => ReviewHost::STATE_MERGED, "closed" => ReviewHost::STATE_CLOSED
+      }.freeze
+
+      # A merge request as Halon's review reads it (Integrations::ReviewHost.pull_request). Its base is where its branch
+      # left the target (diff_refs.base_sha), which is what GitLab diffs it against. A merge request from a fork keeps its
+      # head in the target project's refs too, so the head is read from the target.
+      def pull_request_for_review(environment_row, repository:, number:)
+        gitlab = api(environment_row)
+        request = gitlab.get("#{GitlabApi.project(repository)}/merge_requests/#{number}")
+        source = (fork_source(gitlab, request["source_project_id"]) if request["source_project_id"] != request["target_project_id"])
+        ReviewHost::PullRequest.new(
+          repository: repository, number: number, title: request["title"].to_s, body: request["description"], author: request.dig("author", "username"),
+          url: request["web_url"], state: REVIEW_STATES.fetch(request["state"], ReviewHost::STATE_CLOSED), draft: request["draft"] == true || request["work_in_progress"] == true,
+          base_ref: request["target_branch"], base_sha: request.dig("diff_refs", "base_sha"), head_ref: request["source_branch"],
+          head_sha: request["sha"] || request.dig("diff_refs", "head_sha"), head_repository: source || repository,
+          merged_at: request["merged_at"]&.then { |at| Time.iso8601(at) }
+        )
+      rescue GitlabApi::Error => error
+        fail! "GitLab could not read merge request !#{number} in #{repository}: #{error.message}"
+      end
+
+      # Every file a merge request changes, with GitLab's diff for each, which it leaves empty for one too large to show.
+      # A list GitLab cuts short is refused rather than taken for the whole (Integrations::ReviewHost.changed_files).
+      def pull_request_files_for_review(environment_row, repository:, number:)
+        diffs, more = api(environment_row).list("#{GitlabApi.project(repository)}/merge_requests/#{number}/diffs", {}, pages: FLAG_FILE_PAGES)
+        fail! "Merge request !#{number} in #{repository} changes more files than GitLab lists." if more
+
+        diffs.map do |diff|
+          text = diff["diff"].to_s
+          status = if diff["new_file"] then ReviewHost::STATUS_ADDED
+          elsif diff["deleted_file"] then ReviewHost::STATUS_REMOVED
+          elsif diff["renamed_file"] then ReviewHost::STATUS_RENAMED
+          else ReviewHost::STATUS_MODIFIED
+          end
+          hunks = text.lines.drop_while { |line| !line.start_with?("@@") }
+          ReviewHost::ChangedFile.new(
+            path: diff["new_path"], previous_path: (diff["old_path"] if diff["renamed_file"]), status: status,
+            additions: hunks.count { |line| line.start_with?("+") }, deletions: hunks.count { |line| line.start_with?("-") },
+            patch: hunks.join.presence, binary: text.match?(ReviewHost::BINARY)
+          )
+        end
+      rescue GitlabApi::Error => error
+        fail! "GitLab could not list the files of merge request !#{number} in #{repository}: #{error.message}"
+      end
+
+      # A file at a commit on this connection's GitLab, at a line when one is given.
+      def pull_request_file_link(environment_row, repository:, sha:, path:, line: nil)
+        "#{api(environment_row).web_url(repository, '-', 'blob', sha, path.split('/').map { |part| ERB::Util.url_encode(part) }.join('/'))}#{"#L#{line}" if line}"
+      end
+
       private
+
+      # Where a fork's head lives, by its path, or by its id when this token cannot read the fork. The head itself is read
+      # from the target project's refs either way.
+      def fork_source(gitlab, project_id)
+        gitlab.get("/projects/#{project_id}")["path_with_namespace"]
+      rescue GitlabApi::Error
+        "project #{project_id}"
+      end
 
       def api(environment_row)
         settings = ConnectionSettings.of(environment_row)
