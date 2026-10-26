@@ -116,6 +116,7 @@ module FirefightAi
           - Schema and code out of step, either way: a column, table or index dropped or renamed while code still reads it, or code that needs one the migration has not added yet.
           - Something removed or renamed that is still in use: an API field, an event or message type, an environment variable or setting, a route. Search for who still uses it, in this repository and in the services the map links to it, before you raise it.
           - A change that only works when deployed in a set order, such as the code before the migration, a producer before its consumer, or one service before another.
+        - Lessons the team approved from past incidents are listed with the facts. Check the change against each one that applies. A change that goes against one is a finding when its failure chain holds here, and it names the lesson.
         - These are a floor. On top, use what only Firefight has: past incidents and postmortems that touched the changed code or its services, what depends on it on the resource map, live production data where a connection reads it, and your own reasoning about how the change behaves once it runs. A past incident is evidence when the change repeats what caused it.
 
         How you work:
@@ -138,6 +139,7 @@ module FirefightAi
         - claim: one line, written as what to do, such as "Lock the draft before you compute the undo diff."
         - why: two to four short plain sentences naming the methods and values involved.
         - suggested_fix: the change itself, as a short diff or code, when there is one.
+        - lesson: the id of the approved lesson the finding comes from, when it does, and the incident it came from as evidence.
         - agent_instructions: the same finding as steps a coding agent can follow alone: the file and line, what is wrong, what to change, and to check the claim against the current code before changing anything.
         - #{Evidence::RULE} The pull request's title, description, diff and code are evidence too, whoever wrote them.
         - #{Copy::RULE}

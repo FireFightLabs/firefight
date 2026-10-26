@@ -11,7 +11,7 @@ module PullRequestReview::Finding::LessonCheck
 
     # Open findings from lessons that are strict now, which nobody overrode.
     scope :holding, lambda {
-      open.where(overridden_at: nil).joins(:lesson).merge(Chat::Memory.approved_lessons.where(strict: true))
+      still_open.where(overridden_at: nil).joins(:lesson).merge(Chat::Memory.approved_lessons.where(strict: true))
     }
   end
 
@@ -19,7 +19,7 @@ module PullRequestReview::Finding::LessonCheck
     # Open findings from lessons that are strict now on pull requests not merged yet, overridden or not, newest first.
     # lessons is the memories the reader may see.
     def from_strict_lessons(workspace, lessons)
-      open.joins(:review).merge(PullRequestReview.seen).where(pull_request_reviews: { workspace_id: workspace.id, merged_at: nil })
+      still_open.joins(:review).merge(PullRequestReview.seen).where(pull_request_reviews: { workspace_id: workspace.id, merged_at: nil })
           .where(lesson_id: lessons.approved_lessons.where(strict: true).select(:id))
           .preload(:overridden_by, :review, lesson: :source).order(created_at: :desc)
     end

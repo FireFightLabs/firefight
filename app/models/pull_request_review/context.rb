@@ -42,7 +42,8 @@ class PullRequestReview::Context
     {
       "Where this repository runs" => where_it_runs,
       "What depends on it" => reach,
-      "Past incidents on these services" => incidents
+      "Past incidents on these services" => incidents,
+      "Lessons from past incidents" => lessons
     }
   end
 
@@ -61,6 +62,15 @@ class PullRequestReview::Context
     return "The resource map does not hold #{@review.repository}, so where it runs is not known." unless resource
 
     "#{@review.repository} is on the resource map as #{resource.name} (resource #{resource.id}). Read its links and blast radius for more."
+  end
+
+  # The lessons the team approved, which the review checks the change against, each by its id so a finding can name it.
+  def lessons
+    lines = @review.lesson_lines(@principal)
+    return "The team has approved no lessons from past incidents yet." if lines.empty?
+
+    "The team approved these lessons from past incidents. Check the change against each that applies, and a finding that " \
+      "comes from one names its id as lesson. One marked strict fails a check on the pull request until the finding is fixed.\n#{lines.join("\n")}"
   end
 
   def incidents

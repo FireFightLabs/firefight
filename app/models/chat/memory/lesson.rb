@@ -139,7 +139,7 @@ module Chat::Memory::Lesson
 
   # The reviews of pull requests not merged yet where a finding it produced is still open.
   def held_review_ids
-    PullRequestReview::Finding.open.where(lesson_id: id).joins(:review).where(pull_request_reviews: { merged_at: nil })
+    PullRequestReview::Finding.still_open.where(lesson_id: id).joins(:review).where(pull_request_reviews: { merged_at: nil })
                               .distinct.pluck(:pull_request_review_id)
   end
 

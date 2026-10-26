@@ -1,6 +1,6 @@
-# What incidents taught that a review checks the change against: the approved lessons, those about the services that
-# own the repository and what they run on first. A finding a lesson produced names it, and one from a strict lesson
-# fails a check on the pull request until it is fixed or a person overrides it.
+# What incidents taught that a review checks the change against: the approved lessons the reviewer may read, those
+# about the services that own the repository and what they run on first. A finding a lesson produced names it, and one
+# from a strict lesson fails a check on the pull request until it is fixed or a person overrides it.
 module PullRequestReview::Lessons
   extend ActiveSupport::Concern
 
@@ -16,16 +16,24 @@ module PullRequestReview::Lessons
     services + linked + repository_resource
   end
 
-  def lessons_to_check = @lessons_to_check ||= Chat::Memory.for_review(workspace, touched_subjects)
+  # The approved lessons principal may read, so one about a resource outside its map reach is never handed over.
+  def lessons_to_check(principal)
+    @lessons_to_check ||= {}
+    @lessons_to_check[principal] ||= begin
+      approved = Chat::Memory.for_review(workspace, touched_subjects)
+      visible = Chat::Memory.visible_to(principal, workspace).where(id: approved.map(&:id)).pluck(:id).to_set
+      approved.select { |lesson| visible.include?(lesson.id) }
+    end
+  end
 
   # The lessons as the review reads them, one a line: its id, where it came from, whether it is strict, and what it says.
-  def lesson_lines
-    lessons_to_check.map do |lesson|
-      "#{lesson.id} (lesson from #{lesson.source.identifier}#{", about #{lesson.about}" if lesson.about}#{', strict' if lesson.strict}): #{lesson.text}"
+  def lesson_lines(principal)
+    lessons_to_check(principal).map do |lesson|
+      "- #{lesson.id} (lesson from #{lesson.source.identifier}#{", about #{lesson.about}" if lesson.about}#{', strict' if lesson.strict}): #{lesson.text}"
     end
   end
 
   # The lesson a finding cites by id, only when it is one this review was handed, so a model cannot tie a finding to any
   # other memory.
-  def lesson_cited(id) = lessons_to_check.find { |lesson| lesson.id == id.to_s }
+  def lesson_cited(id, principal) = lessons_to_check(principal).find { |lesson| lesson.id == id.to_s.strip }
 end

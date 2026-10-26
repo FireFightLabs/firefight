@@ -1,6 +1,6 @@
 require "test_helper"
 
-class PullRequestReviewCheckServiceTest < ActiveSupport::TestCase
+class PullRequestReviewCommitStatusServiceTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
   setup do
@@ -18,28 +18,28 @@ class PullRequestReviewCheckServiceTest < ActiveSupport::TestCase
     held = finding
     AppUrl.stubs(:options).returns(host: "firefight.test", protocol: "https")
     sent = []
-    Integrations::ReviewChecks.stubs(:set!).with { |row, repository:, sha:, check:| row == @row && repository == "acme/api" && sha == "a" * 40 && (sent << check) }
+    Integrations::ReviewHost.stubs(:set_check!).with { |row, repository:, sha:, check:| row == @row && repository == "acme/api" && sha == "a" * 40 && (sent << check) }
 
-    assert_equal PullRequestReview::CHECK_FAILING, service.update!
+    assert_equal PullRequestReview::COMMIT_STATUS_FAILING, service.update!
     assert_nil service.update!, "the same state on the same commit is set once"
     held.override!(by: @admin, reason: "Behind a flag")
-    assert_equal PullRequestReview::CHECK_PASSING, service.update!
+    assert_equal PullRequestReview::COMMIT_STATUS_PASSING, service.update!
 
-    assert_equal [ Integrations::ReviewChecks::FAILING, Integrations::ReviewChecks::PASSING ], sent.map(&:state)
+    assert_equal [ Integrations::ReviewHost::CHECK_FAILING, Integrations::ReviewHost::CHECK_PASSING ], sent.map(&:state)
     assert_equal "https://firefight.test/app/memory?review=#{@review.id}&tab=lessons", sent.first.url
   end
 
   test "a host that refuses keeps why on the review and tries again at the next change" do
     finding
-    Integrations::ReviewChecks.stubs(:set!).raises(Integrations::Error, "GitHub answered 403")
+    Integrations::ReviewHost.stubs(:set_check!).raises(Integrations::Error, "GitHub answered 403")
 
     assert_nil service.update!
-    assert_equal "GitHub answered 403", @review.reload.check_error
-    assert_nil @review.check_state
+    assert_equal "GitHub answered 403", @review.reload.commit_status_error
+    assert_nil @review.commit_status
   end
 
   test "nothing is set for a review no strict lesson touched or a rehearsal" do
-    Integrations::ReviewChecks.expects(:set!).never
+    Integrations::ReviewHost.expects(:set_check!).never
 
     assert_nil service.update!
     finding
@@ -48,13 +48,13 @@ class PullRequestReviewCheckServiceTest < ActiveSupport::TestCase
   end
 
   test "a finding written or a lesson changed works the check out again in a job" do
-    assert_enqueued_with(job: PullRequestReviewCheckJob, args: [ @review.id ]) { finding }
-    assert_enqueued_with(job: PullRequestReviewCheckJob, args: [ @review.id ]) { @lesson.turn_down!(by: @admin) }
+    assert_enqueued_with(job: PullRequestReviewCommitStatusJob, args: [ @review.id ]) { finding }
+    assert_enqueued_with(job: PullRequestReviewCommitStatusJob, args: [ @review.id ]) { @lesson.turn_down!(by: @admin) }
   end
 
   private
 
-  def service = PullRequestReviewCheckService.new(@review.reload)
+  def service = PullRequestReviewCommitStatusService.new(@review.reload)
 
   def finding
     @review.findings.create!(

@@ -520,12 +520,12 @@ module Integrations
 
       test "the review's check is a build status under its own key and name" do
         BitbucketApi.any_instance.expects(:post).with("#{REPO}/commit/#{'a' * 40}/statuses/build", {
-          "key" => Integrations::ReviewChecks::KEY, "state" => "SUCCESSFUL", "name" => Integrations::ReviewChecks::NAME,
+          "key" => Integrations::ReviewHost::CHECK_KEY, "state" => "SUCCESSFUL", "name" => Integrations::ReviewHost::CHECK_NAME,
           "description" => "Every finding is fixed.", "url" => "https://firefight.test/x"
         }).returns({})
-        check = Integrations::ReviewChecks::Check.new(state: Integrations::ReviewChecks::PASSING, description: "Every finding is fixed.", url: "https://firefight.test/x")
+        check = Integrations::ReviewHost::Check.new(state: Integrations::ReviewHost::CHECK_PASSING, description: "Every finding is fixed.", url: "https://firefight.test/x")
 
-        assert Integrations::ReviewChecks.sets?(@row.integration)
+        assert Integrations::ReviewHost.sets_checks?(@row.integration)
         @pack.set_review_check(@row, repository: "acme/web", sha: "a" * 40, check: check)
       end
 

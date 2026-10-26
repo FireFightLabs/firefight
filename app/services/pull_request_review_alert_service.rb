@@ -44,7 +44,7 @@ class PullRequestReviewAlertService
   end
 
   def shown(service)
-    findings = @review.findings.open.preload(lesson: :source).to_a
+    findings = @review.findings.still_open.preload(lesson: :source).to_a
                       .sort_by { |finding| [ PullRequestReview::Finding::SEVERITIES.index(finding.severity), finding.position ] }
     Shown.new(repository: @review.repository, number: @review.number, title: @review.title.to_s, url: @review.url,
               risk_reason: @review.risk_reason, service: service.name,

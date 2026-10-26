@@ -447,10 +447,10 @@ module Integrations
           nil
         end
 
-        # The review's check on a commit, as a commit status (Integrations::ReviewChecks.set!), which needs the App's
+        # The review's check on a commit, as a commit status (Integrations::ReviewHost.set_check!), which needs the App's
         # Commit statuses write permission.
         def set_review_check(environment_row, repository:, sha:, check:)
-          body = { state: check.passing? ? "success" : "failure", context: Integrations::ReviewChecks::NAME,
+          body = { state: check.passing? ? "success" : "failure", context: Integrations::ReviewHost::CHECK_NAME,
                    description: check.short_description, target_url: check.url }.compact
           GithubApp.write(:post, "/repos/#{repository}/statuses/#{sha}", body, token: GithubApp.installation_token(environment_row))
           nil

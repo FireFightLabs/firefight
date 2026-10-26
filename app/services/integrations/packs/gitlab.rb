@@ -460,10 +460,10 @@ module Integrations
         fail! error.message
       end
 
-      # The review's check on a commit, as a commit status (Integrations::ReviewChecks.set!), which needs the Developer
+      # The review's check on a commit, as a commit status (Integrations::ReviewHost.set_check!), which needs the Developer
       # role and the api scope.
       def set_review_check(environment_row, repository:, sha:, check:)
-        body = { "state" => check.passing? ? "success" : "failed", "name" => Integrations::ReviewChecks::NAME,
+        body = { "state" => check.passing? ? "success" : "failed", "name" => Integrations::ReviewHost::CHECK_NAME,
                  "description" => check.short_description, "target_url" => check.url }.compact
         api(environment_row).post("#{GitlabApi.project(repository)}/statuses/#{Http.segment(sha)}", body)
         nil

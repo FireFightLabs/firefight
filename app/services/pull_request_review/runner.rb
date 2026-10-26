@@ -74,6 +74,9 @@ class PullRequestReview::Runner
     PullRequestReview::Verification.new(self, proposal).run
   end
 
+  # An approved lesson the review was handed, by its id, or nil.
+  def lesson_cited(id) = review.lesson_cited(id, agent_principal)
+
   # A path at the head, or one the pull request removed.
   def known_path?(path) = path.present? && (@checkout.holds?(path) || @patches.key?(path))
 

@@ -21,6 +21,18 @@ module Integrations
     LEFT_OUT_UNREAD = "its diff could not be read from the code host or the sandbox".freeze
 
     READ_HOOKS = %i[pull_request_for_review pull_request_files_for_review pull_request_checkout pull_request_sandbox_files pull_request_file_link].freeze
+    # Sets the review's check on a commit, as a commit status the host shows beside the pull request's other checks and a
+    # branch rule can require.
+    CHECK_HOOK = :set_review_check
+
+    CHECK_PASSING = "passing".freeze
+    CHECK_FAILING = "failing".freeze
+    CHECK_STATES = [ CHECK_PASSING, CHECK_FAILING ].freeze
+    # What the check is called on every host, and the key a host that asks for one files it under.
+    CHECK_NAME = "Halon review".freeze
+    CHECK_KEY = "firefight-halon-review".freeze
+    # The shortest any host keeps of a check's words.
+    CHECK_DESCRIPTION_LIMIT = 140
 
     HUNK = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/
     BINARY = /^Binary files .* differ$|^GIT binary patch$/
@@ -59,6 +71,14 @@ module Integrations
       def read? = left_out.nil?
     end
 
+    # A check as the review sets it. description says why it stands where it does, url opens where a person can see the
+    # findings and override them.
+    Check = Data.define(:state, :description, :url) do
+      def passing? = state == CHECK_PASSING
+
+      def short_description = description.to_s.truncate(CHECK_DESCRIPTION_LIMIT)
+    end
+
     module_function
 
     def reviews?(integration)
@@ -95,6 +115,17 @@ module Integrations
     # the host shows now, such as a rehearsal of an earlier round.
     def sandbox_files(row, checkout, base_sha:, key:, path: nil)
       pack(row, key).pull_request_sandbox_files(row, checkout: checkout, base_sha: base_sha, path: path)
+    end
+
+    def sets_checks?(integration)
+      pack = NativePack.for(integration.provider)
+      pack.present? && pack.method_defined?(CHECK_HOOK)
+    end
+
+    def set_check!(row, repository:, sha:, check:)
+      raise ArgumentError, "#{check.state} is not a check state" unless CHECK_STATES.include?(check.state)
+
+      pack(row).set_review_check(row, repository: repository, sha: sha, check: check)
     end
 
     def file_link(row, repository:, sha:, path:, line: nil)

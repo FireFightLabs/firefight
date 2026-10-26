@@ -107,6 +107,29 @@ class PullRequestReview::RunnerTest < ActiveSupport::TestCase
                  finding.evidence.map { |item| item["url"] }
   end
 
+  test "the approved lessons are handed to the reviewer, and a finding names the one it came from, never a memory it was not handed" do
+    lesson = Chat::Memory.create!(workspace: @workspace, text: "Charges retried at once double charge", source: incidents(:active_critical_ws1),
+                                  state: Chat::Memory::STATE_UNCONFIRMED).tap { |each| each.approve!(by: workspace_memberships(:alice_workspace_one), strict: true) }
+    other = Chat::Memory.create!(workspace: @workspace, text: "Not approved", source: incidents(:active_critical_ws1), state: Chat::Memory::STATE_UNCONFIRMED)
+    answers = []
+    script = lambda do |_number, tools, _part|
+      answers << tools.fetch("report_finding").call(**reported(lesson: lesson.id).symbolize_keys)
+      answers << tools.fetch("report_finding").call(**reported(path: "db/migrate/1_add_index.rb", line: 1, claim: "Add the index concurrently", lesson: other.id).symbolize_keys)
+    end
+    verifier = ScriptedVerifier.new([ { verdict: "keep", reason: "It retries at once." }, { verdict: "keep", reason: "Large table." } ])
+    reviewer = ScriptedReviewer.new(script, [])
+    stub_review_model(reviewer, verifier)
+
+    PullRequestReview::Runner.new(@review, by: "job-1").run
+
+    assert_includes reviewer.opened["Lessons from past incidents"], "- #{lesson.id} (lesson from INC-001, strict): Charges retried at once double charge"
+    assert_includes verifier.asked.first[:finding], "Lesson from INC-001: Charges retried at once double charge"
+    from_lesson, without = @review.findings.reload.to_a
+    assert_equal [ lesson, "Lesson from INC-001" ], [ from_lesson.lesson, from_lesson.lesson_label ]
+    assert_nil without.lesson
+    assert_match "is not one of the approved lessons listed, so the finding names none", answers.second
+  end
+
   test "a review whose spending limit runs out leaves the files it did not reach out with why, and still concludes" do
     big = "@@ -1,1 +1,550 @@\n#{(1..550).map { |line| "+    line #{line} #{'x' * 40}\n" }.join}"
     files = [ review_file("app/a.rb", big), review_file("app/b.rb", big) ]

@@ -6,11 +6,11 @@ Rails.application.config.after_initialize do
     payload = event.payload
     next if payload[:change] == PullRequestReview::CHANGE_STARTED
 
-    PullRequestReviewCheckJob.perform_later(payload[:review_id])
+    PullRequestReviewCommitStatusJob.perform_later(payload[:review_id])
     PullRequestReviewAlertJob.perform_later(payload[:review_id]) if payload[:change] == PullRequestReview::CHANGE_FINISHED
   end
 
   ActiveSupport::Notifications.subscribe(Chat::Memory::Lesson::EVENT) do |event|
-    Array(event.payload[:review_ids]).each { |review_id| PullRequestReviewCheckJob.perform_later(review_id) }
+    Array(event.payload[:review_ids]).each { |review_id| PullRequestReviewCommitStatusJob.perform_later(review_id) }
   end
 end

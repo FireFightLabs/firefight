@@ -470,12 +470,12 @@ Halon's review of a pull request (`PullRequestReview`, read through `Integration
 - **Threads.** After a push, each open thread whose file the push changed is checked (`PullRequestReviewThreads#recheck!`, `FirefightAi::ReviewThread#recheck`, once per push, `claim_recheck!`): the thread is told whether the fix holds, and a fixed one is marked `fixed!` in that commit, resolved, and its line comment and serious comment edited to lead with Fixed in. A person's reply on one of Halon's threads (`same_thread?`, never Halon's own or a bot's) is answered once (`claim_answer!`), and when it shows the finding wrong Halon says so, withdraws it and resolves the thread.
 ## Review checks
 
-`Integrations::ReviewChecks` is the one way a pull request review sets its check on a head commit, passing or failing,
-whichever host holds it. A code host's pack answers `set_review_check(environment_row, repository:, sha:, check:)` with
-a commit status under `ReviewChecks::NAME` ("Halon review"), so a branch rule can require it: GitHub's commit statuses
-(Commit statuses write), GitLab's commit statuses (Developer role, api scope) and Bitbucket's build statuses
-(`ReviewChecks::KEY`, and a url on every status). `ReviewChecks.sets?` says whether a connection's pack can. Words are
-cut to `DESCRIPTION_LIMIT`, the shortest any host keeps.
+The review host contract (`Integrations::ReviewHost`) also sets the review's check on a pull request's head commit,
+passing or failing, whichever host holds it. A code host's pack answers `set_review_check(environment_row, repository:,
+sha:, check:)` with a commit status named `ReviewHost::CHECK_NAME` ("Halon review"), so a branch rule can require it:
+GitHub's commit statuses (Commit statuses write), GitLab's commit statuses (Developer role, api scope) and Bitbucket's
+build statuses (filed under `ReviewHost::CHECK_KEY`, and a url on every status). `ReviewHost.sets_checks?` says whether
+a connection's pack can. Words are cut to `CHECK_DESCRIPTION_LIMIT`, the shortest any host keeps.
 
 ## Code sandbox
 

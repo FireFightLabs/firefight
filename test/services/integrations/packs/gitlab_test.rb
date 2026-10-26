@@ -569,11 +569,11 @@ module Integrations
       end
 
       test "the review's check is a commit status under its own name" do
-        GitlabApi.any_instance.expects(:post).with("#{PROJECT}/statuses/#{'a' * 40}", { "state" => "failed", "name" => Integrations::ReviewChecks::NAME,
+        GitlabApi.any_instance.expects(:post).with("#{PROJECT}/statuses/#{'a' * 40}", { "state" => "failed", "name" => Integrations::ReviewHost::CHECK_NAME,
                                                                                          "description" => "1 finding is open.", "target_url" => "https://firefight.test/x" }).returns({})
-        check = Integrations::ReviewChecks::Check.new(state: Integrations::ReviewChecks::FAILING, description: "1 finding is open.", url: "https://firefight.test/x")
+        check = Integrations::ReviewHost::Check.new(state: Integrations::ReviewHost::CHECK_FAILING, description: "1 finding is open.", url: "https://firefight.test/x")
 
-        assert Integrations::ReviewChecks.sets?(@row.integration)
+        assert Integrations::ReviewHost.sets_checks?(@row.integration)
         @pack.set_review_check(@row, repository: "acme/platform/web", sha: "a" * 40, check: check)
       end
 

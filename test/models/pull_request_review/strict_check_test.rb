@@ -12,18 +12,18 @@ class PullRequestReview::StrictCheckTest < ActiveSupport::TestCase
   test "a review no strict lesson touched sets no check, and a lesson that only comments never fails one" do
     finding(lesson: lesson("Deploys happen from main", strict: false))
 
-    assert_nil @review.check_due
+    assert_nil @review.commit_status_due
   end
 
   test "an open finding from a strict lesson fails the check, naming the lesson, and fixing it passes the check" do
     held = finding(lesson: @strict)
 
-    assert_equal PullRequestReview::CHECK_FAILING, @review.check_due
-    assert_equal "1 finding from a strict lesson is open: Lesson from INC-001.", @review.check_words(PullRequestReview::CHECK_FAILING)
+    assert_equal PullRequestReview::COMMIT_STATUS_FAILING, @review.commit_status_due
+    assert_equal "1 finding from a strict lesson is open: Lesson from INC-001.", @review.commit_status_words(PullRequestReview::COMMIT_STATUS_FAILING)
     assert_equal "Lesson from INC-001", held.lesson_label
 
     held.fixed!("b" * 40)
-    assert_equal PullRequestReview::CHECK_PASSING, @review.check_due
+    assert_equal PullRequestReview::COMMIT_STATUS_PASSING, @review.commit_status_due
   end
 
   test "an override says why and who, passes the check once nothing else holds it, and lands once" do
@@ -35,27 +35,27 @@ class PullRequestReview::StrictCheckTest < ActiveSupport::TestCase
 
     assert_equal [ @admin, "Behind a flag that stays off" ], [ held.overridden_by, held.override_reason ]
     assert_equal "#{@admin.display_name} overrode it already.", held.override_blocked_reason
-    assert_equal PullRequestReview::CHECK_PASSING, @review.check_due
+    assert_equal PullRequestReview::COMMIT_STATUS_PASSING, @review.commit_status_due
   end
 
   test "a lesson made a comment since stops holding the check it failed" do
     held = finding(lesson: @strict)
-    @review.claim_check!(PullRequestReview::CHECK_FAILING, @review.head_sha)
+    @review.claim_commit_status!(PullRequestReview::COMMIT_STATUS_FAILING, @review.head_sha)
 
     @strict.edit_lesson!(by: @admin, text: @strict.text, strict: false)
     assert_not held.reload.holding?
-    assert_equal PullRequestReview::CHECK_PASSING, @review.check_due
+    assert_equal PullRequestReview::COMMIT_STATUS_PASSING, @review.commit_status_due
     assert_equal "Only a finding from a strict lesson holds a check.", held.override_blocked_reason
   end
 
   test "the same state on the same commit is claimed once, and a refusal lets the next change try again" do
-    assert @review.claim_check!(PullRequestReview::CHECK_FAILING, "a" * 40)
-    assert_not @review.claim_check!(PullRequestReview::CHECK_FAILING, "a" * 40)
-    assert @review.claim_check!(PullRequestReview::CHECK_FAILING, "b" * 40)
+    assert @review.claim_commit_status!(PullRequestReview::COMMIT_STATUS_FAILING, "a" * 40)
+    assert_not @review.claim_commit_status!(PullRequestReview::COMMIT_STATUS_FAILING, "a" * 40)
+    assert @review.claim_commit_status!(PullRequestReview::COMMIT_STATUS_FAILING, "b" * 40)
 
-    @review.check_failed!("GitHub answered 403")
-    assert_equal [ nil, "GitHub answered 403" ], [ @review.check_state, @review.check_error ]
-    assert @review.claim_check!(PullRequestReview::CHECK_FAILING, "b" * 40)
+    @review.commit_status_failed!("GitHub answered 403")
+    assert_equal [ nil, "GitHub answered 403" ], [ @review.commit_status, @review.commit_status_error ]
+    assert @review.claim_commit_status!(PullRequestReview::COMMIT_STATUS_FAILING, "b" * 40)
   end
 
   test "a change to an approved lesson names the reviews its open findings hold, after it commits" do
@@ -78,11 +78,13 @@ class PullRequestReview::StrictCheckTest < ActiveSupport::TestCase
     about = lesson("Auth Service keeps sessions in Redis", strict: false, subject: auth)
     unapproved = Chat::Memory.create!(workspace: @workspace, text: "Not approved", source: incidents(:active_critical_ws1), state: Chat::Memory::STATE_UNCONFIRMED)
 
-    assert_equal [ about, @strict ], @review.lessons_to_check
-    assert_equal "#{about.id} (lesson from INC-001, about Auth Service): Auth Service keeps sessions in Redis", @review.lesson_lines.first
-    assert_includes @review.lesson_lines.second, "strict"
-    assert_equal @strict, @review.lesson_cited(@strict.id)
-    assert_nil @review.lesson_cited(unapproved.id)
+    reader = SystemAgent.investigator
+    assert_equal [ about, @strict ], @review.lessons_to_check(reader)
+    assert_equal "- #{about.id} (lesson from INC-001, about Auth Service): Auth Service keeps sessions in Redis", @review.lesson_lines(reader).first
+    assert_includes @review.lesson_lines(reader).second, "strict"
+    assert_equal @strict, @review.lesson_cited(" #{@strict.id} ", reader)
+    assert_nil @review.lesson_cited(unapproved.id, reader)
+    assert_includes PullRequestReview::Context.new(@review, reader).sections["Lessons from past incidents"], "#{@strict.id} (lesson from INC-001, strict)"
   end
 
   private
