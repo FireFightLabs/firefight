@@ -26,6 +26,20 @@ class PullRequestReview::StrictCheckTest < ActiveSupport::TestCase
     assert_equal PullRequestReview::COMMIT_STATUS_PASSING, @review.commit_status_due
   end
 
+  test "a finding's comment names its lesson under the claim, linked to the incident, and says when a strict one holds the check" do
+    held = finding(lesson: @strict)
+    AppUrl.stubs(:root).returns("https://firefight.test")
+    AppUrl.stubs(:absolute).returns("https://firefight.test/app/incidents/1")
+
+    body = PullRequestReview::Comments.finding(held)
+
+    assert_includes body, "Lesson from [INC-001](https://firefight.test/app/incidents/1): Checkout retries go up when the payment timeout changes. " \
+                          "It is a strict lesson, so the Halon review check fails until this is fixed or someone overrides it."
+    assert_operator body.index("Lesson from"), :<, body.index(held.why)
+    assert_includes PullRequestReview::Comments.serious(held), "Lesson from"
+    assert_not_includes PullRequestReview::Comments.finding(finding(lesson: nil, claim: "Another")), "Lesson from"
+  end
+
   test "an override says why and who, passes the check once nothing else holds it, and lands once" do
     held = finding(lesson: @strict)
 

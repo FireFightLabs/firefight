@@ -2,8 +2,8 @@
 # to date as findings are written, a comment on a line for each finding, the review's body with what sits outside the
 # diff, a comment of its own for a serious finding, and what a push or a reply changed. Every finding leads with its
 # category, severity and effort, then the claim in bold, why, how it fails with the evidence, a suggested fix, how Halon
-# checked, instructions a coding agent can follow, and a hidden id the finding is found by again. Nothing here names a
-# code host.
+# checked, instructions a coding agent can follow, and a hidden id the finding is found by again. A finding a lesson
+# produced names it under its claim. Nothing here names a code host.
 module PullRequestReview::Comments
   SUMMARY_MARK = "<!-- halon-pull-request-review -->".freeze
   FINDING_MARK = "<!-- halon-finding: %<id>s -->".freeze
@@ -94,6 +94,7 @@ module PullRequestReview::Comments
       (state_lead(finding) unless finding.open?),
       "**#{finding.header}**",
       "**#{finding.claim}**",
+      lesson(finding),
       finding.why,
       failure_chain(finding),
       evidence(finding),
@@ -102,6 +103,17 @@ module PullRequestReview::Comments
       agent_block([ finding ]),
       format(FINDING_MARK, id: finding.id)
     ].compact_blank.join("\n\n")
+  end
+
+  # "Lesson from INC-052", linked to the incident, and what a strict one does to the pull request.
+  def lesson(finding)
+    label = finding.lesson_label
+    return if label.nil?
+
+    url = AppUrl.root && AppUrl.absolute(Rails.application.routes.url_helpers.incident_path(finding.lesson.source_id))
+    named = url ? label.sub(finding.lesson.source.identifier, "[#{finding.lesson.source.identifier}](#{url})") : label
+    strict = " It is a strict lesson, so the #{Integrations::ReviewHost::CHECK_NAME} check fails until this is fixed or someone overrides it." if finding.holding?
+    "#{named}: #{ended(finding.lesson.text)}#{strict}"
   end
 
   def state_lead(finding)
@@ -177,6 +189,7 @@ module PullRequestReview::Comments
       "**Halon found a serious problem#{where}.**",
       "**#{finding.header}**",
       "**#{finding.claim}**",
+      lesson(finding),
       finding.why,
       failure_chain(finding),
       evidence(finding),
