@@ -13,7 +13,10 @@ class PullRequestReviewJob < ApplicationJob
   discard_on FirefightAi::TerminalError do |job, error|
     job.mark_failed(error)
   end
-  discard_on ActiveRecord::RecordNotFound
+  # The review itself is gone, or something it read is. Either way it ends, so its pull request can be reviewed again.
+  discard_on ActiveRecord::RecordNotFound do |job, error|
+    job.mark_failed(error)
+  end
   # The worker that holds the lease is already doing this work.
   discard_on PullRequestReview::Runner::LeaseLost
 

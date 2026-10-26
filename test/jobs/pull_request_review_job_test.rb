@@ -52,6 +52,14 @@ class PullRequestReviewJobTest < ActiveJob::TestCase
     assert_equal 3, @review.attempts
   end
 
+  test "a record that goes missing while the review runs ends it, so the pull request can be reviewed again" do
+    PullRequestReview::Runner.any_instance.stubs(:run).raises(ActiveRecord::RecordNotFound, "Couldn't find Integration")
+
+    PullRequestReviewJob.perform_now(@review.id)
+
+    assert_equal [ PullRequestReview::STATUS_FAILED, PullRequestReview::GAVE_UP ], @review.reload.values_at(:status, :error_summary)
+  end
+
   test "a review whose worker keeps dying is given up" do
     @review.update_columns(attempts: PullRequestReview::MAX_ATTEMPTS)
     PullRequestReview::Runner.expects(:new).never
