@@ -1,0 +1,20 @@
+# Puts what changed in a review on its pull request, off the worker that wrote it. One pull request's posts run one at a
+# time, so the summary comment is posted once and every edit lands in order.
+class PullRequestReviewPostJob < ApplicationJob
+  queue_as :webhooks
+
+  limits_concurrency key: ->(review_id, *) { PullRequestReviewPostJob.pull_request_key(review_id) }, duration: 10.minutes
+
+  discard_on ActiveRecord::RecordNotFound
+
+  def self.pull_request_key(review_id)
+    review = PullRequestReview.find_by(id: review_id)
+    review ? "pull_request_review:#{review.workspace_id}:#{review.repository.downcase}:#{review.number}" : "pull_request_review:#{review_id}"
+  end
+
+  def perform(review_id, finding_id, change)
+    review = PullRequestReview.find(review_id)
+    finding = review.findings.find_by(id: finding_id) if finding_id
+    PullRequestReviewPosting.new(review).run!(change, finding: finding)
+  end
+end

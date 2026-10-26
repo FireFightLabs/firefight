@@ -406,6 +406,8 @@ Rails.application.routes.draw do
     get "/halon/performance", to: "halon_performance#show", as: :halon_performance
     get "/halon/on-call", to: "halon_on_call#show", as: :halon_on_call
     patch "/halon/on-call", to: "halon_on_call#update"
+    get "/halon/pull-request-reviews", to: "halon_pull_request_reviews#show", as: :halon_pull_request_reviews
+    patch "/halon/pull-request-reviews", to: "halon_pull_request_reviews#update"
     post "/halon/on-call/paging/:integration_id/grant", to: "paging_grants#create", as: :halon_paging_grant
     resources :unattended_rules, only: [ :create, :update, :destroy ], path: "halon/on-call/rules"
     # A workflow's page is its canvas, and every change made on it (WorkflowCanvas).

@@ -24,6 +24,7 @@ module Integrations
       include Pipelines
       include CiConfig
       include Deployments
+      include ReviewPosting
 
       REPO_FORMAT = %r{\A[\w.\-]+/[\w.\-]+\z}
       WORKSPACE_FORMAT = /\A[\w.\-]+\z/

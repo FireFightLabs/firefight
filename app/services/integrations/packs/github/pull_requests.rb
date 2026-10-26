@@ -118,6 +118,7 @@ module Integrations
                       "repo" => REPO, "number" => NUMBER,
                       "event" => { "type" => "string", "enum" => REVIEW_EVENTS.keys, "description" => "approve, request_changes or comment" },
                       "body" => { "type" => "string", "description" => "The review's text, required to request changes or comment (optional to approve)" },
+                      "commit" => { "type" => "string", "description" => "The commit the review is of, one of the pull request's own, so lines are commented as they stood there (optional, its head now)" },
                       "comments" => {
                         "type" => "array", "description" => "Comments on lines of the diff (optional)",
                         "items" => { "type" => "object", "required" => %w[path line body], "properties" => {
@@ -283,13 +284,15 @@ module Integrations
             pull = GithubApp.get("/repos/#{repo}/pulls/#{number}", token: token)
             fail! "PR ##{number} in #{repo} is #{pull['merged_at'] ? 'merged' : 'closed'}, so it takes no review." unless pull["state"] == "open"
 
-            # commit_id pins the review to the commit read now, so lines are commented as they stood (pulls/create-review).
+            # commit_id pins the review to the commit read now, or the one asked, so lines are commented as they stood (pulls/create-review).
+            commit = sha_argument(arguments, "commit") || pull.dig("head", "sha")
             review = GithubApp.write(:post, "/repos/#{repo}/pulls/#{number}/reviews",
-                                     { commit_id: pull.dig("head", "sha"), event: REVIEW_EVENTS.fetch(event), body: body, comments: comments.presence }.compact,
+                                     { commit_id: commit, event: REVIEW_EVENTS.fetch(event), body: body, comments: comments.presence }.compact,
                                      token: token)
             done = { "approve" => "Approved", "request_changes" => "Requested changes on", "comment" => "Reviewed with comments" }.fetch(event)
-            linked("#{done} PR ##{number} #{pull['title']} in #{repo} at #{pull.dig('head', 'sha').to_s[0, 12]}" \
-                   "#{", with #{comments.size} line #{'comment'.pluralize(comments.size)}" if comments.any?}.", review["html_url"].presence || pull["html_url"])
+            linked("#{done} PR ##{number} #{pull['title']} in #{repo} at #{commit.to_s[0, 12]}" \
+                   "#{", with #{comments.size} line #{'comment'.pluralize(comments.size)}" if comments.any?}.", review["html_url"].presence || pull["html_url"],
+                   facts: { "review_id" => review["id"], "comment_ids" => (review_comment_ids(repo, number, review["id"], comments, token) if comments.any? && review["id"]) })
           end
         end
 
@@ -700,6 +703,25 @@ module Integrations
           else lines.join.rstrip
           end
           "#{file['filename']} (#{file['status']}, +#{file['additions']} -#{file['deletions']})\n#{shown_patch(file['filename'], patch)}"
+        end
+
+        # The id of each line comment a review posted, in the order they were given, matched by path, line and words. GitHub
+        # answers the review without them (pulls/list-comments-for-review).
+        def review_comment_ids(repo, number, review_id, comments, token)
+          posted = Array(GithubApp.get("/repos/#{repo}/pulls/#{number}/reviews/#{review_id}/comments?per_page=100", token: token))
+          comments.map do |comment|
+            found = posted.find { |each| each["path"] == comment[:path] && (each["line"] || each["original_line"]) == comment[:line] && each["body"].to_s.strip == comment[:body].to_s.strip }
+            posted.delete(found)
+            found&.dig("id")
+          end
+        end
+
+        def sha_argument(arguments, key)
+          value = arguments[key].to_s.strip
+          return if value.empty?
+          fail! "#{key} must be a commit's full or short SHA" unless value.match?(/\A[0-9a-f]{7,40}\z/i)
+
+          value
         end
 
         def review_comments_argument(arguments)

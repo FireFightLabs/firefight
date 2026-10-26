@@ -31,8 +31,18 @@ module Integrations
       ISSUE_HOOK = "Issue Hook".freeze
       ISSUE_OPEN = "open".freeze
       ISSUE_EVENTS = %w[issues_events].freeze
+      # A merge request at every change and every comment, so Halon reviews one when it is asked, when it opens or when
+      # it gets new commits, answers a reply in its own threads and learns it merged (webhook_events.md, Merge request
+      # events and Comment events).
+      MERGE_REQUEST_HOOK = "Merge Request Hook".freeze
+      NOTE_HOOK = "Note Hook".freeze
+      REVIEW_EVENTS = %w[merge_requests_events note_events].freeze
+      MERGE_REQUEST = "MergeRequest".freeze
+      # A comment in a thread on the code or in a thread started in the conversation. A plain Note is a comment of its own.
+      THREAD_NOTES = %w[DiffNote DiscussionNote].freeze
+      OPENS = %w[open reopen].freeze
       # What a webhook from before misses when it lacks any of these, so it is registered again.
-      FOLLOWED_EVENTS = [ *RUN_EVENTS, *ISSUE_EVENTS ].freeze
+      FOLLOWED_EVENTS = [ *RUN_EVENTS, *ISSUE_EVENTS, *REVIEW_EVENTS ].freeze
       # The statuses a pipeline or a deployment ends on, as a run that ended reads them.
       RUN_ENDS = { "success" => RunsEnded::OUTCOME_SUCCEEDED, "failed" => RunsEnded::OUTCOME_FAILED, "canceled" => RunsEnded::OUTCOME_CANCELLED }.freeze
       PROVIDER_NAME = "GitLab".freeze
@@ -103,6 +113,20 @@ module Integrations
           end
         end
 
+        # What a delivery says about a merge request Halon may review (Integrations::PullRequestReviews): Firefight's user
+        # added as a reviewer, opened or reopened, new commits pushed (an update with oldrev), merged or closed, and a
+        # comment on it. A merge request opened with reviewers is asked of each of them.
+        def review_signals(payload, headers:)
+          project = payload.dig("project", "path_with_namespace")
+          return [] if project.blank?
+
+          case headers[EVENT_HEADER].to_s
+          when MERGE_REQUEST_HOOK then merge_request_signals(payload, project)
+          when NOTE_HOOK then note_signals(payload, project)
+          else []
+          end
+        end
+
         # A pipeline that ended, as a CI run, and a deployment that ended, as a deploy (Integrations::RunsEnded). GitLab
         # sends a pipeline and a deployment at every change, so only the statuses it ends on are kept (webhook_events.md,
         # Pipeline events and Deployment events).
@@ -156,6 +180,54 @@ module Integrations
         end
 
         private
+
+        def merge_request_signals(payload, project)
+          request = payload["object_attributes"].to_h
+          iid = request["iid"]
+          return [] if iid.blank?
+
+          action = request["action"].to_s
+          head = request.dig("last_commit", "id")
+          base = { repository: project, number: iid.to_i, head_sha: head, author: payload.dig("user", "username"), draft: request["draft"] == true || request["work_in_progress"] == true }
+          signals = []
+          signals << PullRequestReviews::Signal.new(kind: PullRequestReviews::OPENED, reference: "#{project}!#{iid}:#{action}:#{head}", **base) if OPENS.include?(action) || readied?(payload)
+          signals << PullRequestReviews::Signal.new(kind: PullRequestReviews::PUSHED, reference: "#{project}!#{iid}:push:#{head}", **base) if action == "update" && request["oldrev"].present?
+          signals << PullRequestReviews::Signal.new(kind: PullRequestReviews::MERGED, reference: "#{project}!#{iid}:merge", **base) if action == "merge"
+          signals << PullRequestReviews::Signal.new(kind: PullRequestReviews::CLOSED, reference: "#{project}!#{iid}:close", **base) if action == "close"
+          added = added_reviewers(payload, action)
+          if added.any?
+            signals << PullRequestReviews::Signal.new(kind: PullRequestReviews::REQUESTED, reference: "#{project}!#{iid}:asked:#{head}:#{added.flatten.join(',')}",
+                                                      reviewers: added.flatten, **base)
+          end
+          signals
+        end
+
+        # A draft marked ready opens it for review, as GitLab says in changes.draft.
+        def readied?(payload)
+          change = payload.dig("changes", "draft").to_h
+          change["previous"] == true && change["current"] == false
+        end
+
+        # Each reviewer added by this change, by username and id, or every reviewer of one just opened.
+        def added_reviewers(payload, action)
+          change = payload.dig("changes", "reviewers")
+          people = if change then Array(change["current"]) - Array(change["previous"])
+          elsif OPENS.include?(action) then Array(payload["reviewers"])
+          else []
+          end
+          people.select { |person| person.is_a?(Hash) }.map { |person| [ person["username"], person["id"]&.to_s ].compact }
+        end
+
+        def note_signals(payload, project)
+          note = payload["object_attributes"].to_h
+          iid = payload.dig("merge_request", "iid")
+          return [] unless note["noteable_type"] == MERGE_REQUEST && iid.present? && note["id"].present? && note["system"] != true
+
+          thread = note["discussion_id"] if THREAD_NOTES.include?(note["type"].to_s)
+          [ PullRequestReviews::Signal.new(kind: PullRequestReviews::COMMENTED, repository: project, number: iid.to_i, reference: "#{project}!#{iid}:note:#{note['id']}",
+                                           head_sha: payload.dig("merge_request", "last_commit", "id"), author: payload.dig("user", "username"),
+                                           person: payload.dig("user", "bot") != true, comment: note["id"].to_s, thread: thread, body: note["note"].to_s) ]
+        end
 
         def labels_added(payload, opened)
           named = ->(labels) { Array(labels).select { |label| label.is_a?(Hash) && label["title"].present? } }

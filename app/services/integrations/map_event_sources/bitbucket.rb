@@ -31,10 +31,22 @@ module Integrations
       # The states a build's status ends in, as a run that ended reads them. INPROGRESS has not ended.
       STATUS_ENDS = { "SUCCESSFUL" => RunsEnded::OUTCOME_SUCCEEDED, "FAILED" => RunsEnded::OUTCOME_FAILED, "STOPPED" => RunsEnded::OUTCOME_CANCELLED }.freeze
       PROVIDER_NAME = "Bitbucket".freeze
+      # A pull request opened, changed (its reviewers, its title or new commits on its branch), merged or declined, and a
+      # comment on it, so Halon reviews one when it is asked, when it opens or when it gets new commits, answers a reply in
+      # its own threads and learns it merged (Event payloads, Pull request events). Bitbucket does not say what an update
+      # changed, so each update names the head it has and whether Firefight is among its reviewers, and the app tells a
+      # new head from one it already reviewed.
+      PULL_REQUEST_CREATED = "pullrequest:created".freeze
+      PULL_REQUEST_UPDATED = "pullrequest:updated".freeze
+      PULL_REQUEST_FULFILLED = "pullrequest:fulfilled".freeze
+      PULL_REQUEST_REJECTED = "pullrequest:rejected".freeze
+      PULL_REQUEST_COMMENTED = "pullrequest:comment_created".freeze
+      REVIEW_EVENTS = [ PULL_REQUEST_CREATED, PULL_REQUEST_UPDATED, PULL_REQUEST_FULFILLED, PULL_REQUEST_REJECTED, PULL_REQUEST_COMMENTED ].freeze
+      PERSON = "user".freeze
       # The workspace events Firefight follows, from those Bitbucket lists for a workspace webhook (GET
       # /hook_events/workspace). repo:created and repo:imported are listed there and in the OpenAPI description, and have
       # no payload of their own on the Event payloads page, so only their repository's full_name is read.
-      EVENTS = [ PUSH, CREATED, IMPORTED, DELETED, TRANSFER, UPDATED, *RUN_EVENTS ].freeze
+      EVENTS = [ PUSH, CREATED, IMPORTED, DELETED, TRANSFER, UPDATED, *RUN_EVENTS, *REVIEW_EVENTS ].freeze
       BRANCH = "branch".freeze
       WEBHOOK_NAME = "Firefight live updates".freeze
 
@@ -104,6 +116,32 @@ module Integrations
                                name: status["name"].presence || status["key"], place: repository, ref: status["refname"], commit: commit, url: status["url"]) ]
         end
 
+        # What a delivery says about a pull request Halon may review (Integrations::PullRequestReviews). An update names
+        # its head as pushed, and as asked of whoever is among its reviewers, once a head.
+        def review_signals(payload, headers:)
+          repository = payload.dig("repository", "full_name").to_s
+          pull = payload["pullrequest"].to_h
+          return [] unless repository.include?("/") && pull["id"].present?
+
+          event = headers[EVENT_HEADER].to_s
+          return comment_signals(payload, repository, pull) if event == PULL_REQUEST_COMMENTED
+
+          head = pull.dig("source", "commit", "hash")
+          base = { repository: repository, number: pull["id"].to_i, head_sha: head, author: payload.dig("actor", "account_id"),
+                   person: payload.dig("actor", "type").to_s == PERSON, draft: pull["draft"] == true }
+          reviewers = Array(pull["reviewers"]).select { |person| person.is_a?(Hash) }.map { |person| [ person["account_id"], person["uuid"], person["nickname"] ].compact }
+          asked = [ PullRequestReviews::Signal.new(kind: PullRequestReviews::REQUESTED, reference: "#{repository}##{pull['id']}:asked:#{head}", reviewers: reviewers.flatten, **base) ]
+          case event
+          when PULL_REQUEST_CREATED
+            [ PullRequestReviews::Signal.new(kind: PullRequestReviews::OPENED, reference: "#{repository}##{pull['id']}:open", **base), *(asked if reviewers.any?) ]
+          when PULL_REQUEST_UPDATED
+            [ PullRequestReviews::Signal.new(kind: PullRequestReviews::PUSHED, reference: "#{repository}##{pull['id']}:push:#{head}", **base), *(asked if reviewers.any?) ]
+          when PULL_REQUEST_FULFILLED then [ PullRequestReviews::Signal.new(kind: PullRequestReviews::MERGED, reference: "#{repository}##{pull['id']}:merge", **base) ]
+          when PULL_REQUEST_REJECTED then [ PullRequestReviews::Signal.new(kind: PullRequestReviews::CLOSED, reference: "#{repository}##{pull['id']}:close", **base) ]
+          else []
+          end
+        end
+
         # Whether a workspace's webhook misses an event Firefight now follows, such as one registered before runs were
         # followed, or is gone from Bitbucket.
         def register_again?(row, **)
@@ -131,6 +169,17 @@ module Integrations
         end
 
         private
+
+        # A comment on a pull request. A reply names the comment it answers as parent, which is the thread it is in.
+        def comment_signals(payload, repository, pull)
+          comment = payload["comment"].to_h
+          return [] if comment["id"].blank?
+
+          [ PullRequestReviews::Signal.new(kind: PullRequestReviews::COMMENTED, repository: repository, number: pull["id"].to_i,
+                                           reference: "#{repository}##{pull['id']}:comment:#{comment['id']}", head_sha: pull.dig("source", "commit", "hash"),
+                                           author: payload.dig("actor", "account_id"), person: payload.dig("actor", "type").to_s == PERSON,
+                                           comment: comment["id"].to_s, thread: comment.dig("parent", "id")&.to_s, body: comment.dig("content", "raw").to_s) ]
+        end
 
         # A push does not say which branch is the repository's main one, so each branch it moved is read as a branch,
         # and the pack reads the repository again only for the main one. Its payload names no changed files, so a push to

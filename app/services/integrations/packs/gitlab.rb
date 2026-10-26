@@ -24,6 +24,7 @@ module Integrations
       include CiConfig
       include Deployments
       include Releases
+      include ReviewPosting
 
       REPO_FORMAT = %r{\A[\w.\-]+(/[\w.\-]+)+\z}
       # Scopes an access token needs: the API to read, and the repository to fetch for the code sandbox. api covers both.

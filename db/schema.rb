@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_26_120100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_26_180100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -2745,6 +2745,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_120100) do
     t.uuid "lesson_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "serious_comment_id"
+    t.jsonb "answered_comment_ids", default: [], null: false
+    t.string "rechecked_sha"
     t.index ["lesson_id"], name: "index_pull_request_review_findings_on_lesson_id"
     t.index ["pull_request_review_id", "fingerprint"], name: "index_pull_request_review_findings_on_fingerprint", unique: true
     t.index ["pull_request_review_id", "position"], name: "index_pull_request_review_findings_in_order", unique: true
@@ -2788,6 +2791,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_120100) do
     t.datetime "merged_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "review_posted_at"
+    t.string "review_comment_id"
     t.index ["integration_environment_id"], name: "index_pull_request_reviews_on_integration_environment_id"
     t.index ["workspace_id", "repository", "number"], name: "index_pull_request_reviews_on_pull_request"
     t.index ["workspace_id", "repository", "number"], name: "index_pull_request_reviews_one_live", unique: true, where: "(((status)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying])::text[])) AND (rehearsal = false))"
@@ -3704,6 +3709,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_120100) do
     t.integer "workflow_run_retention_days", default: 90, null: false
     t.integer "code_fix_budget_cents", default: 200, null: false
     t.boolean "safe_changes_without_asking", default: true, null: false
+    t.string "pull_request_reviews_on_open", default: "off", null: false
+    t.string "pull_request_review_repositories", default: [], null: false, array: true
     t.index ["created_by_id"], name: "index_workspaces_on_created_by_id"
     t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
     t.index ["issue_webhook_token"], name: "index_workspaces_on_issue_webhook_token", unique: true
