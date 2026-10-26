@@ -4,6 +4,7 @@
 # which nobody in the workspace sees and nothing posts.
 class PullRequestReview < ApplicationRecord
   include PullRequestReview::Announcing
+  include PullRequestReview::Requesting
 
   STATUS_QUEUED = "queued"
   STATUS_RUNNING = "running"
