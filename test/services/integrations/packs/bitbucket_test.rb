@@ -518,6 +518,17 @@ module Integrations
         @pack.flag_pull_request(@row, repository: "acme/web", number: 42, body: "Look here.")
       end
 
+      test "the review's check is a build status under its own key and name" do
+        BitbucketApi.any_instance.expects(:post).with("#{REPO}/commit/#{'a' * 40}/statuses/build", {
+          "key" => Integrations::ReviewChecks::KEY, "state" => "SUCCESSFUL", "name" => Integrations::ReviewChecks::NAME,
+          "description" => "Every finding is fixed.", "url" => "https://firefight.test/x"
+        }).returns({})
+        check = Integrations::ReviewChecks::Check.new(state: Integrations::ReviewChecks::PASSING, description: "Every finding is fixed.", url: "https://firefight.test/x")
+
+        assert Integrations::ReviewChecks.sets?(@row.integration)
+        @pack.set_review_check(@row, repository: "acme/web", sha: "a" * 40, check: check)
+      end
+
       private
 
       def call(tool, arguments = {}) = @pack.call(tool.to_s, environment_row: @row, arguments: arguments)

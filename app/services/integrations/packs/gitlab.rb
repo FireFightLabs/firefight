@@ -460,6 +460,17 @@ module Integrations
         fail! error.message
       end
 
+      # The review's check on a commit, as a commit status (Integrations::ReviewChecks.set!), which needs the Developer
+      # role and the api scope.
+      def set_review_check(environment_row, repository:, sha:, check:)
+        body = { "state" => check.passing? ? "success" : "failed", "name" => Integrations::ReviewChecks::NAME,
+                 "description" => check.short_description, "target_url" => check.url }.compact
+        api(environment_row).post("#{GitlabApi.project(repository)}/statuses/#{Http.segment(sha)}", body)
+        nil
+      rescue GitlabApi::Error => error
+        fail! error.message
+      end
+
       # GitLab's merge request states as the review reads them. A locked one is still open, mid merge.
       REVIEW_STATES = {
         "opened" => ReviewHost::STATE_OPEN, "locked" => ReviewHost::STATE_OPEN, "merged" => ReviewHost::STATE_MERGED, "closed" => ReviewHost::STATE_CLOSED

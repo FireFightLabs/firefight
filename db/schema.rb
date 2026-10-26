@@ -2754,7 +2754,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_180100) do
     t.string "serious_comment_id"
     t.jsonb "answered_comment_ids", default: [], null: false
     t.string "rechecked_sha"
+    t.uuid "overridden_by_id"
+    t.datetime "overridden_at"
+    t.text "override_reason"
     t.index ["lesson_id"], name: "index_pull_request_review_findings_on_lesson_id"
+    t.index ["overridden_by_id"], name: "index_pull_request_review_findings_on_overridden_by_id"
     t.index ["pull_request_review_id", "fingerprint"], name: "index_pull_request_review_findings_on_fingerprint", unique: true
     t.index ["pull_request_review_id", "position"], name: "index_pull_request_review_findings_in_order", unique: true
     t.check_constraint "severity::text = ANY (ARRAY['critical'::character varying, 'major'::character varying, 'minor'::character varying, 'trivial'::character varying]::text[])", name: "pull_request_review_findings_severity"
@@ -2799,9 +2803,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_180100) do
     t.datetime "updated_at", null: false
     t.datetime "review_posted_at"
     t.string "review_comment_id"
+    t.string "check_state"
+    t.string "check_sha"
+    t.string "check_error"
+    t.datetime "high_risk_posted_at"
     t.index ["integration_environment_id"], name: "index_pull_request_reviews_on_integration_environment_id"
     t.index ["workspace_id", "repository", "number"], name: "index_pull_request_reviews_on_pull_request"
     t.index ["workspace_id", "repository", "number"], name: "index_pull_request_reviews_one_live", unique: true, where: "(((status)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying])::text[])) AND (rehearsal = false))"
+    t.check_constraint "check_state IS NULL OR (check_state::text = ANY (ARRAY['passing'::character varying, 'failing'::character varying]::text[]))", name: "pull_request_reviews_check_state"
     t.check_constraint "risk IS NULL OR (risk::text = ANY (ARRAY['low'::character varying, 'medium'::character varying, 'high'::character varying]::text[]))", name: "pull_request_reviews_risk"
     t.check_constraint "status::text = ANY (ARRAY['queued'::character varying, 'running'::character varying, 'done'::character varying, 'failed'::character varying]::text[])", name: "pull_request_reviews_status"
     t.check_constraint "trigger::text = ANY (ARRAY['requested'::character varying, 'automatic'::character varying]::text[])", name: "pull_request_reviews_trigger"
@@ -4022,7 +4031,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_180100) do
   add_foreign_key "provider_doc_pages", "provider_doc_sources", on_delete: :cascade
   add_foreign_key "pull_request_review_checks", "pull_request_review_findings", column: "finding_id", on_delete: :nullify
   add_foreign_key "pull_request_review_checks", "pull_request_reviews", on_delete: :cascade
+  add_foreign_key "pull_request_review_findings", "chat_memories", column: "lesson_id", on_delete: :nullify
   add_foreign_key "pull_request_review_findings", "pull_request_reviews", on_delete: :cascade
+  add_foreign_key "pull_request_review_findings", "workspace_memberships", column: "overridden_by_id", on_delete: :nullify
   add_foreign_key "pull_request_reviews", "integration_environments", on_delete: :nullify
   add_foreign_key "pull_request_reviews", "workspaces"
   add_foreign_key "repository_setups", "integrations"

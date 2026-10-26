@@ -7,7 +7,7 @@ import { useCan } from "@/lib/permissions"
 import { InstructionsTab } from "@/pages/memory/components/instructions-tab"
 import { LessonsTab } from "@/pages/memory/components/lessons-tab"
 import { MemoriesTab } from "@/pages/memory/components/memories-tab"
-import { LESSON_STATUS, MEMORY_PAGE_TAB_QUERY, MEMORY_PAGE_TABS, MEMORY_QUERY_PARAM } from "@/lib/generated/constants"
+import { LESSON_STATUS, MEMORY_PAGE_REVIEW_QUERY, MEMORY_PAGE_TAB_QUERY, MEMORY_PAGE_TABS, MEMORY_QUERY_PARAM } from "@/lib/generated/constants"
 import type { MemoryPageProps, MemoryTab } from "@/pages/memory/types"
 import { replaceQuery } from "@/lib/query"
 
@@ -16,16 +16,21 @@ function tabFromUrl(): MemoryTab {
   return Object.values(MEMORY_PAGE_TABS).find((tab) => tab === requested) ?? MEMORY_PAGE_TABS.MEMORIES
 }
 
+function reviewFromUrl(): string | null {
+  return new URLSearchParams(window.location.search).get(MEMORY_PAGE_REVIEW_QUERY)
+}
+
 function memoryFromUrl(): string | null {
   return new URLSearchParams(window.location.search).get(MEMORY_QUERY_PARAM)
 }
 
 export default function MemoryPage() {
-  const { memories, lessons, instructions, subjects } = usePage<MemoryPageProps>().props
+  const { memories, lessons, heldPullRequests, instructions, subjects } = usePage<MemoryPageProps>().props
   const canDecide = useCan("memory")
   const canInstruct = useCan("catalog")
   const [ tab, setTab ] = useState(tabFromUrl)
   const [ focusedId ] = useState(memoryFromUrl)
+  const [ focusedReviewId ] = useState(reviewFromUrl)
   const toReview = memories.filter((memory) => memory.awaitingDecision).length
   const toApprove = lessons.filter((lesson) => lesson.status === LESSON_STATUS.WAITING).length
 
@@ -67,7 +72,7 @@ export default function MemoryPage() {
           <MemoriesTab memories={memories} subjects={subjects} canCurate={canDecide} focusedId={focusedId} />
         </TabsContent>
         <TabsContent value={MEMORY_PAGE_TABS.LESSONS}>
-          <LessonsTab lessons={lessons} canCurate={canDecide} />
+          <LessonsTab lessons={lessons} heldPullRequests={heldPullRequests} canCurate={canDecide} focusedReviewId={focusedReviewId} />
         </TabsContent>
         <TabsContent value={MEMORY_PAGE_TABS.INSTRUCTIONS}>
           <InstructionsTab instructions={instructions} subjects={subjects} canCurate={canInstruct} />

@@ -1,6 +1,6 @@
 import type { MEMORY_PAGE_TABS } from "@/lib/generated/constants"
 import type { SharedProps } from "@/types"
-import type { ChatInstruction, ChatLesson, ChatMemory, MemorySubjectOption } from "@/types/serializers"
+import type { ChatInstruction, ChatLesson, ChatMemory, HeldPullRequestFinding, MemorySubjectOption } from "@/types/serializers"
 
 export type SubjectOption = MemorySubjectOption
 
@@ -8,6 +8,7 @@ export interface MemoryPageProps extends SharedProps {
   [key: string]: unknown
   memories: ChatMemory[]
   lessons: ChatLesson[]
+  heldPullRequests: HeldPullRequestFinding[]
   instructions: ChatInstruction[]
   subjects: SubjectOption[]
 }

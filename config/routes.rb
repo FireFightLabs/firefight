@@ -549,6 +549,7 @@ Rails.application.routes.draw do
     post "/memory/lessons/:id/approve", to: "memory#approve_lesson", as: :approve_lesson
     patch "/memory/lessons/:id", to: "memory#edit_lesson", as: :edit_lesson
     post "/memory/lessons/:id/turn_down", to: "memory#turn_down_lesson", as: :turn_down_lesson
+    post "/memory/findings/:id/override", to: "memory#override_finding", as: :override_finding
     post "/memory/instructions", to: "memory#create_instruction", as: :memory_instructions
     patch "/memory/instructions/:id", to: "memory#update_instruction", as: :memory_instruction
     delete "/memory/instructions/:id", to: "memory#destroy_instruction"

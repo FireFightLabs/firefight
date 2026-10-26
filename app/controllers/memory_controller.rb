@@ -3,13 +3,15 @@ class MemoryController < InertiaController
   authorizes Ability::Action::RESOURCE_MEMORY,
     read: %i[index],
     create: %i[create_memory],
-    update: %i[confirm_memory correct_memory reject_memory destroy_memory approve_lesson edit_lesson turn_down_lesson]
+    update: %i[confirm_memory correct_memory reject_memory destroy_memory approve_lesson edit_lesson turn_down_lesson override_finding]
   authorizes Ability::Action::RESOURCE_CATALOG, update: %i[create_instruction update_instruction destroy_instruction]
 
   TAB_QUERY = "tab"
   TAB_MEMORIES = "memories"
   TAB_INSTRUCTIONS = "instructions"
   TAB_LESSONS = "lessons"
+  # The review whose findings a pull request's check links to, marked on the Lessons tab.
+  REVIEW_QUERY = "review"
   REVIEWS_CHECK_IT = "Pull request reviews check it from now on.".freeze
   STRICT_CHECKS = "Pull request reviews check it from now on, and fail a check on a pull request that goes against it.".freeze
   CHANGED_FIRST = "Someone changed these instructions first. Their version is shown now."
@@ -23,6 +25,7 @@ class MemoryController < InertiaController
     render inertia: "memory/index", props: {
       memories: ChatMemorySerializer.many(memories),
       lessons: ChatLessonSerializer.many(lessons, member: current_membership),
+      heldPullRequests: HeldPullRequestFindingSerializer.many(PullRequestReview::Finding.from_strict_lessons(current_workspace, memories)),
       instructions: ChatInstructionSerializer.many(Chat::Instruction.with_history(current_workspace, principal: current_membership)),
       subjects: MemorySubjectOptionSerializer.many(Chat::Memory.subject_choices(current_workspace, principal: current_membership))
     }
@@ -95,6 +98,20 @@ class MemoryController < InertiaController
     return redirect_to(lessons_page, alert: lesson.turn_down_blocked_reason(current_membership)) unless turned_down
 
     redirect_to lessons_page, notice: "Turned down the #{lesson.source.identifier} lesson. Reviews and Halon stop using it."
+  end
+
+  # Lets a pull request through although a strict lesson's finding stands, saying why. Its check passes once nothing
+  # else holds it.
+  def override_finding
+    finding = PullRequestReview::Finding.from_strict_lessons(current_workspace, memories).find(params[:id])
+    reason = params[:reason].to_s.strip
+    unless finding.override!(by: current_membership, reason: reason)
+      return redirect_to(lessons_page, alert: finding.override_blocked_reason || PullRequestReview::Finding::OVERRIDE_NEEDS_REASON)
+    end
+
+    review = finding.review
+    redirect_to lessons_page, notice: "Overrode the #{finding.lesson.source.identifier} lesson on ##{review.number} in #{review.repository}. " \
+                                      "Its check passes once nothing else holds it."
   end
 
   def create_instruction

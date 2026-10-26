@@ -95,6 +95,7 @@ module Identifiers
   PREVIEW_HOMEPAGE_DISABLED = "preview_homepage_disabled"
   INCIDENT_HOMEPAGE = "incident_homepage"
   OPEN_INCIDENT_CHANNEL = "open_incident_channel"
+  OPEN_PULL_REQUEST = "open_pull_request"
   PREVIEW_SUBSCRIBE_DISABLED = "preview_subscribe_disabled"
   SUBSCRIBE_INCIDENT = "subscribe_incident"
   UNSUBSCRIBE_INCIDENT = "unsubscribe_incident"

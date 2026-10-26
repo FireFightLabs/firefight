@@ -447,6 +447,17 @@ module Integrations
           nil
         end
 
+        # The review's check on a commit, as a commit status (Integrations::ReviewChecks.set!), which needs the App's
+        # Commit statuses write permission.
+        def set_review_check(environment_row, repository:, sha:, check:)
+          body = { state: check.passing? ? "success" : "failure", context: Integrations::ReviewChecks::NAME,
+                   description: check.short_description, target_url: check.url }.compact
+          GithubApp.write(:post, "/repos/#{repository}/statuses/#{sha}", body, token: GithubApp.installation_token(environment_row))
+          nil
+        rescue GithubApp::NotPermitted
+          fail! "Firefight's GitHub App cannot set commit statuses on #{repository}. An organization owner accepts its Commit statuses write permission on GitHub."
+        end
+
         # A pull request as Halon's review reads it (Integrations::ReviewHost.pull_request).
         def pull_request_for_review(environment_row, repository:, number:)
           token = GithubApp.installation_token(environment_row)

@@ -248,6 +248,26 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert corrected.reload.replaced_by.approved_lesson?
   end
 
+  test "a pull request a strict lesson holds is listed on the Lessons tab and overridden with a reason, with a toast" do
+    lesson = taught("Checkout retries go up when the payment timeout changes").tap { |each| each.approve!(by: @member, strict: true) }
+    review = PullRequestReview.create!(workspace: @workspace, repository: "acme/api", number: 7, head_sha: "a" * 40, title: "Raise the timeout",
+                                       trigger: PullRequestReview::TRIGGER_AUTOMATIC, max_spend_cents: 400)
+    finding = review.findings.create!(position: 1, fingerprint: "f" * 32, category: PullRequestReview::Finding::CATEGORY_STABILITY,
+                                      severity: PullRequestReview::Finding::SEVERITY_MAJOR, effort: PullRequestReview::Finding::EFFORT_QUICK_WIN,
+                                      claim: "Raises the payment timeout", why: "Retries go up.", lesson: lesson)
+
+    get memory_path, headers: inertia_headers
+    held = inertia_props["heldPullRequests"].sole
+    assert_equal [ review.id, "Lesson from INC-001", nil ], held.values_at("reviewId", "lessonLabel", "overriddenAt")
+
+    post override_finding_path(finding), params: { reason: "" }
+    assert_equal PullRequestReview::Finding::OVERRIDE_NEEDS_REASON, flash[:alert]
+
+    post override_finding_path(finding), params: { reason: "Behind a flag that stays off" }
+    assert_equal "Overrode the INC-001 lesson on #7 in acme/api. Its check passes once nothing else holds it.", flash[:notice]
+    assert_equal [ @member, "Behind a flag that stays off" ], [ finding.reload.overridden_by, finding.override_reason ]
+  end
+
   private
 
   def remember(text, subject: nil) = Chat::Memory.create!(workspace: @workspace, text: text, subject: subject, state: Chat::Memory::STATE_UNCONFIRMED)

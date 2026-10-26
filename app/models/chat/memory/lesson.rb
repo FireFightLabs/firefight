@@ -14,6 +14,9 @@ module Chat::Memory::Lesson
   STATUSES = [ STATUS_WAITING, STATUS_APPROVED, STATUS_TURNED_DOWN ].freeze
   # How many approved lessons one review reads, those about what the change touches first.
   REVIEW_LIMIT = 40
+  # Said once an approved lesson changes in a way that can change a pull request's check, naming the reviews whose
+  # open findings it produced. The model never names who listens.
+  EVENT = "changed.lesson".freeze
 
   included do
     belongs_to :approved_by, class_name: "WorkspaceMembership", optional: true
@@ -21,6 +24,10 @@ module Chat::Memory::Lesson
     scope :lessons, -> { where(source_type: Incident.polymorphic_name) }
     # What reviews check: approved, and still in use, so one disputed or rejected since waits on a person again.
     scope :approved_lessons, -> { lessons.in_use.where.not(approved_at: nil) }
+
+    # Deleting an approved lesson clears the findings it produced, so the reviews they hold are named before it goes.
+    before_destroy -> { @held_review_ids = held_review_ids }, if: :approved?
+    after_destroy_commit -> { announce_lesson_change(@held_review_ids) }, if: :approved?
   end
 
   class_methods do
@@ -80,6 +87,7 @@ module Chat::Memory::Lesson
       approved = self.class.where(id: id, state: Chat::Memory::STATE_CONFIRMED)
                            .update_all(approved_by_id: by.id, approved_at: Time.current, strict: strict, updated_at: Time.current) > 0
       reload
+      announce_lesson_change if approved
       approved
     end
   end
@@ -93,6 +101,7 @@ module Chat::Memory::Lesson
     if words == self.text.strip
       approve!(by: by, strict: strict) unless approved_lesson?
       update!(strict: strict)
+      announce_lesson_change
       return self
     end
 
@@ -126,6 +135,19 @@ module Chat::Memory::Lesson
       replacement.approve!(by: by, strict: strict) if replacement && replacement.from_incident? && replacement.lesson_blocked_reason(by).nil?
       replacement
     end
+  end
+
+  # The reviews of pull requests not merged yet where a finding it produced is still open.
+  def held_review_ids
+    PullRequestReview::Finding.open.where(lesson_id: id).joins(:review).where(pull_request_reviews: { merged_at: nil })
+                              .distinct.pluck(:pull_request_review_id)
+  end
+
+  # Waits for the outermost transaction, so a change that rolls back is never said.
+  def announce_lesson_change(review_ids = held_review_ids)
+    return if review_ids.blank?
+
+    ActiveRecord.after_all_transactions_commit { ActiveSupport::Notifications.instrument(EVENT, review_ids: review_ids) }
   end
 
   private

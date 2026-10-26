@@ -474,6 +474,7 @@ class Chat::Memory < ApplicationRecord
     moved = self.class.where(id: id, state: from)
                       .update_all(columns.merge(state: state, outdated_from: nil, outdated_cause: nil, updated_at: Time.current)) > 0
     reload
+    announce_lesson_change if moved && approved?
     moved
   end
 end

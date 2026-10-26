@@ -470,6 +470,8 @@ export const MEMORY_PAGE_TABS = {
 
 export const MEMORY_PAGE_TAB_QUERY = "tab" as const
 
+export const MEMORY_PAGE_REVIEW_QUERY = "review" as const
+
 export const MEMORY_QUERY_PARAM = "memory" as const
 
 export const CATALOG_ENTRY_QUERY_PARAM = "entry" as const

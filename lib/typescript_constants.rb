@@ -117,6 +117,7 @@ module TypescriptConstants
       Export.new("WORKFLOW_FILE_EXTENSION", Workflow::Document::EXTENSION, nil),
       Export.new("MEMORY_PAGE_TABS", { "MEMORIES" => MemoryController::TAB_MEMORIES, "LESSONS" => MemoryController::TAB_LESSONS, "INSTRUCTIONS" => MemoryController::TAB_INSTRUCTIONS }, nil),
       Export.new("MEMORY_PAGE_TAB_QUERY", MemoryController::TAB_QUERY, nil),
+      Export.new("MEMORY_PAGE_REVIEW_QUERY", MemoryController::REVIEW_QUERY, nil),
       Export.new("MEMORY_QUERY_PARAM", Chat::Memory::QUERY_PARAM, nil),
       Export.new("CATALOG_ENTRY_QUERY_PARAM", CatalogEntry::QUERY_PARAM, nil),
       Export.new("RESOURCE_MAP_PAGE_QUERY", { "VIEW" => ResourceMap::PAGE_VIEW_PARAM, "RESOURCE" => ResourceMap::PAGE_RESOURCE_PARAM }, nil),

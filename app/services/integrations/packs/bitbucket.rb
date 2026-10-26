@@ -525,6 +525,18 @@ module Integrations
         fail! error.message
       end
 
+      # The review's check on a commit, as a build status (Integrations::ReviewChecks.set!). Bitbucket needs a url on
+      # every status, so one without falls back to the commit's own page.
+      def set_review_check(environment_row, repository:, sha:, check:)
+        client = api(environment_row)
+        body = { "key" => Integrations::ReviewChecks::KEY, "state" => check.passing? ? "SUCCESSFUL" : "FAILED", "name" => Integrations::ReviewChecks::NAME,
+                 "description" => check.short_description, "url" => check.url.presence || [ @site, repository, "commits", sha ].join("/") }
+        client.post("#{BitbucketApi.repository(repository)}/commit/#{Http.segment(sha)}/statuses/build", body)
+        nil
+      rescue BitbucketApi::Error => error
+        fail! error.message
+      end
+
       # Bitbucket's pull request states as the review reads them. A superseded one was closed for another.
       REVIEW_STATES = {
         "OPEN" => ReviewHost::STATE_OPEN, MERGED => ReviewHost::STATE_MERGED, "DECLINED" => ReviewHost::STATE_CLOSED, "SUPERSEDED" => ReviewHost::STATE_CLOSED

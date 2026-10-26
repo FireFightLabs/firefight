@@ -4,6 +4,7 @@
 # strengthen or withdraw it, and a push can fix it.
 class PullRequestReview::Finding < ApplicationRecord
   include PullRequestReview::Finding::Threading
+  include PullRequestReview::Finding::LessonCheck
 
   CATEGORY_CORRECTNESS = "correctness"
   CATEGORY_STABILITY = "stability"
