@@ -4,6 +4,7 @@
 # which nobody in the workspace sees and nothing posts.
 class PullRequestReview < ApplicationRecord
   include PullRequestReview::Announcing
+  include PullRequestReview::Requesting
 
   STATUS_QUEUED = "queued"
   STATUS_RUNNING = "running"
@@ -36,6 +37,8 @@ class PullRequestReview < ApplicationRecord
 
   belongs_to :workspace
   belongs_to :integration_environment, optional: true
+  # Checks first, since each may name a finding.
+  has_many :checks, class_name: "PullRequestReview::Check", dependent: :destroy, inverse_of: :review
   has_many :findings, -> { order(:position) }, class_name: "PullRequestReview::Finding", dependent: :destroy, inverse_of: :review
   # The review's own chat with the model, kept for whoever debugs a finding. Each part of a large pull request is a run
   # over it, so what one part read is never lost to the next.

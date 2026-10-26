@@ -167,8 +167,9 @@ solid_workflow_namespace.can_only_be_used_by :workflows, :solid_workflow_engine,
 # Delivery, jobs and platform calls live in the app, the engine only reads models and returns results.
 firefight_ai_engine.can_only_use :models, :firefight_ai_engine
 
-# The engine reasons and returns, the app writes the record. A chat reaches it as a RubyLLM::Chat.
-firefight_ai_engine.cannot_reference_constants "Investigation", "Chat"
+# The engine reasons and returns, the app writes the record. A chat reaches it as a RubyLLM::Chat. A pull request review
+# is the app's record the same way.
+firefight_ai_engine.cannot_reference_constants "Investigation", "Chat", "PullRequestReview"
 
 # App code must not reference the operator console. The console depends on the app and never the other way, so a new
 # console replaces only these files.

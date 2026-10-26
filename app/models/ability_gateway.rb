@@ -24,9 +24,11 @@ class AbilityGateway
   SOURCE_PAGING = "paging"
   # A step of a workspace's workflow, acting as the workflow's own identity.
   SOURCE_WORKFLOW = "workflow"
+  # Halon reviewing a pull request, reading as the investigator agent.
+  SOURCE_PULL_REQUEST_REVIEW = "pull_request_review"
   SOURCES = [ SOURCE_API, SOURCE_MCP, SOURCE_SLACK, SOURCE_WEB, SOURCE_INVESTIGATION, SOURCE_CONVERSATION, SOURCE_MAP_SWEEP,
               SOURCE_HEALTH_CHECK, SOURCE_CODE_AGENT, SOURCE_ISSUE_SYNC, SOURCE_WATCH, SOURCE_HANDBOOK_SYNC, SOURCE_PAGING,
-              SOURCE_WORKFLOW ].freeze
+              SOURCE_WORKFLOW, SOURCE_PULL_REQUEST_REVIEW ].freeze
   # Where a human acts directly rather than through a key or an agent.
   HUMAN_SOURCES = [ SOURCE_SLACK, SOURCE_WEB ].freeze
   # A call made with a token, an API key, a personal token, an OAuth connection or an agent's.
