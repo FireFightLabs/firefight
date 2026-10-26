@@ -39,7 +39,7 @@ class AgentChatsController < InertiaController
   PROP_PULL_REQUEST_NOTICES = "pullRequestNotices"
   # Code changes from this chat that reached their spending limit, each with Continue and Stop until someone decides.
   PROP_CODE_PAUSES = "codePauses"
-  # Memories something contradicted in this chat, each asking the person which is right.
+  # Memories something contradicted in this chat, each asking the person which is right, from before Halon checked memories itself.
   PROP_MEMORY_QUESTIONS = "memoryQuestions"
   # The checks Halon handed to helpers in this chat, each drawn under the step that started it with the steps it took.
   PROP_HELPERS = "helpers"
@@ -593,6 +593,8 @@ class AgentChatsController < InertiaController
   def archive
     archived = ActiveModel::Type::Boolean.new.cast(params[:archived])
     conversation.archive!(archived)
+    # An archived chat has ended, so Halon reads it for anything worth remembering now rather than once it goes quiet.
+    ConversationLearningJob.perform_later(conversation.id) if archived
 
     redirect_back_or_to agent_chat_path(conversation), notice: archived ? "Chat was archived." : "Chat was restored."
   end

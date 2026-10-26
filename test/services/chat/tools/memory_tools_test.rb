@@ -13,7 +13,7 @@ class Chat::Tools::MemoryToolsTest < ActiveSupport::TestCase
   test "remember saves a fact unconfirmed, about what it names, with the chat and the person who taught it" do
     answer = Chat::Tools::Remember.new(@turn).call("fact" => "Auth Service keeps sessions in Redis", "about" => "auth service")
 
-    assert_equal "Remembered, unconfirmed until a person confirms it.", answer
+    assert_equal "Remembered, unconfirmed until the nightly check against production confirms it.", answer
     memory = Chat::Memory.find_by!(workspace: @workspace)
     assert_equal Chat::Memory::STATE_UNCONFIRMED, memory.state
     assert_equal catalog_entries(:auth_service), memory.subject
@@ -108,10 +108,10 @@ class Chat::Tools::MemoryToolsTest < ActiveSupport::TestCase
     @workspace.find_or_create_approval_policy!.policy_rules.create!(priority: 1, conditions: [], outcome: { "require" => { "role" => "admin", "count" => 1 } })
     investigation = @workspace.investigations.create!(subject: incidents(:active_critical_ws1), trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 4, max_spend_cents: 400)
 
-    assert_equal "Remembered, unconfirmed until a person confirms it.", Chat::Tools::Remember.new(@turn).call("fact" => "Deploys happen from main")
+    assert_equal "Remembered, unconfirmed until the nightly check against production confirms it.", Chat::Tools::Remember.new(@turn).call("fact" => "Deploys happen from main")
     corrected = memory("Deploys happen from main")
     assert_match "Corrected", Chat::Tools::CorrectMemory.new(@turn).call("memory" => corrected.id, "reason" => "Deploys go from release", "correction" => "Deploys happen from release")
-    assert_equal "Remembered, unconfirmed until a person confirms it.", Chat::Tools::Remember.new(investigation).call("fact" => "Checkout runs in Frankfurt")
+    assert_equal "Remembered, unconfirmed until the nightly check against production confirms it.", Chat::Tools::Remember.new(investigation).call("fact" => "Checkout runs in Frankfurt")
     assert_match "Disputed", Chat::Tools::DisputeMemory.new(investigation).call("memory" => memory("Checkout runs in Frankfurt").id, "reason" => "The deploy log shows Dublin")
 
     assert_equal Chat::Memory::STATE_REJECTED, corrected.reload.state
@@ -164,7 +164,7 @@ class Chat::Tools::MemoryToolsTest < ActiveSupport::TestCase
   test "a run saves what it learns unconfirmed through the gateway, as the investigator, and the change is in the activity log" do
     investigation = @workspace.investigations.create!(subject: incidents(:active_critical_ws1), trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 4, max_spend_cents: 400)
 
-    assert_equal "Remembered, unconfirmed until a person confirms it.", Chat::Tools::Remember.new(investigation).call("fact" => "Checkout runs in Frankfurt")
+    assert_equal "Remembered, unconfirmed until the nightly check against production confirms it.", Chat::Tools::Remember.new(investigation).call("fact" => "Checkout runs in Frankfurt")
 
     memory = memory("Checkout runs in Frankfurt")
     assert_equal [ Chat::Memory::STATE_UNCONFIRMED, investigation, nil ], [ memory.state, memory.source, memory.added_by ]
@@ -271,30 +271,30 @@ class Chat::Tools::MemoryToolsTest < ActiveSupport::TestCase
     assert_not chat.outcome_call("remember_5").failed
   end
 
-  test "a fact that contradicts a memory in a dashboard chat disputes it, asks there at once with where it came from, and tells Halon" do
+  test "a fact that contradicts a memory in a dashboard chat disputes it and tells Halon, and asks nobody there" do
     old = Chat::Memory.create!(workspace: @workspace, text: "web deploys from main", state: Chat::Memory::STATE_CONFIRMED, source: @conversation,
                                added_by: @member, confirmed_by: @member, confirmed_at: Time.current)
     FirefightAi::MemoryJudge.any_instance.stubs(:verdicts).returns([ FirefightAi::MemoryJudge::Verdict.new(id: old.id, verdict: FirefightAi::Schemas::MemoryVerdicts::CONTRADICTS) ])
-    ConversationChannel.expects(:broadcast_to).with(@conversation, type: Conversation::LiveDelivery::EVENT_MEMORY)
+    ConversationChannel.expects(:broadcast_to).never
 
     answer = Chat::Tools::Remember.new(@turn).call("fact" => "web deploys from the release branch", "seen_in" => "the deploy log of web")
 
     assert_match "It contradicts memory #{old.id}", answer
+    assert_match "until the nightly check against production settles which is right", answer
     assert_equal [ Chat::Memory::STATE_DISPUTED, "The deploy log of web shows \"web deploys from the release branch\"." ], old.reload.values_at(:state, :state_reason)
-    card = @conversation.memory_posts.sole
-    assert_equal [ [ old.id ], Chat::MemoryPost::KIND_DISPUTED, "The deploy log of web shows \"web deploys from the release branch\"." ],
-                 [ card.memory_ids, card.kind, card.evidence ]
-    shown = AgentChatMemoryQuestionSerializer.one(card, member: @member)
-    assert_equal [ "your chat", "confirmed by you" ], shown.values_at(:origin, :trust)
+    assert_empty @conversation.memory_posts
+    assert_not old.awaiting_decision?, "Halon has not tried to settle it yet"
   end
 
-  test "a dispute from a live result in a dashboard chat asks there too, and one in a run asks only its incident's channel" do
+  test "a dispute from a live result in a dashboard chat asks nobody there, and waits for the nightly check" do
     disputed = Chat::Memory.create!(workspace: @workspace, text: "Checkout runs in Frankfurt", state: Chat::Memory::STATE_UNCONFIRMED)
-    ConversationChannel.expects(:broadcast_to).with(@conversation, type: Conversation::LiveDelivery::EVENT_MEMORY)
 
-    Chat::Tools::DisputeMemory.new(@turn).call("memory" => disputed.id, "reason" => "The service's settings say Dublin.")
+    answer = Chat::Tools::DisputeMemory.new(@turn).call("memory" => disputed.id, "reason" => "The service's settings say Dublin.")
 
-    assert_equal "The service's settings say Dublin.", @conversation.memory_posts.sole.evidence
+    assert_equal "Disputed. It is not used again until the nightly check against production settles it.", answer
+    assert_empty @conversation.memory_posts
+    assert_equal [ Chat::MemoryEvent::KIND_DISPUTED, Chat::MemoryEvent::ACTOR_HALON, "The service's settings say Dublin." ],
+                 disputed.events.sole.values_at(:kind, :actor, :detail)
   end
 
   private

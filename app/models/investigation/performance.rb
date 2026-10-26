@@ -1,6 +1,6 @@
 # How Halon has done for one workspace over a window: how often it answered, how fast, what the team said of its
 # answers, what came of its fixes, and where it was wrong. Read from what the team recorded, never estimated. Rehearsals
-# are measurement, not Halon at work, so they are left out.
+# are measurement, not Halon at work, and the nightly memory check is Halon's own housekeeping, so both are left out.
 class Investigation::Performance
   WINDOWS = [ 7, 30, 90 ].freeze
   DEFAULT_WINDOW = 30
@@ -80,7 +80,7 @@ class Investigation::Performance
     )
   end
 
-  def runs = @workspace.investigations.seen.where(created_at: since..)
+  def runs = @workspace.investigations.seen.where(created_at: since..).where.not(trigger_source: Investigation::TRIGGER_MEMORY_REVIEW)
 
   # A run writes its finding before it ends, so only a run that has ended counts as answered.
   def answered = runs.where.not(status: Investigation::LIVE_STATUSES).joins(:finding).where.not(investigation_findings: { summary: [ nil, "" ] })

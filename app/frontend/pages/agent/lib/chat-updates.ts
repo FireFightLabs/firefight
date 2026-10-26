@@ -311,10 +311,6 @@ export function refreshSafeguards() {
   reloadInPlace(SAFEGUARDS)
 }
 
-export function refreshMemoryQuestions() {
-  reloadInPlace(MEMORY_QUESTIONS)
-}
-
 export function refreshHelpers() {
   reloadInPlace(HELPERS)
 }

@@ -24,6 +24,58 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_includes inertia_props["subjects"].map { |subject| subject["value"] }, "CatalogEntry:#{@auth.id}"
   end
 
+  test "the page says how each memory stands, what Halon's nightly check found and when, and its history" do
+    review = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.current, removal_cap: 3)
+    checked = remember("web deploys from main")
+    checked.verified_by_halon!(evidence: "The deploy settings of web name main.", review: review)
+    tried = remember("Checkout runs in Frankfurt")
+    tried.unsettled_by_halon!(note: "Nothing Halon reads says where Checkout runs.")
+    yours = Chat::Memory.written_by!(@member, text: "Backups run nightly", subject: nil)
+
+    get memory_path, headers: inertia_headers
+
+    shown = inertia_props["memories"].index_by { |memory| memory["text"] }
+    assert_equal [ Chat::Memory::STANDING_HALON, true, "The deploy settings of web name main.", Chat::Memory::VERDICT_RIGHT ],
+                 shown["web deploys from main"].values_at("standing", "decidedByHalon", "verifiedEvidence", "checkOutcome")
+    assert_equal [ Chat::Memory::STANDING_UNCHECKED, Chat::Memory::VERDICT_UNSURE, false ], shown["Checkout runs in Frankfurt"].values_at("standing", "checkOutcome", "awaitingDecision")
+    assert shown["Checkout runs in Frankfurt"]["checkedAt"]
+    assert_equal Chat::Memory::STANDING_PERSON, shown["Backups run nightly"]["standing"]
+    assert_equal [ [ Chat::MemoryEvent::KIND_WRITTEN, Chat::MemoryEvent::ACTOR_PERSON, @member.display_name ] ],
+                 shown["Backups run nightly"]["events"].map { |event| event.values_at("kind", "actor", "by") }
+    assert_equal [ [ Chat::MemoryEvent::KIND_VERIFIED, "Halon", "The deploy settings of web name main." ] ],
+                 shown["web deploys from main"]["events"].map { |event| event.values_at("kind", "by", "detail") }
+    assert_nil shown["web deploys from main"]["confirmBlockedReason"], "a person may still confirm what only Halon checked"
+    assert_equal [ checked, tried, yours ].map(&:id).sort, shown.values.map { |memory| memory["id"] }.sort
+  end
+
+  test "a person confirming what only Halon checked makes it theirs, and says so" do
+    review = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.current, removal_cap: 3)
+    memory = remember("web deploys from main")
+    memory.verified_by_halon!(evidence: "The deploy settings of web name main.", review: review)
+
+    post confirm_memory_path(memory)
+
+    assert_equal "Confirmed. Halon now reads it as confirmed by you.", flash[:notice]
+    assert_equal [ @member, false ], memory.reload.values_at(:confirmed_by, :decided_by_halon)
+  end
+
+  test "a person can still correct and reject what Halon checked, and each says so" do
+    review = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.current, removal_cap: 3)
+    corrected = remember("The primary is db-1")
+    corrected.verified_by_halon!(evidence: "The cluster lists db-1 as primary.", review: review)
+    rejected = remember("Checkout retries twice")
+    rejected.verified_by_halon!(evidence: "The client sets two retries.", review: review)
+
+    post correct_memory_path(corrected), params: { text: "The primary is db-2", reason: "We failed over" }
+    assert_equal "Corrected. Halon keeps the old wording as rejected so it does not learn it again.", flash[:notice]
+    post reject_memory_path(rejected), params: { reason: "Changed last week" }
+    assert_equal "Rejected. Halon stops using it and does not learn it again.", flash[:notice]
+
+    assert_equal [ Chat::Memory::STATE_REJECTED, @member, false ], corrected.reload.values_at(:state, :rejected_by, :decided_by_halon)
+    assert_equal [ Chat::Memory::STATE_REJECTED, @member ], rejected.reload.values_at(:state, :rejected_by)
+    assert_equal [ Chat::MemoryEvent::KIND_VERIFIED, Chat::MemoryEvent::KIND_REJECTED ], rejected.events.map(&:kind)
+  end
+
   test "the page redirects to the dashboard while Halon is unavailable" do
     Investigation.stubs(:available_for?).returns(false)
     Investigation.stubs(:unavailable_reason).returns("Halon is not turned on for this workspace.")
@@ -158,7 +210,7 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_equal Chat::Memory::STATE_UNCONFIRMED, memory.reload.state
   end
 
-  test "a card in a chat settles a contradiction and goes back to the chat with what changed, and the page counts what waits" do
+  test "a card posted in a chat before Halon checked memories itself still settles a contradiction, and the page counts only what Halon could not settle" do
     conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
     old = remember("web deploys from main")
     newer = Chat::Memory.create!(workspace: @workspace, text: "web deploys from release", state: Chat::Memory::STATE_UNCONFIRMED)
@@ -177,8 +229,12 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ Chat::Memory::STATE_CONFIRMED, @member ], newer.reload.values_at(:state, :confirmed_by)
 
     remember("Backups run nightly")
+    frankfurt = remember("Checkout runs in Frankfurt")
+    frankfurt.contradicted!(remember("Checkout runs in Dublin"), reason: "A chat showed \"Checkout runs in Dublin\".")
+    frankfurt.unsettled_by_halon!(note: "Nothing Halon reads says where Checkout runs.")
     get memory_path, headers: inertia_headers
-    assert_equal({ "Backups run nightly" => true, "web deploys from main" => false, "web deploys from release" => false },
+    assert_equal({ "Backups run nightly" => false, "web deploys from main" => false, "web deploys from release" => false,
+                   "Checkout runs in Frankfurt" => true, "Checkout runs in Dublin" => false },
                  inertia_props["memories"].to_h { |memory| [ memory["text"], memory["awaitingDecision"] ] })
   end
 

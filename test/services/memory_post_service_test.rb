@@ -56,33 +56,22 @@ class MemoryPostServiceTest < ActiveSupport::TestCase
     assert_nil shown.memories.first.decided_by
   end
 
-  test "a reminder goes to whoever taught it by direct message, is redrawn in the channel it landed in, and a decision there names the reminder" do
+  test "a reminder posted before Halon checked memories itself still takes a decision, redrawn in the direct message it landed in" do
     bob = workspace_memberships(:bob_workspace_one)
-    taught = Chat::Memory.create!(workspace: @workspace, text: "Checkout reads from the replica", state: Chat::Memory::STATE_UNCONFIRMED, added_by: bob,
-                                  created_at: 10.days.ago)
-    @adapter.expects(:post_learned_memories_to_user).with { |user_id:, post:|
-      user_id == bob.platform_user_id && post.kind == Chat::MemoryPost::KIND_REMINDER &&
-        post.reminder == MemoryPostService::ShownReminder.new(taught: 1, learned: 0, direct: true) && post.memories.map(&:id) == [ taught.id ]
-    }.returns(message_id: "7.1", channel_id: "D42")
+    taught = Chat::Memory.create!(workspace: @workspace, text: "Checkout reads from the replica", state: Chat::Memory::STATE_UNCONFIRMED, added_by: bob)
+    post = Chat::MemoryPost.create!(workspace: @workspace, kind: Chat::MemoryPost::KIND_REMINDER, recipient: bob, channel_id: "D42", message_id: "7.1",
+                                    memory_ids: [ taught.id ])
+    @adapter.expects(:update_learned_memories).with { |channel_id:, message_id:, post:|
+      channel_id == "D42" && message_id == "7.1" && post.reminder == MemoryPostService::ShownReminder.new(taught: 1, learned: 0, direct: true)
+    }
 
-    assert_equal 1, MemoryPostService.new(@workspace).remind!
-
-    post = Chat::MemoryPost.reminders.find_by!(recipient: bob)
-    assert_equal [ "D42", "7.1" ], post.values_at(:channel_id, :message_id)
-    @adapter.expects(:update_learned_memories).with { |channel_id:, message_id:, **| channel_id == "D42" && message_id == "7.1" }
     MemoryPostService.new(@workspace).decide!(reference: post.id, memory_id: taught.id, member: bob, confirmed: false, channel_id: "D42", message_id: "7.1")
+
     assert_equal "Marked not right in a reminder", taught.reload.state_reason
   end
 
-  test "a reminder an archived incident channel cannot take goes to the admins instead" do
-    from_incident = Chat::Memory.create!(workspace: @workspace, text: "A 5xx after a deploy has meant a full disk", state: Chat::Memory::STATE_UNCONFIRMED,
-                                         source: @incident, created_at: 10.days.ago)
-    @memory.destroy!
-    @adapter.expects(:post_learned_memories).with { |channel_id:, **| channel_id == @incident.channel_id }.raises(AdapterError::IsArchived)
-    @adapter.expects(:post_learned_memories_to_user).with { |user_id:, post:| user_id == @member.platform_user_id && post.memories.map(&:id) == [ from_incident.id ] }
-            .returns(message_id: "8.1", channel_id: "D7")
-
-    assert_equal 1, MemoryPostService.new(@workspace).remind!
-    assert_not Chat::MemoryPost.exists?(incident: @incident)
+  test "Halon no longer sends reminders, so a person is never messaged directly about memories" do
+    assert_not_respond_to MemoryPostService.new(@workspace), :remind!
+    assert_not PlatformAdapter.method_defined?(:post_learned_memories_to_user)
   end
 end

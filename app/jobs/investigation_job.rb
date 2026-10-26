@@ -40,7 +40,10 @@ class InvestigationJob < ApplicationJob
     return unless investigation.finish!(status: Investigation::STATUS_FAILED, error_summary: cause)
 
     Integrations::CodeReading.close(investigation.code_box_key)
-    delivery = investigation.scheduled? ? Investigation::CheckDelivery : Investigation::Delivery
+    delivery = if investigation.scheduled? then Investigation::CheckDelivery
+    elsif investigation.memory_review? then Investigation::MemoryReviewDelivery
+    else Investigation::Delivery
+    end
     delivery.new(investigation).stopped!(
       investigation.stopped_because, rerunnable: true,
       where_it_stopped: Chat::StoppedNote.for(investigation.chat, since: investigation.chat&.created_at)

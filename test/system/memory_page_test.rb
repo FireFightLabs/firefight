@@ -31,6 +31,35 @@ class MemoryPageTest < ApplicationSystemTestCase
     assert_not Chat::Memory.exists?(rejected.id)
   end
 
+  test "each memory says how it stands and what Halon's nightly check found, with its history a click away, and a person can still confirm it" do
+    review = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.current, removal_cap: 3)
+    checked = Chat::Memory.create!(workspace: @workspace, text: "web deploys from main", state: Chat::Memory::STATE_UNCONFIRMED)
+    checked.record!(Chat::MemoryEvent::KIND_LEARNED, actor: Chat::MemoryEvent::ACTOR_HALON)
+    checked.verified_by_halon!(evidence: "The deploy settings of web name main.", review: review)
+    tried = Chat::Memory.create!(workspace: @workspace, text: "Checkout runs in Frankfurt", state: Chat::Memory::STATE_UNCONFIRMED)
+    tried.contradicted!(Chat::Memory.create!(workspace: @workspace, text: "Checkout runs in Dublin", state: Chat::Memory::STATE_UNCONFIRMED),
+                        reason: "A chat showed \"Checkout runs in Dublin\".")
+    tried.unsettled_by_halon!(note: "Nothing Halon reads says where Checkout runs.")
+
+    visit memory_path
+    assert_text "Checked by Halon"
+    assert_text "Halon checked it against production on #{Time.current.strftime('%b %-d, %Y')}. The deploy settings of web name main."
+    within(:xpath, "//tr[.//p[text()='web deploys from main']]") { click_button "Show history" }
+    assert_text "Halon added it"
+    assert_text "Halon checked it against production and it held"
+    page.save_screenshot(Rails.root.join("tmp/screenshots/memory-checked-by-halon.png"))
+
+    find("[role=tab]", text: "Memories").assert_text("1")
+    click_button "Disputed"
+    assert_text "Halon could not settle this against production, so it waits on a person."
+    page.save_screenshot(Rails.root.join("tmp/screenshots/memory-waits-on-a-person.png"))
+
+    click_button "In use"
+    within(:xpath, "//tr[.//p[text()='web deploys from main']]") { click_button "Confirm" }
+    assert_text "Confirmed. Halon now reads it as confirmed by you."
+    assert_text "Confirmed by #{workspace_memberships(:alice_workspace_one).display_name}"
+  end
+
   test "an admin sets how long unconfirmed memories last, and one nobody confirmed in time shows under Expired" do
     stale = Chat::Memory.create!(workspace: @workspace, text: "Deploys happen from main", state: Chat::Memory::STATE_UNCONFIRMED)
     stale.update_columns(updated_at: 40.days.ago)

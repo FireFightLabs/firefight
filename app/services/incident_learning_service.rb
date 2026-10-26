@@ -1,6 +1,7 @@
 # What an ended incident taught about the setup, written down for the next incident to start from. At resolve it saves
-# the lessons unconfirmed and asks the channel to confirm them. When a postmortem is completed it reads it against what
-# was saved, confirming what it agrees with and correcting what it contradicts, and asks the channel about anything new.
+# the lessons unconfirmed, for Halon's nightly check to confirm against production, and tells the channel. When a
+# postmortem is completed it reads it against what was saved, confirming what it agrees with and correcting what it
+# contradicts, and tells the channel about anything new.
 # A postmortem never overrules a person. One that contradicts what a person confirmed marks it disputed for a person.
 class IncidentLearningService
   TRANSCRIPT_MESSAGES = 300
@@ -143,7 +144,8 @@ class IncidentLearningService
       if verdict.verdict == FirefightAi::Schemas::Lessons::AGREES
         memory.confirm_from_postmortem!(postmortem, by: person)
       elsif memory.confirmed_by_id
-        memory.dispute!([ "The #{postmortem.incident.identifier} postmortem says otherwise", ("and gives this instead. #{verdict.correction}" if verdict.correction) ].compact.join(" "))
+        memory.dispute!([ "The #{postmortem.incident.identifier} postmortem says otherwise", ("and gives this instead. #{verdict.correction}" if verdict.correction) ].compact.join(" "),
+                       by: Chat::MemoryEvent::ACTOR_POSTMORTEM)
       else
         memory.reject!(by: person, reason: "The #{postmortem.incident.identifier} postmortem says otherwise", correction: verdict.correction, postmortem: postmortem)
       end

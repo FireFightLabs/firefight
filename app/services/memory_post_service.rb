@@ -1,14 +1,14 @@
-# Asks people to decide on memories: an incident's channel about those the incident or its postmortem taught and those a
-# chat or run working on it learned or disputed, a dashboard chat about one something contradicted, and once a week
-# whoever should know about what nobody confirmed. Each message keeps the memories it showed, and redraws them as
-# people decide.
+# Tells an incident's channel about memories: those the incident or its postmortem taught and those a chat or run working
+# on it learned or disputed. Nobody is asked to confirm them, since Halon checks every memory against production each
+# night, but anyone may mark one not right or correct it there. Each message keeps the memories it showed, and redraws
+# them as people decide. Messages and chat cards posted before Halon checked memories itself still take their buttons.
 class MemoryPostService
-  # What a platform message shows, so the adapter never reads a memory record. reminder is set for a reminder.
+  # What a platform message shows, so the adapter never reads a memory record. reminder is set for an earlier reminder.
   Shown = Data.define(:post_id, :kind, :incident_identifier, :memories, :reminder) do
     def initialize(post_id:, kind:, incident_identifier:, memories:, reminder: nil) = super
   end
-  ShownMemory = Data.define(:id, :text, :about, :about_removed, :state, :reason, :decided_by, :correction)
-  # What a reminder is about: how many of its memories the person it went to taught, how many the team's runs and
+  ShownMemory = Data.define(:id, :text, :about, :about_removed, :state, :reason, :decided_by, :correction, :standing)
+  # What an earlier reminder was about: how many of its memories the person it went to taught, how many the team's runs and
   # incidents taught, and whether it went to a person rather than a channel.
   ShownReminder = Data.define(:taught, :learned, :direct)
 
@@ -44,24 +44,7 @@ class MemoryPostService
     post!(incident, [ memory ], kind: kind, thread_id: thread_id)
   end
 
-  # A memory something contradicted in a dashboard chat, asked about in a card there. evidence is what showed it wrong.
-  def ask_in_chat!(conversation, memory, evidence:)
-    post = Chat::MemoryPost.create!(workspace: @workspace, conversation: conversation, kind: Chat::MemoryPost::KIND_DISPUTED,
-                                    memory_ids: [ memory.id ], evidence: evidence)
-    Conversation::LiveDelivery.memory_asked(conversation)
-    post
-  end
-
-  # This week's reminders about what nobody confirmed. One whose incident channel cannot take it, such as one archived
-  # since, goes to the workspace admins instead. Returns how many were sent.
-  def remind!(now: Time.current)
-    in_channels = Chat::Memory::Reminders.in_channels(@workspace, now: now)
-    unposted = in_channels.reject { |reminder| remind(reminder) }
-    direct = Chat::Memory::Reminders.direct(@workspace, now: now, unposted: unposted.flat_map(&:memories))
-    in_channels.size - unposted.size + direct.count { |reminder| remind(reminder) }
-  end
-
-  # Someone pressing Confirm or Not right. reference is the post a button names, or the incident on a message posted
+  # Someone pressing Not right, or Confirm on a message posted before Halon checked memories itself. reference is the post a button names, or the incident on a message posted
   # before posts were kept. Returns false when the memory is not one the message shows.
   def decide!(reference:, memory_id:, member:, confirmed:, channel_id:, message_id:)
     post = post_for(reference, channel_id: channel_id, message_id: message_id)
@@ -114,29 +97,10 @@ class MemoryPostService
     ShownReminder.new(taught: taught, learned: memories.size - taught, direct: post.recipient_id.present?)
   end
 
-  # Sends one reminder, by direct message or in the incident's channel. Returns false when it could not be posted.
-  def remind(reminder)
-    channel_id = reminder.recipient ? reminder.recipient.platform_user_id : reminder.incident.channel_id
-    post = Chat::MemoryPost.create!(workspace: @workspace, kind: Chat::MemoryPost::KIND_REMINDER, recipient: reminder.recipient,
-                                    incident: (reminder.incident unless reminder.recipient), channel_id: channel_id,
-                                    memory_ids: reminder.memories.map(&:id))
-    posted = if reminder.recipient
-      adapter.post_learned_memories_to_user(user_id: channel_id, post: shown(post))
-    else
-      adapter.post_learned_memories(channel_id: channel_id, thread_id: nil, post: shown(post))
-    end
-    post.posted!(posted[:message_id], channel_id: posted[:channel_id] || channel_id)
-    true
-  rescue AdapterError => error
-    post&.destroy!
-    Rails.logger.info({ event: "memory_post.reminder_not_posted", workspace_id: @workspace.id, error: error.class.name }.to_json)
-    false
-  end
-
   def shown_memory(memory)
     ShownMemory.new(id: memory.id, text: memory.text, about: memory.about, about_removed: memory.about_removed?, state: memory.state,
                     reason: memory.state_reason, decided_by: (memory.decider if [ Chat::Memory::STATE_CONFIRMED, Chat::Memory::STATE_REJECTED ].include?(memory.state)),
-                    correction: memory.replaced_by&.text)
+                    correction: memory.replaced_by&.text, standing: memory.standing)
   end
 
   # A memory about a resource outside the person's map reach answers as one the message does not show.

@@ -1,8 +1,9 @@
 module Slack
   module Messages
-    # Memories an incident's channel is asked to decide on, which the incident or its postmortem taught, or which a chat
-    # or run working on it learned or disputed, and the weekly reminder of what nobody confirmed, in a channel or to one
-    # person. Each memory carries the buttons its state allows, and a decided one says who decided.
+    # Memories an incident's channel is told about, which the incident or its postmortem taught, or which a chat or run
+    # working on it learned or disputed. Nobody is asked to confirm them, since Halon checks each against production every
+    # night, so a memory in use carries Not right and Correct for anyone who knows better, and a decided one says who
+    # decided. A weekly reminder posted before Halon checked memories itself is still redrawn as it was.
     module LearnedMemories
       TITLES = {
         Chat::MemoryPost::KIND_INCIDENT => ":brain:  *What Halon learned from %<incident>s*",
@@ -11,20 +12,18 @@ module Slack
         Chat::MemoryPost::KIND_DISPUTED => ":grey_question:  *Halon disputed a memory*",
         Chat::MemoryPost::KIND_REMINDER => ":bell:  *Memories nobody confirmed yet*"
       }.freeze
-      LESSONS = "Halon already uses these, marked unconfirmed. Confirm the ones that are right, and mark the rest not right so it stops using them.".freeze
+      LESSONS = "Halon already uses these and checks each one against production every night. If one is wrong, mark it not right or correct it.".freeze
       FOOTERS = {
         Chat::MemoryPost::KIND_INCIDENT => LESSONS,
         Chat::MemoryPost::KIND_POSTMORTEM => LESSONS,
-        Chat::MemoryPost::KIND_LEARNED => "Halon already uses this, marked unconfirmed. Confirm it if it is right, or mark it not right so it stops using it.",
-        Chat::MemoryPost::KIND_DISPUTED => "Something Halon read contradicted this, so it stopped using it. Say whether it still holds.",
+        Chat::MemoryPost::KIND_LEARNED => "Halon already uses this and checks it against production every night. If it is wrong, mark it not right or correct it.",
+        Chat::MemoryPost::KIND_DISPUTED => "Something Halon read contradicted this, so it stopped using it until its nightly check against production settles it.",
         Chat::MemoryPost::KIND_REMINDER => "Everything waiting is on the Memory page."
       }.freeze
       # Where the team's memories in a reminder came from, as its opening line names them.
       TEAM_SOURCES = "incidents and investigations".freeze
-      # A memory in one of these still waits for a person, so it carries buttons.
+      # A memory in one of these nobody has decided on, so it carries Not right and Correct.
       WAITING = [ Chat::Memory::STATE_UNCONFIRMED, Chat::Memory::STATE_OUTDATED, Chat::Memory::STATE_DISPUTED, Chat::Memory::STATE_EXPIRED ].freeze
-      # A memory Halon stopped trusting is confirmed as still right, not as something new.
-      STILL_RIGHT = [ Chat::Memory::STATE_OUTDATED, Chat::Memory::STATE_DISPUTED ].freeze
 
       # post is a MemoryPostService::Shown.
       def self.build(post)
@@ -99,14 +98,18 @@ module Slack
       def self.standing(memory)
         by = " by #{Slack::Mrkdwn.escape(memory.decided_by)}" if memory.decided_by
         case memory.state
-        when Chat::Memory::STATE_CONFIRMED then ":white_check_mark: Confirmed#{by}"
+        when Chat::Memory::STATE_CONFIRMED
+          return ":white_check_mark: Checked by Halon against production" if memory.standing == Chat::Memory::STANDING_HALON
+
+          ":white_check_mark: Confirmed#{by}"
         when Chat::Memory::STATE_REJECTED
           return ":no_entry_sign: Marked not right#{by}" unless memory.correction
 
           ":pencil2: Corrected#{by}. Halon now remembers this instead. #{Slack::Mrkdwn.escape(memory.correction)}"
-        when Chat::Memory::STATE_DISPUTED then [ ":grey_question: Disputed.", reason(memory), "Halon stopped using it until someone decides." ].compact.join(" ")
+        when Chat::Memory::STATE_DISPUTED then [ ":grey_question: Disputed.", reason(memory), "Halon stopped using it until its nightly check against production settles it." ].compact.join(" ")
         when Chat::Memory::STATE_OUTDATED then [ ":warning: Possibly outdated.", reason(memory), "Halon still uses it, flagged." ].compact.join(" ")
         when Chat::Memory::STATE_EXPIRED then [ ":hourglass: Expired.", reason(memory), "Halon stopped using it." ].compact.join(" ")
+        when Chat::Memory::STATE_MERGED then [ ":link: Merged.", reason(memory), "Halon keeps that one." ].compact.join(" ")
         end
       end
 
@@ -120,9 +123,7 @@ module Slack
 
       def self.actions(post_id, memory)
         value = "#{post_id}:#{memory.id}"
-        confirm = STILL_RIGHT.include?(memory.state) ? "Still right" : "Confirm"
         { type: "actions", elements: [
-          { type: "button", style: "primary", action_id: Identifiers::MEMORY_CONFIRM, text: { type: "plain_text", text: confirm }, value: value },
           { type: "button", action_id: Identifiers::MEMORY_REJECT, text: { type: "plain_text", text: "Not right" }, value: value },
           { type: "button", action_id: Identifiers::MEMORY_CORRECT, text: { type: "plain_text", text: "Correct" }, value: value }
         ] }

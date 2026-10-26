@@ -1,4 +1,5 @@
-# What the workspace remembers and the instructions people give Halon, where people review, correct and write them.
+# What the workspace remembers and the instructions people give Halon, where people see how each memory stands and what
+# Halon's nightly check found, and confirm, correct, reject, delete and write them whenever they like.
 class MemoryController < InertiaController
   authorizes Ability::Action::RESOURCE_MEMORY,
     read: %i[index],
@@ -15,7 +16,7 @@ class MemoryController < InertiaController
   before_action :require_agent!
 
   def index
-    memories = self.memories.includes(:subject, :source, :added_by, :confirmed_by, :rejected_by).order(updated_at: :desc)
+    memories = self.memories.includes(:subject, :source, :added_by, :confirmed_by, :rejected_by, events: { member: :user }).order(updated_at: :desc)
 
     render inertia: "memory/index", props: {
       memories: ChatMemorySerializer.many(memories),

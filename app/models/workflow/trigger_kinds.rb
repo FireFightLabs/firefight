@@ -229,7 +229,7 @@ module Workflow::TriggerKinds
       [
         ConditionField.new(key: F::STATUS, label: "How it ended", options: choices([ [ Investigation::STATUS_SUCCEEDED, "Concluded" ], [ Investigation::STATUS_FAILED, "Gave up" ] ])),
         ConditionField.new(key: F::SUGGESTS_INCIDENT, label: "Suggests an incident", options: flags),
-        ConditionField.new(key: F::TRIGGER_SOURCE, label: "What started it", options: choices(Investigation::TRIGGER_SOURCES.map { |source| [ source, source.humanize ] })),
+        ConditionField.new(key: F::TRIGGER_SOURCE, label: "What started it", options: choices(Investigation::WORKFLOW_TRIGGER_SOURCES.map { |source| [ source, source.humanize ] })),
         ConditionField.new(key: F::INCIDENT, label: "Incident id")
       ]
     },

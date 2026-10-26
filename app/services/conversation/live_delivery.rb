@@ -23,8 +23,6 @@ class Conversation::LiveDelivery
   EVENT_PULL_REQUEST = "pull_request"
   # A code change paused on a step, or someone decided on it, so the chat looks again.
   EVENT_CODE_FIX = "code_fix"
-  # Something contradicted a memory, so the chat asks the person which is right.
-  EVENT_MEMORY = "memory"
   # A plan Halon keeps in this chat was made, moved a step, or someone pressed something on it, so its card looks again.
   EVENT_PLAN = "plan"
   # A workflow made from the chat moved: made, published, run, ended, cancelled.
@@ -87,10 +85,6 @@ class Conversation::LiveDelivery
 
   def self.code_fix_moved(conversation)
     ConversationChannel.broadcast_to(conversation, type: EVENT_CODE_FIX)
-  end
-
-  def self.memory_asked(conversation)
-    ConversationChannel.broadcast_to(conversation, type: EVENT_MEMORY)
   end
 
   def self.handbook_proposed(conversation)

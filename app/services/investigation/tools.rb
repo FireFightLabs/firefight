@@ -5,15 +5,25 @@ module Investigation::Tools
   def self.for(investigation, offer:, helpers: nil, presented: Chat::Tools::Presented.none)
     [ Chat::Tools::Open.new(investigation, offer: offer, presented: presented), Chat::Tools::UseSkill.new(investigation, offer: offer), *Chat::Tools::Docs.all(investigation),
       Chat::Tools::ReadResult.new(investigation), *(Chat::Tools::Helpers.new(investigation, share: helpers) if helpers && Chat::Helpers.offered?),
-      *own_tools(investigation), *Chat::Tools.memory(investigation), *Chat::Tools::Web.all(investigation),
+      *own_tools(investigation), *memory_tools(investigation), *Chat::Tools::Web.all(investigation),
       *Chat::Tools::Terminal.all(investigation), *Chat::Tools::OutsideCheck.all(investigation),
       *Chat::Tools::Browser.all(investigation) ]
   end
 
-  # A scheduled check notes problems and finishes, where an investigation weighs theories and concludes.
+  # A scheduled check notes problems and finishes, a memory check settles each memory it was handed and finishes, and an
+  # investigation weighs theories and concludes.
   def self.own_tools(investigation)
     return [ NoteProblem.new(investigation), FinishCheck.new(investigation) ] if investigation.scheduled?
+    return [ SettleMemory.new(investigation), FinishMemoryCheck.new(investigation) ] if investigation.memory_review?
 
     [ RecordHypothesis.new(investigation), Conclude.new(investigation) ]
+  end
+
+  # A memory check settles the memories it was handed and nothing else, so it learns, recalls and disputes none. It still
+  # reads the handbook.
+  def self.memory_tools(investigation)
+    return [ Chat::Tools::SearchHandbook.new(investigation) ] if investigation.memory_review?
+
+    Chat::Tools.memory(investigation)
   end
 end

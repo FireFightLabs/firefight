@@ -60,10 +60,14 @@ class Investigation < ApplicationRecord
   TRIGGER_SECURITY_EVENT = "security_event"
   # A workflow's Investigate step, which waits for what it finds.
   TRIGGER_WORKFLOW = "workflow"
+  # Halon's nightly check of what the workspace remembers (Chat::MemoryReview), which nobody asked for.
+  TRIGGER_MEMORY_REVIEW = "memory_review"
   TRIGGER_SOURCES = [
     TRIGGER_COMMAND, TRIGGER_BUTTON, TRIGGER_CONVERSATION, TRIGGER_MCP, TRIGGER_DASHBOARD, TRIGGER_REHEARSAL, TRIGGER_ALERT, TRIGGER_SCHEDULE,
-    TRIGGER_SECURITY_EVENT, TRIGGER_WORKFLOW
+    TRIGGER_SECURITY_EVENT, TRIGGER_WORKFLOW, TRIGGER_MEMORY_REVIEW
   ].freeze
+  # What a workflow can hear finish. A memory check is Halon's own housekeeping, so no workflow is told of it.
+  WORKFLOW_TRIGGER_SOURCES = (TRIGGER_SOURCES - [ TRIGGER_MEMORY_REVIEW ]).freeze
 
   belongs_to :workspace
   # What the run is about. None for a question asked before anyone declared an incident, which is answered where it
@@ -177,6 +181,13 @@ class Investigation < ApplicationRecord
   # A scheduled check looks for problems and says each through Investigation::Notice, rather than answering a question.
   def scheduled? = subject_type == Investigation::Check.name
 
+  # A night's check of the workspace's memories, which settles each it was handed and says nothing anywhere.
+  def memory_review? = subject_type == Chat::MemoryReview.name
+
+  def memory_review
+    subject if subject.is_a?(Chat::MemoryReview)
+  end
+
   # A run on an incident speaks in the incident's channel. A question asked in a channel is answered there.
   def channel_id
     incident ? incident.channel_id : super
@@ -211,6 +222,7 @@ class Investigation < ApplicationRecord
   def label
     return "#{incident.identifier} #{incident.name}" if incident
     return check.name if check
+    return "Nightly memory check" if memory_review?
 
     question.to_s
   end
@@ -579,10 +591,10 @@ class Investigation < ApplicationRecord
   # What a workflow step waiting for this run to finish waits on.
   def finished_signal = "investigation.finished:#{id}"
 
-  # A run that concluded or gave up is heard by the workspace's workflows once. One a person stopped, and a rehearsal,
-  # are not.
+  # A run that concluded or gave up is heard by the workspace's workflows once. One a person stopped, a rehearsal and a
+  # memory check are not.
   def tell_workflows!
-    return if rehearsal? || status == STATUS_CANCELED
+    return if rehearsal? || memory_review? || status == STATUS_CANCELED
 
     Workflow::Trigger::Events.fire!(workspace, Workflow::Trigger::KIND_INVESTIGATION_FINISHED, key: id, subject: self, actor: triggered_by)
   end

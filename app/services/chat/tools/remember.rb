@@ -1,4 +1,5 @@
-# Saves a lasting fact about the setup for the next chat or run, marked unconfirmed until a person confirms it.
+# Saves a lasting fact about the setup for the next chat or run, marked unconfirmed until Halon's nightly check shows it
+# right against production or a person confirms it.
 class Chat::Tools::Remember < RubyLLM::Tool
   def self.tool_name = "remember"
 
@@ -11,7 +12,7 @@ class Chat::Tools::Remember < RubyLLM::Tool
 
   def description
     "Save a lasting fact about this workspace's setup that would save the next chat or run time, such as which database " \
-      "is production or which service handles payments. It is used at once, marked unconfirmed until a person confirms it. " \
+      "is production or which service handles payments. It is used at once, marked unconfirmed until the nightly check against production confirms it. " \
       "Never save live values (a count, an error rate, what is failing now), secrets, or anything about a person."
   end
 
@@ -62,14 +63,14 @@ class Chat::Tools::Remember < RubyLLM::Tool
     case learned.outcome
     when Chat::Memory::LEARNED_REFUSED then return refused(tool_call, learned.reason)
     when Chat::Memory::LEARNED_REJECTED
-      return refused(tool_call, "A person rejected this before#{": #{known.state_reason}" if known.state_reason.present?}. It is not saved again.")
+      return refused(tool_call, "#{known.decided_by_halon ? 'Halon checked it against production and' : 'A person'} rejected this before#{": #{known.state_reason}" if known.state_reason.present?}. It is not saved again.")
     when Chat::Memory::LEARNED_KNOWN
       return "Already remembered."
     end
 
     Chat::Tools.tell_incident(@agent_run, known, Chat::MemoryPost::KIND_LEARNED)
-    learned.contradicted.each { |memory| Chat::Tools.raise_dispute(@agent_run, memory, evidence: evidence(fact, vouched, seen_in)) }
-    [ vouched ? "Remembered, confirmed by #{teacher.display_name}." : "Remembered, unconfirmed until a person confirms it.",
+    learned.contradicted.each { |memory| Chat::Tools.raise_dispute(@agent_run, memory) }
+    [ vouched ? "Remembered, confirmed by #{teacher.display_name}." : "Remembered, unconfirmed until the nightly check against production confirms it.",
       *learned.contradicted.map { |memory| contradicted_words(memory) } ].join(" ")
   end
 
@@ -81,16 +82,8 @@ class Chat::Tools::Remember < RubyLLM::Tool
     nil
   end
 
-  # The same, as the card in the person's own chat says it.
-  def evidence(fact, vouched, seen_in)
-    return "#{seen_in.upcase_first} shows \"#{fact}\"." if seen_in
-    return "You told me \"#{fact}\"." if vouched
-
-    "I just learned \"#{fact}\"."
-  end
-
   def contradicted_words(memory)
-    "It contradicts memory #{memory.id} (\"#{memory.text}\"), which is now disputed and not used until a person decides which is right. " \
+    "It contradicts memory #{memory.id} (\"#{memory.text}\"), which is now disputed and not used until the nightly check against production settles which is right. " \
       "Say so, and which one you trust more and why."
   end
 end
