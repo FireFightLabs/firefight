@@ -6,6 +6,7 @@ export default interface CatalogEntry {
   createdAt: string
   externalId?: string
   name: string
+  reviewAlerts?: boolean
   slug: string
   source?: string
   typeId: string

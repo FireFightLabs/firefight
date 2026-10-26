@@ -376,6 +376,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_180100) do
     t.string "source"
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
+    t.boolean "review_alerts", default: true, null: false
     t.index ["catalog_type_id", "slug"], name: "index_catalog_entries_on_type_and_slug_active", unique: true, where: "(deleted_at IS NULL)"
     t.index ["catalog_type_id"], name: "index_catalog_entries_on_catalog_type_id"
     t.index ["workspace_id", "catalog_type_id"], name: "index_catalog_entries_on_workspace_id_and_catalog_type_id"
