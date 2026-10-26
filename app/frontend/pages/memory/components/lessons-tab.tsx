@@ -16,6 +16,11 @@ const EMPTY: Record<LessonStatus, string> = {
   turned_down: "Nothing turned down.",
 }
 
+// Opens on what waits for a person, or on what reviews check when nothing waits.
+function openingStatus(lessons: ChatLesson[]): LessonStatus {
+  return lessons.some((lesson) => lesson.status === LESSON_STATUS.WAITING) ? LESSON_STATUS.WAITING : LESSON_STATUS.APPROVED
+}
+
 interface LessonsTabProps {
   lessons: ChatLesson[]
   heldPullRequests: HeldPullRequestFinding[]
@@ -24,7 +29,7 @@ interface LessonsTabProps {
 }
 
 export function LessonsTab({ lessons, heldPullRequests, canCurate, focusedReviewId }: LessonsTabProps) {
-  const [ status, setStatus ] = useState<LessonStatus>(LESSON_STATUS.WAITING)
+  const [ status, setStatus ] = useState<LessonStatus>(() => openingStatus(lessons))
   const [ deciding, setDeciding ] = useState<{ lesson: ChatLesson; decision: LessonDecision } | null>(null)
   const shown = lessons.filter((lesson) => lesson.status === status)
 
