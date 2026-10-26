@@ -56,6 +56,28 @@ class MemoryPostServiceTest < ActiveSupport::TestCase
     assert_nil shown.memories.first.decided_by
   end
 
+  test "the incident lead or an admin confirming a lesson in its channel approves it, and the message says so" do
+    lesson = Chat::Memory.create!(workspace: @workspace, text: "Checkout retries go up when the payment timeout changes", source: @incident, state: Chat::Memory::STATE_UNCONFIRMED)
+    post = Chat::MemoryPost.create!(workspace: @workspace, incident: @incident, kind: Chat::MemoryPost::KIND_INCIDENT, channel_id: @incident.channel_id,
+                                    message_id: "8.1", memory_ids: [ lesson.id ])
+    @adapter.expects(:update_learned_memories).with { |post:, **| post.memories.sole.approved_by == @member.display_name }
+
+    assert MemoryPostService.new(@workspace).decide!(reference: post.id, memory_id: lesson.id, member: @member, confirmed: true,
+                                                     channel_id: @incident.channel_id, message_id: "8.1")
+    assert lesson.reload.approved_lesson?
+  end
+
+  test "a correction in the channel by someone who is not the lead or an admin is confirmed but not approved" do
+    lesson = Chat::Memory.create!(workspace: @workspace, text: "Checkout reads from the replica", source: @incident, state: Chat::Memory::STATE_UNCONFIRMED)
+    post = Chat::MemoryPost.create!(workspace: @workspace, incident: @incident, kind: Chat::MemoryPost::KIND_INCIDENT, channel_id: @incident.channel_id,
+                                    memory_ids: [ lesson.id ])
+
+    assert_nil MemoryPostService.new(@workspace).correct!(post_id: post.id, memory_id: lesson.id, member: workspace_memberships(:bob_workspace_one),
+                                                          correction: "Checkout reads from the primary", reason: "")
+    replacement = lesson.reload.replaced_by
+    assert_equal [ Chat::Memory::STATE_CONFIRMED, nil ], [ replacement.state, replacement.approved_at ]
+  end
+
   test "a reminder goes to whoever taught it by direct message, is redrawn in the channel it landed in, and a decision there names the reminder" do
     bob = workspace_memberships(:bob_workspace_one)
     taught = Chat::Memory.create!(workspace: @workspace, text: "Checkout reads from the replica", state: Chat::Memory::STATE_UNCONFIRMED, added_by: bob,

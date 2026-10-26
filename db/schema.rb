@@ -736,7 +736,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_180100) do
     t.string "outdated_cause"
     t.uuid "decided_by_postmortem_id"
     t.uuid "contradicted_by_id"
+    t.uuid "approved_by_id"
+    t.datetime "approved_at"
+    t.boolean "strict", default: false, null: false
     t.index ["added_by_id"], name: "index_chat_memories_on_added_by_id"
+    t.index ["approved_by_id"], name: "index_chat_memories_on_approved_by_id"
     t.index ["confirmed_by_id"], name: "index_chat_memories_on_confirmed_by_id"
     t.index ["contradicted_by_id"], name: "index_chat_memories_on_contradicted_by_id"
     t.index ["decided_by_postmortem_id"], name: "index_chat_memories_on_decided_by_postmortem_id"
@@ -745,6 +749,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_180100) do
     t.index ["source_type", "source_id"], name: "index_chat_memories_on_source"
     t.index ["subject_type", "subject_id"], name: "index_chat_memories_on_subject"
     t.index ["workspace_id", "state"], name: "index_chat_memories_on_workspace_id_and_state"
+    t.index ["workspace_id"], name: "index_chat_memories_approved_lessons", where: "(approved_at IS NOT NULL)"
   end
 
   create_table "chat_memory_posts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -3815,6 +3820,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_180100) do
   add_foreign_key "chat_memories", "chat_memories", column: "replaced_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "postmortems", column: "decided_by_postmortem_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspace_memberships", column: "added_by_id", on_delete: :nullify
+  add_foreign_key "chat_memories", "workspace_memberships", column: "approved_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspace_memberships", column: "confirmed_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspace_memberships", column: "rejected_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspaces"

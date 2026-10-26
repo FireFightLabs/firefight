@@ -334,6 +334,19 @@ export const CHAT_MEMORY_STATE = {
 
 export const CHAT_MEMORY_TEXT_LIMIT = 500 as const
 
+export const LESSON_STATUSES = [
+  "waiting",
+  "approved",
+  "turned_down"
+] as const
+export type LessonStatus = (typeof LESSON_STATUSES)[number]
+
+export const LESSON_STATUS = {
+  "WAITING": "waiting",
+  "APPROVED": "approved",
+  "TURNED_DOWN": "turned_down"
+} as const
+
 export const MEMORY_EXPIRY_DAY_CHOICES = [
   30,
   60,
@@ -451,6 +464,7 @@ export const WORKFLOW_FILE_EXTENSION = ".workflow.json" as const
 
 export const MEMORY_PAGE_TABS = {
   "MEMORIES": "memories",
+  "LESSONS": "lessons",
   "INSTRUCTIONS": "instructions"
 } as const
 

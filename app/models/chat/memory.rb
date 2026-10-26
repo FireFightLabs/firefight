@@ -4,6 +4,7 @@
 # again. Halon treats every memory as a hunch to check, never as proof.
 class Chat::Memory < ApplicationRecord
   include Chat::SecretFree
+  include Chat::Memory::Lesson
 
   self.table_name = "chat_memories"
 

@@ -37,6 +37,17 @@ class Slack::Messages::LearnedMemoriesTest < ActiveSupport::TestCase
     assert_not_includes context_text(corrected), Slack::Messages::LearnedMemories::LESSONS, "nothing waits, so nothing asks"
   end
 
+  test "a lesson the lead or an admin approved says reviews check it, and a strict one that they fail a check on it" do
+    approved = build(Chat::MemoryPost::KIND_INCIDENT, memory(Chat::Memory::STATE_CONFIRMED, decided_by: "Ada", approved_by: "Ada"))
+    strict = build(Chat::MemoryPost::KIND_INCIDENT, memory(Chat::Memory::STATE_CONFIRMED, decided_by: "Ada", approved_by: "<Ada>", strict: true))
+
+    assert_includes context_text(approved), ":white_check_mark: Approved by Ada. Pull request reviews check it."
+    assert_includes context_text(strict), ":white_check_mark: Approved by &lt;Ada&gt;. Pull request reviews check it, and fail a check on a pull request that goes against it."
+    assert_empty buttons(approved)
+    assert_includes context_text(build(Chat::MemoryPost::KIND_INCIDENT, memory(Chat::Memory::STATE_UNCONFIRMED))),
+                    "Once the incident lead or an admin confirms one, Halon also checks it in every pull request review."
+  end
+
   test "what a model wrote is escaped, a removed subject says so, and every memory deleted leaves a line saying why the message is empty" do
     blocks = build(Chat::MemoryPost::KIND_LEARNED, memory(Chat::Memory::STATE_UNCONFIRMED, text: "<!channel> uses *bold*", about: "web", about_removed: true))
 
@@ -72,8 +83,9 @@ class Slack::Messages::LearnedMemoriesTest < ActiveSupport::TestCase
 
   private
 
-  def memory(state, text: "Sessions live in Redis", about: nil, about_removed: false, reason: nil, decided_by: nil, correction: nil)
-    Memory.new(id: "memory-1", text: text, about: about, about_removed: about_removed, state: state, reason: reason, decided_by: decided_by, correction: correction)
+  def memory(state, text: "Sessions live in Redis", about: nil, about_removed: false, reason: nil, decided_by: nil, correction: nil, approved_by: nil, strict: false)
+    Memory.new(id: "memory-1", text: text, about: about, about_removed: about_removed, state: state, reason: reason, decided_by: decided_by, correction: correction,
+               approved_by: approved_by, strict: strict)
   end
 
   def build(kind, *memories) = Slack::Messages::LearnedMemories.build(Shown.new(post_id: "post-1", kind: kind, incident_identifier: "INC-007", memories: memories))

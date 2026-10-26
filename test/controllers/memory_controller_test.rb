@@ -182,7 +182,75 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
                  inertia_props["memories"].to_h { |memory| [ memory["text"], memory["awaitingDecision"] ] })
   end
 
+  test "the Lessons tab lists what incidents taught, leaving out wordings an edit replaced, with why a member cannot decide" do
+    lesson = taught("Checkout retries go up when the payment timeout changes")
+    taught("Checkout reads from the replica").edit_lesson!(by: @member, text: "Checkout reads from the primary", strict: false)
+    remember("Deploys happen from main")
+    sign_in(users(:bob), @workspace)
+
+    get memory_path, headers: inertia_headers
+
+    shipped = inertia_props["lessons"].index_by { |each| each["text"] }
+    assert_equal [ "Checkout reads from the primary", lesson.text ].sort, shipped.keys.sort
+    assert_equal [ Chat::Memory::Lesson::STATUS_WAITING, "INC-001", "Only the INC-001 lead or a workspace admin can decide on its lessons." ],
+                 shipped[lesson.text].values_at("status", "incidentIdentifier", "approveBlockedReason")
+    assert_equal [ Chat::Memory::Lesson::STATUS_APPROVED, @member.display_name ], shipped["Checkout reads from the primary"].values_at("status", "approvedBy")
+  end
+
+  test "an admin approves, edits and turns down lessons, each with a toast" do
+    approved = taught("Checkout retries go up when the payment timeout changes")
+    edited = taught("Checkout reads from the replica")
+    turned_down = taught("Deploys on Fridays fail")
+
+    post approve_lesson_path(approved), params: { strict: "true" }
+    assert_redirected_to memory_path(tab: MemoryController::TAB_LESSONS)
+    assert_equal "Approved the INC-001 lesson. Pull request reviews check it from now on, and fail a check on a pull request that goes against it.", flash[:notice]
+    assert approved.reload.approved_lesson?
+    assert approved.strict
+
+    patch edit_lesson_path(edited), params: { text: "Checkout reads from the primary", strict: "false" }
+    assert_equal "Saved the INC-001 lesson. Pull request reviews check it from now on.", flash[:notice]
+    assert edited.reload.replaced_by.approved_lesson?
+
+    post turn_down_lesson_path(turned_down), params: { reason: "One off" }
+    assert_equal "Turned down the INC-001 lesson. Reviews and Halon stop using it.", flash[:notice]
+    assert_equal Chat::Memory::STATE_REJECTED, turned_down.reload.state
+  end
+
+  test "a member who is not the incident lead is refused with why, and the lead may decide" do
+    lesson = taught("Checkout retries go up when the payment timeout changes")
+    bob = workspace_memberships(:bob_workspace_one)
+    sign_in(users(:bob), @workspace)
+
+    post approve_lesson_path(lesson)
+    assert_equal "Only the INC-001 lead or a workspace admin can decide on its lessons.", flash[:alert]
+    post turn_down_lesson_path(lesson)
+    assert_equal "Only the INC-001 lead or a workspace admin can decide on its lessons.", flash[:alert]
+    patch edit_lesson_path(lesson), params: { text: "Anything" }
+    assert_equal "Only the INC-001 lead or a workspace admin can decide on its lessons.", flash[:alert]
+    assert_nil lesson.reload.approved_at
+
+    incidents(:active_critical_ws1).lead = bob
+    post approve_lesson_path(lesson)
+    assert_equal bob, lesson.reload.approved_by
+  end
+
+  test "an admin confirming or correcting a lesson on the Memories tab approves it too, and says so" do
+    confirmed = taught("Web runs three replicas")
+    corrected = taught("The cache warms up in five minutes")
+
+    post confirm_memory_path(confirmed)
+    assert_equal "Confirmed. Halon now reads it as confirmed by you. Pull request reviews check it from now on.", flash[:notice]
+    assert confirmed.reload.approved_lesson?
+
+    post correct_memory_path(corrected), params: { text: "The cache warms up in ten minutes" }
+    assert_equal "Corrected. Halon keeps the old wording as rejected so it does not learn it again. Pull request reviews check it from now on.", flash[:notice]
+    assert corrected.reload.replaced_by.approved_lesson?
+  end
+
   private
 
   def remember(text, subject: nil) = Chat::Memory.create!(workspace: @workspace, text: text, subject: subject, state: Chat::Memory::STATE_UNCONFIRMED)
+
+  def taught(text) = Chat::Memory.create!(workspace: @workspace, text: text, source: incidents(:active_critical_ws1), state: Chat::Memory::STATE_UNCONFIRMED)
 end
