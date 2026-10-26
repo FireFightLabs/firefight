@@ -37,6 +37,7 @@ class Workspace < ApplicationRecord
   has_many :alerts, dependent: :destroy
   has_many :alert_groups, dependent: :destroy
   has_many :investigations, dependent: :destroy
+  has_many :pull_request_reviews, dependent: :destroy
   # After investigations, since a check refuses to go while it has runs.
   has_many :investigation_checks, class_name: "Investigation::Check", dependent: :destroy
   has_many :investigation_notices, class_name: "Investigation::Notice", dependent: :delete_all
