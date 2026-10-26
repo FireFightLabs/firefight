@@ -40,6 +40,13 @@ module Workflow::Identity
 
   def missing_reach(version = live_version || draft) = standing(version).reject(&:held).map(&:needed)
 
+  # Whose view of the map a step's route is planned over: the identity's once it reads the map, so a name its
+  # environments make one resource asks for the connection the run will pick. Until then, before the first publish
+  # grants it, the whole map.
+  def map_viewer
+    agent if agent && AbilityGateway.reach(principal: agent, action_key: Ability::Action::MAP_READ, workspace: workspace)
+  end
+
   # Grants the identity what the version needs and does not hold yet, in every environment, as by.
   def grant_reach!(version, by:)
     ensure_agent!

@@ -54,7 +54,7 @@ class DefinedWorkflow::Steps::HttpRequest < DefinedWorkflow::Steps::CallTool
       found + undo_problems(step, workspace)
     end
 
-    def reach(config, workspace)
+    def reach(config, workspace, **)
       action = Ability::Action.lookup(changes?(config, workspace) ? Ability::Action::HTTP_SEND : Ability::Action::HTTP_READ, workspace)
       action ? [ DefinedWorkflow::Reach::Needed.of_action(action) ] : []
     end

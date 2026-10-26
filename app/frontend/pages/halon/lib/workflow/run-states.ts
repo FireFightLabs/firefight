@@ -1,4 +1,4 @@
-import { WORKFLOW_STEP_STATUS } from "@/lib/generated/constants"
+import { WORKFLOW_STEP_GOING_STATUSES, WORKFLOW_STEP_STATUS } from "@/lib/generated/constants"
 import type { StepRunState } from "@/pages/halon/lib/workflow/types"
 import type { WorkflowRunRow, WorkflowRunStates } from "@/types/serializers"
 
@@ -36,7 +36,7 @@ export const RUN_STATUS_LABELS: Record<RunStatus, string> = {
 }
 
 // A step still at work, whose log is still being written.
-export const STEP_GOING: readonly StepStatus[] = [ WORKFLOW_STEP_STATUS.RUNNING, WORKFLOW_STEP_STATUS.WAITING ]
+export const STEP_GOING: readonly StepStatus[] = WORKFLOW_STEP_GOING_STATUSES
 
 // The colour a state is told in, beside its words, never instead of them.
 export const STEP_STATUS_TONES: Record<StepStatus, string> = {

@@ -36,7 +36,7 @@ class DefinedWorkflow::Steps::CreateFollowUp < DefinedWorkflow::Steps::Firefight
 
     def output_fields(_config) = [ OUTPUT_FOLLOW_UP, OUTPUT_ISSUE, OUTPUT_ANSWER, OUTPUT_DATA ]
 
-    def reach(config, workspace)
+    def reach(config, workspace, **)
       issue = opens_issue?(config) ? DefinedWorkflow::Reach.for_tool(workspace, ISSUE_TOOL, {}) : []
       (super + issue).uniq(&:key)
     end

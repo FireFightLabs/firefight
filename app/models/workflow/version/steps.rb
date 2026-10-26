@@ -23,7 +23,8 @@ module Workflow::Version::Steps
   # What the workflow's own identity needs granted to run every step (DefinedWorkflow::Reach::Needed), once each.
   def reach
     kinds = step_kinds
-    Workflow::Version.all_steps(steps).flat_map { |step| kinds[step["id"]]&.reach(step["config"].to_h, workflow.workspace).to_a }.uniq(&:key)
+    viewer = workflow.map_viewer
+    Workflow::Version.all_steps(steps).flat_map { |step| kinds[step["id"]]&.reach(step["config"].to_h, workflow.workspace, viewer: viewer).to_a }.uniq(&:key)
   end
 
   private

@@ -49,7 +49,7 @@ class DefinedWorkflow::Steps::RaiseNotice < DefinedWorkflow::Steps::Base
 
     def referenced?(value) = Workflow::Version.references_in(value).any?
 
-    def reach(_config, workspace)
+    def reach(_config, workspace, **)
       [ Ability::Action.lookup(ACTION, workspace), Ability::Action.lookup(Ability::Action::MAP_READ, workspace) ]
         .compact.map { |action| DefinedWorkflow::Reach::Needed.of_action(action) }
     end
