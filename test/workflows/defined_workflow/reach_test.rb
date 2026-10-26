@@ -73,6 +73,26 @@ class DefinedWorkflow::ReachTest < ActiveSupport::TestCase
     assert_equal [ read_pack(@shop).id ], needed.filter_map(&:role).map(&:id)
   end
 
+  test "while the workspace holds its reads a tool's reach is worked out once for the same arguments, and a copy is handed out" do
+    @workspace.hold_reads!
+    first = DefinedWorkflow::Reach.for_tool(@workspace, status_tool, { "resource" => "shop-web" })
+    Integrations::Capabilities.expects(:planned_calls).never
+
+    again = DefinedWorkflow::Reach.for_tool(@workspace, status_tool, { "resource" => "shop-web" })
+    again.clear
+
+    assert_equal first.map(&:key), DefinedWorkflow::Reach.for_tool(@workspace, status_tool, { "resource" => "shop-web" }).map(&:key)
+  ensure
+    @workspace.release_reads!
+  end
+
+  test "without held reads a tool's reach is worked out each time it is asked" do
+    DefinedWorkflow::Reach.for_tool(@workspace, status_tool, { "resource" => "shop-web" })
+    Integrations::Capabilities.expects(:planned_calls).once.returns([])
+
+    DefinedWorkflow::Reach.for_tool(@workspace, status_tool, { "resource" => "shop-web" })
+  end
+
   test "a name two services share plans the one the workflow's identity reads once its map access is narrowed to one environment" do
     @shop_row.update!(environment: catalog_entries(:production_env))
     @blog_row.update!(environment: catalog_entries(:development_env))
@@ -96,9 +116,31 @@ class DefinedWorkflow::ReachTest < ActiveSupport::TestCase
     assert_equal [ read_pack(@shop).id ], Workflow::StepKinds.reach_of(watch_step, facts).filter_map(&:role).map(&:id)
   end
 
+  test "while the reads are held each viewer's view of the map gets its own answer, never another viewer's" do
+    @shop_row.update!(environment: catalog_entries(:production_env))
+    @blog_row.update!(environment: catalog_entries(:development_env))
+    resource!(@shop_row, "web")
+    resource!(@blog_row, "web", external_id: "blog-web-twin")
+    workflow = Workflow.create!(workspace: @workspace, name: "Release")
+    workflow.ensure_agent!
+    Ability::Grant.grant!(workspace: @workspace, principal: workflow.agent, target: { action: Ability::Action.lookup(Ability::Action::MAP_READ, @workspace) },
+                          environment_ids: [ catalog_entries(:production_env).id ])
+    viewer = workflow.reload.map_viewer
+    @workspace.hold_reads!
+
+    whole_map = DefinedWorkflow::Reach.for_tool(@workspace, status_tool, { "resource" => "web" })
+    narrowed = DefinedWorkflow::Reach.for_tool(@workspace, status_tool, { "resource" => "web" }, viewer: viewer)
+
+    assert_empty whole_map.filter_map(&:role)
+    assert_equal [ read_pack(@shop).id ], narrowed.filter_map(&:role).map(&:id)
+    assert_empty DefinedWorkflow::Reach.for_tool(@workspace, status_tool, { "resource" => "web" }).filter_map(&:role)
+  ensure
+    @workspace.release_reads!
+  end
+
   private
 
-  def status_tool = Integrations::Capabilities.spec(Integrations::Capabilities::STATUS).tool_name
+  def status_tool =Integrations::Capabilities.spec(Integrations::Capabilities::STATUS).tool_name
 
   def read_pack(integration) = Ability::Role.find_by!(integration_id: integration.id, pack: Ability::Role::PACK_READ)
 

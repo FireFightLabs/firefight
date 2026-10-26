@@ -25,6 +25,28 @@ class WorkflowCanvasControllerTest < ActionDispatch::IntegrationTest
     assert_equal "3 runs were skipped in the last week because it had already started as many runs in the hour before as it allows.", shown["skippedRunsSentence"]
   end
 
+  test "a page opened says when it was read, after noting the quiet parts, so its live connection is told only what changes after" do
+    Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+    sign_in(users(:bob), @workspace)
+
+    get workflow_path(@workflow), headers: inertia_headers
+    read_at = inertia_props[WorkflowCanvasController::PROP_LIVE_READ_AT]
+
+    assert_empty Workflow::LiveDelivery.changed_since(@workflow.id, read_at)
+    travel(5.seconds) { Workflow::LiveDelivery.say(@workflow.id, Workflow::LiveSignal::PART_CANVAS) }
+    assert_equal [ Workflow::LiveSignal::PART_CANVAS ], Workflow::LiveDelivery.changed_since(@workflow.id, read_at)
+  end
+
+  test "a partial reload notes nothing, since its page keeps the time it was first read" do
+    Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+    sign_in(users(:bob), @workspace)
+    Workflow::LiveDelivery.expects(:watching).never
+
+    get workflow_path(@workflow), headers: inertia_partial_headers("halon/workflow", [ WorkflowCanvasController::PROP_DOCUMENT ])
+
+    assert_response :success
+  end
+
   test "a step that changes something says whether it can check first that it is still needed" do
     restart = { "id" => "restart", "name" => "restart", "kind" => "call_tool", "config" => { "tool" => "restart", "arguments" => { "resource" => "web" }, "check_first" => false } }
     post = { "id" => "tell", "name" => "tell", "kind" => "post_to_channel", "config" => { "channel" => "#ops", "message" => "Hi" } }

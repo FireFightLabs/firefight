@@ -1209,6 +1209,10 @@ export const INCIDENT_LIVE_PARTS = {
 
 export const WORKFLOW_CHANNEL = "WorkflowChannel" as const
 
+export const WORKFLOW_CHANNEL_READ_AT_PARAM = "read_at" as const
+
+export const WORKFLOW_CHANNEL_CATCH_UP = "catch_up" as const
+
 export const WORKFLOW_LIVE_PARTS = {
   "CANVAS": "canvas",
   "RUNS": "runs"
@@ -1754,7 +1758,8 @@ export const WORKFLOW_CANVAS_PROPS = {
   "HELPERS": "helpers",
   "CHARTS": "charts",
   "CHAT_WAITING": "chatWaiting",
-  "CHAT_UNAVAILABLE": "chatUnavailable"
+  "CHAT_UNAVAILABLE": "chatUnavailable",
+  "LIVE_READ_AT": "liveReadAt"
 } as const
 
 export const WORKFLOW_CANVAS_CHAT_PROPS = [
