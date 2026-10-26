@@ -40,8 +40,8 @@ are built with the shared builders in `app/adapters/slack/blocks/` (see An inves
 and fallback), never by hand:
 
 ```ruby
-Slack::Blocks::Card.new(title: "Ship main", subtitle: "Watching", body: "1 of 2 steps done.", actions: [ stop, open_run ],
-                        icon: ":eyes:").to_blocks(rich: rich)
+Slack::Blocks::Card.new(title: "Halon wants to: add a commit to PR #856", body: "Address the review comments on PR #856 as you asked.",
+                        actions: [ approve, cancel, details ], icon: ":raised_hand:").to_blocks(rich: rich)
 
 Slack::Blocks::Alert.new(level: Slack::Blocks::Alert::LEVEL_SUCCESS, text: "Resolved by <@U1> after 1h 12m",
                          emoji: Slack::Emoji::RESOLVED).to_blocks(rich: rich)
@@ -101,7 +101,7 @@ Done  ·  github.com/FireFightLabs/firefight/pull/856  ·  approved by @Dana    
 | | Use |
 |---|---|
 | `header` block | the announcement (`Announcement`) and the pinned message (`QuickActions`), and a cancellation in the announcement thread |
-| card | Halon's requests, checklists and steps, a watch (`WatchCard`) |
+| card | Halon's requests, checklists and steps |
 | alert | resolved (`Resolution`), reopened (`Reopen`), escalated (`Escalation`) |
 | bold `section` | everything else, and the plain form of a card or an alert |
 
@@ -346,7 +346,7 @@ means, and a button to the page that fixes it.
 ## Messages that are edited in place
 
 An investigation's checklist and a fix's are edited in place the same way, see An investigation in a channel. So is a
-watch's card, see A watch in Slack.
+watch's checklist, see A watch in Slack.
 
 `Welcome` is the onboarding checklist in `#incidents`, rebuilt from
 `WorkspaceOnboarding#stage` and updated through `update_welcome_message`
@@ -445,41 +445,56 @@ plain without asking, and tries the newer blocks again after a week in case the 
 
 ## A watch in Slack
 
-A watch Halon keeps is **one card per place it reports**, edited in place as it moves (`Messages::WatchCard`): one in
+A watch Halon keeps is **one message per place it reports**, edited in place as it moves (`Messages::WatchCard`): one in
 the chat's thread and one in the asker's direct messages, each kept on the watch (`thread_card_*`, `direct_card_*`). The
-first thing the watch says in a place claims posting the card with a guarded update, so two workers never post it
-twice, and everything after redraws it from how the watch stands now. A milestone never posts a message of its own:
-milestones and progress stay in the chat and on the run's page.
+first thing the watch says in a place claims posting it with a guarded update, so two workers never post it twice, and
+everything after redraws it from how the watch stands now. A milestone never posts a message of its own: milestones and
+progress stay in the chat and on the run's page.
 
-The card is three things in plain words, and nothing in it is code (no pod ids, class names or error strings):
+The message is a live checklist, Slack's `plan` block built by the shared `Checklist`, so the person sees at a glance
+which steps are done, which is running and which are waiting. It is the same for every watch, one step or six, in a
+thread or in direct messages. Nothing in it is code (no pod ids, class names or error strings):
 
-- The title is what the watch is for, the person's purpose or else its title, unquoted and led by the state's emoji
-  (`:eyes:` watching, `:white_check_mark:` done, `:x:` failed, `:hourglass:` timed out, `:octagonal_sign:` stopped).
-- The subtitle is the state in a word, Watching, Done, Failed, Timed out or Stopped (`Chat::Watch::Shown.state_word`).
-- The body is one short line on why (`Shown.why`), the step it is on while it goes and the watch's `end_reason` once it
-  ended.
-
-While it goes it offers Stop, Open the run (when the provider gave the run's page) and, in direct messages, Open the
-chat for a dashboard chat. Stop asks first ("Halon stops watching this and says so here. It will not report on it
-again.") and never quotes the title. Once ended it offers only Open the run and Open the chat.
+- The plan's title is what the watch is for, the person's purpose or else its title, unquoted.
+- Each step is a task named by its label ("GitHub Release run", "Web rollout"), with its status and its line
+  (`Conversation::Watches::CardStep`, from `Chat::Watch::Shown.step_status` and `step_line`, the same row the dashboard
+  card draws). Waiting is pending, running or being repaired is in progress, succeeded is complete and failed is an
+  error. A step skipped, or no longer followed once the watch ended, stays pending and its line says why. The line is
+  where it stands while it goes ("Run #99 is running.") and how it ended once over ("a924eed is live on web.").
+- A context line under the plan is the state in a word, Watching, Done, Failed, Timed out or Stopped
+  (`Shown.state_word`), led by the state's emoji (`:eyes:` watching, `:white_check_mark:` done, `:x:` failed,
+  `:hourglass:` timed out, `:octagonal_sign:` stopped), since a plan's title is plain text. Once ended it adds why
+  (`Shown.why`, the watch's `end_reason`). While it goes the steps already say why, so the state stands alone.
+- An actions block holds the buttons. While it goes it offers Stop, Open the run (when the provider gave the run's
+  page) and, in direct messages, Open the chat for a dashboard chat. Stop asks first ("Halon stops watching this and
+  says so here. It will not report on it again.") and never quotes the title. Once ended it offers only Open the run
+  and Open the chat.
 
 **Editing a message notifies nobody**, so when the watch ends (done, failed, timed out, or stopped by anyone but the
-person who asked) it also posts one short line of its own beside each card, a `Blocks::Alert` led by the same emoji.
-The fallback text of both is the state, what it is for and why, so a notification reads the same as the card.
+person who asked) it also posts one short line of its own beside each checklist, a `Blocks::Alert` led by the same
+emoji. The fallback text of both is the state, what it is for and why, so a notification reads the same as the message.
 
 ```
-card  :eyes:  Ship main                                        (while it goes)
-      Watching
-      1 of 2 steps done. Web deploy is running.          [Stop] [Open the run] [Open the chat]
-                         ... when it ends, the same card ...
-card  :white_check_mark:  Ship main
-      Done
-      Took 7 minutes. web is serving 7676c83.                  [Open the run] [Open the chat]
-:white_check_mark:  *Done: Ship main.* Took 7 minutes. web is serving 7676c83.   (a new line, which notifies)
+plan  Release firefight to production                                (while it goes)
+  ✓ GitHub Release run       Succeeded after 4 minutes.
+  ◐ Northflank release run   Run #99 is running.
+  ◌ Web rollout              Waits for Northflank release run.
+:eyes:  Watching
+[Stop] [Open the run] [Open the chat]
+                         ... when it ends, the same message ...
+plan  Release firefight to production
+  ✓ GitHub Release run       Succeeded after 4 minutes.
+  ✓ Northflank release run   Succeeded after 6 minutes.
+  ✓ Web rollout              a924eed is live on web.
+:white_check_mark:  Done  ·  Took 12 minutes. web is serving a924eed.
+[Open the run] [Open the chat]
+:white_check_mark:  *Done: Release firefight to production.* Took 12 minutes. web is serving a924eed.   (a new line, which notifies)
 ```
 
-The card goes through `with_rich_blocks`, so a workspace whose Slack does not show cards gets the same words as a
-section, a context line and the buttons. See docs/ai.md, What it says, and where.
+It goes through `with_rich_blocks`, so a workspace whose Slack does not show plan blocks gets the plain checklist
+(the title led by the state's emoji, a divider and one line per step marked by its status), the state line and the
+buttons. A watch a workflow's Watch step started reports to nobody in Slack as it goes, its run's page shows it. See
+docs/ai.md, What it says, and where.
 
 ## Asking for a pack
 

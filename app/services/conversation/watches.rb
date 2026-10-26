@@ -48,10 +48,13 @@ module Conversation::Watches
   # A watch's card on the platform as it stands now, one per place it reports, edited in place. what is what it is for,
   # state how it stands in a word, why one short plain line on that. update_id is a line it said, which Stop names.
   # link is the page of what it follows when the provider gave one, conversation_id the dashboard chat a card in direct
-  # messages offers to open.
-  Card = Data.define(:watch_id, :update_id, :status, :state, :what, :why, :link, :conversation_id) do
+  # messages offers to open. steps are its rows, one per thing it follows, in the order it follows them.
+  Card = Data.define(:watch_id, :update_id, :status, :state, :what, :why, :link, :conversation_id, :steps) do
     def live? = status == Chat::Watch::STATUS_ACTIVE
   end
+  # One row on a watch's card: the step's label, its status as the dashboard shows it, and its line in a few words, such
+  # as "Run #99 is running." while it goes or how it ended once over.
+  CardStep = Data.define(:id, :label, :status, :line)
   # Where a card goes: the place, the channel or person, and the thread for a card in a chat's thread.
   Place = Data.define(:key, :channel_id, :thread_id) do
     def direct? = key == Chat::Watch::PLACE_DIRECT
@@ -1488,7 +1491,12 @@ module Conversation::Watches
     conversation = watch.conversation
     Card.new(watch_id: watch.id, update_id: update.id, status: watch.status, state: Chat::Watch::Shown.state_word(watch),
              what: Chat::Watch::Shown.what(watch), why: Chat::Watch::Shown.why(watch), link: Chat::Watch::Shown.link(watch),
-             conversation_id: (conversation.id if direct && conversation.personal?))
+             conversation_id: (conversation.id if direct && conversation.personal?),
+             steps: watch.steps.map { |step| card_step(step) })
+  end
+
+  def self.card_step(step)
+    CardStep.new(id: step.id, label: step.label, status: Chat::Watch::Shown.step_status(step), line: Chat::Watch::Shown.step_line(step))
   end
 
   # A watch a workflow's step started reports to nobody as it goes. The run's page shows its lines, and its end goes back
