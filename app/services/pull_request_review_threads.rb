@@ -21,7 +21,7 @@ class PullRequestReviewThreads
       return unless changes.include?(@finding.path)
 
       found = FirefightAi::ReviewThread.new(@review.workspace, inferable: @review).recheck(finding: @finding.as_posted, changes: changes,
-                                                                                            code: @posting.file(@finding.path, head, @finding.line))
+                                                                                            code: file!(head))
     rescue StandardError
       @finding.release_recheck!(head)
       raise
@@ -42,7 +42,7 @@ class PullRequestReviewThreads
 
     begin
       head = signal.head_sha.presence || PullRequestReview.latest_of(@review.workspace, @review.repository, @review.number)&.head_sha || @review.head_sha
-      code = @finding.path.present? ? @posting.file(@finding.path, head, @finding.line) : nil
+      code = @finding.path.present? ? file!(head) : nil
       said = FirefightAi::ReviewThread.new(@review.workspace, inferable: @review).answer(finding: @finding.as_posted, thread: nil, reply: signal.body, code: code)
     rescue StandardError
       @finding.release_answer!(signal.comment)
@@ -54,5 +54,12 @@ class PullRequestReviewThreads
     elsif said.answer.present?
       @posting.reply!(@finding, said.answer)
     end
+  end
+
+  private
+
+  # The finding's file at head. A file that could not be read is never judged as missing code.
+  def file!(head)
+    @posting.file(@finding.path, head, @finding.line).presence || raise(Unread, "The finding's file could not be read.")
   end
 end

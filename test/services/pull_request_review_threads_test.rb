@@ -44,6 +44,19 @@ class PullRequestReviewThreadsTest < ActiveSupport::TestCase
     assert_nil @finding.reload.rechecked_sha
   end
 
+  test "a file that cannot be read stops the check and the answer before the model judges anything" do
+    PullRequestReviewPosting.any_instance.stubs(:file).returns(nil)
+    FirefightAi::ReviewThread.any_instance.expects(:recheck).never
+    FirefightAi::ReviewThread.any_instance.expects(:answer).never
+    reply = Integrations::PullRequestReviews::Signal.new(kind: Integrations::PullRequestReviews::COMMENTED, repository: "acme/api", number: 7, reference: "r",
+                                                         comment: "91", thread: "701", body: "Why?", author: "ada")
+
+    assert_raises(PullRequestReviewThreads::Unread) { threads.recheck!("a" * 40, "b" * 40) }
+    assert_raises(PullRequestReviewThreads::Unread) { threads.answer!(reply) }
+    assert_nil @finding.reload.rechecked_sha
+    assert_empty @finding.answered_comment_ids
+  end
+
   test "a reply the model could not answer is handed back so a retry answers it" do
     FirefightAi::ReviewThread.any_instance.stubs(:answer).raises(FirefightAi::TransientError, "overloaded")
     reply = Integrations::PullRequestReviews::Signal.new(kind: Integrations::PullRequestReviews::COMMENTED, repository: "acme/api", number: 7, reference: "r",

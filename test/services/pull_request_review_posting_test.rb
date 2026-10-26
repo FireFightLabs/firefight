@@ -44,7 +44,8 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
     on_line = create_finding
     outside = create_finding(claim: "The old migration still runs", position: 2, outside_diff: true, path: "db/migrate/1_old.rb", line: 4)
     @review.finish!(status: PullRequestReview::STATUS_DONE)
-    answer(REVIEW => Integrations::PullRequestReviews::Posted.new(reference: "55", comments: [ "701" ]), EDIT => "100")
+    answer(REVIEW => Integrations::PullRequestReviews::Posted.new(reference: "55", comments: [ "701" ], urls: [ "https://example.com/c701" ], url: "https://example.com/r55"),
+           EDIT => "100")
 
     posting.run!(PullRequestReview::CHANGE_FINISHED)
     posting.run!(PullRequestReview::CHANGE_FINISHED)
@@ -60,6 +61,7 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
     assert_equal "a" * 40, review[:commit]
     assert_equal 1, @posts.count { |operation, _| operation == REVIEW }, "the review posts once"
     assert_equal [ "701", "55" ], [ on_line.reload.host_comment_id, @review.reload.review_comment_id ]
+    assert_equal [ "https://example.com/c701", "https://example.com/r55" ], [ on_line.host_comment_url, outside.reload.host_comment_url ]
   end
 
   test "a review the host refuses with its line comments goes up with every finding in its body" do
