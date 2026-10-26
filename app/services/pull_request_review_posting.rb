@@ -73,22 +73,35 @@ class PullRequestReviewPosting
     finding.serious_posted!(posted) if posted
   end
 
-  # The review itself, once, then the summary as it ends.
+  # The review itself, once, then the summary as it ends. A review the host took none of is handed back, so the job's
+  # retry posts it.
   def finished!
-    post_review! if @review.claim_review_post!
+    if @review.claim_review_post!
+      unless post_review!
+        @review.release_review_post!
+        raise NotPosted, "The code host took nothing of the review of PR ##{@review.number} in #{@review.repository}."
+      end
+    end
     summary!
   end
 
+  # Raised so the job tries again later.
+  class NotPosted < StandardError; end
+
+  # True once the review is on the pull request, or when it found nothing to post.
   def post_review!
     fresh = @review.findings.still_open.reject { |finding| @review.posted_before?(finding) }
-    return if fresh.empty?
+    return true if fresh.empty?
 
     on_lines, outside = fresh.partition { |finding| finding.path.present? && finding.line.present? && !finding.outside_diff? }
     posted = review!(on_lines, outside) || review!([], on_lines + outside)
-    return unless posted
+    return false unless posted
 
     @review.review_posted!(posted.reference)
-    on_lines.zip(posted.comments).each { |finding, reference| finding.posted_on_line!(reference) if reference.present? }
+    placed = on_lines.zip(posted.comments).map { |finding, reference| reference.present? && finding.posted_on_line!(reference) && finding }
+    unplaced = on_lines - placed.compact_blank
+    call!(Integrations::PullRequestReviews::COMMENT, body: PullRequestReview::Comments.unplaced(unplaced)) if posted.comments.any? && unplaced.any?
+    true
   end
 
   # One review with its line comments, or nil when the host refused it.

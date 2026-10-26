@@ -15,11 +15,17 @@ class PullRequestReviewThreads
   def recheck!(base, head)
     return unless @finding.open? && @finding.host_comment_id && @finding.path.present? && @finding.claim_recheck!(head)
 
-    changes = @posting.changes(base, head).to_s
-    return unless changes.include?(@finding.path)
+    begin
+      changes = @posting.changes(base, head)
+      raise Unread, "What the push changed could not be read." if changes.blank?
+      return unless changes.include?(@finding.path)
 
-    found = FirefightAi::ReviewThread.new(@review.workspace, inferable: @review).recheck(finding: @finding.as_posted, changes: changes,
-                                                                                          code: @posting.file(@finding.path, head, @finding.line))
+      found = FirefightAi::ReviewThread.new(@review.workspace, inferable: @review).recheck(finding: @finding.as_posted, changes: changes,
+                                                                                            code: @posting.file(@finding.path, head, @finding.line))
+    rescue StandardError
+      @finding.release_recheck!(head)
+      raise
+    end
     fixed = (true if found.fixed?) || (false if found.not_fixed?)
     @posting.reply!(@finding, PullRequestReview::Comments.recheck_reply(fixed, found.words, head))
     return unless found.fixed? && @finding.fixed!(head)
@@ -27,13 +33,21 @@ class PullRequestReviewThreads
     @posting.resolve!(@finding)
   end
 
+  # Raised so the job tries again later, once the claim is handed back.
+  class Unread < StandardError; end
+
   # A person's reply on the finding's thread, as the code host sent it.
   def answer!(signal)
     return unless @finding.claim_answer!(signal.comment)
 
-    head = signal.head_sha.presence || PullRequestReview.latest_of(@review.workspace, @review.repository, @review.number)&.head_sha || @review.head_sha
-    code = @finding.path.present? ? @posting.file(@finding.path, head, @finding.line) : nil
-    said = FirefightAi::ReviewThread.new(@review.workspace, inferable: @review).answer(finding: @finding.as_posted, thread: nil, reply: signal.body, code: code)
+    begin
+      head = signal.head_sha.presence || PullRequestReview.latest_of(@review.workspace, @review.repository, @review.number)&.head_sha || @review.head_sha
+      code = @finding.path.present? ? @posting.file(@finding.path, head, @finding.line) : nil
+      said = FirefightAi::ReviewThread.new(@review.workspace, inferable: @review).answer(finding: @finding.as_posted, thread: nil, reply: signal.body, code: code)
+    rescue StandardError
+      @finding.release_answer!(signal.comment)
+      raise
+    end
     if said.withdraw? && @finding.withdraw!(said.reason)
       @posting.reply!(@finding, PullRequestReview::Comments.withdrawn_reply(said.answer, said.reason))
       @posting.resolve!(@finding)

@@ -37,6 +37,22 @@ class PullRequestReviewThreadsTest < ActiveSupport::TestCase
     assert @finding.reload.open?
   end
 
+  test "a push whose changes cannot be read hands the check back for a retry" do
+    PullRequestReviewPosting.any_instance.stubs(:changes).returns(nil)
+
+    assert_raises(PullRequestReviewThreads::Unread) { threads.recheck!("a" * 40, "b" * 40) }
+    assert_nil @finding.reload.rechecked_sha
+  end
+
+  test "a reply the model could not answer is handed back so a retry answers it" do
+    FirefightAi::ReviewThread.any_instance.stubs(:answer).raises(FirefightAi::TransientError, "overloaded")
+    reply = Integrations::PullRequestReviews::Signal.new(kind: Integrations::PullRequestReviews::COMMENTED, repository: "acme/api", number: 7, reference: "r",
+                                                         comment: "90", thread: "701", body: "Why?", author: "ada")
+
+    assert_raises(FirefightAi::TransientError) { threads.answer!(reply) }
+    assert_empty @finding.reload.answered_comment_ids
+  end
+
   test "a push that did not touch the finding's file says nothing" do
     PullRequestReviewPosting.any_instance.stubs(:changes).returns("diff --git a/README.md b/README.md")
     FirefightAi::ReviewThread.any_instance.expects(:recheck).never

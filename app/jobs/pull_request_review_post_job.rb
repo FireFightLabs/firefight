@@ -5,6 +5,7 @@ class PullRequestReviewPostJob < ApplicationJob
 
   limits_concurrency key: ->(review_id, *) { PullRequestReviewPostJob.pull_request_key(review_id) }, duration: 10.minutes
 
+  retry_on PullRequestReviewPosting::NotPosted, wait: :polynomially_longer, attempts: 5
   discard_on ActiveRecord::RecordNotFound
 
   def self.pull_request_key(review_id)

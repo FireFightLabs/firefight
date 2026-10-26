@@ -23,6 +23,14 @@ module PullRequestReview::Finding::Threading
         .update_all(rechecked_sha: sha, updated_at: Time.current).positive?
   end
 
+  # Handed back when the check of a push could not run, so a retry takes it.
+  def release_recheck!(sha) = self.class.where(id: id, rechecked_sha: sha).update_all(rechecked_sha: nil, updated_at: Time.current)
+
+  # Handed back when a reply could not be answered, so a retry takes it.
+  def release_answer!(comment)
+    self.class.where(id: id).update_all([ "answered_comment_ids = answered_comment_ids - ?, updated_at = ?", comment.to_s, Time.current ])
+  end
+
   # The finding as Halon posted it, for the model that checks a fix or answers a reply.
   def as_posted = PullRequestReview::Comments.finding(self).sub(format(PullRequestReview::Comments::FINDING_MARK, id: id), "").strip
 end

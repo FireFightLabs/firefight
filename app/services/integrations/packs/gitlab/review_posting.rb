@@ -138,14 +138,22 @@ module Integrations
           threads = comments.map do |comment|
             position = { "position_type" => "text", "base_sha" => refs["base_commit_sha"], "start_sha" => refs["start_commit_sha"], "head_sha" => refs["head_commit_sha"],
                          "new_path" => comment[:path], "old_path" => comment[:path], "new_line" => comment[:line] }
+            # A line GitLab will not place is left without a thread rather than stopping the rest, and the caller places it. A
+            # refusal for the token's access says the same for every line, so it stops the review with why.
             made = posting("comment on #{comment[:path]} line #{comment[:line]} of merge request !#{iid} in #{repo}") do
               gitlab.post("#{project}/merge_requests/#{iid}/discussions", { "body" => comment[:body], "position" => position })
+            rescue GitlabApi::NotFound, GitlabApi::Refused
+              raise
+            rescue GitlabApi::Error
+              nil
             end
-            "#{made['id']}/#{Array(made['notes']).first&.dig('id')}"
+            "#{made['id']}/#{Array(made['notes']).first&.dig('id')}" if made
           end
           note = posting("comment on merge request !#{iid} in #{repo}") { gitlab.post("#{project}/merge_requests/#{iid}/notes", { "body" => body }) }
+          missed = threads.count(&:nil?)
           Telemetry.result("Reviewed merge request !#{iid} #{request['title']} in #{repo} at #{refs['head_commit_sha'].to_s[0, 12]}" \
-                           "#{", with #{threads.size} line #{'comment'.pluralize(threads.size)}" if threads.any?}.",
+                           "#{", with #{threads.size - missed} line #{'comment'.pluralize(threads.size - missed)}" if threads.any?}" \
+                           "#{", and #{missed} GitLab would not place on its line" if missed.positive?}.",
                            link: link(note_url(request, note["id"])), facts: { "note_id" => note["id"], "threads" => threads.presence })
         end
 

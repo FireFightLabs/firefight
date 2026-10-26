@@ -131,13 +131,21 @@ module Integrations
           pull = bitbucket.get("#{BitbucketApi.repository(repo)}/pullrequests/#{number}")
           fail! "PR ##{number} in #{repo} is #{pull['state'].to_s.downcase}, so it takes no review." unless pull["state"] == "OPEN"
 
+          # A line Bitbucket will not place is left without a comment rather than stopping the rest, and the caller places it. A
+          # refusal for the token's access says the same for every line, so it stops the review with why.
           ids = lines.map do |comment|
             posting("comment on #{comment[:path]} line #{comment[:line]} of PR ##{number} in #{repo}") do
-              bitbucket.post(comments_path(repo, number), { "content" => { "raw" => comment[:body] }, "inline" => { "path" => comment[:path], "to" => comment[:line] } })
-            end["id"]
+              bitbucket.post(comments_path(repo, number), { "content" => { "raw" => comment[:body] }, "inline" => { "path" => comment[:path], "to" => comment[:line] } })["id"]
+            rescue BitbucketApi::NotFound, BitbucketApi::Refused
+              raise
+            rescue BitbucketApi::Error
+              nil
+            end
           end
           summary = posting("comment on PR ##{number} in #{repo}") { bitbucket.post(comments_path(repo, number), { "content" => { "raw" => body } }) }
-          Telemetry.result("Reviewed PR ##{number} #{pull['title']} in #{repo}#{", with #{ids.size} line #{'comment'.pluralize(ids.size)}" if ids.any?}.",
+          missed = ids.count(&:nil?)
+          Telemetry.result("Reviewed PR ##{number} #{pull['title']} in #{repo}#{", with #{ids.size - missed} line #{'comment'.pluralize(ids.size - missed)}" if ids.any?}" \
+                           "#{", and #{missed} Bitbucket would not place on its line" if missed.positive?}.",
                            link: link(summary.dig("links", "html", "href") || pull.dig("links", "html", "href")),
                            facts: { "comment_id" => summary["id"], "comment_ids" => ids.presence })
         end
@@ -199,8 +207,8 @@ module Integrations
 
         def own_comment!(bitbucket, comment, id, what: "comment")
           me = bitbucket.get("/user")
-          author = comment.dig("user", "account_id")
-          return if author.present? && author == me["account_id"]
+          author = comment["user"].to_h
+          return if %w[account_id uuid].any? { |key| author[key].present? && author[key] == me[key] }
 
           fail_policy! "Only a #{what} Firefight started is changed here, and #{what} #{id} is #{comment.dig('user', 'display_name').presence || 'someone else'}'s. A person changes it on Bitbucket."
         rescue BitbucketApi::Refused

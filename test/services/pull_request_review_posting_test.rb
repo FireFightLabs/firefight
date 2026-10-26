@@ -78,6 +78,41 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
     assert_includes @posts.second.last[:body], "### Outside the diff"
   end
 
+  test "a line the host would not place goes up in the conversation, and a review the host took none of is handed back for a retry" do
+    @review.update_columns(summary_comment_id: "100")
+    placed = create_finding
+    unplaced = create_finding(claim: "Bound the queue", position: 2, line: 30)
+    @review.finish!(status: PullRequestReview::STATUS_DONE)
+    answer(REVIEW => Integrations::PullRequestReviews::Posted.new(reference: "55", comments: [ "701", nil ]), COMMENT => "300", EDIT => "100")
+
+    posting.run!(PullRequestReview::CHANGE_FINISHED)
+
+    comment = @posts.find { |operation, _| operation == COMMENT }.last
+    assert_includes comment[:body], "meant for lines the code host would not place a comment on"
+    assert_includes comment[:body], unplaced.claim
+    assert_equal [ "701", nil ], [ placed.reload.host_comment_id, unplaced.reload.host_comment_id ]
+
+    other = PullRequestReview.create!(workspace: @workspace, integration_environment: @row, repository: "acme/api", number: 8, head_sha: "c" * 40,
+                                      trigger: PullRequestReview::TRIGGER_REQUESTED, max_spend_cents: 400, status: PullRequestReview::STATUS_RUNNING)
+    other.findings.create!(position: 1, fingerprint: "e" * 32, category: PullRequestReview::Finding::CATEGORY_STABILITY, severity: PullRequestReview::Finding::SEVERITY_MINOR,
+                           effort: PullRequestReview::Finding::EFFORT_QUICK_WIN, claim: "Name it", why: "Clearer.", path: "a.rb", line: 1)
+    other.finish!(status: PullRequestReview::STATUS_DONE)
+    Integrations::PullRequestReviews.unstub(:call!)
+    Integrations::PullRequestReviews.stubs(:call!).returns(nil)
+
+    assert_raises(PullRequestReviewPosting::NotPosted) { PullRequestReviewPosting.new(other.reload).run!(PullRequestReview::CHANGE_FINISHED) }
+    assert_nil other.reload.review_posted_at
+  end
+
+  test "a failed review says it stopped and never that it found nothing" do
+    @review.update_columns(error_summary: PullRequestReview::GAVE_UP, status: PullRequestReview::STATUS_FAILED)
+
+    body = PullRequestReview::Comments.summary(@review.reload, [])
+
+    assert_includes body, "stopped"
+    assert_not_includes body, "No problems found."
+  end
+
   test "a finding a push fixed edits its line comment and its own comment to say which commit fixed it" do
     @review.update_columns(summary_comment_id: "100")
     finding = create_finding(serious: true)

@@ -43,6 +43,9 @@ module PullRequestReview::Posting
 
   def review_posted!(reference) = update_columns(review_comment_id: reference, updated_at: Time.current)
 
+  # Hands the posting back when nothing went up, so a retry takes it.
+  def release_review_post! = self.class.where(id: id, review_comment_id: nil).update_all(review_posted_at: nil, updated_at: Time.current)
+
   # Every finding of this pull request as people should read it: one per problem, the thread a first posting started
   # standing for it, unless a later review found again what that thread says was fixed, which is new news.
   def pull_request_findings

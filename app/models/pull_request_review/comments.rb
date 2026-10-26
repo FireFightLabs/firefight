@@ -48,7 +48,7 @@ module PullRequestReview::Comments
   def risk_line(review) = "**Risk: #{review.risk.capitalize}.** #{review.risk_reason}".strip
 
   def findings_section(review, standing)
-    return (review.live? ? nil : "No problems found.") if standing.empty?
+    return (review.done? ? "No problems found." : nil) if standing.empty?
 
     open = standing.count(&:open?)
     heading = review.live? ? "### Findings so far" : "### Findings"
@@ -161,6 +161,12 @@ module PullRequestReview::Comments
     end
     sections << agent_block(on_lines + outside)
     sections.compact.join("\n\n")
+  end
+
+  # Findings the host would not take as comments on their lines, posted together in the conversation instead.
+  def unplaced(findings)
+    [ "These #{findings.size == 1 ? 'finding was' : "#{findings.size} findings were"} meant for lines the code host would not place a comment on.",
+      *findings.map { |finding| finding(finding, heading: true) } ].join("\n\n")
   end
 
   # The comment of its own a serious finding gets, so everyone on the pull request is notified.

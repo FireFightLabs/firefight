@@ -32,11 +32,11 @@ module Workspace::PullRequestReviewing
     (held + pull_request_review_repositories).uniq.sort
   end
 
-  # Grants Halon's review agent the tools a code host connection posts a review and reads a fix through, and nothing
-  # more, through the same grants the Permissions screen writes, for a connection made before the agent existed. A
-  # connection made since is granted each tool as it is minted (Integration::Tool).
+  # Grants Halon's review agent the switched on tools a code host connection posts a review and reads a fix through, and
+  # nothing more, through the same grants the Permissions screen writes, for a connection made before the agent existed.
+  # A tool switched on later, and every tool of a connection made since, is granted as it is minted (Integration::Tool).
   def grant_pull_request_reviewing!(integration)
-    integration.tools.available.where(name: Integrations::PullRequestReviews.tools(integration.provider)).find_each do |tool|
+    integration.tools.available.enabled.where(name: Integrations::PullRequestReviews.tools(integration.provider)).find_each do |tool|
       Ability::Grant.grant!(workspace: self, principal: SystemAgent.pull_request_review, target: { action: tool.ability_action || tool.sync_ability_action! })
     end
   end

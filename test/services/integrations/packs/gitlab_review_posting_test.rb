@@ -33,6 +33,18 @@ module Integrations
         assert_equal "6a9c1d3e5f7b", Gitlab.review_thread_of("6a9c1d3e5f7b/501")
       end
 
+      test "a line GitLab will not place is left without a thread, and the rest still go up" do
+        GitlabApi.any_instance.stubs(:post).with("#{PROJECT}/merge_requests/7/discussions", anything).raises(GitlabApi::Error, "GitLab answered 400: line_code can't be blank")
+        GitlabApi.any_instance.expects(:post).with("#{PROJECT}/merge_requests/7/notes", { "body" => "Summary" }).returns("id" => 600)
+
+        name, arguments = Gitlab.review_call(PullRequestReviews::REVIEW, repository: "acme/web", number: 7, body: "Summary",
+                                                                         comments: [ PullRequestReviews::LineComment.new(path: "a.rb", line: 300, body: "One") ])
+        result = @pack.public_send(name, environment_row: @row, arguments: arguments)
+
+        assert_includes result["content"].first["text"], "and 1 GitLab would not place on its line"
+        assert_equal [ nil ], Gitlab.review_posted(PullRequestReviews::REVIEW, result.dig(Telemetry::STRUCTURED, Telemetry::FACTS)).comments
+      end
+
       test "a line comment's thread is replied to and resolved by its discussion, and its note edited by its own id" do
         GitlabApi.any_instance.expects(:post).with("#{PROJECT}/merge_requests/7/discussions/6a9c1d3e5f7b/notes", { "body" => "Fixed in abc1234." }).returns("id" => 502)
         name, arguments = Gitlab.review_call(PullRequestReviews::REPLY, repository: "acme/web", number: 7, reference: "6a9c1d3e5f7b/501", body: "Fixed in abc1234.")
