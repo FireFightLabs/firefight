@@ -284,7 +284,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     Slack::DashboardUrl.stubs(:agent_chat).with(@conversation.id).returns("https://firefight.test/app/agent/#{@conversation.id}")
     start_release_watch
     watch = @conversation.chat.watches.sole
-    Slack::Client.expects(:post_message).with { |channel:, blocks:, **| channel == @alice.platform_user_id && blocks.sole[:actions].last[:url].include?(@conversation.id) }
+    Slack::Client.expects(:post_message).with { |channel:, blocks:, **| channel == @alice.platform_user_id && blocks.last[:elements].last[:url].include?(@conversation.id) }
                  .returns(ts: "1", channel: "D1")
 
     Conversation::Watches.tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "Release run #46 started.")
@@ -304,19 +304,20 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_equal [ "C1", "1", "D1", "2" ], watch.reload.values_at(:thread_card_channel_id, :thread_card_message_id, :direct_card_channel_id, :direct_card_message_id)
 
     drawn = []
-    Slack::Client.expects(:update_message).times(4).with { |channel:, ts:, blocks:, **| drawn << [ channel, ts, blocks.sole ] }
+    Slack::Client.expects(:update_message).times(4).with { |channel:, ts:, blocks:, **| drawn << [ channel, ts, blocks ] }
     Conversation::Watches.tell!(watch, Chat::Watch::Update::KIND_PROGRESS, "Release run: tag passed.")
     assert_equal [ [ "C1", "1" ], [ "D1", "2" ] ], drawn.map { |channel, ts, _| [ channel, ts ] }
-    assert_equal [ ":eyes:  Ship main", "Watching", "Waiting for Release run #46 to start." ],
-                 [ drawn.first.last.dig(:title, :text), drawn.first.last.dig(:subtitle, :text), drawn.first.last.dig(:body, :text) ]
+    plan, standing = drawn.first.last
+    assert_equal [ "Ship main", ":eyes:  Watching" ], [ plan[:title], standing[:elements].sole[:text] ]
+    assert_equal [ [ "Release run #46", Slack::Messages::Checklist::PENDING ] ], plan[:tasks].map { |task| task.values_at(:title, :status) }
 
     bob = workspace_memberships(:bob_workspace_one)
     ended = []
     Slack::Client.expects(:post_message).twice.with { |channel:, text:, thread_ts: nil, **| ended << [ channel, thread_ts, text ] }.returns(ts: "9", channel: "C1")
     assert_nil Conversation::Watches.stop!(watch.reload, by: bob)
 
-    assert_equal [ "Stopped", "Stopped" ], drawn.last(2).map { |_, _, card| card.dig(:subtitle, :text) }
-    assert(drawn.last(2).all? { |_, _, card| card[:actions].to_a.none? { |button| button[:action_id] == Identifiers::WATCH_STOP } })
+    assert(drawn.last(2).all? { |_, _, blocks| blocks.second[:elements].sole[:text].start_with?(":octagonal_sign:  Stopped") })
+    assert(drawn.last(2).all? { |_, _, blocks| actions_of(blocks).exclude?(Identifiers::WATCH_STOP) })
     told = "Stopped: Ship main. Stopped by #{bob.display_name}."
     assert_equal [ [ "C1", "111.1", told ], [ @alice.platform_user_id, nil, told ] ], ended
   end
@@ -327,7 +328,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     Slack::Client.expects(:post_message).once.returns(ts: "1", channel: "D1")
     Conversation::Watches.tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "Release run #46 started.")
 
-    Slack::Client.expects(:update_message).with { |blocks:, **| blocks.sole.dig(:subtitle, :text) == "Stopped" }.once
+    Slack::Client.expects(:update_message).with { |blocks:, **| blocks.second[:elements].sole[:text].start_with?(":octagonal_sign:  Stopped") }.once
     assert_nil Conversation::Watches.stop!(watch.reload, by: @alice)
   end
 
@@ -374,7 +375,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
       Chat::Watch::Step.where(watch_id: watch.id).update_all(status: Chat::Watch::Step::STATUS_RUNNING)
       true
     end.returns(ts: "1", channel: "D1")
-    Slack::Client.expects(:update_message).once.with { |ts:, blocks:, **| ts == "1" && blocks.sole.dig(:body, :text) == "Release run #46 is running." }
+    Slack::Client.expects(:update_message).once.with { |ts:, blocks:, **| ts == "1" && blocks.first[:tasks].sole[:status] == Slack::Messages::Checklist::IN_PROGRESS }
 
     Conversation::Watches.tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "Release run #46 started.")
 
