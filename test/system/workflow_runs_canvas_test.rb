@@ -3,6 +3,8 @@ require "application_system_test_case"
 class WorkflowRunsCanvasTest < ApplicationSystemTestCase
   include ActiveJob::TestHelper
 
+  RESIZE_HANDLE = "[role=separator][aria-label='Resize the panel']".freeze
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @alice = workspace_memberships(:alice_workspace_one)
@@ -107,5 +109,44 @@ class WorkflowRunsCanvasTest < ApplicationSystemTestCase
     assert_current_path(/run=/, wait: 15)
     assert_text "Test run of v1"
     assert_text "Pick a step here or on the canvas for everything it did."
+  end
+
+  test "the panel beside the canvas widens from its edge, keeps its width after a reload and in the editor, and resets" do
+    steps!(step("pause", "delay", { "seconds" => 0 }))
+    run = try!
+    sign_in(users(:bob), @workspace)
+    visit workflow_path(@workflow, run: run.id)
+
+    default = panel_width("Run")
+    page.driver.browser.action.drag_and_drop_by(find(RESIZE_HANDLE).native, -200, 0).perform
+    assert_no_selector "#{RESIZE_HANDLE}[aria-valuenow='#{default}']"
+    wider = panel_width("Run")
+    assert_in_delta default + 200, wider, 2
+
+    find(RESIZE_HANDLE).send_keys(:arrow_left)
+    assert_selector "#{RESIZE_HANDLE}[aria-valuenow='#{wider + 16}']"
+
+    refresh
+    assert_text "Test run of v1"
+    assert_selector "#{RESIZE_HANDLE}[aria-valuenow='#{wider + 16}']"
+    assert_equal wider + 16, panel_width("Run")
+    find("[data-step='pause']").click
+    within("aside[aria-label='Run']") { assert_text "The whole run" }
+    assert_equal wider + 16, panel_width("Run")
+
+    click_button "Back to the editor"
+    assert_current_path workflow_path(@workflow), wait: 15
+    assert_equal wider + 16, panel_width("Step settings")
+
+    find(RESIZE_HANDLE).double_click
+    assert_selector "#{RESIZE_HANDLE}[aria-valuenow='#{default}']"
+    assert_equal default, panel_width("Step settings")
+
+    page.current_window.resize_to(390, 844)
+    assert_no_selector RESIZE_HANDLE
+  end
+
+  def panel_width(label)
+    find("aside[aria-label='#{label}']").evaluate_script("this.offsetWidth")
   end
 end

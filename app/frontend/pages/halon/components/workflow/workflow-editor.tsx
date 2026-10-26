@@ -1,10 +1,12 @@
 import { ReactFlowProvider } from "@xyflow/react"
 import { IconHistory, IconPlus } from "@tabler/icons-react"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useId, useMemo, useState } from "react"
 
+import { PanelResizeHandle } from "@/components/panel-resize-handle"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { usePanelWidth } from "@/hooks/use-panel-width"
 import { cn } from "@/lib/utils"
 import { WORKFLOW_EDIT_OPERATIONS, WORKFLOW_TRIGGER_KEYS } from "@/lib/generated/constants"
 import { jsonValue } from "@/lib/tool-fields"
@@ -33,6 +35,10 @@ import type {
   WorkflowTriggerKind,
 } from "@/types/serializers"
 
+// The panel on the right opens at 19rem, the width it always had, and is never narrower. The canvas keeps 20rem
+// however wide the panel is dragged.
+const PANEL = { storageKey: "firefight.workflow.panelWidth", defaultWidth: 304, minWidth: 304, minRest: 320 }
+
 interface WorkflowEditorProps {
   workflowId: string
   document: WorkflowDocument
@@ -58,11 +64,14 @@ interface WorkflowEditorProps {
 // The editor: the palette docked on the left, the canvas in the middle and the settings of what is selected docked on
 // the right. Narrower, the palette opens over the canvas from Add a step, and on a phone the canvas is a list of the
 // steps in order, each opening its settings over the page. A run shown on the canvas draws each step's state, and the
-// panel on the right is that run's instead.
+// panel on the right is that run's instead. It is one panel whatever it shows, so the width the person drags it to holds
+// for a step's settings, a whole run and one step of it alike.
 export function WorkflowEditor(props: WorkflowEditorProps) {
   const { workflowId, document, suggestions, halonChanges, stepKinds, triggerKinds, tools, workflows, timeZones, editable, run, lastRun, hasDraft, selection,
     send, onSelect, onTry } = props
   const isMobile = useIsMobile()
+  const panel = usePanelWidth(PANEL)
+  const panelId = useId()
   const [ highlightHalon, setHighlightHalon ] = useState(false)
   const [ showLastRun, setShowLastRun ] = useState(false)
   const [ paletteOpen, setPaletteOpen ] = useState(false)
@@ -140,9 +149,9 @@ export function WorkflowEditor(props: WorkflowEditorProps) {
   )
 
   return (
-    <div className={cn("grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,1fr)_19rem]", !run && "lg:grid-cols-[15.5rem_minmax(0,1fr)_19rem]")}>
+    <div className={cn("grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto]", !run && "lg:grid-cols-[15.5rem_minmax(0,1fr)_auto]")}>
       {!run && <aside aria-label="Add a step" className="hidden min-h-0 border-r border-border lg:block">{palette}</aside>}
-      <div className="relative min-h-0 overflow-hidden">
+      <div ref={panel.restRef} className="relative min-h-0 overflow-hidden">
         {isMobile ? (
           <div className="h-full overflow-y-auto pb-20">
             <StepList document={document} suggestions={suggestions} highlightHalon={highlightHalon} states={states} onSelect={onSelect} />
@@ -193,7 +202,18 @@ export function WorkflowEditor(props: WorkflowEditorProps) {
           </div>
         )}
       </div>
-      {!isMobile && <aside aria-label={run ? "Run" : "Step settings"} className="min-h-0 border-l border-border">{side}</aside>}
+      {!isMobile && (
+        <aside
+          ref={panel.panelRef}
+          id={panelId}
+          aria-label={run ? "Run" : "Step settings"}
+          style={{ width: panel.width }}
+          className="relative min-h-0 border-l border-border"
+        >
+          <PanelResizeHandle panel={panel} label="Resize the panel" controls={panelId} />
+          {side}
+        </aside>
+      )}
       <Sheet open={paletteOpen} onOpenChange={setPaletteOpen}>
         <SheetContent side={isMobile ? "bottom" : "left"} className="h-[80dvh] gap-0 p-0 md:h-full">
           <SheetHeader className="sr-only">
