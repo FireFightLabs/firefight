@@ -2208,3 +2208,17 @@ export const TRIGGER_NUMBER_OPERATOR = {
 } as const
 
 export const WORKFLOW_INPUT_LIMIT = 10 as const
+
+export const HALON_PERFORMANCE_PROPS = {
+  "PREVENTED": "prevented",
+  "PREVENTED_COUNT": "preventedCount"
+} as const
+
+export const REVIEW_EVIDENCE_KINDS = [
+  "incident",
+  "postmortem",
+  "map_resource",
+  "metric",
+  "code"
+] as const
+export type ReviewEvidenceKind = (typeof REVIEW_EVIDENCE_KINDS)[number]
