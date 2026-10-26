@@ -67,7 +67,7 @@ class PullRequestReview::Finding < ApplicationRecord
   after_create_commit -> { review.announce!(PullRequestReview::CHANGE_FINDING_ADDED, finding: self) }
   after_update_commit -> { review.announce!(withdrawn? ? PullRequestReview::CHANGE_FINDING_WITHDRAWN : PullRequestReview::CHANGE_FINDING_CHANGED, finding: self) }
 
-  scope :open, -> { where(status: STATUS_OPEN) }
+  scope :still_open, -> { where(status: STATUS_OPEN) }
   scope :standing, -> { where.not(status: STATUS_WITHDRAWN) }
   # Serious, or major or worse, and fixed before its pull request merged, in a review people see.
   scope :prevented, lambda {

@@ -8,7 +8,7 @@ module Ability
       AbilityGateway::SOURCE_HEALTH_CHECK => "Health check", AbilityGateway::SOURCE_CODE_AGENT => "Coding agent",
       AbilityGateway::SOURCE_ISSUE_SYNC => "Issue sync", AbilityGateway::SOURCE_WATCH => "Halon watch",
       AbilityGateway::SOURCE_HANDBOOK_SYNC => "Handbook sync", AbilityGateway::SOURCE_PAGING => "Paging",
-      AbilityGateway::SOURCE_WORKFLOW => "Workflow"
+      AbilityGateway::SOURCE_WORKFLOW => "Workflow", AbilityGateway::SOURCE_PULL_REQUEST_REVIEW => "Pull request review"
     }.freeze
 
     def self.label(source) = LABELS.fetch(source.to_s, source.to_s.humanize).presence

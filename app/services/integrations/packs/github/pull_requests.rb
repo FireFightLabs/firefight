@@ -444,6 +444,50 @@ module Integrations
           nil
         end
 
+        # A pull request as Halon's review reads it (Integrations::ReviewHost.pull_request).
+        def pull_request_for_review(environment_row, repository:, number:)
+          token = GithubApp.installation_token(environment_row)
+          pull = GithubApp.get("/repos/#{repository}/pulls/#{number}", token: token)
+          state = if pull["merged_at"] then ReviewHost::STATE_MERGED
+          elsif pull["state"] == "open" then ReviewHost::STATE_OPEN
+          else ReviewHost::STATE_CLOSED
+          end
+          ReviewHost::PullRequest.new(
+            repository: repository, number: number, title: pull["title"].to_s, body: pull["body"], author: pull.dig("user", "login"), url: pull["html_url"],
+            state: state, draft: pull["draft"] == true, base_ref: pull.dig("base", "ref"), base_sha: pull.dig("base", "sha"), head_ref: pull.dig("head", "ref"),
+            head_sha: pull.dig("head", "sha"), head_repository: pull.dig("head", "repo", "full_name"), merged_at: pull["merged_at"]&.then { |at| Time.iso8601(at) }
+          )
+        rescue GithubApp::Error => error
+          fail! "GitHub could not read PR ##{number} in #{repository}: #{error.message}"
+        end
+
+        # Every file a pull request changes, with GitHub's patch for each, which it leaves out for a file too large to
+        # show. A list GitHub cuts short is refused rather than taken for the whole (Integrations::ReviewHost.changed_files).
+        def pull_request_files_for_review(environment_row, repository:, number:)
+          read = files_read(repository, number, GithubApp.installation_token(environment_row), FLAG_FILE_PAGES)
+          fail! "PR ##{number} in #{repository} changes more files than GitHub lists." if read.incomplete?
+
+          read.items.map do |file|
+            ReviewHost::ChangedFile.new(
+              path: file["filename"], previous_path: file["previous_filename"], status: REVIEW_STATUSES.fetch(file["status"], ReviewHost::STATUS_MODIFIED),
+              additions: file["additions"].to_i, deletions: file["deletions"].to_i, patch: file["patch"].presence
+            )
+          end
+        rescue GithubApp::Error => error
+          fail! "GitHub could not list the files of PR ##{number} in #{repository}: #{error.message}"
+        end
+
+        # A file at a commit on GitHub, at a line when one is given.
+        def pull_request_file_link(_environment_row, repository:, sha:, path:, line: nil)
+          "https://github.com/#{repository}/blob/#{sha}/#{path.split('/').map { |part| ERB::Util.url_encode(part) }.join('/')}#{"#L#{line}" if line}"
+        end
+
+        # GitHub's file statuses as the review reads them. copied and changed hold a file's new content like modified.
+        REVIEW_STATUSES = {
+          "added" => ReviewHost::STATUS_ADDED, "removed" => ReviewHost::STATUS_REMOVED, "renamed" => ReviewHost::STATUS_RENAMED,
+          "modified" => ReviewHost::STATUS_MODIFIED, "changed" => ReviewHost::STATUS_MODIFIED, "copied" => ReviewHost::STATUS_ADDED
+        }.freeze
+
         private
 
         # What GitHub shows after a change was asked for: each change said only when the pull request read back shows it.

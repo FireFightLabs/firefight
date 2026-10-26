@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_26_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_26_120100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -2703,6 +2703,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_120000) do
     t.index ["provider", "kind", "ref"], name: "index_provider_sandboxes_on_provider_and_kind_and_ref", unique: true
   end
 
+  create_table "pull_request_review_checks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "pull_request_review_id", null: false
+    t.uuid "finding_id"
+    t.text "claim", null: false
+    t.string "path"
+    t.string "verdict"
+    t.text "reason"
+    t.bigint "spent_micros", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["finding_id"], name: "index_pull_request_review_checks_on_finding_id"
+    t.index ["pull_request_review_id"], name: "index_pull_request_review_checks_on_pull_request_review_id"
+    t.check_constraint "verdict IS NULL OR (verdict::text = ANY (ARRAY['kept'::character varying, 'dropped'::character varying]::text[]))", name: "pull_request_review_checks_verdict"
+  end
+
   create_table "pull_request_review_findings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "pull_request_review_id", null: false
     t.integer "position", null: false
@@ -3991,6 +4006,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_120000) do
   add_foreign_key "prepared_copies", "workspaces"
   add_foreign_key "provider_doc_chunks", "provider_doc_pages", on_delete: :cascade
   add_foreign_key "provider_doc_pages", "provider_doc_sources", on_delete: :cascade
+  add_foreign_key "pull_request_review_checks", "pull_request_review_findings", column: "finding_id", on_delete: :nullify
+  add_foreign_key "pull_request_review_checks", "pull_request_reviews", on_delete: :cascade
   add_foreign_key "pull_request_review_findings", "pull_request_reviews", on_delete: :cascade
   add_foreign_key "pull_request_reviews", "integration_environments", on_delete: :nullify
   add_foreign_key "pull_request_reviews", "workspaces"

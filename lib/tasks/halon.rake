@@ -124,3 +124,20 @@ namespace :halon do
     puts Conversation::Rehearsal.capture(Conversation.find(args[:conversation])).to_h.to_yaml
   end
 end
+
+# Halon's pull request review, run to measure it (PullRequestReview::Rehearsal). Nothing is posted to the code host,
+# nobody in the workspace sees it, and it pays with the bench's own key. HEAD and BASE pin the commits to review, such
+# as one round another reviewer read, and default to the pull request as its code host shows it now. CENTS caps what it
+# may spend (400). OUT writes the review as JSON to a file to score, and it is printed otherwise.
+namespace :halon do
+  desc "Review a pull request without posting anything: bin/rails 'halon:pr_review[WORKSPACE_ID,OWNER/REPO,NUMBER,HEAD,BASE,MODEL,PROVIDER,CENTS]'"
+  task :pr_review, %i[workspace repository number head base model provider cents] => :environment do |_task, args|
+    review = PullRequestReview::Rehearsal.run!(
+      workspace: Workspace.find(args[:workspace]), repository: args[:repository], number: Integer(args[:number]), head_sha: args[:head], base_sha: args[:base],
+      model: args[:model], provider: args[:provider], max_spend_cents: Integer(args[:cents].presence || 400)
+    )
+    result = JSON.pretty_generate(PullRequestReview::Rehearsal.to_h(review))
+    ENV["OUT"].present? ? File.write(ENV["OUT"], result) : puts(result)
+    puts "#{review.status}: #{review.findings.count} findings, #{review.spent_cents} cents, #{review.turns_used} turns"
+  end
+end
