@@ -15,7 +15,9 @@ class DefinedWorkflow::Steps::FirefightTool < DefinedWorkflow::Steps::CallTool
 
     def checks?(config, workspace) = !changes?(config, workspace)
 
-    def reach(config, workspace) = DefinedWorkflow::Reach.for_tool(workspace, tool_for(config, workspace), arguments_for(config, workspace))
+    def reach(config, workspace, viewer: nil)
+      DefinedWorkflow::Reach.for_tool(workspace, tool_for(config, workspace), arguments_for(config, workspace), viewer: viewer)
+    end
 
     def problems(step, workspace) = own_problems(step["config"].to_h, step["name"].presence || "A step", workspace) + undo_problems(step, workspace)
 

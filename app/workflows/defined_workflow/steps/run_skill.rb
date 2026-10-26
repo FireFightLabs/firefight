@@ -32,7 +32,7 @@ class DefinedWorkflow::Steps::RunSkill < DefinedWorkflow::Steps::Base
       super
     end
 
-    def reach(config, workspace)
+    def reach(config, workspace, **)
       found = skill(config, workspace)
       found ? DefinedWorkflow::Reach.for_skill(workspace, found) : []
     end

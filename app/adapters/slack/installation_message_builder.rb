@@ -1,6 +1,6 @@
 module Slack
   class InstallationMessageBuilder
-    def self.preview_announcement_blocks(user_id, rich:)
+    def self.preview_announcement_blocks(user_id)
       preview_blocks = [
         {
           type: "context",
@@ -13,8 +13,7 @@ module Slack
         summary: "The marketing website is down: I'm getting a '502 Gateway OverallTimeout' error",
         severity_name: "Minor",
         status_name: "Investigating",
-        reporter_id: user_id,
-        rich: rich
+        reporter_id: user_id
       )
 
       { blocks: preview_blocks }

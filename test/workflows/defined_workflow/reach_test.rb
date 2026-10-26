@@ -93,6 +93,51 @@ class DefinedWorkflow::ReachTest < ActiveSupport::TestCase
     DefinedWorkflow::Reach.for_tool(@workspace, status_tool, { "resource" => "shop-web" })
   end
 
+  test "a name two services share plans the one the workflow's identity reads once its map access is narrowed to one environment" do
+    @shop_row.update!(environment: catalog_entries(:production_env))
+    @blog_row.update!(environment: catalog_entries(:development_env))
+    resource!(@shop_row, "web")
+    resource!(@blog_row, "web", external_id: "blog-web-twin")
+    workflow = Workflow.create!(workspace: @workspace, name: "Release")
+    workflow.ensure_agent!
+    watch = { "steps" => [ { "label" => "Rollout", "capability" => "status", "resource" => "web", "done_when" => "running" } ] }
+    watch_step = { "kind" => DefinedWorkflow::Steps::Watch.kind, "config" => watch }
+
+    assert_nil workflow.map_viewer
+    assert_empty DefinedWorkflow::Steps::Watch.reach(watch, @workspace, viewer: workflow.map_viewer).filter_map(&:role)
+
+    Ability::Grant.grant!(workspace: @workspace, principal: workflow.agent, target: { action: Ability::Action.lookup(Ability::Action::MAP_READ, @workspace) },
+                          environment_ids: [ catalog_entries(:production_env).id ])
+    viewer = workflow.reload.map_viewer
+
+    assert_equal workflow.agent, viewer
+    assert_equal [ read_pack(@shop).id ], DefinedWorkflow::Steps::Watch.reach(watch, @workspace, viewer: viewer).filter_map(&:role).map(&:id)
+    facts = Workflow::StepKinds::Facts.new(workspace: @workspace, viewer: viewer)
+    assert_equal [ read_pack(@shop).id ], Workflow::StepKinds.reach_of(watch_step, facts).filter_map(&:role).map(&:id)
+  end
+
+  test "while the reads are held each viewer's view of the map gets its own answer, never another viewer's" do
+    @shop_row.update!(environment: catalog_entries(:production_env))
+    @blog_row.update!(environment: catalog_entries(:development_env))
+    resource!(@shop_row, "web")
+    resource!(@blog_row, "web", external_id: "blog-web-twin")
+    workflow = Workflow.create!(workspace: @workspace, name: "Release")
+    workflow.ensure_agent!
+    Ability::Grant.grant!(workspace: @workspace, principal: workflow.agent, target: { action: Ability::Action.lookup(Ability::Action::MAP_READ, @workspace) },
+                          environment_ids: [ catalog_entries(:production_env).id ])
+    viewer = workflow.reload.map_viewer
+    @workspace.hold_reads!
+
+    whole_map = DefinedWorkflow::Reach.for_tool(@workspace, status_tool, { "resource" => "web" })
+    narrowed = DefinedWorkflow::Reach.for_tool(@workspace, status_tool, { "resource" => "web" }, viewer: viewer)
+
+    assert_empty whole_map.filter_map(&:role)
+    assert_equal [ read_pack(@shop).id ], narrowed.filter_map(&:role).map(&:id)
+    assert_empty DefinedWorkflow::Reach.for_tool(@workspace, status_tool, { "resource" => "web" }).filter_map(&:role)
+  ensure
+    @workspace.release_reads!
+  end
+
   private
 
   def status_tool =Integrations::Capabilities.spec(Integrations::Capabilities::STATUS).tool_name
@@ -108,8 +153,8 @@ class DefinedWorkflow::ReachTest < ActiveSupport::TestCase
     [ integration, row ]
   end
 
-  def resource!(row, name)
-    ResourceMap::Resource.create!(workspace: @workspace, provider: "northflank", account: "team/#{name}", kind: ResourceMap::KIND_SERVICE, external_id: name,
+  def resource!(row, name, external_id: name)
+    ResourceMap::Resource.create!(workspace: @workspace, provider: "northflank", account: "team/#{external_id}", kind: ResourceMap::KIND_SERVICE, external_id: external_id,
                                   name: name, integration_environment: row, first_seen_at: Time.current, last_seen_at: Time.current)
   end
 end

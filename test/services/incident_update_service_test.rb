@@ -1,6 +1,6 @@
 require "test_helper"
 
-# Subscribers hear of every update the announcement thread hears, as one short card each, never a copy of the reply.
+# Subscribers hear what the announcement thread hears, as it was posted.
 class IncidentUpdateServiceTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -11,7 +11,7 @@ class IncidentUpdateServiceTest < ActiveSupport::TestCase
     @service = IncidentUpdateService.new(@workspace)
   end
 
-  test "an update reaches the thread and then every subscriber as one short card naming the incident, what changed and the words" do
+  test "an update reaches the thread and then every subscriber, named and with the same reply inside" do
     @incident.subscribe!(@alice)
     @incident.subscribe!(@bob)
     calls = []
@@ -26,14 +26,26 @@ class IncidentUpdateServiceTest < ActiveSupport::TestCase
     assert_equal @incident.announcement_message_ts, thread[:thread_ts]
     assert_equal [ @alice.platform_user_id, @bob.platform_user_id ].sort, dms.map { |dm| dm[:channel] }.sort
     dms.each do |dm|
-      card = dm[:blocks].sole
-      assert_equal "card", card[:type]
-      assert_includes card.dig(:title, :text), "#{@incident.identifier} · #{@incident.name}"
-      assert_equal "Severity: *Critical* · Status: *Investigating* · Updated by <@#{@alice.platform_user_id}>", card.dig(:subtitle, :text)
-      assert_equal "Rolled back", card.dig(:body, :text)
-      assert_equal "#{@incident.identifier}: #{card.dig(:subtitle, :text)}", dm[:text]
+      assert_equal thread[:blocks], dm[:blocks].slice(2, thread[:blocks].size), "the reply itself rides in the DM untouched"
+      assert_includes dm[:blocks].first.dig(:text, :text), "#{@incident.identifier} · #{@incident.name}"
+      assert_equal "#{@incident.identifier}: Severity: *Critical* · Status: *Investigating* · Updated by <@#{@alice.platform_user_id}>", dm[:text]
       assert_nil dm[:thread_ts]
     end
+  end
+
+  test "an update too long for one message reaches the thread and each subscriber in parts that each fit Slack's block limit" do
+    @incident.subscribe!(@alice)
+    calls = []
+    Slack::Client.stubs(:post_message).with { |**kwargs| calls << kwargs }.returns({ ok: true, ts: "1.1", channel: "C1" })
+    message = Array.new(48) { |index| "#{index}#{"x" * 2990}" }.join("\n")
+
+    @service.post_incident_update_announcement_thread(@incident, message: message, updated_by_platform_user_id: @alice.platform_user_id,
+                                                      previous_status_name: "Investigating", previous_severity_name: "Critical")
+
+    thread, dms = calls.partition { |call| call[:thread_ts] == @incident.announcement_message_ts }
+    assert_equal 2, thread.size
+    assert_equal 2, dms.size
+    assert calls.all? { |call| call[:blocks].size <= 50 }
   end
 
   test "a subscriber whose DM fails does not stop the others" do

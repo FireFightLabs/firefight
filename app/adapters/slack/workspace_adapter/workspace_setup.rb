@@ -50,18 +50,16 @@ module Slack::WorkspaceAdapter::WorkspaceSetup
   end
 
   def post_preview_announcement(channel_id:, user_id:)
-    with_rich_blocks do |rich|
-      translate_errors do
-        Slack::Client.post_ephemeral(
-          workspace: @workspace,
-          channel: channel_id,
-          user: user_id,
-          text: "[PREVIEW] Website is down",
-          blocks: Slack::InstallationMessageBuilder.preview_announcement_blocks(user_id, rich: rich)[:blocks]
-        )
+    translate_errors do
+      Slack::Client.post_ephemeral(
+        workspace: @workspace,
+        channel: channel_id,
+        user: user_id,
+        text: "[PREVIEW] Website is down",
+        blocks: Slack::InstallationMessageBuilder.preview_announcement_blocks(user_id)[:blocks]
+      )
 
-        { success: true }
-      end
+      { success: true }
     end
   end
 

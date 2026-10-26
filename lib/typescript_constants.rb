@@ -357,6 +357,7 @@ module TypescriptConstants
       Export.new("WORKFLOW_RUN_QUERY_PARAM", WorkflowCanvasController::RUN_QUERY_PARAM, nil),
       Export.new("WORKFLOW_RUN_STATUS", Workflow::Run::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
       Export.new("WORKFLOW_STEP_STATUS", Workflow::Run::Step::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
+      Export.new("WORKFLOW_STEP_GOING_STATUSES", Workflow::Run::Activity::GOING, nil),
       Export.new("WORKFLOW_RUN_STARTED_BY_KIND", Workflow::Run::STARTED_BY.to_h { |kind| [ kind.upcase, kind ] }, nil),
       Export.new("WORKFLOW_STEP_GROUPS", Workflow::StepKinds::GROUPS, "WorkflowStepGroup"),
       Export.new("WORKFLOW_STEP_GROUP", Workflow::StepKinds::GROUPS.to_h { |group| [ group.upcase, group ] }, nil),

@@ -85,18 +85,21 @@ module DefinedWorkflow::Reach
     arguments.to_h.reject { |_key, value| Workflow::Version.references_in(value).any? }
   end
 
+  # viewer is whose view of the map a capability's route is planned over (Workflow#map_viewer), the whole map when nil.
   # Held while the workspace holds its reads (Workspace::HeldReads), since a page asks the same of each step and tool
-  # more than once, such as the canvas's header and its steps.
-  def for_tool(workspace, name, arguments = {})
-    workspace.read_held([ :reach_for_tool, name.to_s, arguments.to_h ]) { reach_for_tool(workspace, name.to_s, arguments) }.dup
+  # more than once, such as the canvas's header and its steps. The viewer is part of the key, so one viewer's answer is
+  # never handed to another.
+  def for_tool(workspace, name, arguments = {}, viewer: nil)
+    key = [ :reach_for_tool, name.to_s, arguments.to_h, viewer && [ viewer.class.name, viewer.id ] ]
+    workspace.read_held(key) { reach_for_tool(workspace, name.to_s, arguments, viewer) }.dup
   end
 
-  def reach_for_tool(workspace, name, arguments)
+  def reach_for_tool(workspace, name, arguments, viewer)
     if (tool_class = firefight_tool(name))
       action = workspace.ability_for(Ability::Action.system_key(*tool_class.authorization(workspace, arguments.to_h.symbolize_keys)))
       return action ? [ Needed.of_action(action) ] : []
     end
-    return capability_reach(workspace, name, arguments) if MAP_READERS.include?(name)
+    return capability_reach(workspace, name, arguments, viewer) if MAP_READERS.include?(name)
 
     tool = workspace.connection_tools_by_name[name]
     tool ? connection_reach(workspace, tool, arguments) : []
@@ -112,11 +115,11 @@ module DefinedWorkflow::Reach
   # A capability, a key query, new log patterns or what changed reaches whichever connection answers it for the resource
   # and connection the run names, routed as the run routes it. With them written out that is one tool, a read through
   # its connection's read pack and a change its one ability. Otherwise every connection that could answer is reached.
-  def capability_reach(workspace, name, arguments)
+  def capability_reach(workspace, name, arguments, viewer = nil)
     keys = capability_keys(name)
     offered = Integrations::Capabilities.offered(workspace).select { |spec, _able| keys.include?(spec.key) }
     needed = offered.flat_map do |spec, able|
-      reached = routed_tools(workspace, spec, arguments) || able
+      reached = routed_tools(workspace, spec, arguments, viewer) || able
       next reached.filter_map { |tool| workspace.read_packs_by_integration[tool.integration_id] }.uniq.map { |role| Needed.of_role(role) } unless spec.writes
 
       reached.filter_map(&:ability_action).uniq.map { |action| Needed.of_action(action) }
@@ -137,12 +140,12 @@ module DefinedWorkflow::Reach
   # The tools a run reaches for the resource and connection written out, as the run routes them, none when the run
   # could never route them. nil when the run fills either in later, or a value it refused on, so every connection that
   # could answer counts.
-  def routed_tools(workspace, spec, arguments)
+  def routed_tools(workspace, spec, arguments, viewer = nil)
     given = arguments.to_h.stringify_keys
     named = given.slice(Integrations::Capabilities::RESOURCE_ARG, Integrations::Capabilities::CONNECTION_ARG).compact_blank
     return if named[Integrations::Capabilities::RESOURCE_ARG].blank? || named.values.any? { |value| Workflow::Version.references_in(value).any? }
 
-    Integrations::Capabilities.planned_calls(workspace, spec.key, literal(given)).map(&:tool).compact
+    Integrations::Capabilities.planned_calls(workspace, spec.key, literal(given), viewer: viewer).map(&:tool).compact
   rescue Integrations::Capabilities::Unroutable
     literal(given).size == given.size ? [] : nil
   rescue StandardError

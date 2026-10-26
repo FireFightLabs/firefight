@@ -195,8 +195,9 @@ class WorkflowCanvasController < InertiaController
   end
 
   # What a kind's lambdas read of the workspace. The tools list stays out, since no node, kind or suggestion reads it
-  # and building it reads every connection's schemas, which every poll of the canvas would pay for.
-  def step_facts = @step_facts ||= Workflow::StepKinds::Facts.new(workspace: current_workspace)
+  # and building it reads every connection's schemas, which every poll of the canvas would pay for. Needs grant plans a
+  # step's route over the map as the workflow's own identity reads it (Workflow#map_viewer).
+  def step_facts = @step_facts ||= Workflow::StepKinds::Facts.new(workspace: current_workspace, viewer: workflow.map_viewer)
 
   def tool_choices = @tool_choices ||= Chat::Tools::Choices.tools(current_workspace)
 

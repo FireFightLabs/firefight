@@ -35,21 +35,22 @@ footer     Updated by @user · Next …       context block, small grey text
 
 ## Cards and alerts
 
-Slack's card block is how a message says "this is one thing", and an alert line how it ended. Both are built with the
-shared builders in `app/adapters/slack/blocks/` (see An investigation in a channel for their limits and fallback),
-never by hand:
+Slack's card block is how one of Halon's messages says "this is one thing", and an alert line how something ended. Both
+are built with the shared builders in `app/adapters/slack/blocks/` (see An investigation in a channel for their limits
+and fallback), never by hand:
 
 ```ruby
-Slack::Messages::WholeCard.build(rich: rich, title: "INC-003 · Checkout is slow", subtitle: "Minor · Investigating · Lead <@U1>",
-                                 body: summary, quoted: true, actions: [ join, subscribe, open ], icon: Slack::Emoji::DECLARED)
+Slack::Blocks::Card.new(title: "Ship main", subtitle: "Watching", body: "1 of 2 steps done.", actions: [ stop, open_run ],
+                        icon: ":eyes:").to_blocks(rich: rich)
 
 Slack::Blocks::Alert.new(level: Slack::Blocks::Alert::LEVEL_SUCCESS, text: "Resolved by <@U1> after 1h 12m",
                          emoji: Slack::Emoji::RESOLVED).to_blocks(rich: rich)
 ```
 
-- **The announcement, an incident update and a subscriber's direct message are cards.** Their body is what a person
-  wrote, so they go through `WholeCard`, which never cuts it: a body that fits Slack's card goes inside, a longer one
-  (and every body when the card is drawn plain) follows as sections, quoted line by line with `quoted: true`.
+- **An incident's own messages are never cards.** The announcement, the pinned message, an incident update and a
+  subscriber's direct message keep a row or a line for each thing (see Title, below). A card squeezes severity, status
+  and the lead into one small grey line, cuts button labels to "Join …", and leaves the channel and custom fields out
+  or under it, which is the opposite of what someone opening an incident needs.
 - **Resolved, reopened and escalated are alert lines**, `Blocks::Alert` at success or warning. Slack refuses the alert
   block in messages, so in a message it is always a section led by its emoji. `emoji:` gives it the concept's own
   (`Slack::Emoji::REOPENED`) in place of the level's, so a reopen and an escalation never look alike.
@@ -95,37 +96,57 @@ Approved by @Dana  ·  started 15:05                          [Details]
 Done  ·  github.com/FireFightLabs/firefight/pull/856  ·  approved by @Dana      [Details]
 ```
 
-## Title: card, alert or bold section
+## Title: header, card, alert or bold section
 
 | | Use |
 |---|---|
-| card | the announcement (`Announcement`), an incident update or cancellation (`StatusUpdate`), a subscriber's update, a watch (`WatchCard`) |
+| `header` block | the announcement (`Announcement`) and the pinned message (`QuickActions`), and a cancellation in the announcement thread |
+| card | Halon's requests, checklists and steps, a watch (`WatchCard`) |
 | alert | resolved (`Resolution`), reopened (`Reopen`), escalated (`Escalation`) |
-| bold `section` | everything else, and the plain form of both |
+| bold `section` | everything else, and the plain form of a card or an alert |
 
 A **milestone** is an event that ends or restarts an incident, or pulls someone in: resolved, reopened, escalated. It
 is an alert, so it reads at a glance among dozens of updates, in the channel and the announcement thread alike.
 Everything else is running commentary and takes the bold section.
 
-**The announcement and the pinned quick actions say each thing once.** The announcement is one card: the title
-(`IncidentDetail.title_for`, "INC-003 · Checkout is slow"), the state on one line as its subtitle
-(`IncidentDetail.state_line`, "Minor · Investigating · Lead @Dana"), the summary, and Join channel, Subscribe and Open
-in Firefight. Who declared it, custom fields and linked incidents follow it. The pinned message in the incident's
-channel is the title, the same state line with who declared it, the summary and the buttons. Neither lists the fields
-a section each.
+**The announcement and the pinned quick actions describe the incident the same way**, from one builder
+(`IncidentDetail.for_incident`), so they never drift: a header with the title (`IncidentDetail.title_for`, "INC-003 ·
+Checkout is slow"), the test note when it is a test incident, the summary in italics (each line on its own, since
+mrkdwn italics end at a line break), a divider, then a row per field, each led by its own emoji: Severity, Status, Lead
+when there is one, Declared by, Channel, then custom fields and linked incidents when it has them. The announcement
+ends with a divider and Join channel, Subscribe and Open in Firefight, the pinned message with its quick actions and no
+Channel row, since it is pinned inside that channel. Buttons sit in an `actions` block, where Slack shows their whole
+label.
 
-An update is a card whose subtitle is what changed ("Severity: Minor · Status: ~Investigating~ → Identified") and whose
-body is the update, with who wrote it and when the next one is due under it. In the channel its title carries the
-identifier (`scope: :inline`), in the announcement thread it does not (`scope: :announcement`).
+```
+:rotating_light: INC-003 · Checkout is slow                       header
+_Card payments fail at the last step_                             summary
+─────────────────────────
+:fire: *Severity:* Minor
+:construction: *Status:* Investigating
+:firefighter: *Lead:* @Dana
+:mega: *Declared by:* @Sam
+:speech_balloon: *Channel:* #inc-003
+─────────────────────────
+[Join channel] [:bell: Subscribe] [Open in Firefight]
+```
+
+An update is its title, a divider, the update quoted, what changed on one line ("Severity: *Minor*  ·  Status:
+~Investigating~ → *Identified*") and who wrote it and when the next one is due as its footer. In the channel its title
+carries the identifier (`scope: :inline`), in the announcement thread it does not (`scope: :announcement`), and a
+cancellation there takes a header block, since it ends the incident. An update too long for one message runs on into
+further messages (`Formatting.message_parts`), in the channel and the thread alike.
 
 ## The announcement thread has subscribers
 
-Every update, resolution, reopen and escalation Firefight posts in an incident's announcement thread also reaches each
-subscriber, as **one short card per update** (`Slack::Messages::Subscription.digest`), never a copy of the thread reply.
-The card is the incident's title, what happened as its subtitle ("Resolved by @Dana after 1h 12m", "Severity: Minor ·
-Updated by @Dana"), the words of the update as its body, and Open channel, Open in Firefight and Unsubscribe. Hand
-`reply_and_notify_subscribers` a lambda that builds the thread reply for whether it may be drawn rich, and the digest's
-headline, body and icon. The fallback text is the identifier and the headline.
+Every update, resolution, reopen and escalation Firefight posts in an incident's announcement thread also goes to each
+subscriber as a DM. Hand `reply_and_notify_subscribers` a lambda that builds the reply, and the headline that says what
+happened ("Resolved by @Dana after 1h 12m", `StatusUpdate.headline` for an update). Each DM is the reply wrapped by
+`Slack::Messages::Subscription.wrap_update`: the incident's title and channel on top, the reply untouched in the
+middle, and Open channel, Open in Firefight and Unsubscribe underneath. A thread reply needs no title because the
+announcement sits above it. A DM sits under nothing, which is why the wrapper exists and why the reply itself never
+gets a DM-only variant. A reply too long to fit with the wrapper under Slack's block limit is sent in parts
+(`Formatting.message_parts`), each wrapped. The fallback text is the identifier and the headline.
 
 Subscription confirmations are ephemeral, built by `Subscription.notice`. Each
 carries an Unsubscribe button, which the shared Subscribe button cannot,
@@ -150,6 +171,8 @@ The shared button only ever subscribes.
   | escalated | `:fire_engine:` | | Halon | `:sparkles:` |
   | acknowledged | `:ok_hand:` | | warning to an admin | `:warning:` |
   | reminder | `:alarm_clock:` | | subscribe, unsubscribe | `:bell:`, `:no_bell:` |
+  | status | `:construction:` | | declared by | `:mega:` |
+  | channel | `:speech_balloon:` | | test incident | `:test_tube:` |
 
 - **Every title opens with an emoji.** It is the fastest thing to scan for.
 - **Two spaces after the title emoji**, one space everywhere else. The wider
@@ -190,9 +213,9 @@ The shared button only ever subscribes.
   opened, is a context line under the item (`Action.issue_status`). A change
   that reaches the item from its issue redraws its message as it stands
   (`refresh_action_message`, `Action.current`).
-- **Fields are state**, joined with `·` on one line, never a section each.
-  Use `Formatting.diff_text` so a change shows its before and after rather than
-  just its result.
+- **Fields are state**, joined with `  ·  ` on one line in an update. The announcement and the pinned message are the
+  exception: they are read cold by someone opening the incident, so each field is a row of its own. Use
+  `Formatting.diff_text` so a change shows its before and after rather than just its result.
 - **Footer is attribution and metadata**, always a `context` block. Who did it,
   when the next update is due, how long it took. Never a `section`, or it
   competes with the body.

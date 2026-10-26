@@ -41,7 +41,7 @@ class DefinedWorkflow::Steps::PostToChannel < DefinedWorkflow::Steps::CallTool
       found
     end
 
-    def reach(_config, workspace)
+    def reach(_config, workspace, **)
       action = Ability::Action.lookup(Ability::Action::CHANNEL_POST, workspace)
       action ? [ DefinedWorkflow::Reach::Needed.of_action(action) ] : []
     end

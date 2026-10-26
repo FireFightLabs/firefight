@@ -312,11 +312,13 @@ module Integrations
 
     # The calls a request would make once someone runs it, worked out before anyone does, such as for what a workflow's
     # step needs granted: the one call, with the platform it falls back to, or every connection for connection: all.
-    # Routed over the whole map through every switched on tool, with nobody's reach, since a grant is what it asks.
-    def self.planned_calls(workspace, key, given)
+    # Routed through every switched on tool, since a grant is what it asks, over the map viewer reads, so a name the
+    # viewer's environments make one resource plans as the run would pick it. With no viewer it is the whole map.
+    def self.planned_calls(workspace, key, given, viewer: nil)
       tools = workspace.switched_on_tools
       spec = spec(key)
-      candidates, reference = candidates_for(workspace, spec, given, tools, nil, within: ResourceMap::Resource.where(workspace_id: workspace.id))
+      within = viewer ? ResourceMap::Resource.visible_to(viewer, workspace) : ResourceMap::Resource.where(workspace_id: workspace.id)
+      candidates, reference = candidates_for(workspace, spec, given, tools, nil, within: within)
       if given[CONNECTION_ARG].to_s == ALL && !spec.writes
         one_resource!(candidates, reference)
         return candidates.uniq { |candidate| candidate.row.id }.filter_map do |candidate|
