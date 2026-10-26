@@ -246,7 +246,7 @@
    on the element, so a page's own classes still win. */
 
 /* Focus is a flat lime outline everywhere, never the primitives' translucent glow. */
-:where(button, a, input, select, textarea, [role="button"], [role="tab"], [role="switch"], [role="checkbox"], [role="radio"]):focus-visible {
+:where(button, a, input, select, textarea, [role="button"], [role="tab"], [role="switch"], [role="checkbox"], [role="radio"], [role="separator"]):focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
