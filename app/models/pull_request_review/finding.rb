@@ -122,16 +122,26 @@ class PullRequestReview::Finding < ApplicationRecord
   end
 
   # A later finding's check showed this one holds. note is what it showed.
-  def confirmed!(note, by:)
-    update!(cross_checks: cross_checks + [ cross_check(CROSS_CHECK_CONFIRMED, note, by) ])
-  end
+  def confirmed!(note, by:) = cross_checked!(CROSS_CHECK_CONFIRMED, note, by)
 
   # A later finding's check made this one worse or better shown. changes are the fields it rewrote, such as severity.
-  def strengthened!(note, by:, **changes)
-    update!(changes.merge(cross_checks: cross_checks + [ cross_check(CROSS_CHECK_STRENGTHENED, note, by) ]))
-  end
+  def strengthened!(note, by:, **changes) = cross_checked!(CROSS_CHECK_STRENGTHENED, note, by, **changes)
 
   private
+
+  # The check is appended in SQL, so one written meanwhile by another worker, such as a withdrawal, is kept. changes are
+  # validated before they are written.
+  def cross_checked!(outcome, note, by, **changes)
+    assign_attributes(changes)
+    validate!
+    self.class.transaction do
+      self.class.where(id: id).update_all([ "cross_checks = cross_checks || ?::jsonb", [ cross_check(outcome, note, by) ].to_json ])
+      self.class.where(id: id).update_all(changes.merge(updated_at: Time.current))
+    end
+    reload
+    review.announce!(PullRequestReview::CHANGE_FINDING_CHANGED, finding: self)
+    true
+  end
 
   def cross_check(outcome, note, by) = { "outcome" => outcome, "note" => note, "finding_id" => by&.id, "at" => Time.current.iso8601 }
 

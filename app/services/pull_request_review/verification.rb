@@ -19,7 +19,8 @@ class PullRequestReview::Verification
 
   def run
     review = @runner.review
-    duplicate = review.findings.standing.find_by(fingerprint: fingerprint(@proposal.attributes))
+    duplicate = review.findings.find_by(fingerprint: fingerprint(@proposal.attributes))
+    return "Not written again. It is finding #{duplicate.position}, which was withdrawn: #{duplicate.withdrawn_reason}" if duplicate&.withdrawn?
     return "Not written again. It is finding #{duplicate.position} already." if duplicate
 
     check = review.checks.create!(claim: @proposal.claim, path: @proposal.path)

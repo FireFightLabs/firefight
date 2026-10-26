@@ -470,7 +470,7 @@ module Integrations
       def pull_request_for_review(environment_row, repository:, number:)
         gitlab = api(environment_row)
         request = gitlab.get("#{GitlabApi.project(repository)}/merge_requests/#{number}")
-        source = (gitlab.get("/projects/#{request['source_project_id']}")["path_with_namespace"] if request["source_project_id"] != request["target_project_id"])
+        source = (fork_source(gitlab, request["source_project_id"]) if request["source_project_id"] != request["target_project_id"])
         ReviewHost::PullRequest.new(
           repository: repository, number: number, title: request["title"].to_s, body: request["description"], author: request.dig("author", "username"),
           url: request["web_url"], state: REVIEW_STATES.fetch(request["state"], ReviewHost::STATE_CLOSED), draft: request["draft"] == true || request["work_in_progress"] == true,
@@ -512,6 +512,14 @@ module Integrations
       end
 
       private
+
+      # Where a fork's head lives, by its path, or by its id when this token cannot read the fork. The head itself is read
+      # from the target project's refs either way.
+      def fork_source(gitlab, project_id)
+        gitlab.get("/projects/#{project_id}")["path_with_namespace"]
+      rescue GitlabApi::Error
+        "project #{project_id}"
+      end
 
       def api(environment_row)
         settings = ConnectionSettings.of(environment_row)
