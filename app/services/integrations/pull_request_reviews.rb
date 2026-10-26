@@ -65,8 +65,11 @@ module Integrations
     # A line comment as a review posts it.
     LineComment = Data.define(:path, :line, :body)
 
-    # What a review posted: the host's reference to the review and one reference per line comment in the order given.
-    Posted = Data.define(:reference, :comments)
+    # What a review posted: the host's reference to the review and its page, and one reference and page per line comment in
+    # the order given, nil for a line the host would not place.
+    Posted = Data.define(:reference, :comments, :urls, :url) do
+      def initialize(urls: [], url: nil, **) = super
+    end
 
     class Refused < Integrations::Error; end
 
@@ -139,8 +142,8 @@ module Integrations
 
     # The tool and its arguments for one operation, and the call made through it. authorize runs the call through the
     # gateway as whoever acts, with the tool and its arguments, and yields to run it. A read answers what the tool said,
-    # a post what it posted.
-    def call!(environment_row, operation, authorize:, **given)
+    # a post what it posted, and with_link the page it links to beside it.
+    def call!(environment_row, operation, authorize:, with_link: false, **given)
       raise ArgumentError, "unknown operation #{operation}" unless OPERATIONS.include?(operation)
 
       integration = environment_row.integration
@@ -155,7 +158,15 @@ module Integrations
 
       return answer_text(result.is_a?(Hash) ? result : { "content" => [ { "text" => result.to_s } ] }) if READS.include?(operation)
 
-      pack.review_posted(operation, result.to_h.dig(Telemetry::STRUCTURED, Telemetry::FACTS).to_h)
+      posted = pack.review_posted(operation, result.to_h.dig(Telemetry::STRUCTURED, Telemetry::FACTS).to_h)
+      posted = posted.with(url: link_of(result)) if posted.is_a?(Posted)
+      with_link ? [ posted, link_of(result) ] : posted
+    end
+
+    # The page a tool's answer links to, as Telemetry.result wrote it.
+    def link_of(result)
+      line = Array(result.to_h["content"]).map { |part| part["text"].to_s }.find { |text| Telemetry.link_line?(text) }
+      line&.split(": ")&.last&.strip.presence
     end
 
     # The lines a diff lets a comment sit on, by path: every line of the new file a hunk shows, added or unchanged.

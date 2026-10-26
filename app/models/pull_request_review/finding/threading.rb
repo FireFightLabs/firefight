@@ -4,12 +4,18 @@
 module PullRequestReview::Finding::Threading
   extend ActiveSupport::Concern
 
-  # Kept without announcing, since posting the comment changed nothing a person reads of the finding.
-  def posted_on_line!(reference) = update_columns(host_comment_id: reference, updated_at: Time.current)
+  # Kept without announcing, since posting the comment changed nothing a person reads of the finding. url is the comment's
+  # page as the host gave it, kept where the column for it exists.
+  def posted_on_line!(reference, url: nil) = update_columns({ host_comment_id: reference, updated_at: Time.current }.merge(page(url)))
+
+  # A finding with no comment of its own on a line, such as one outside the diff, opens where it was posted.
+  def posted_at!(url) = (update_columns(page(url).merge(updated_at: Time.current)) if page(url).any?)
 
   def serious_posted!(reference)
     self.class.where(id: id, serious_comment_id: nil).update_all(serious_comment_id: reference, updated_at: Time.current).positive?.tap { |won| reload if won }
   end
+
+  def page(url) = url.present? && self.class.column_names.include?("host_comment_url") ? { host_comment_url: url } : {}
 
   # Takes one reply to answer. False when it was answered already.
   def claim_answer!(comment)

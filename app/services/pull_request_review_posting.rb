@@ -98,10 +98,21 @@ class PullRequestReviewPosting
     return false unless posted
 
     @review.review_posted!(posted.reference)
-    placed = on_lines.zip(posted.comments).map { |finding, reference| reference.present? && finding.posted_on_line!(reference) && finding }
+    placed = on_lines.each_with_index.map do |finding, index|
+      reference = posted.comments[index]
+      reference.present? && finding.posted_on_line!(reference, url: posted.urls[index]) && finding
+    end
     unplaced = on_lines - placed.compact_blank
-    call!(Integrations::PullRequestReviews::COMMENT, body: PullRequestReview::Comments.unplaced(unplaced)) if posted.comments.any? && unplaced.any?
+    (fresh - placed.compact_blank - unplaced).each { |finding| finding.posted_at!(posted.url) }
+    place!(unplaced, posted) if unplaced.any?
     true
+  end
+
+  # Findings the host would not take on their lines go up together in the conversation, or stay in the review's body when
+  # it already holds them.
+  def place!(unplaced, posted)
+    _, url = call!(Integrations::PullRequestReviews::COMMENT, body: PullRequestReview::Comments.unplaced(unplaced), with_link: true) if posted.comments.any?
+    unplaced.each { |finding| finding.posted_at!(url || posted.url) }
   end
 
   # One review with its line comments, or nil when the host refused it.

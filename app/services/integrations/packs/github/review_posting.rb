@@ -69,7 +69,8 @@ module Integrations
           def review_posted(operation, facts)
             case operation
             when PullRequestReviews::REVIEW
-              PullRequestReviews::Posted.new(reference: facts["review_id"]&.to_s, comments: Array(facts["comment_ids"]).map { |id| id&.to_s })
+              PullRequestReviews::Posted.new(reference: facts["review_id"]&.to_s, comments: Array(facts["comment_ids"]).map { |id| id&.to_s },
+                                             urls: Array(facts["comment_urls"]))
             else facts["comment_id"]&.to_s
             end
           end

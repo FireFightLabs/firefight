@@ -88,7 +88,8 @@ module Integrations
           def review_posted(operation, facts)
             case operation
             when PullRequestReviews::REVIEW
-              PullRequestReviews::Posted.new(reference: facts["comment_id"]&.to_s, comments: Array(facts["comment_ids"]).map { |id| id&.to_s })
+              PullRequestReviews::Posted.new(reference: facts["comment_id"]&.to_s, comments: Array(facts["comment_ids"]).map { |id| id&.to_s },
+                                             urls: Array(facts["comment_urls"]))
             else facts["comment_id"]&.to_s
             end
           end
@@ -135,7 +136,7 @@ module Integrations
           # refusal for the token's access says the same for every line, so it stops the review with why.
           ids = lines.map do |comment|
             posting("comment on #{comment[:path]} line #{comment[:line]} of PR ##{number} in #{repo}") do
-              bitbucket.post(comments_path(repo, number), { "content" => { "raw" => comment[:body] }, "inline" => { "path" => comment[:path], "to" => comment[:line] } })["id"]
+              bitbucket.post(comments_path(repo, number), { "content" => { "raw" => comment[:body] }, "inline" => { "path" => comment[:path], "to" => comment[:line] } })
             rescue BitbucketApi::NotFound, BitbucketApi::Refused
               raise
             rescue BitbucketApi::Error
@@ -143,11 +144,13 @@ module Integrations
             end
           end
           summary = posting("comment on PR ##{number} in #{repo}") { bitbucket.post(comments_path(repo, number), { "content" => { "raw" => body } }) }
+          urls = ids.map { |made| made&.dig("links", "html", "href") }
+          ids = ids.map { |made| made&.dig("id") }
           missed = ids.count(&:nil?)
           Telemetry.result("Reviewed PR ##{number} #{pull['title']} in #{repo}#{", with #{ids.size - missed} line #{'comment'.pluralize(ids.size - missed)}" if ids.any?}" \
                            "#{", and #{missed} Bitbucket would not place on its line" if missed.positive?}.",
                            link: link(summary.dig("links", "html", "href") || pull.dig("links", "html", "href")),
-                           facts: { "comment_id" => summary["id"], "comment_ids" => ids.presence })
+                           facts: { "comment_id" => summary["id"], "comment_ids" => ids.presence, "comment_urls" => urls.presence })
         end
 
         def reply_to_pull_request_comment(environment_row:, arguments:)

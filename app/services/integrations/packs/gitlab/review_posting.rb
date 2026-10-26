@@ -91,7 +91,8 @@ module Integrations
           def review_posted(operation, facts)
             case operation
             when PullRequestReviews::REVIEW
-              PullRequestReviews::Posted.new(reference: facts["note_id"]&.to_s, comments: Array(facts["threads"]).map { |thread| thread&.to_s })
+              PullRequestReviews::Posted.new(reference: facts["note_id"]&.to_s, comments: Array(facts["threads"]).map { |thread| thread&.to_s },
+                                             urls: Array(facts["thread_urls"]))
             else facts["note_id"]&.to_s
             end
           end
@@ -147,14 +148,16 @@ module Integrations
             rescue GitlabApi::Error
               nil
             end
-            "#{made['id']}/#{Array(made['notes']).first&.dig('id')}" if made
+            made && { "thread" => "#{made['id']}/#{Array(made['notes']).first&.dig('id')}", "url" => note_url(request, Array(made["notes"]).first&.dig("id")) }
           end
           note = posting("comment on merge request !#{iid} in #{repo}") { gitlab.post("#{project}/merge_requests/#{iid}/notes", { "body" => body }) }
+          urls = threads.map { |thread| thread&.dig("url") }
+          threads = threads.map { |thread| thread&.dig("thread") }
           missed = threads.count(&:nil?)
           Telemetry.result("Reviewed merge request !#{iid} #{request['title']} in #{repo} at #{refs['head_commit_sha'].to_s[0, 12]}" \
                            "#{", with #{threads.size - missed} line #{'comment'.pluralize(threads.size - missed)}" if threads.any?}" \
                            "#{", and #{missed} GitLab would not place on its line" if missed.positive?}.",
-                           link: link(note_url(request, note["id"])), facts: { "note_id" => note["id"], "threads" => threads.presence })
+                           link: link(note_url(request, note["id"])), facts: { "note_id" => note["id"], "threads" => threads.presence, "thread_urls" => urls.presence })
         end
 
         def reply_to_merge_request_thread(environment_row:, arguments:)

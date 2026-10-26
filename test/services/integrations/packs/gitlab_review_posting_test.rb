@@ -30,6 +30,7 @@ module Integrations
 
         assert_equal "600", posted.reference
         assert_equal [ "6a9c1d3e5f7b/501" ], posted.comments
+        assert_equal [ "https://gitlab.com/acme/web/-/merge_requests/7#note_501" ], posted.urls
         assert_equal "6a9c1d3e5f7b", Gitlab.review_thread_of("6a9c1d3e5f7b/501")
       end
 

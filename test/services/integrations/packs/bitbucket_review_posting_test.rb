@@ -17,14 +17,14 @@ module Integrations
       test "a review comments on each line, then the summary in the conversation" do
         BitbucketApi.any_instance.stubs(:get).with("#{REPOSITORY}/pullrequests/4").returns("id" => 4, "title" => "Retries", "state" => "OPEN")
         BitbucketApi.any_instance.expects(:post).with("#{REPOSITORY}/pullrequests/4/comments", { "content" => { "raw" => "One" }, "inline" => { "path" => "a.rb", "to" => 3 } })
-                    .returns("id" => 801)
+                    .returns("id" => 801, "links" => { "html" => { "href" => "https://bitbucket.org/acme/checkout/pull-requests/4#comment-801" } })
         BitbucketApi.any_instance.expects(:post).with("#{REPOSITORY}/pullrequests/4/comments", { "content" => { "raw" => "Summary" } }).returns("id" => 802)
 
         name, arguments = Bitbucket.review_call(PullRequestReviews::REVIEW, repository: "acme/checkout", number: 4, body: "Summary",
                                                                             comments: [ PullRequestReviews::LineComment.new(path: "a.rb", line: 3, body: "One") ])
         posted = Bitbucket.review_posted(PullRequestReviews::REVIEW, @pack.public_send(name, environment_row: @row, arguments: arguments).dig(Telemetry::STRUCTURED, Telemetry::FACTS))
 
-        assert_equal [ "802", [ "801" ] ], [ posted.reference, posted.comments ]
+        assert_equal [ "802", [ "801" ], [ "https://bitbucket.org/acme/checkout/pull-requests/4#comment-801" ] ], [ posted.reference, posted.comments, posted.urls ]
       end
 
       test "a reply names its parent, and a thread Firefight started is resolved" do

@@ -292,7 +292,7 @@ module Integrations
             done = { "approve" => "Approved", "request_changes" => "Requested changes on", "comment" => "Reviewed with comments" }.fetch(event)
             linked("#{done} PR ##{number} #{pull['title']} in #{repo} at #{commit.to_s[0, 12]}" \
                    "#{", with #{comments.size} line #{'comment'.pluralize(comments.size)}" if comments.any?}.", review["html_url"].presence || pull["html_url"],
-                   facts: { "review_id" => review["id"], "comment_ids" => (review_comment_ids(repo, number, review["id"], comments, token) if comments.any? && review["id"]) })
+                   facts: { "review_id" => review["id"], **review_comment_facts(repo, number, review["id"], comments, token) })
           end
         end
 
@@ -705,15 +705,17 @@ module Integrations
           "#{file['filename']} (#{file['status']}, +#{file['additions']} -#{file['deletions']})\n#{shown_patch(file['filename'], patch)}"
         end
 
-        # The id of each line comment a review posted, in the order they were given, matched by path, line and words. GitHub
-        # answers the review without them (pulls/list-comments-for-review).
-        def review_comment_ids(repo, number, review_id, comments, token)
+        # The id and page of each line comment a review posted, in the order they were given, matched by path, line and words.
+        # GitHub answers the review without them (pulls/list-comments-for-review).
+        def review_comment_facts(repo, number, review_id, comments, token)
+          return {} unless comments.any? && review_id
+
           posted = Array(GithubApp.get("/repos/#{repo}/pulls/#{number}/reviews/#{review_id}/comments?per_page=100", token: token))
-          comments.map do |comment|
-            found = posted.find { |each| each["path"] == comment[:path] && (each["line"] || each["original_line"]) == comment[:line] && each["body"].to_s.strip == comment[:body].to_s.strip }
-            posted.delete(found)
-            found&.dig("id")
+          found = comments.map do |comment|
+            match = posted.find { |each| each["path"] == comment[:path] && (each["line"] || each["original_line"]) == comment[:line] && each["body"].to_s.strip == comment[:body].to_s.strip }
+            posted.delete(match)
           end
+          { "comment_ids" => found.map { |each| each&.dig("id") }, "comment_urls" => found.map { |each| each&.dig("html_url") } }
         end
 
         def sha_argument(arguments, key)
