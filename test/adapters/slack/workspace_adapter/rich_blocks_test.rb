@@ -7,30 +7,44 @@ class Slack::WorkspaceAdapter::RichBlocksTest < ActiveSupport::TestCase
     @adapter = Slack::WorkspaceAdapter.new(@workspace)
   end
 
-  test "an announcement goes as a card where Slack draws one" do
-    Slack::Client.expects(:post_message).with { |blocks:, **| blocks.first[:type] == "card" }.returns({ ok: true, ts: "1.1", channel: "C1" })
+  test "an announcement is never a card, so its fields and buttons are never squeezed" do
+    Slack::Client.expects(:post_message).with { |blocks:, **| blocks.first[:type] == "header" && blocks.none? { |block| block[:type] == "card" } }
+                 .returns({ ok: true, ts: "1.1", channel: "C1" })
 
     @adapter.post_incident_announcement(channel_id: "C1", incident: @incident)
+
+    assert_nil @workspace.reload.platform_data["plan_blocks_refused_at"]
+  end
+
+  test "an update too long for one message runs on into the next in the channel, each part within Slack's block limit" do
+    posted = []
+    Slack::Client.stubs(:post_message).with { |**arguments| posted << arguments }.returns({ ok: true, ts: "1.1", channel: "C1" })
+    message = Array.new(48) { |index| "#{index}#{"x" * 2990}" }.join("\n")
+
+    @adapter.post_incident_update_message(channel_id: "C1", incident: @incident, message: message, updated_by_platform_user_id: "U1")
+
+    assert_equal 2, posted.size
+    assert posted.all? { |arguments| arguments[:blocks].size <= 50 }
   end
 
   test "a refused card is posted plain at once, remembered, and tried again after a week" do
     posted = []
-    Slack::Client.stubs(:post_message).with do |blocks:, **|
+    Slack::Client.stubs(:update_message).with do |blocks:, **|
       posted << blocks.first[:type]
       raise AdapterError::Unrenderable, "invalid_blocks" if blocks.first[:type] == "card"
 
       true
     end.returns({ ok: true, ts: "1.1", channel: "C1" })
 
-    @adapter.post_incident_announcement(channel_id: "C1", incident: @incident)
-    @adapter.post_incident_announcement(channel_id: "C1", incident: @incident)
+    2.times { @adapter.update_agent_confirmation(channel_id: "C1", message_id: "1.1", conversation_id: "conv", confirmations: [ confirmation ]) }
 
     assert_equal %w[card section section], posted
     assert @workspace.reload.platform_data["plan_blocks_refused_at"].present?
 
     travel 8.days do
       posted.clear
-      Slack::WorkspaceAdapter.new(@workspace.reload).post_incident_announcement(channel_id: "C1", incident: @incident)
+      Slack::WorkspaceAdapter.new(@workspace.reload).update_agent_confirmation(channel_id: "C1", message_id: "1.1", conversation_id: "conv",
+                                                                              confirmations: [ confirmation ])
       assert_equal "card", posted.first
     end
   end
@@ -73,5 +87,14 @@ class Slack::WorkspaceAdapter::RichBlocksTest < ActiveSupport::TestCase
 
     assert_equal "Answered by Halon", blocks.last.dig(:elements, 0, :text)
     assert_not blocks.to_s.include?("Firefight AI")
+  end
+
+  private
+
+  def confirmation
+    Chat::Tools::Confirmation.new(
+      tool_call_id: "call_1", question: "Delete set?", intent: "Remove it", asked: [], status: :awaiting, target: nil, call: nil,
+      read: Chat::Tools::Provenance::Read.new(sources: [], others: 0)
+    )
   end
 end

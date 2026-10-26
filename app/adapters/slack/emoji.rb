@@ -20,6 +20,7 @@ module Slack
     LEAD = ":firefighter:".freeze
     SEVERITY = ":fire:".freeze
     STATUS = ":construction:".freeze
+    DECLARED_BY = ":mega:".freeze
     CHANNEL = ":speech_balloon:".freeze
     SUBSCRIBE = ":bell:".freeze
     UNSUBSCRIBE = ":no_bell:".freeze

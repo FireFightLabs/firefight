@@ -1,24 +1,17 @@
 require "test_helper"
 
 class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
-  test "preview_announcement_blocks says it is only visible to the installer, then shows the announcement card" do
-    blocks = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678", rich: true)[:blocks]
+  test "preview_announcement_blocks says it is only visible to the installer, then shows the announcement" do
+    blocks = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678")[:blocks]
 
     assert_includes blocks.first[:elements].first[:text], "Only visible to you"
-    card = blocks.second
-    assert_equal "card", card[:type]
-    assert_includes card.dig(:title, :text), "[PREVIEW] Website is down"
-    assert_equal "Minor · Investigating", card.dig(:subtitle, :text)
-    assert_includes card.dig(:body, :text), "502 Gateway"
-    assert_equal [ Identifiers::PREVIEW_SUBSCRIBE_DISABLED, Identifiers::PREVIEW_HOMEPAGE_DISABLED ], card[:actions].pluck(:action_id)
-    assert_equal "Declared by <@U12345678>", blocks.third[:elements].first[:text]
-  end
-
-  test "preview_announcement_blocks draws plainly where cards are not drawn, with the same buttons" do
-    blocks = Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678", rich: false)[:blocks]
-
-    assert_not blocks.any? { |block| block[:type] == "card" }
-    assert_includes blocks.second.dig(:text, :text), "[PREVIEW] Website is down"
+    assert_equal "header", blocks.second[:type]
+    assert_equal "#{Slack::Emoji::DECLARED} [PREVIEW] Website is down", blocks.second.dig(:text, :text)
+    assert_includes blocks.third.dig(:text, :text), "_The marketing website is down"
+    assert_equal "divider", blocks.fourth[:type]
+    rows = blocks.select { |block| block[:type] == "section" }.drop(1).map { |block| block.dig(:text, :text) }
+    assert_equal [ "#{Slack::Emoji::SEVERITY} *Severity:* Minor", "#{Slack::Emoji::STATUS} *Status:* Investigating",
+                   "#{Slack::Emoji::DECLARED_BY} *Declared by:* <@U12345678>" ], rows
     assert_equal [ Identifiers::PREVIEW_SUBSCRIBE_DISABLED, Identifiers::PREVIEW_HOMEPAGE_DISABLED ],
                  blocks.find { |block| block[:type] == "actions" }[:elements].pluck(:action_id)
   end
@@ -113,7 +106,7 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
 
   test "all messages use valid block types" do
     messages = [
-    Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678", rich: false),
+    Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678"),
     Slack::InstallationMessageBuilder.share_message("U12345678", "C12345678", "T12345678")
     ]
 
@@ -128,7 +121,7 @@ class Slack::InstallationMessageBuilderTest < ActiveSupport::TestCase
 
   test "all action buttons have required fields" do
     messages = [
-    Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678", rich: false),
+    Slack::InstallationMessageBuilder.preview_announcement_blocks("U12345678"),
     Slack::InstallationMessageBuilder.share_message("U12345678", "C12345678", "T12345678")
     ]
 

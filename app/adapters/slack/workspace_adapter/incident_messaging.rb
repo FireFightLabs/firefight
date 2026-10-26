@@ -56,10 +56,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def update_incident_announcement(channel_id:, message_id:, incident:)
-    with_rich_blocks do |rich|
-      update_message(channel_id: channel_id, message_id: message_id, text: announcement_text(incident),
-                     blocks: Slack::Messages::Announcement.build(incident, rich: rich))
-    end
+    update_message(channel_id: channel_id, message_id: message_id, text: announcement_text(incident), blocks: Slack::Messages::Announcement.build(incident))
   end
 
   def post_role_announcement(channel_id:, changes:)
@@ -124,47 +121,41 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_incident_announcement(channel_id:, incident:)
-    with_rich_blocks do |rich|
-      post_message(channel_id: channel_id, text: announcement_text(incident), blocks: Slack::Messages::Announcement.build(incident, rich: rich))
-    end
+    post_message(channel_id: channel_id, text: announcement_text(incident), blocks: Slack::Messages::Announcement.build(incident))
   end
 
   def post_incident_update_message(channel_id:, incident:, message:, updated_by_platform_user_id:, updated_by_name: nil, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
-    with_rich_blocks do |rich|
-      blocks = Slack::Messages::StatusUpdate.build(
-        incident,
-        message: message,
-        updated_by_platform_user_id: updated_by_platform_user_id,
-        updated_by_name: updated_by_name,
-        scope: :inline,
-        rich: rich,
-        previous_status_name: previous_status_name,
-        previous_severity_name: previous_severity_name,
-        previous_type_name: previous_type_name
-      )
-      post_message(channel_id: channel_id, text: notification_text(incident), blocks: blocks)
-    end
+    blocks = Slack::Messages::StatusUpdate.build(
+      incident,
+      message: message,
+      updated_by_platform_user_id: updated_by_platform_user_id,
+      updated_by_name: updated_by_name,
+      scope: :inline,
+      previous_status_name: previous_status_name,
+      previous_severity_name: previous_severity_name,
+      previous_type_name: previous_type_name
+    )
+    # A long update runs on into further messages rather than passing Slack's block limit. The first one stands for it.
+    Slack::Messages::Formatting.message_parts(blocks).map { |part| post_message(channel_id: channel_id, text: notification_text(incident), blocks: part) }.first
   end
 
   def post_incident_update_announcement_thread(channel_id:, parent_message_id:, incident:, message:, updated_by_platform_user_id:, updated_by_name: nil, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil, subscriber_user_ids: [])
-    reply = lambda do |rich|
+    reply = lambda do |_rich|
       Slack::Messages::StatusUpdate.build(
         incident,
         message: message,
         updated_by_platform_user_id: updated_by_platform_user_id,
         updated_by_name: updated_by_name,
         scope: :announcement,
-        rich: rich,
         previous_status_name: previous_status_name,
         previous_severity_name: previous_severity_name,
         previous_type_name: previous_type_name
       )
     end
-    headline = Slack::Messages::StatusUpdate.digest_line(incident, updated_by_platform_user_id, updated_by_name,
-                                                         previous_status_name, previous_severity_name, previous_type_name)
-    digest = { headline: headline, body: message, icon: incident.canceled? ? Slack::Emoji::CANCELED : Slack::Emoji::UPDATED }
+    headline = Slack::Messages::StatusUpdate.headline(incident, updated_by_platform_user_id, updated_by_name,
+                                                      previous_status_name, previous_severity_name, previous_type_name)
     reply_and_notify_subscribers(channel_id, parent_message_id, subscriber_user_ids, incident: incident, text: notification_text(incident),
-                                 reply: reply, digest: digest)
+                                 reply: reply, headline: headline)
   end
 
   def post_incident_update_reminder(channel_id:, user_id:, incident:)
@@ -226,10 +217,8 @@ module Slack::WorkspaceAdapter::IncidentMessaging
 
   def post_resolution_announcement_thread(channel_id:, parent_message_id:, incident:, resolved_by_platform_user_id:, resolved_by_name: nil, subscriber_user_ids: [])
     reply = ->(rich) { Slack::Messages::Resolution.announcement_thread(incident, resolved_by_platform_user_id: resolved_by_platform_user_id, resolved_by_name: resolved_by_name, rich: rich) }
-    digest = { headline: Slack::Messages::Resolution.headline(incident, resolved_by_platform_user_id, resolved_by_name), body: incident.summary,
-               icon: Slack::Emoji::RESOLVED }
     reply_and_notify_subscribers(channel_id, parent_message_id, subscriber_user_ids, incident: incident, text: "Incident resolved",
-                                 reply: reply, digest: digest)
+                                 reply: reply, headline: Slack::Messages::Resolution.headline(incident, resolved_by_platform_user_id, resolved_by_name))
   end
 
   def post_related_link_message(channel_id:, source:, target:, linked_by_platform_user_id:)
@@ -259,9 +248,8 @@ module Slack::WorkspaceAdapter::IncidentMessaging
       Slack::Messages::Reopen.announcement_thread(incident, reopened_by_platform_user_id: reopened_by_platform_user_id, reopened_by_name: reopened_by_name,
                                                             reason: reason, rich: rich)
     end
-    digest = { headline: Slack::Messages::Reopen.headline(reopened_by_platform_user_id, reopened_by_name), body: reason, icon: Slack::Emoji::REOPENED }
     reply_and_notify_subscribers(channel_id, parent_message_id, subscriber_user_ids, incident: incident, text: "Incident reopened",
-                                 reply: reply, digest: digest)
+                                 reply: reply, headline: Slack::Messages::Reopen.headline(reopened_by_platform_user_id, reopened_by_name))
   end
 
   def post_subscription_notice(channel_id:, user_id:, incident:, state:)
@@ -282,9 +270,8 @@ module Slack::WorkspaceAdapter::IncidentMessaging
 
   def post_escalation_announcement_thread(channel_id:, parent_message_id:, incident:, escalated_by:, escalated_to:, reason: nil, subscriber_user_ids: [])
     reply = ->(rich) { Slack::Messages::Escalation.build(incident, escalated_by: escalated_by, escalated_to: escalated_to, reason: reason, rich: rich) }
-    digest = { headline: Slack::Messages::Escalation.headline(escalated_by, escalated_to), body: reason, icon: Slack::Emoji::ESCALATED }
     reply_and_notify_subscribers(channel_id, parent_message_id, subscriber_user_ids, incident: incident, text: "Incident escalated",
-                                 reply: reply, digest: digest)
+                                 reply: reply, headline: Slack::Messages::Escalation.headline(escalated_by, escalated_to))
   end
 
   def post_escalation_direct_message(user_id:, incident:, escalated_by:, escalation_event_id:, reason: nil)
@@ -1174,21 +1161,25 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     }
   end
 
-  # The thread gets the reply (built by reply for whether the newer blocks may be drawn), and each subscriber one short card
-  # (Subscription.digest) built from digest's headline, body and icon, never a copy of the reply. A failed DM is logged
-  # and skipped so one person who left the workspace or blocked the app does not stop the rest from hearing.
-  def reply_and_notify_subscribers(channel_id, parent_message_id, subscriber_user_ids, incident:, text:, reply:, digest:)
+  # The thread gets the reply (built by reply for whether the newer blocks may be drawn), and each subscriber the same reply
+  # inside the incident's name and the ways out (Subscription.wrap_update), with headline as its notification. A failed DM
+  # is logged and skipped so one person who left the workspace or blocked the app does not stop the rest from hearing.
+  def reply_and_notify_subscribers(channel_id, parent_message_id, subscriber_user_ids, incident:, text:, reply:, headline:)
     result = with_rich_blocks do |rich|
-      post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: text, blocks: reply.call(rich))
+      Slack::Messages::Formatting.message_parts(reply.call(rich)).map do |part|
+        post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: text, blocks: part)
+      end.first
     end
     return result if subscriber_user_ids.empty?
 
     homepage_url = Slack::DashboardUrl.incident(incident)
-    fallback = "#{incident.identifier}: #{digest[:headline]}"
+    fallback = "#{incident.identifier}: #{headline}"
     subscriber_user_ids.each do |user_id|
       with_rich_blocks do |rich|
-        post_message(channel_id: user_id, text: fallback,
-                     blocks: Slack::Messages::Subscription.digest(incident, **digest, homepage_url: homepage_url, rich: rich))
+        # The wrapper adds four blocks, so a reply near Slack's limit goes in parts that each fit.
+        Slack::Messages::Formatting.message_parts(reply.call(rich)).map do |part|
+          post_message(channel_id: user_id, text: fallback, blocks: Slack::Messages::Subscription.wrap_update(incident, part, homepage_url: homepage_url))
+        end
       end
     rescue AdapterError => e
       Rails.logger.warn({ event: "slack.subscriber_dm_failed", user_id: user_id, error: e.message }.to_json)

@@ -13,7 +13,7 @@ class Slack::Messages::ActorNamesTest < ActiveSupport::TestCase
   end
 
   test "status updates, cancellations, resolutions and reopens name the actor" do
-    update = text_of(Slack::Messages::StatusUpdate.build(@incident, message: "x", updated_by_platform_user_id: nil, updated_by_name: "Wendy Web", scope: :inline, rich: false))
+    update = text_of(Slack::Messages::StatusUpdate.build(@incident, message: "x", updated_by_platform_user_id: nil, updated_by_name: "Wendy Web", scope: :inline))
     resolved = text_of(Slack::Messages::Resolution.build(@incident, resolved_by_platform_user_id: nil, resolved_by_name: "Triage agent", rich: false))
     resolved_thread = text_of(Slack::Messages::Resolution.announcement_thread(@incident, resolved_by_platform_user_id: nil, resolved_by_name: "Wendy Web", rich: true))
     reopened = text_of(Slack::Messages::Reopen.build(@incident, reopened_by_platform_user_id: nil, reopened_by_name: "Wendy Web", rich: false))
@@ -38,12 +38,12 @@ class Slack::Messages::ActorNamesTest < ActiveSupport::TestCase
     @incident.update!(declared_by: @agent)
 
     lead = text_of(Slack::Messages::LeadAssignment.announcement(lead_platform_user_id: nil, lead_name: "Wendy Web"))
-    details = text_of(Slack::Messages::Announcement.build(@incident.reload, rich: true))
+    details = text_of(Slack::Messages::Announcement.build(@incident.reload))
     postmortem = text_of(Slack::Messages::Postmortem.build(@incident, Postmortem.new(title: "Review")))
 
     assert_includes lead, "*Wendy Web* is now the *Incident Lead*"
-    assert_includes details, "Lead *Wendy Web*"
-    assert_includes details, "Declared by *Triage agent*"
+    assert_includes details, "*Lead:* *Wendy Web*"
+    assert_includes details, "*Declared by:* *Triage agent*"
     assert_includes postmortem, "Lead: *Wendy Web*"
   end
 

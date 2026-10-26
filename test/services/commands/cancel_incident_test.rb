@@ -145,7 +145,7 @@ class Commands::CancelIncidentTest < ActiveSupport::TestCase
     Commands::CancelIncident.execute(command)
 
     blocks = Slack::Messages::StatusUpdate.build(
-      @incident.reload, message: nil, updated_by_platform_user_id: "U9", scope: :inline, rich: false
+      @incident.reload, message: nil, updated_by_platform_user_id: "U9", scope: :inline
     )
     text = blocks.filter_map { |b| b.dig(:text, :text) || b[:elements]&.map { |e| e[:text] }&.join(" ") }.join(" ")
 
