@@ -13,7 +13,7 @@ class LessonsTest < ApplicationSystemTestCase
                          state: Chat::Memory::STATE_UNCONFIRMED)
 
     visit memory_path(tab: MemoryController::TAB_LESSONS)
-    assert_text "Lessons from incidents"
+    assert_text "What incidents taught"
     within(:xpath, "//tr[.//p[text()='Checkout retries go up when the payment timeout changes']]") { click_button "Approve" }
     within("[role=dialog]") do
       find("#lesson-strict").click

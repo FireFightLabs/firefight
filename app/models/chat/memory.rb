@@ -357,6 +357,7 @@ class Chat::Memory < ApplicationRecord
     when Conversation then source.started_by == viewer ? "your chat" : "a chat with #{source.started_by.try(:actor_display_name) || 'someone'}"
     when Investigation then source.incident ? "the #{source.incident.identifier} investigation" : "an investigation"
     when Incident then source.identifier
+    when CodeAgentSession then "#{source.lesson_origin} in #{source.repository}"
     when WorkspaceMembership then source == viewer ? "what you wrote on the Memory page" : "what #{source.display_name} wrote on the Memory page"
     else "an earlier chat or incident"
     end

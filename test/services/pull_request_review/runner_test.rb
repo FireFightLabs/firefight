@@ -122,7 +122,7 @@ class PullRequestReview::RunnerTest < ActiveSupport::TestCase
 
     PullRequestReview::Runner.new(@review, by: "job-1").run
 
-    assert_includes reviewer.opened["Lessons from past incidents"], "- #{lesson.id} (lesson from INC-001, strict): Charges retried at once double charge"
+    assert_includes reviewer.opened["Lessons the team approved"], "- #{lesson.id} (lesson from INC-001, strict): Charges retried at once double charge"
     assert_includes verifier.asked.first[:finding], "Lesson from INC-001: Charges retried at once double charge"
     from_lesson, without = @review.findings.reload.to_a
     assert_equal [ lesson, "Lesson from INC-001" ], [ from_lesson.lesson, from_lesson.lesson_label ]

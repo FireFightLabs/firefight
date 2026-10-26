@@ -105,13 +105,14 @@ module PullRequestReview::Comments
     ].compact_blank.join("\n\n")
   end
 
-  # "Lesson from INC-052", linked to the incident, and what a strict one does to the pull request.
+  # "Lesson from INC-052", linked to the incident or the pull request it came from, and what a strict one does to the pull request.
   def lesson(finding)
     label = finding.lesson_label
     return if label.nil?
 
-    url = AppUrl.root && AppUrl.absolute(Rails.application.routes.url_helpers.incident_path(finding.lesson.source_id))
-    named = url ? label.sub(finding.lesson.source.identifier, "[#{finding.lesson.source.identifier}](#{url})") : label
+    origin = finding.lesson.lesson_origin
+    url = finding.lesson.lesson_origin_url
+    named = url.to_s.start_with?("http") ? label.sub(origin, "[#{origin}](#{url})") : label
     strict = " It is a strict lesson, so the #{Integrations::ReviewHost::CHECK_NAME} check fails until this is fixed or someone overrides it." if finding.holding?
     "#{named}: #{ended(finding.lesson.text)}#{strict}"
   end

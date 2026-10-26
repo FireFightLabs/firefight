@@ -98,7 +98,7 @@ class PullRequestReview::StrictCheckTest < ActiveSupport::TestCase
     assert_includes @review.lesson_lines(reader).second, "strict"
     assert_equal @strict, @review.lesson_cited(" #{@strict.id} ", reader)
     assert_nil @review.lesson_cited(unapproved.id, reader)
-    assert_includes PullRequestReview::Context.new(@review, reader).sections["Lessons from past incidents"], "#{@strict.id} (lesson from INC-001, strict)"
+    assert_includes PullRequestReview::Context.new(@review, reader).sections["Lessons the team approved"], "#{@strict.id} (lesson from INC-001, strict)"
   end
 
   private

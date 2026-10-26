@@ -64,7 +64,7 @@ export function lessonStanding(lesson: ChatLesson): string {
     return lesson.turnedDownBy ? `Turned down by ${lesson.turnedDownBy}. Reviews never check it.` : "Turned down. Reviews never check it."
   }
   if (lesson.status === LESSON_STATUS.WAITING) {
-    return "Reviews check it once the incident lead or an admin approves it."
+    return "Reviews check it once it is approved."
   }
   const checks = lesson.strict ? "Reviews fail a check on a pull request that goes against it." : "Reviews comment on a pull request that goes against it."
   return lesson.approvedBy ? `Approved by ${lesson.approvedBy}. ${checks}` : checks

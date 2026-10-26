@@ -1,4 +1,5 @@
-# A memory an incident taught is a lesson. Pull request reviews check it only once the incident's lead or a workspace
+# A memory an incident taught is a lesson, and so is one a pull request Halon opened taught by how a person handled it.
+# Pull request reviews check it only once the incident's lead, or whoever asked for the pull request, or a workspace
 # admin approves it, and that person can edit it or turn it down instead. Most lessons comment on a pull request that
 # goes against them, and a strict one also fails a check on it until the finding is fixed or someone overrides it.
 module Chat::Memory::Lesson
@@ -21,7 +22,7 @@ module Chat::Memory::Lesson
   included do
     belongs_to :approved_by, class_name: "WorkspaceMembership", optional: true
 
-    scope :lessons, -> { where(source_type: Incident.polymorphic_name) }
+    scope :lessons, -> { where(source_type: Chat::Memory::Lesson.source_types) }
     # What reviews check: approved, and still in use, so one disputed or rejected since waits on a person again.
     scope :approved_lessons, -> { lessons.in_use.where.not(approved_at: nil) }
 
@@ -29,6 +30,9 @@ module Chat::Memory::Lesson
     before_destroy -> { @held_review_ids = held_review_ids }, if: :approved?
     after_destroy_commit -> { announce_lesson_change(@held_review_ids) }, if: :approved?
   end
+
+  # What a lesson can come from: an incident, or a pull request Halon opened (its coding agent's session).
+  def self.source_types = [ Incident.polymorphic_name, CodeAgentSession.polymorphic_name ]
 
   class_methods do
     # The approved lessons a review of a change checks: those about the given subjects, such as the services that own
@@ -45,10 +49,27 @@ module Chat::Memory::Lesson
 
   def from_incident? = source_type == Incident.polymorphic_name
 
+  def from_pull_request? = source_type == CodeAgentSession.polymorphic_name
+
+  def lesson? = from_incident? || from_pull_request?
+
+  # Where it came from, as a lesson names it: "INC-052" or "PR #412".
+  def lesson_origin = from_incident? ? source.identifier : source.lesson_origin
+
+  # Where a person reads where it came from: the incident's page, or the pull request on its code host.
+  def lesson_origin_url
+    return AppUrl.absolute(Rails.application.routes.url_helpers.incident_path(source_id)) if from_incident?
+
+    source.pull_request_url
+  end
+
+  # How the Lessons tab names where it came from, such as "INC-052 Checkout failing" or "PR #412 in acme/checkout".
+  def lesson_origin_title = from_incident? ? "#{source.identifier} #{source.name}" : "#{source.lesson_origin} in #{source.repository}"
+
   def approved? = approved_at.present?
 
   # Checked in reviews now.
-  def approved_lesson? = from_incident? && approved? && in_use?
+  def approved_lesson? = lesson? && approved? && in_use?
 
   def lesson_status
     return STATUS_TURNED_DOWN if state == Chat::Memory::STATE_REJECTED
@@ -57,10 +78,14 @@ module Chat::Memory::Lesson
     STATUS_WAITING
   end
 
-  # Who may approve, edit or turn down an incident's lessons: its lead, or a workspace admin.
+  # Who may approve, edit or turn down a lesson: a workspace admin, the incident's lead, or whoever asked Halon for the
+  # pull request that taught it.
   def lesson_blocked_reason(member)
-    return "Only lessons an incident taught are approved for pull request reviews." unless from_incident?
-    return nil if member&.admin_access? || (member && source.lead == member)
+    return "Only lessons an incident or one of Halon's pull requests taught are approved for pull request reviews." unless lesson?
+    return nil if member&.admin_access?
+    return nil if member && (from_incident? ? source.lead : source.requester) == member
+
+    return "Only whoever asked for #{source.lesson_origin} in #{source.repository} or a workspace admin can decide on its lessons." if from_pull_request?
 
     "Only the #{source.identifier} lead or a workspace admin can decide on its lessons."
   end

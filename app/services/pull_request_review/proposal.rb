@@ -49,7 +49,7 @@ class PullRequestReview::Proposal
       "Where: #{path}#{":#{line}" if line}",
       "Claim: #{claim}", "Why: #{attributes[:why]}", "Failure chain:\n#{chain}", "Evidence:\n#{evidence}",
       ("Suggested fix:\n#{attributes[:suggested_fix]}" if attributes[:suggested_fix].present?),
-      ("Lesson from #{lesson.source.identifier}: #{lesson.text}" if lesson)
+      ("Lesson from #{lesson.lesson_origin}: #{lesson.text}" if lesson)
     ].compact.join("\n")
   end
 

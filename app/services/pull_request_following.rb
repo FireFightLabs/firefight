@@ -37,6 +37,7 @@ module PullRequestFollowing
   def ended!(session, state)
     return unless session.stop_following!(state)
 
+    PullRequestLessonJob.perform_later(session.id)
     CodeAgentSession::Notice.settle_offered!(session, CodeAgentSession::Notice::STATUS_ENDED).each { |notice| redraw!(notice) }
   end
 

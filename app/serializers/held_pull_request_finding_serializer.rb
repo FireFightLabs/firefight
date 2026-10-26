@@ -27,8 +27,11 @@ class HeldPullRequestFindingSerializer < BaseSerializer
   type :string
   def lesson_label = finding.lesson_label
 
-  type :string
-  def incident_id = finding.lesson.source_id
+  type :string, optional: true
+  def lesson_url = finding.lesson.lesson_origin_url
+
+  type :boolean
+  def lesson_elsewhere = finding.lesson.from_pull_request?
 
   type :string, optional: true
   def overridden_by = (finding.overridden_by&.display_name || ("Someone" if finding.overridden?))

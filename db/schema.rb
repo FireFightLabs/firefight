@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_26_190200) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_26_190300) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1348,6 +1348,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_190200) do
     t.integer "questions_asked", default: 0, null: false
     t.string "push_commit"
     t.jsonb "tool_result_clearing", default: {}, null: false
+    t.jsonb "pull_request_outcome"
+    t.datetime "pull_request_lesson_read_at"
     t.index ["integration_environment_id"], name: "index_code_agent_sessions_following", where: "((pull_request_state)::text = 'open'::text)"
     t.index ["push_token_digest"], name: "index_code_agent_sessions_on_push_token_digest", unique: true, where: "(push_token_digest IS NOT NULL)"
     t.index ["token_digest"], name: "index_code_agent_sessions_on_token_digest", unique: true

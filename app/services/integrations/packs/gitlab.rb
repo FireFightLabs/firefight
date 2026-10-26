@@ -460,6 +460,41 @@ module Integrations
         fail! error.message
       end
 
+      # A bot GitLab makes for a project or group access token, which is never a person.
+      BOT_USERNAME = /\A(?:project|group)_\d+_bot/
+
+      # How a merge request ended (Integrations::ReviewHost.outcome): who merged it or closed it, every commit on it, oldest
+      # first, and the latest notes people wrote on it. GitLab keeps no reason for closing one, so a reason is a note.
+      def pull_request_outcome(environment_row, repository:, number:)
+        gitlab = api(environment_row)
+        project = GitlabApi.project(repository)
+        request = gitlab.get("#{project}/merge_requests/#{number}")
+        state = REVIEW_STATES.fetch(request["state"], ReviewHost::STATE_CLOSED)
+        ender = state == ReviewHost::STATE_MERGED ? request["merged_by"] : (request["closed_by"] if state == ReviewHost::STATE_CLOSED)
+        commits, = gitlab.list("#{project}/merge_requests/#{number}/commits", {}, pages: 3)
+        notes, = gitlab.list("#{project}/merge_requests/#{number}/notes", { "sort" => "desc", "order_by" => "created_at" })
+        ReviewHost::Outcome.new(
+          state: state, ended_by: ender&.dig("username"), ended_by_person: ender.is_a?(Hash) && !ender["username"].to_s.match?(BOT_USERNAME),
+          commits: commits.reverse.map do |commit|
+            ReviewHost::OutcomeCommit.new(sha: commit["id"], author: commit["author_name"], email: commit["author_email"], message: commit["message"].to_s,
+                                          merge: Array(commit["parent_ids"]).size > 1)
+          end,
+          comments: notes.reject { |note| note["system"] }.first(ReviewHost::OUTCOME_COMMENTS).reverse.map do |note|
+            ReviewHost::OutcomeComment.new(author: note.dig("author", "username"), person: !note.dig("author", "username").to_s.match?(BOT_USERNAME), body: note["body"].to_s)
+          end
+        )
+      rescue GitlabApi::Error => error
+        fail! "GitLab could not read how merge request !#{number} in #{repository} ended: #{error.message}"
+      end
+
+      # What the commits between two changed, file by file (Integrations::ReviewHost.changes_between).
+      def pull_request_changes_between(environment_row, repository:, from:, to:)
+        compared = api(environment_row).get("#{GitlabApi.project(repository)}/repository/compare", { "from" => from, "to" => to })
+        Array(compared["diffs"]).map { |diff| "diff --git a/#{diff['old_path']} b/#{diff['new_path']}\n#{diff['diff']}" }.join("\n")
+      rescue GitlabApi::Error => error
+        fail! "GitLab could not compare #{from} with #{to} in #{repository}: #{error.message}"
+      end
+
       # The review's check on a commit, as a commit status (Integrations::ReviewHost.set_check!), which needs the Developer
       # role and the api scope.
       def set_review_check(environment_row, repository:, sha:, check:)

@@ -1,4 +1,4 @@
-import { Link, useForm } from "@inertiajs/react"
+import { useForm } from "@inertiajs/react"
 import { type FormEvent, useEffect, useRef, useState } from "react"
 
 import { Blocked } from "@/components/blocked-tooltip"
@@ -17,7 +17,8 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatDate } from "@/lib/formatters"
 import { whenClosed } from "@/lib/handlers"
-import { incidentPath, overrideFindingPath } from "@/lib/routes"
+import { overrideFindingPath } from "@/lib/routes"
+import { OriginLink } from "@/pages/memory/components/origin-link"
 import type { HeldPullRequestFinding } from "@/types/serializers"
 
 interface HeldPullRequestsProps {
@@ -109,9 +110,9 @@ function HeldRow({ finding, canCurate, focused, onOverride }: HeldRowProps) {
       <TableCell className="max-w-xl min-w-64 whitespace-normal">
         <div className="flex flex-col gap-1 py-1">
           <p className="text-sm leading-relaxed">{finding.claim}</p>
-          <Link href={incidentPath(finding.incidentId)} className="text-xs text-muted-foreground hover:underline">
+          <OriginLink url={finding.lessonUrl} elsewhere={finding.lessonElsewhere} className="text-xs text-muted-foreground hover:underline">
             {finding.lessonLabel}
-          </Link>
+          </OriginLink>
         </div>
       </TableCell>
       <TableCell className="min-w-48 text-sm whitespace-normal text-muted-foreground">

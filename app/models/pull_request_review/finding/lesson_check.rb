@@ -32,8 +32,8 @@ module PullRequestReview::Finding::LessonCheck
 
   def overridden? = overridden_at.present?
 
-  # "Lesson from INC-052", the line a comment names its lesson with.
-  def lesson_label = (lesson&.from_incident? ? "Lesson from #{lesson.source.identifier}" : nil)
+  # "Lesson from INC-052" or "Lesson from PR #412", the line a comment names its lesson with.
+  def lesson_label = (lesson&.lesson? ? "Lesson from #{lesson.lesson_origin}" : nil)
 
   def override_blocked_reason
     return "Only a finding from a strict lesson holds a check." unless strict?

@@ -10,9 +10,9 @@ export default interface ChatLesson {
   approvedBy?: string
   createdAt: string
   editBlockedReason?: string
-  incidentId: string
-  incidentIdentifier: string
-  incidentName: string
+  origin: string
+  originElsewhere: boolean
+  originUrl?: string
   reason?: string
   state: ChatMemoryState
   status: LessonStatus

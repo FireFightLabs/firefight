@@ -21,6 +21,13 @@ module Integrations
     LEFT_OUT_UNREAD = "its diff could not be read from the code host or the sandbox".freeze
 
     READ_HOOKS = %i[pull_request_for_review pull_request_files_for_review pull_request_checkout pull_request_sandbox_files pull_request_file_link].freeze
+    # How a pull request ended, read once it merged or closed: who ended it, the reason the host keeps for closing it,
+    # every commit on it and the comments in its conversation.
+    OUTCOME_HOOK = :pull_request_outcome
+    # How much of what people changed on a pull request a lesson is read from.
+    OUTCOME_DIFF_LIMIT = 20_000
+    OUTCOME_COMMENTS = 30
+
     # Sets the review's check on a commit, as a commit status the host shows beside the pull request's other checks and a
     # branch rule can require.
     CHECK_HOOK = :set_review_check
@@ -71,6 +78,22 @@ module Integrations
       def read? = left_out.nil?
     end
 
+    # One commit on a pull request. email is its author's, which tells Halon's own commits apart. merge is true for a
+    # commit that brought the base in, which changes nothing a person wrote.
+    OutcomeCommit = Data.define(:sha, :author, :email, :message, :merge) do
+      def initialize(author: nil, email: nil, message: "", merge: false, **) = super
+    end
+
+    # One comment in a pull request's conversation, person false for a bot.
+    OutcomeComment = Data.define(:author, :person, :body)
+
+    # How a pull request ended. state is STATE_MERGED, STATE_CLOSED or STATE_OPEN when it has not ended after all.
+    # ended_by is who merged or closed it, by the name the host gives them, and ended_by_person false for a bot or an
+    # app. reason is what the host itself keeps for closing it, nil where it keeps none. commits are oldest first.
+    Outcome = Data.define(:state, :ended_by, :ended_by_person, :reason, :commits, :comments) do
+      def initialize(ended_by: nil, ended_by_person: true, reason: nil, commits: [], comments: [], **) = super
+    end
+
     # A check as the review sets it. description says why it stands where it does, url opens where a person can see the
     # findings and override them.
     Check = Data.define(:state, :description, :url) do
@@ -115,6 +138,20 @@ module Integrations
     # the host shows now, such as a rehearsal of an earlier round.
     def sandbox_files(row, checkout, base_sha:, key:, path: nil)
       pack(row, key).pull_request_sandbox_files(row, checkout: checkout, base_sha: base_sha, path: path)
+    end
+
+    def reads_outcomes?(integration)
+      pack = NativePack.for(integration.provider)
+      pack.present? && pack.method_defined?(OUTCOME_HOOK)
+    end
+
+    def outcome(row, repository:, number:)
+      pack(row).pull_request_outcome(row, repository: repository, number: number)
+    end
+
+    # What the commits between from and to changed, as a git style diff cut to OUTCOME_DIFF_LIMIT.
+    def changes_between(row, repository:, from:, to:)
+      pack(row).pull_request_changes_between(row, repository: repository, from: from, to: to).to_s.truncate(OUTCOME_DIFF_LIMIT)
     end
 
     def sets_checks?(integration)

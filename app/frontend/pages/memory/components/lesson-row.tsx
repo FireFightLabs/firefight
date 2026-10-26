@@ -1,11 +1,9 @@
-import { Link } from "@inertiajs/react"
-
 import { Blocked } from "@/components/blocked-tooltip"
 import { Button } from "@/components/ui/button"
 import { TableCell, TableRow } from "@/components/ui/table"
 import { formatDate } from "@/lib/formatters"
 import { LESSON_STATUS } from "@/lib/generated/constants"
-import { incidentPath } from "@/lib/routes"
+import { OriginLink } from "@/pages/memory/components/origin-link"
 import { LESSON_DECISIONS, type LessonDecision } from "@/pages/memory/components/lesson-dialog"
 import { LESSON_STATUS_LABELS, LESSON_STATUS_TONES, lessonStanding } from "@/pages/memory/lib/labels"
 import type { ChatLesson } from "@/types/serializers"
@@ -52,9 +50,9 @@ export function LessonRow({ lesson, canCurate, onDecide }: LessonRowProps) {
       </TableCell>
       <TableCell className="min-w-48 whitespace-normal">
         <div className="flex flex-col gap-0.5 py-1 text-sm">
-          <Link href={incidentPath(lesson.incidentId)} className="hover:underline">
-            {lesson.incidentIdentifier} {lesson.incidentName}
-          </Link>
+          <OriginLink url={lesson.originUrl} elsewhere={lesson.originElsewhere} className="hover:underline">
+            {lesson.origin}
+          </OriginLink>
           <span className="text-xs text-muted-foreground">Learned {formatDate(lesson.createdAt)}</span>
         </div>
       </TableCell>

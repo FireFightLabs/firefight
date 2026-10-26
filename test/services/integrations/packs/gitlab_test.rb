@@ -568,6 +568,25 @@ module Integrations
         @pack.flag_pull_request(@row, repository: "acme/platform/web", number: 42, body: "Look here.")
       end
 
+      test "how a merge request ended: who closed it, its commits oldest first, and the notes people wrote, never GitLab's own" do
+        GitlabApi.any_instance.stubs(:get).with("#{PROJECT}/merge_requests/42").returns("state" => "closed", "closed_by" => { "username" => "lea" })
+        GitlabApi.any_instance.stubs(:list).with("#{PROJECT}/merge_requests/42/commits", {}, pages: 3).returns([ [
+          { "id" => "b1", "author_name" => "Lea", "author_email" => "lea@acme.test", "message" => "Fix", "parent_ids" => [ "a1" ] },
+          { "id" => "a1", "author_name" => "Halon", "author_email" => CodeAgentSession::COMMIT_EMAIL, "message" => "Change", "parent_ids" => [ "z" ] }
+        ], false ])
+        GitlabApi.any_instance.stubs(:list).with("#{PROJECT}/merge_requests/42/notes", { "sort" => "desc", "order_by" => "created_at" }).returns([ [
+          { "system" => true, "body" => "closed", "author" => { "username" => "lea" } },
+          { "body" => "Generated files are never hand edited", "author" => { "username" => "lea" } },
+          { "body" => "Pipeline passed", "author" => { "username" => "project_7_bot_1" } }
+        ], false ])
+
+        outcome = @pack.pull_request_outcome(@row, repository: "acme/platform/web", number: 42)
+
+        assert_equal [ Integrations::ReviewHost::STATE_CLOSED, "lea", true ], [ outcome.state, outcome.ended_by, outcome.ended_by_person ]
+        assert_equal %w[a1 b1], outcome.commits.map(&:sha)
+        assert_equal [ [ "project_7_bot_1", false ], [ "lea", true ] ], outcome.comments.map { |comment| [ comment.author, comment.person ] }
+      end
+
       test "the review's check is a commit status under its own name" do
         GitlabApi.any_instance.expects(:post).with("#{PROJECT}/statuses/#{'a' * 40}", { "state" => "failed", "name" => Integrations::ReviewHost::CHECK_NAME,
                                                                                          "description" => "1 finding is open.", "target_url" => "https://firefight.test/x" }).returns({})

@@ -21,14 +21,16 @@ class ChatLessonSerializer < BaseSerializer
   type :string, optional: true
   def about = lesson.about
 
+  # Where it came from, such as "INC-052 Checkout failing" or "PR #412 in acme/checkout".
   type :string
-  def incident_id = lesson.source_id
+  def origin = lesson.lesson_origin_title
 
-  type :string
-  def incident_identifier = lesson.source.identifier
+  # The incident's page in the dashboard, or the pull request on its code host, which opens in a new tab.
+  type :string, optional: true
+  def origin_url = lesson.lesson_origin_url
 
-  type :string
-  def incident_name = lesson.source.name
+  type :boolean
+  def origin_elsewhere = lesson.from_pull_request?
 
   type :string, optional: true
   def approved_by = (lesson.approved_by&.display_name if lesson.approved_lesson?)

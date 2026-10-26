@@ -77,7 +77,7 @@ class MemoryController < InertiaController
     lesson = lessons.find(params[:id])
     return redirect_to(lessons_page, alert: lesson.approve_blocked_reason(current_membership)) unless lesson.approve!(by: current_membership, strict: strict_param)
 
-    redirect_to lessons_page, notice: "Approved the #{lesson.source.identifier} lesson. #{lesson.strict ? STRICT_CHECKS : REVIEWS_CHECK_IT}"
+    redirect_to lessons_page, notice: "Approved the #{lesson.lesson_origin} lesson. #{lesson.strict ? STRICT_CHECKS : REVIEWS_CHECK_IT}"
   end
 
   def edit_lesson
@@ -85,7 +85,7 @@ class MemoryController < InertiaController
     edited = lesson.edit_lesson!(by: current_membership, text: params[:text].to_s.strip, strict: strict_param)
     return redirect_to(lessons_page, alert: lesson.edit_lesson_blocked_reason(current_membership)) unless edited
 
-    redirect_to lessons_page, notice: "Saved the #{lesson.source.identifier} lesson. #{edited.strict ? STRICT_CHECKS : REVIEWS_CHECK_IT}"
+    redirect_to lessons_page, notice: "Saved the #{lesson.lesson_origin} lesson. #{edited.strict ? STRICT_CHECKS : REVIEWS_CHECK_IT}"
   rescue ActiveRecord::RecordInvalid => error
     redirect_to lessons_page, alert: error.record.errors.full_messages.to_sentence
   end
@@ -95,7 +95,7 @@ class MemoryController < InertiaController
     turned_down = lesson.turn_down!(by: current_membership, reason: params[:reason].to_s.strip)
     return redirect_to(lessons_page, alert: lesson.turn_down_blocked_reason(current_membership)) unless turned_down
 
-    redirect_to lessons_page, notice: "Turned down the #{lesson.source.identifier} lesson. Reviews and Halon stop using it."
+    redirect_to lessons_page, notice: "Turned down the #{lesson.lesson_origin} lesson. Reviews and Halon stop using it."
   end
 
   # Lets a pull request through although a strict lesson's finding stands, saying why. Its check passes once nothing
@@ -108,7 +108,7 @@ class MemoryController < InertiaController
     end
 
     review = finding.review
-    redirect_to lessons_page, notice: "Overrode the #{finding.lesson.source.identifier} lesson on ##{review.number} in #{review.repository}. " \
+    redirect_to lessons_page, notice: "Overrode the #{finding.lesson.lesson_origin} lesson on ##{review.number} in #{review.repository}. " \
                                       "Its check passes once nothing else holds it."
   end
 
@@ -142,7 +142,7 @@ class MemoryController < InertiaController
   def lessons_page = memory_path(TAB_QUERY => TAB_LESSONS)
 
   # What an incident taught, apart from wordings an edit or a correction replaced, which the Memories tab keeps.
-  def lessons = memories.lessons.where(replaced_by_id: nil).includes(:subject, :approved_by, :confirmed_by, :rejected_by, source: { incident_role_assignments: :incident_role })
+  def lessons = memories.lessons.where(replaced_by_id: nil).includes(:subject, :approved_by, :confirmed_by, :rejected_by, :source)
 
   def strict_param = ActiveModel::Type::Boolean.new.cast(params[:strict]) || false
 

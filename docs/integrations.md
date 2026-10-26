@@ -477,6 +477,14 @@ GitHub's commit statuses (Commit statuses write), GitLab's commit statuses (Deve
 build statuses (filed under `ReviewHost::CHECK_KEY`, and a url on every status). `ReviewHost.sets_checks?` says whether
 a connection's pack can. Words are cut to `CHECK_DESCRIPTION_LIMIT`, the shortest any host keeps.
 
+How a pull request Halon opened ended is read through the same contract: `pull_request_outcome(environment_row,
+repository:, number:)` answers a `ReviewHost::Outcome` (who merged or closed it and whether that was a person, the reason
+the host keeps for closing it, every commit with its author's email, oldest first, and the latest comments), and
+`pull_request_changes_between` the diff between two commits. GitHub reads the pull request, its issue's `closed_by`,
+commits and comments. GitLab reads `merged_by` or `closed_by`, commits and the notes people wrote, a project or group
+token's bot never counted as a person. Bitbucket reads `closed_by`, the reason a declined pull request keeps, commits and
+comments.
+
 ## Code sandbox
 
 A code host's code tools read in a sandbox, one per run, in `Integrations::Packs::CodeHost::Code`, which GitHub's, GitLab's and Bitbucket's packs include. A pack names its repository parameter (`REPO_PARAM`), the repositories a definition is looked for in (`visible_repositories`) and where git fetches from (`code_remote`, a `CodeReading::Remote` with the host, the user git signs in as, the token and any git settings). The tools are `list_files`, `code_search`, `find_definition`, `find_usages`, `git_log`, `show_commit`, `diff_refs`, `ask_language_server`, `run_shell` and `run_tests`. Repo content is untrusted input, so the rules are structural, not advisory:

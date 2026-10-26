@@ -11,7 +11,7 @@ import { LESSON_STATUS_LABELS } from "@/pages/memory/lib/labels"
 import type { ChatLesson, HeldPullRequestFinding } from "@/types/serializers"
 
 const EMPTY: Record<LessonStatus, string> = {
-  waiting: "Nothing waiting. Halon writes down what each incident taught when it ends, and the lessons wait here for the incident lead or an admin.",
+  waiting: "Nothing waiting. Halon writes down what each incident taught when it ends, and what people changed on its own pull requests, and each lesson waits here for approval.",
   approved: "No approved lessons yet. Pull request reviews check a lesson once it is approved.",
   turned_down: "Nothing turned down.",
 }
@@ -49,9 +49,9 @@ export function LessonsTab({ lessons, heldPullRequests, canCurate, focusedReview
       <HeldPullRequests findings={heldPullRequests} canCurate={canCurate} focusedReviewId={focusedReviewId} />
       <Card>
         <CardHeader>
-          <CardTitle>Lessons from incidents</CardTitle>
+          <CardTitle>Lessons</CardTitle>
           <CardDescription className="mt-1">
-            What incidents taught. Halon checks every pull request against the lessons the incident lead or an admin approved, and comments when a change goes against one. A strict lesson also fails a check on the pull request until the finding is fixed or someone overrides it.
+            What incidents taught, and what people changed on pull requests Halon opened. Halon checks every pull request against the approved lessons, and comments when a change goes against one. The incident lead, whoever asked for the pull request, or an admin approves each. A strict lesson also fails a check on the pull request until the finding is fixed or someone overrides it.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4 p-0">

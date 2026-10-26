@@ -43,7 +43,7 @@ class PullRequestReview::Context
       "Where this repository runs" => where_it_runs,
       "What depends on it" => reach,
       "Past incidents on these services" => incidents,
-      "Lessons from past incidents" => lessons
+      "Lessons the team approved" => lessons
     }
   end
 
@@ -67,9 +67,9 @@ class PullRequestReview::Context
   # The lessons the team approved, which the review checks the change against, each by its id so a finding can name it.
   def lessons
     lines = @review.lesson_lines(@principal)
-    return "The team has approved no lessons from past incidents yet." if lines.empty?
+    return "The team has approved no lessons yet." if lines.empty?
 
-    "The team approved these lessons from past incidents. Check the change against each that applies, and a finding that " \
+    "The team approved these lessons, from past incidents and from what people changed on pull requests Halon opened. Check the change against each that applies, and a finding that " \
       "comes from one names its id as lesson. One marked strict fails a check on the pull request until the finding is fixed.\n#{lines.join("\n")}"
   end
 

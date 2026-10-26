@@ -3,8 +3,9 @@
 export default interface HeldPullRequestFinding {
   id: string
   claim: string
-  incidentId: string
+  lessonElsewhere: boolean
   lessonLabel: string
+  lessonUrl?: string
   number: number
   overriddenAt?: string
   overriddenBy?: string

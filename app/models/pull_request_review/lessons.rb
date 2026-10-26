@@ -29,7 +29,7 @@ module PullRequestReview::Lessons
   # The lessons as the review reads them, one a line: its id, where it came from, whether it is strict, and what it says.
   def lesson_lines(principal)
     lessons_to_check(principal).map do |lesson|
-      "- #{lesson.id} (lesson from #{lesson.source.identifier}#{", about #{lesson.about}" if lesson.about}#{', strict' if lesson.strict}): #{lesson.text}"
+      "- #{lesson.id} (lesson from #{lesson.lesson_origin}#{", about #{lesson.about}" if lesson.about}#{', strict' if lesson.strict}): #{lesson.text}"
     end
   end
 

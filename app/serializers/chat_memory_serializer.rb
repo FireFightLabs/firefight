@@ -26,6 +26,7 @@ class ChatMemorySerializer < BaseSerializer
   def source_label
     case memory.source
     when Incident then "#{memory.source.identifier} #{memory.source.name}"
+    when CodeAgentSession then "#{memory.source.lesson_origin} in #{memory.source.repository}"
     when Investigation then "An investigation"
     when Conversation then "A chat"
     when WorkspaceMembership then "Written here"

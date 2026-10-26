@@ -18,7 +18,7 @@ class Chat::Memory::LessonTest < ActiveSupport::TestCase
     assert_nil lesson.reload.approve_blocked_reason(@member)
 
     chat = Chat::Memory.create!(workspace: @workspace, text: "Deploys happen from main", state: Chat::Memory::STATE_UNCONFIRMED)
-    assert_equal "Only lessons an incident taught are approved for pull request reviews.", chat.approve_blocked_reason(@admin)
+    assert_equal "Only lessons an incident or one of Halon's pull requests taught are approved for pull request reviews.", chat.approve_blocked_reason(@admin)
   end
 
   test "approving leaves how Halon trusts the memory as it was, may make it strict, and puts it in what reviews check" do
