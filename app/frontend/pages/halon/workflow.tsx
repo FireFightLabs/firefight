@@ -32,7 +32,7 @@ const OPEN_RUN: readonly string[] = WORKFLOW_RUN_OPEN_STATUSES
 
 export default function WorkflowCanvasPage() {
   const { workflow, document, versions, suggestions, halonChanges, stepKinds, triggerKinds, tools, publishRequests, otherWorkflows, timeZones, teams,
-    myPublishRequest, runs, run, lastRun, chat, chatMessages, chatWaiting, chatUnavailable } = usePage<WorkflowPageProps>().props
+    myPublishRequest, runs, run, lastRun, chat, chatMessages, chatWaiting, chatUnavailable, liveReadAt } = usePage<WorkflowPageProps>().props
   const access = useWorkflowAccess()
   const isMobile = useIsMobile()
   const [ chatOpen, setChatOpen ] = useState(false)
@@ -45,7 +45,7 @@ export default function WorkflowCanvasPage() {
   const current = document.editable
   const runGoing = run !== null && OPEN_RUN.includes(run.status)
   const visitInFlight = useVisitInFlight()
-  useWorkflowLive(workflow.id, runGoing, visitInFlight)
+  useWorkflowLive(workflow.id, liveReadAt, runGoing, visitInFlight)
 
   function tryWorkflow() {
     setTrying({ upTo: null })

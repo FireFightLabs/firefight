@@ -197,9 +197,14 @@ module Integrations
     def self.wrapped?(tool) = adapter_for(tool.integration.provider)&.wraps?(tool.name) || false
 
     # The capabilities some connection in the workspace can answer, with the tools they can run as.
-    def self.offered(workspace, tools: workspace.switched_on_tools)
+    # Each provider's adapter is looked up once, since a workspace's tools are hundreds and its providers a few. Over the
+    # workspace's own switched on tools it is read once while the workspace holds its reads (Workspace::HeldReads).
+    def self.offered(workspace, tools: nil)
+      return workspace.read_held(:offered_capabilities) { offered(workspace, tools: workspace.switched_on_tools) } if tools.nil?
+
+      adapters = tools.map { |tool| tool.integration.provider }.uniq.index_with { |provider| adapter_for(provider) }
       SPECS.values.filter_map do |spec|
-        able = tools.select { |tool| adapter_for(tool.integration.provider)&.runs?(spec.key, tool.name) }
+        able = tools.select { |tool| adapters[tool.integration.provider]&.runs?(spec.key, tool.name) }
         [ spec, able ] if able.any?
       end
     end
@@ -230,11 +235,16 @@ module Integrations
     # not, so a connection that holds the resource is never missing from the choice. Asking one whose tool is off answers
     # that it is off (switched_off).
     def self.connection_choices(workspace, spec, tools)
-      rows = IntegrationEnvironment.reachable.includes(:integration, :environment).where(integrations: { workspace_id: workspace.id })
-                                   .order("integrations.created_at").to_a
+      # The same reads for every capability, so sizing every capability's schema reads them once while the workspace holds
+      # its reads (Workspace::HeldReads), and sends each query once otherwise.
+      rows = workspace.read_held(:capability_connection_rows) do
+        IntegrationEnvironment.reachable.includes(:integration, :environment).where(integrations: { workspace_id: workspace.id })
+                              .order("integrations.created_at").to_a
+      end
       answering = rows.select { |row| adapter_for(row.integration.provider)&.capabilities.to_a.include?(spec.key) }
-      # The same query for every capability, so a turn sizing every capability's schema sends it once.
-      enabled = enabled_rows(IntegrationEnvironment.joins(:integration).where(integrations: { workspace_id: workspace.id }))
+      enabled = workspace.read_held(:capability_enabled_rows) do
+        enabled_rows(IntegrationEnvironment.joins(:integration).where(integrations: { workspace_id: workspace.id }))
+      end
       (connections(tools, enabled) + answering.map { |row| connection_label(row, enabled: enabled.fetch(row.integration_id, []).size) }).uniq
     end
 

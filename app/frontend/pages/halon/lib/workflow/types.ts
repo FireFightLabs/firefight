@@ -68,6 +68,8 @@ export interface WorkflowPageProps extends SharedProps {
   chatWaiting: boolean
   // Why Halon cannot be asked in this workspace, or null when it can.
   chatUnavailable: string | null
+  // When the page's props were read, in epoch seconds, so its live connection is told only what changed since.
+  liveReadAt: number
 }
 
 export type Edge = WorkflowDocument["edges"][number]

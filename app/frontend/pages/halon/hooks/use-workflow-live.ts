@@ -2,7 +2,7 @@ import { createConsumer } from "@rails/actioncable"
 import { router } from "@inertiajs/react"
 import { type RefObject, useEffect, useRef } from "react"
 
-import { LIVE_READ_HEADER, WORKFLOW_CANVAS_PROPS, WORKFLOW_CHANNEL, WORKFLOW_LIVE_PARTS } from "@/lib/generated/constants"
+import { LIVE_READ_HEADER, WORKFLOW_CANVAS_PROPS, WORKFLOW_CHANNEL, WORKFLOW_CHANNEL_CATCH_UP, WORKFLOW_CHANNEL_READ_AT_PARAM, WORKFLOW_LIVE_PARTS } from "@/lib/generated/constants"
 import { CANVAS_VISIT } from "@/pages/halon/hooks/use-workflow-edits"
 
 type WorkflowLivePart = (typeof WORKFLOW_LIVE_PARTS)[keyof typeof WORKFLOW_LIVE_PARTS]
@@ -37,8 +37,10 @@ const RUN_REFRESH_MS = 5000
 // progress bar, so nothing asks the server while nothing changes. While the run open on the canvas is going, its own
 // details are read again every few seconds as well, since a watch's reads and the tools Halon calls inside a step are
 // not changes the page is told of. Every read goes one at a time, never while the person's own visit waits, and what
-// asks meanwhile is gathered into the next read, so an older answer never lands over a newer one.
-export function useWorkflowLive(workflowId: string, runGoing: boolean, visitInFlight: RefObject<boolean>) {
+// asks meanwhile is gathered into the next read, so an older answer never lands over a newer one. readAt is when the
+// page's props were read, so the server tells it each time it starts listening only what changed since, rather than
+// the page reading every part again just after it opened.
+export function useWorkflowLive(workflowId: string, readAt: number, runGoing: boolean, visitInFlight: RefObject<boolean>) {
   const going = useRef(runGoing)
 
   useEffect(() => {
@@ -80,8 +82,8 @@ export function useWorkflowLive(workflowId: string, runGoing: boolean, visitInFl
       }
     }
 
-    function gather(parts: WorkflowLivePart[]) {
-      ask(parts.flatMap((part) => PROPS_OF[part]))
+    function gather(part: WorkflowLivePart) {
+      ask(PROPS_OF[part])
     }
 
     function refreshRun() {
@@ -92,16 +94,17 @@ export function useWorkflowLive(workflowId: string, runGoing: boolean, visitInFl
 
     const consumer = createConsumer()
     const subscription = consumer.subscriptions.create(
-      { channel: WORKFLOW_CHANNEL, id: workflowId },
+      { channel: WORKFLOW_CHANNEL, id: workflowId, [WORKFLOW_CHANNEL_READ_AT_PARAM]: readAt },
       {
         // Nothing sent before the socket listened is sent again, whether the page had just opened or the socket was
-        // away, so the whole page is read each time it starts listening.
+        // away, so once it listens it asks to catch up and the server says every part that changed since readAt, as it
+        // says any change.
         connected() {
-          gather(EVERY_PART)
+          subscription.perform(WORKFLOW_CHANNEL_CATCH_UP)
         },
         received(signal: LiveSignal) {
           if (EVERY_PART.includes(signal.part)) {
-            gather([ signal.part ])
+            gather(signal.part)
           }
         },
       },
@@ -115,5 +118,5 @@ export function useWorkflowLive(workflowId: string, runGoing: boolean, visitInFl
       subscription.unsubscribe()
       consumer.disconnect()
     }
-  }, [ workflowId, visitInFlight ])
+  }, [ workflowId, readAt, visitInFlight ])
 }

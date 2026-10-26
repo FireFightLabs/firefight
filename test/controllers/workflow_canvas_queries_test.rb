@@ -50,6 +50,36 @@ class WorkflowCanvasQueriesTest < ActionDispatch::IntegrationTest
     few.zip(many).each { |few_sent, many_sent| assert_same_queries(few_sent, many_sent) }
   end
 
+  test "a visit works out each step's reach once, though the header and the steps both show it" do
+    worked_out = []
+    DefinedWorkflow::Reach.stubs(:reach_for_tool).with { |_workspace, name, arguments| worked_out << [ name, arguments.to_h ] }.returns([])
+
+    sent(workflow_path(@workflow), nil)
+
+    assert_equal [ [ "ops_tool_0", { "service" => "web" } ], [ "ops_tool_2", { "service" => "web" } ], [ "ops_tool_1", { "service" => "web" } ],
+                   [ "ops_tool_0", {} ] ].sort_by(&:to_s), worked_out.sort_by(&:to_s)
+  end
+
+  test "the tools list costs no more for more tools, and words what each set of grants needs once" do
+    sent(workflow_path(@workflow), [ CANVAS::PROP_TOOLS ])
+    few = sent(workflow_path(@workflow), [ CANVAS::PROP_TOOLS ])
+    ops = @workspace.integrations.find_by!(name: "Ops")
+    40.times do |index|
+      ops.tools.create!(name: "more_#{index}", description: "Does more #{index}", read_only: true, enabled: true,
+                        params_schema: { "type" => "object", "properties" => { "service" => { "type" => "string" } } })
+    end
+
+    sent(workflow_path(@workflow), [ CANVAS::PROP_TOOLS ])
+    many = sent(workflow_path(@workflow), [ CANVAS::PROP_TOOLS ])
+    assert_same_queries(few, many)
+
+    worded = Hash.new(0)
+    Workflow.any_instance.stubs(:grant_sentence).with { |needs| worded[needs.map(&:key)] += 1 }.returns(nil)
+    sent(workflow_path(@workflow), [ CANVAS::PROP_TOOLS ])
+    assert_operator inertia_props[CANVAS::PROP_TOOLS].size, :>, worded.size
+    assert_equal [ 1 ], worded.values.uniq
+  end
+
   private
 
   def steps

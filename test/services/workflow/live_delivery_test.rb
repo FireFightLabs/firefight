@@ -28,6 +28,19 @@ class Workflow::LiveDeliveryTest < ActiveSupport::TestCase
     assert_broadcasts @stream, 2
   end
 
+  test "a change held back in the window counts as said when its trailing say is made, for a page that listens later" do
+    freeze_time
+    Workflow::LiveDelivery.watching(@workflow.id)
+    read_at = 3.seconds.from_now.to_f
+    Workflow::LiveDelivery.changed(workflow_id: @workflow.id, part: PART)
+    travel(0.4.seconds) { Workflow::LiveDelivery.changed(workflow_id: @workflow.id, part: PART) }
+    assert_empty Workflow::LiveDelivery.changed_since(@workflow.id, read_at)
+
+    travel(Workflow::LiveDelivery::WINDOW * 2) { perform_enqueued_jobs(only: WorkflowPageSignalJob) }
+
+    assert_equal [ PART ], Workflow::LiveDelivery.changed_since(@workflow.id, read_at)
+  end
+
   test "a trailing say that fails to queue is booked again by the next change in the window" do
     Workflow::LiveDelivery.changed(workflow_id: @workflow.id, part: PART)
 

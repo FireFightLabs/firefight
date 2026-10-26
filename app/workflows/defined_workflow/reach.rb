@@ -57,9 +57,15 @@ module DefinedWorkflow::Reach
 
   def tool_known?(workspace, name) = tool_names(workspace).include?(name.to_s)
 
-  def firefight_tools = FirefightTools.all.reject { |tool_class| Chat::Tools::Groups::NOT_FOR_HALON.include?(tool_class.name_value.to_s) }
+  # Firefight's own tools are a fixed list, and a page asks after hundreds of tools by name, so it is indexed once.
+  def firefight_tools
+    @firefight_tools ||= FirefightTools.all.reject { |tool_class| Chat::Tools::Groups::NOT_FOR_HALON.include?(tool_class.name_value.to_s) }.freeze
+  end
 
-  def firefight_tool(name) = firefight_tools.find { |tool_class| tool_class.name_value.to_s == name.to_s }
+  def firefight_tool(name)
+    @firefight_tools_by_name ||= firefight_tools.index_by { |tool_class| tool_class.name_value.to_s }.freeze
+    @firefight_tools_by_name[name.to_s]
+  end
 
   def capability(name) = Chat::Tools::Target.capability_spec(name)
 
@@ -80,8 +86,15 @@ module DefinedWorkflow::Reach
   end
 
   # viewer is whose view of the map a capability's route is planned over (Workflow#map_viewer), the whole map when nil.
+  # Held while the workspace holds its reads (Workspace::HeldReads), since a page asks the same of each step and tool
+  # more than once, such as the canvas's header and its steps. The viewer is part of the key, so one viewer's answer is
+  # never handed to another.
   def for_tool(workspace, name, arguments = {}, viewer: nil)
-    name = name.to_s
+    key = [ :reach_for_tool, name.to_s, arguments.to_h, viewer && [ viewer.class.name, viewer.id ] ]
+    workspace.read_held(key) { reach_for_tool(workspace, name.to_s, arguments, viewer) }.dup
+  end
+
+  def reach_for_tool(workspace, name, arguments, viewer)
     if (tool_class = firefight_tool(name))
       action = workspace.ability_for(Ability::Action.system_key(*tool_class.authorization(workspace, arguments.to_h.symbolize_keys)))
       return action ? [ Needed.of_action(action) ] : []
