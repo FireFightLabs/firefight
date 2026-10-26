@@ -41,7 +41,7 @@ class DefinedWorkflow::Steps::Sandbox < DefinedWorkflow::Steps::Base
     end
 
     # A command is open to everyone, so it needs no grant. What it reaches through ff is authorized call by call.
-    def reach(_config, _workspace) = []
+    def reach(_config, _workspace, **) = []
   end
 
   private

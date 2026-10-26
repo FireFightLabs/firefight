@@ -103,8 +103,9 @@ class DefinedWorkflow::Steps::Base
       []
     end
 
-    # What the workflow's own identity needs granted to run the step (DefinedWorkflow::Reach::Needed).
-    def reach(_config, _workspace) = []
+    # What the workflow's own identity needs granted to run the step (DefinedWorkflow::Reach::Needed). A step that routes
+    # through the map takes viewer:, whose view of it the route is planned over (Workflow#map_viewer).
+    def reach(_config, _workspace, **) = []
 
     # A step that reads the run's data only, as a person reads it on the run's page.
     def describe(config, _workspace) = config.to_h.except(KEY_UNDO).to_json.truncate(200)

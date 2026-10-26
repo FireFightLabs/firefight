@@ -11,7 +11,7 @@ class Workflow::LiveDelivery
     return say(workflow_id, part) if Rails.cache.write(gate_key(workflow_id, part), true, unless_exist: true, expires_in: WINDOW)
     return unless Rails.cache.write(trailing_key(workflow_id, part), true, unless_exist: true, expires_in: WINDOW)
 
-    WorkflowPageSignalJob.set(wait: WINDOW).perform_later(workflow_id, part)
+    book_trailing(workflow_id, part)
   rescue StandardError => error
     Rails.logger.error({ event: "workflow_page.signal_failed", workflow_id: workflow_id, part: part, error: error.class.name, message: error.message }.to_json)
   end
@@ -20,6 +20,16 @@ class Workflow::LiveDelivery
   def self.trailing(workflow_id:, part:)
     Rails.cache.delete(trailing_key(workflow_id, part))
     changed(workflow_id: workflow_id, part: part)
+  end
+
+  # A booking whose job never queued is released, so the next change in the window books the trailing say again.
+  def self.book_trailing(workflow_id, part)
+    return if WorkflowPageSignalJob.set(wait: WINDOW).perform_later(workflow_id, part)
+
+    Rails.cache.delete(trailing_key(workflow_id, part))
+  rescue StandardError
+    Rails.cache.delete(trailing_key(workflow_id, part))
+    raise
   end
 
   def self.say(workflow_id, part)

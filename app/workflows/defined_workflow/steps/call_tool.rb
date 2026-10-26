@@ -37,7 +37,7 @@ class DefinedWorkflow::Steps::CallTool < DefinedWorkflow::Steps::Base
       super
     end
 
-    def reach(config, workspace) = DefinedWorkflow::Reach.for_tool(workspace, config[KEY_TOOL], config[KEY_ARGUMENTS])
+    def reach(config, workspace, viewer: nil) = DefinedWorkflow::Reach.for_tool(workspace, config[KEY_TOOL], config[KEY_ARGUMENTS], viewer: viewer)
 
     def describe(config, workspace)
       arguments = config[KEY_ARGUMENTS].to_h

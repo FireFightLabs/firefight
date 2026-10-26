@@ -39,7 +39,7 @@ class DefinedWorkflow::Steps::Investigate < DefinedWorkflow::Steps::Base
       []
     end
 
-    def reach(_config, workspace)
+    def reach(_config, workspace, **)
       action = Ability::Action.lookup(ACTION, workspace)
       action ? [ DefinedWorkflow::Reach::Needed.of_action(action) ] : []
     end

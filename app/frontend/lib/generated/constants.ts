@@ -1792,6 +1792,11 @@ export const WORKFLOW_STEP_STATUS = {
   "CANCELLED": "cancelled"
 } as const
 
+export const WORKFLOW_STEP_GOING_STATUSES = [
+  "running",
+  "waiting"
+] as const
+
 export const WORKFLOW_RUN_STARTED_BY_KIND = {
   "PERSON": "person",
   "HALON": "halon",
