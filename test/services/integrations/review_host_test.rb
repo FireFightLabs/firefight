@@ -130,6 +130,21 @@ module Integrations
       assert_not_includes logged.join, token
     end
 
+    test "a credential that spans lines is taken out of a diff without moving a line, so its hunks still count right" do
+      patch = "@@ -1,2 +1,7 @@\n context\n+-----BEGIN RSA PRIVATE KEY-----\n+MIIEowIBAAKCAQEA\n+-----END RSA PRIVATE KEY-----\n" \
+              "+auth = \"Bearer\n+#{'a' * 24}\"\n+after\n"
+      files = [ ReviewHost::ChangedFile.new(path: "app/a.rb", status: ReviewHost::STATUS_MODIFIED, patch: patch) ]
+
+      text = ReviewHost.diffs(@row, files, checkout: @checkout, base_sha: "b" * 40, key: "k").sole.text
+      hunk = text.lines.drop_while { |line| !line.start_with?("@@") }
+
+      assert_not_includes text, "MIIEowIBAAKCAQEA"
+      assert_not_includes text, "a" * 24
+      assert_equal patch.lines.size, hunk.size
+      assert(hunk.drop(1).all? { |line| line.start_with?("+", "-", " ") }, "every line keeps its diff prefix")
+      assert_equal "+after\n", hunk.last
+    end
+
     test "a connection reviews when its pack reads pull requests, and the one that holds a repository on the map is the one used" do
       assert ReviewHost.reviews?(@integration)
       assert_not ReviewHost.reviews?(Integration.new(provider: "linear"))

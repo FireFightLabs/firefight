@@ -116,7 +116,8 @@ module Integrations
         next FileDiff.new(path: file.path, left_out: LEFT_OUT_UNREAD) unless given
         next FileDiff.new(path: file.path, left_out: LEFT_OUT_BINARY) if given.binary
 
-        FileDiff.new(path: file.path, text: redacted(row, "#{header(file)}#{given.patch.to_s.chomp}#{"\n" if given.patch.present?}"))
+        text = "#{header(file)}#{given.patch.to_s.chomp}#{"\n" if given.patch.present?}"
+        FileDiff.new(path: file.path, text: Redactions.diff(text, **Redactions.rules(row.integration.provider)))
       end
     end
 
