@@ -48,6 +48,19 @@ class PullRequestReview::StartTest < ActiveJob::TestCase
                  [ read.source, read.triggered_by_label, read.outcome ]
   end
 
+  test "a read pack granted only in the connection row's environment lets the review read, and the read names that environment" do
+    environment = @workspace.catalog_types.find_by!(system_key: CatalogType::SYSTEM_KEY_ENVIRONMENT)
+                            .catalog_entries.create!(workspace: @workspace, name: "Production", slug: "production-reviews")
+    @row.update!(catalog_entry_id: environment.id)
+    pack = @workspace.ability_roles.find_by!(integration_id: @row.integration_id, pack: Ability::Role::PACK_READ)
+    @workspace.ability_grants.find_by!(principal: SystemAgent.investigator, role: pack).update!(scope: { Ability::Scope::DIMENSION_ENVIRONMENT => [ environment.id ] })
+
+    PullRequestReview::Start.call(workspace: @workspace, repository: "acme/api", number: 7, trigger: PullRequestReview::TRIGGER_REQUESTED)
+
+    read = Ability::Invocation.find_by!(workspace: @workspace, action_key: Ability::Role.reads_key(@row.integration_id))
+    assert_equal [ Ability::Invocation::DECISION_ALLOW, { Ability::Scope::DIMENSION_ENVIRONMENT => environment.id } ], [ read.decision, read.scope ]
+  end
+
   test "a repository no connection holds, or a workspace without Halon, is refused with why" do
     error = assert_raises(PullRequestReview::Start::Refused) do
       PullRequestReview::Start.call(workspace: @workspace, repository: "acme/other", number: 1, trigger: PullRequestReview::TRIGGER_REQUESTED)

@@ -422,18 +422,20 @@ class AbilityGateway
   # A read an agent makes through a connection outside its tools, such as a pull request review reading the pull request,
   # its files and its head. It reads the connection, so it needs a grant of the connection's read pack like a read through
   # one of its tools, and taking the pack away stops it. Ledgered under the pack's key (Ability::Role.reads_key) with how
-  # the block ended, or as denied. For an agent or a key, which hold nothing without a grant, never a member.
-  def self.authorize_connection_read!(principal:, integration:, params: {}, context: {})
+  # the block ended, or as denied. scope is where the read lands, such as the connection row's environment
+  # (IntegrationEnvironment#ability_scope), so a pack granted only there covers it. For an agent or a key, which hold
+  # nothing without a grant, never a member.
+  def self.authorize_connection_read!(principal:, integration:, scope: {}, params: {}, context: {})
     workspace = integration.workspace
     key = Ability::Role.reads_key(integration.id)
-    unless Ability::Resolver.resolve(principal, workspace).covers?(key)
+    unless Ability::Resolver.resolve(principal, workspace).covers?(key, scope)
       record!(decision: Ability::Invocation::DECISION_DENY, completed_at: Time.current, principal: principal, action: nil, action_key: key,
-              workspace: workspace, scope: {}, params: params, context: context)
+              workspace: workspace, scope: scope, params: params, context: context)
       raise Denied.new(key)
     end
 
     authorization = Authorization.new(record!(decision: Ability::Invocation::DECISION_ALLOW, completed_at: nil, principal: principal, action: nil,
-                                              action_key: key, workspace: workspace, scope: {}, params: params, context: context))
+                                              action_key: key, workspace: workspace, scope: scope, params: params, context: context))
     begin
       result = yield authorization
       authorization.finalize_answered!

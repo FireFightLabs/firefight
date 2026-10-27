@@ -11,7 +11,8 @@ module PullRequestReview::Reading
     # Runs the block as one read of row's connection. Raises NotAllowed before the block runs when Halon may not read it.
     def reading!(row, repository:, number:, &)
       AbilityGateway.authorize_connection_read!(
-        principal: SystemAgent.investigator, integration: row.integration, params: { "repository" => repository, "number" => number },
+        principal: SystemAgent.investigator, integration: row.integration, scope: row.ability_scope,
+        params: { "repository" => repository, "number" => number },
         context: { source: AbilityGateway::SOURCE_PULL_REQUEST_REVIEW, triggered_by_label: activity_label(repository, number) }, &
       )
     rescue AbilityGateway::Denied
