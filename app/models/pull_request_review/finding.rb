@@ -49,6 +49,9 @@ class PullRequestReview::Finding < ApplicationRecord
   CROSS_CHECK_WITHDRAWN = "withdrawn"
   CROSS_CHECKS = [ CROSS_CHECK_CONFIRMED, CROSS_CHECK_STRENGTHENED, CROSS_CHECK_WITHDRAWN ].freeze
 
+  # The unique index that makes one problem one finding per review (fingerprint_for).
+  FINGERPRINT_INDEX = "index_pull_request_review_findings_on_fingerprint".freeze
+
   # One piece of evidence: what it is, its title as people read it and where to open it.
   Evidence = Data.define(:kind, :title, :url) do
     def to_h = { "kind" => kind, "title" => title, "url" => url }

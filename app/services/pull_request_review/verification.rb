@@ -67,13 +67,18 @@ class PullRequestReview::Verification
     end
 
     finding, changed = PullRequestReview::Finding.transaction do
+      # The review's row is held until this commits, so two checks writing at once take positions one after the other.
+      PullRequestReview.where(id: review.id).lock.pick(:id)
       written = review.findings.create!(finding_attributes(settled))
       [ written, earlier!(settled.earlier, by: written) ]
     end
     check.settled!(PullRequestReview::Check::VERDICT_KEPT, reason: settled.reason, finding: finding, spent_micros: outcome.spent_micros)
     dropped = " Some evidence was left out: #{@proposal.dropped.join(' ')}" if @proposal.dropped.any?
     [ "Written as finding #{finding.position}#{' with the check\'s corrections' if settled.corrections.any?}.#{dropped}", *changed ].join(" ")
-  rescue ActiveRecord::RecordNotUnique
+  # Only the same problem written meanwhile by another worker is a duplicate. Any other unique index is a fault.
+  rescue ActiveRecord::RecordNotUnique => error
+    raise unless error.message.include?(PullRequestReview::Finding::FINGERPRINT_INDEX)
+
     check.settled!(PullRequestReview::Check::VERDICT_DROPPED, reason: "The same finding was written already.", spent_micros: outcome.spent_micros)
     "Not written again. The same finding was written already."
   end

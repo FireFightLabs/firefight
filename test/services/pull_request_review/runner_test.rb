@@ -115,6 +115,37 @@ class PullRequestReview::RunnerTest < ActiveSupport::TestCase
     assert_equal [ PullRequestReview::Finding::CROSS_CHECK_WITHDRAWN ], first.cross_checks.map { |check| check["outcome"] }
   end
 
+  test "the same finding written by another worker while it was checked is not written again" do
+    answers = []
+    script = ->(_number, tools, _part) { answers << tools.fetch("report_finding").call(**reported.symbolize_keys) }
+    written_meanwhile = lambda do |_check|
+      fingerprint = PullRequestReview::Finding.fingerprint_for(path: "app/jobs/charge_job.rb", category: PullRequestReview::Finding::CATEGORY_STABILITY,
+                                                               claim: "Queue the retry for its backoff delay")
+      @review.findings.create!(reported.except("evidence").merge("position" => 1, "fingerprint" => fingerprint))
+    end
+    stub_review_model(ScriptedReviewer.new(script, []), ScriptedVerifier.new([ { verdict: "keep", reason: "Holds." } ], meanwhile: written_meanwhile))
+
+    PullRequestReview::Runner.new(@review, by: "job-1").run
+
+    assert_equal "Not written again. The same finding was written already.", answers.sole
+    assert_equal 1, @review.findings.count
+  end
+
+  test "a finding that lands on a position already taken is never told to the reviewer as a duplicate" do
+    answers = []
+    script = lambda do |_number, tools, _part|
+      answers << tools.fetch("report_finding").call(**reported.symbolize_keys)
+      PullRequestReview.any_instance.stubs(:next_position).returns(1)
+      answers << tools.fetch("report_finding").call(**reported(path: "db/migrate/1_add_index.rb", line: 1, claim: "Add the index concurrently").symbolize_keys)
+    end
+    stub_review_model(ScriptedReviewer.new(script, []), ScriptedVerifier.new([ { verdict: "keep", reason: "Holds." }, { verdict: "keep", reason: "Holds too." } ]))
+
+    assert_raises(ActiveRecord::RecordNotUnique) { PullRequestReview::Runner.new(@review, by: "job-1").run }
+
+    assert_equal [ "Written as finding 1." ], answers
+    assert_not @review.checks.exists?(reason: "The same finding was written already.")
+  end
+
   test "a report of a finding already withdrawn is not checked again, and the reviewer is told why it was withdrawn" do
     answers = []
     script = lambda do |_number, tools, _part|
