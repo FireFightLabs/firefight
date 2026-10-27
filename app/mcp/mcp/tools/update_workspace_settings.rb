@@ -23,7 +23,8 @@ module Mcp
                   "how many days an unconfirmed memory is used before it expires, " \
                   "which connected coding agent writes a fix's code changes, what Firefight's own agent may spend on one code fix, which issue tracker incident items are kept in step " \
                   "with and when a new item gets an issue there, whether an alert that opens an incident starts Halon and how much " \
-                  "those runs may spend in an hour, whether Halon pages whoever is on call with what it found, and whether Halon makes safe changes in a chat without asking. Give only the settings to change. Read the current values with " \
+                  "those runs may spend in an hour, whether Halon pages whoever is on call with what it found, whether Halon makes safe changes in a chat without asking, " \
+                  "and whether Halon reviews every pull request when it opens, in every repository or chosen ones. Give only the settings to change. Read the current values with " \
                   "get_workspace_config. Only a workspace admin may call this. Docs: #{Docs::MCP_SERVER}"
       # Workspace wide and made rarely, so a chat asks before any of them.
       annotations(**DESTRUCTIVE)
@@ -47,7 +48,11 @@ module Mcp
           alert_storm_ceiling_cents: { type: "integer", minimum: Workspace::OnCall::MIN_ALERT_RUN_CENTS, maximum: Workspace::OnCall::MAX_STORM_CEILING_CENTS,
                                        description: "How much, in cents, the runs alerts start may spend together in any hour. Past it, an alert opens its incident without starting Halon" },
           on_call_paging_enabled: { type: "boolean", description: "Whether Halon, in a run an alert started, escalates the incident to whoever it found on call, with what it found. Off by default" },
-          safe_changes_without_asking: { type: "boolean", description: "Whether Halon makes a safe change in a person's chat without asking first, such as a label, a comment, running CI again or restarting a service, and says so after with Undo where something puts it back. Risky changes ask either way. On by default" }
+          safe_changes_without_asking: { type: "boolean", description: "Whether Halon makes a safe change in a person's chat without asking first, such as a label, a comment, running CI again or restarting a service, and says so after with Undo where something puts it back. Risky changes ask either way. On by default" },
+          pull_request_reviews_on_open: { type: "string", enum: Workspace::PullRequestReviewing::ON_OPEN_CHOICES,
+                                          description: "Which pull requests Halon reviews when they open, without anyone asking: off (only when someone adds Firefight as a reviewer or asks in a comment, the default), all (every repository) or chosen (the repositories in pull_request_review_repositories)" },
+          pull_request_review_repositories: { type: "array", items: { type: "string" },
+                                              description: "The repositories, as owner/name, whose pull requests Halon reviews when they open while pull_request_reviews_on_open is chosen. Replaces what was saved" }
         }
       )
 

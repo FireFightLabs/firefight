@@ -47,6 +47,7 @@ module CodeAgentSession::PullRequest
     update!(integration_environment: environment_row, pull_request_number: number, pull_request_url: url, pull_request_base: base,
             pull_request_branch: branch, pull_request_state: (Integrations::PullRequests::OPEN if someone_to_tell?))
     check_soon! if following?
+    PullRequestReviewOwnJob.perform_later(id)
   end
 
   # A chat a person reads, or a fix whose run has a thread. An outside agent's chat over MCP has nobody to press Fix it.

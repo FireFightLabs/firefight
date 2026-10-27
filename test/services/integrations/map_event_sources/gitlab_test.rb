@@ -115,7 +115,7 @@ module Integrations
         assert_not Gitlab.wakes?(push([]), headers: headers.("Push Hook"))
       end
 
-      test "a webhook registered before runs or issues were followed is registered again, and one that follows them is left" do
+      test "a webhook registered before runs, issues or reviews were followed is registered again, and one that follows them is left" do
         @row.update!(map_events_webhook_id: "/groups/7/hooks/11")
         GitlabApi.any_instance.stubs(:get).with("/groups/7/hooks/11").returns("id" => 11, "url" => URL, "push_events" => true, "pipeline_events" => false)
         assert Gitlab.register_again?(@row, url: URL)
@@ -125,6 +125,9 @@ module Integrations
         assert Gitlab.register_again?(@row, url: URL), "a webhook from before issues were followed hears no labels"
 
         GitlabApi.any_instance.stubs(:get).with("/groups/7/hooks/11").returns(following.merge("issues_events" => true))
+        assert Gitlab.register_again?(@row, url: URL), "a webhook from before reviews were followed hears no merge requests or comments"
+
+        GitlabApi.any_instance.stubs(:get).with("/groups/7/hooks/11").returns(following.merge("issues_events" => true, "merge_requests_events" => true, "note_events" => true))
         assert_not Gitlab.register_again?(@row, url: URL)
 
         GitlabApi.any_instance.stubs(:get).with("/groups/7/hooks/11").raises(GitlabApi::NotFound, "GitLab answered 404")

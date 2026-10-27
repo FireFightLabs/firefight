@@ -13,6 +13,7 @@ import {
   IconCreditCard,
   IconChecklist,
   IconForms,
+  IconGitPullRequest,
   IconHistory,
   IconBuilding,
   IconRobot,
@@ -54,6 +55,7 @@ import {
   agentChatsPath,
   memoryPath,
   halonOnCallPath,
+  halonPullRequestReviewsPath,
   settingsHandbookPath,
   halonPerformancePath,
   halonMonitoringPath,
@@ -180,6 +182,7 @@ export function AppSidebar({ activeUrl, ...props }: ComponentProps<typeof Sideba
       { title: "Workflows", url: halonWorkflowsPath(), icon: IconRoute },
       { title: "Performance", url: halonPerformancePath(), icon: IconChartBar },
       { title: "On-call", url: halonOnCallPath(), icon: IconPhoneCall, adminOnly: true },
+      { title: "Pull requests", url: halonPullRequestReviewsPath(), icon: IconGitPullRequest, adminOnly: true },
       { title: "Test logins", url: settingsTestLoginsPath(), icon: IconLogin2 },
     ],
   }

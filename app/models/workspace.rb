@@ -9,6 +9,7 @@ class Workspace < ApplicationRecord
   include Workspace::InvestigationLimits
   include Workspace::OnCall
   include Workspace::CodeFixes
+  include Workspace::PullRequestReviewing
   include Workspace::SandboxPlacement
   include Workspace::IssueSync
   include Workspace::AgentDefaults

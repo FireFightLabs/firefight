@@ -22,7 +22,8 @@ module Integrations
         settings = ConnectionSettings.of(@row.reload)
         assert_equal [ "acme", "bb-token" ], [ settings.field(Bitbucket::WORKSPACE), settings.credential(Bitbucket::TOKEN) ]
         assert_equal [ Bitbucket::TOKEN ], Bitbucket.credential_fields.map(&:key)
-        assert_equal %w[run_tests rerun_pipeline run_pipeline cancel_pipeline redeploy], Bitbucket.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[run_tests rerun_pipeline run_pipeline cancel_pipeline redeploy comment_on_pull_request edit_pull_request_comment review_pull_request
+                        reply_to_pull_request_comment resolve_pull_request_comment], Bitbucket.tool_definitions.reject(&:read_only).map(&:name)
       end
 
       test "the connect form says what is wrong with a token or workspace before anything is saved" do
