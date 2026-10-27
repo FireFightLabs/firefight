@@ -4,6 +4,7 @@
 # signs in with a token of its own, made for Firefight's push of the reviewed change and good only while that push runs.
 class CodeAgentSession < ApplicationRecord
   include CodeAgentSession::PullRequest
+  include CodeAgentSession::Lessons
 
   # The key of a box opened for a session that no run holds.
   CODE_BOX_PREFIX = "code-agent-".freeze

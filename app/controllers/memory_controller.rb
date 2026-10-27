@@ -1,24 +1,36 @@
-# What the workspace remembers and the instructions people give Halon, where people review, correct and write them.
+# What the workspace remembers and the instructions people give Halon, where people see how each memory stands and what
+# Halon's nightly check found, and confirm, correct, reject, delete and write them whenever they like.
 class MemoryController < InertiaController
   authorizes Ability::Action::RESOURCE_MEMORY,
     read: %i[index],
     create: %i[create_memory],
     update: %i[confirm_memory correct_memory reject_memory destroy_memory]
   authorizes Ability::Action::RESOURCE_CATALOG, update: %i[create_instruction update_instruction destroy_instruction]
+  # Deciding on a lesson and overriding a finding are authorized in the action, as lessons.decide on the one lesson and
+  # lessons.override on the one finding, since leading the incident, asking for the pull request or owning its services is
+  # what lets most people do them.
 
   TAB_QUERY = "tab"
   TAB_MEMORIES = "memories"
   TAB_INSTRUCTIONS = "instructions"
+  TAB_LESSONS = "lessons"
+  # The review whose findings a pull request's check links to, marked on the Lessons tab.
+  REVIEW_QUERY = "review"
+  REVIEWS_CHECK_IT = "Pull request reviews check it from now on.".freeze
+  STRICT_CHECKS = "Pull request reviews check it from now on, and fail a check on a pull request that goes against it.".freeze
   CHANGED_FIRST = "Someone changed these instructions first. Their version is shown now."
 
   include RequiresAgent
   before_action :require_agent!
 
   def index
-    memories = self.memories.includes(:subject, :source, :added_by, :confirmed_by, :rejected_by).order(updated_at: :desc)
+    memories = self.memories.includes(:subject, :source, :added_by, :confirmed_by, :rejected_by, events: { member: :user }).order(updated_at: :desc)
 
     render inertia: "memory/index", props: {
-      memories: ChatMemorySerializer.many(memories),
+      memories: ChatMemorySerializer.many(memories, runs: openable_runs(memories)),
+      lessons: ChatLessonSerializer.many(lessons, member: current_membership),
+      heldPullRequests: HeldPullRequestFindingSerializer.many(PullRequestReview::Finding.held_on_pull_requests(current_workspace, memories),
+                                                              member: current_membership),
       instructions: ChatInstructionSerializer.many(Chat::Instruction.with_history(current_workspace, principal: current_membership)),
       subjects: MemorySubjectOptionSerializer.many(Chat::Memory.subject_choices(current_workspace, principal: current_membership))
     }
@@ -66,6 +78,52 @@ class MemoryController < InertiaController
     redirect_to memory_path, notice: "Deleted. #{memory.delete_consequence}"
   end
 
+  def approve_lesson
+    lesson = lessons.find(params[:id])
+    return unless decide!(lesson)
+    return redirect_to(lessons_page, alert: lesson.approve_blocked_reason(current_membership)) unless lesson.approve!(by: current_membership, strict: strict_param)
+
+    redirect_to lessons_page, notice: "Approved the #{lesson.lesson_origin} lesson. #{lesson.strict ? STRICT_CHECKS : REVIEWS_CHECK_IT}"
+  end
+
+  def edit_lesson
+    lesson = lessons.find(params[:id])
+    return unless decide!(lesson)
+    edited = lesson.edit_lesson!(by: current_membership, text: params[:text].to_s.strip, strict: strict_param)
+    return redirect_to(lessons_page, alert: lesson.edit_lesson_blocked_reason(current_membership) || lesson.approve_blocked_reason(current_membership)) unless edited
+
+    redirect_to lessons_page, notice: "Saved the #{lesson.lesson_origin} lesson. #{edited.strict ? STRICT_CHECKS : REVIEWS_CHECK_IT}"
+  rescue ActiveRecord::RecordInvalid => error
+    redirect_to lessons_page, alert: error.record.errors.full_messages.to_sentence
+  end
+
+  def turn_down_lesson
+    lesson = lessons.find(params[:id])
+    return unless decide!(lesson)
+    turned_down = lesson.turn_down!(by: current_membership, reason: params[:reason].to_s.strip)
+    return redirect_to(lessons_page, alert: lesson.turn_down_blocked_reason(current_membership)) unless turned_down
+
+    redirect_to lessons_page, notice: "Turned down the #{lesson.lesson_origin} lesson. Reviews and Halon stop using it."
+  end
+
+  # Lets a pull request through although a strict lesson's finding stands, saying why. Its check passes once nothing
+  # else holds it.
+  def override_finding
+    finding = PullRequestReview::Finding.from_strict_lessons(current_workspace, memories).find(params[:id])
+    refused = finding.override_blocked_reason(current_membership)
+    return redirect_to(lessons_page, alert: refused) if refused
+    return unless authorize_web!(Ability::Action::RESOURCE_LESSONS, Ability::Action::ACTION_OVERRIDE, scope: finding.override_scope)
+
+    reason = params[:reason].to_s.strip
+    unless finding.override!(by: current_membership, reason: reason)
+      return redirect_to(lessons_page, alert: finding.override_state_blocked_reason || PullRequestReview::Finding::OVERRIDE_NEEDS_REASON)
+    end
+
+    review = finding.review
+    redirect_to lessons_page, notice: "Overrode the #{finding.lesson.lesson_origin} lesson on ##{review.number} in #{review.repository}. " \
+                                      "Its check passes once nothing else holds it."
+  end
+
   def create_instruction
     note = Chat::Instruction.create!(workspace: current_workspace, scope: subject_param, text: params[:text].to_s.strip, added_by: current_membership)
     redirect_to instructions_page, notice: "Saved instructions for #{note.place}."
@@ -92,6 +150,29 @@ class MemoryController < InertiaController
   private
 
   def instructions_page = memory_path(TAB_QUERY => TAB_INSTRUCTIONS)
+
+  # The nightly runs a link on this page may open: those whose every checked memory this person may see.
+  def openable_runs(memories)
+    Chat::MemoryReview.runs_visible_to(current_membership, memories.flat_map(&:events).filter_map(&:investigation_id).uniq)
+  end
+
+  def lessons_page = memory_path(TAB_QUERY => TAB_LESSONS)
+
+  # The lesson's own sentence when the member may not decide on it, then the gateway, which ledgers the decision.
+  def decide!(lesson)
+    refused = lesson.lesson_blocked_reason(current_membership)
+    if refused
+      redirect_to lessons_page, alert: refused
+      return false
+    end
+
+    authorize_web!(Ability::Action::RESOURCE_LESSONS, Ability::Action::ACTION_DECIDE, scope: lesson.decide_scope)
+  end
+
+  # What an incident taught, apart from wordings an edit or a correction replaced, which the Memories tab keeps.
+  def lessons = memories.lessons.where(replaced_by_id: nil).includes(:subject, :approved_by, :confirmed_by, :rejected_by, :source)
+
+  def strict_param = ActiveModel::Type::Boolean.new.cast(params[:strict]) || false
 
   # A memory about a resource outside the person's map reach is not on their page, and deciding on one finds nothing.
   def memories = Chat::Memory.visible_to(current_membership, current_workspace)

@@ -173,6 +173,7 @@ The shared button only ever subscribes.
   | reminder | `:alarm_clock:` | | subscribe, unsubscribe | `:bell:`, `:no_bell:` |
   | status | `:construction:` | | declared by | `:mega:` |
   | channel | `:speech_balloon:` | | test incident | `:test_tube:` |
+  | high risk change | `:octagonal_sign:` | | | |
 
 - **Every title opens with an emoji.** It is the fastest thing to scan for.
 - **Two spaces after the title emoji**, one space everywhere else. The wider
@@ -504,13 +505,34 @@ to say when. `PackRequest` is the direct message each admin gets with Give pack 
 redrawn to say who gave or dismissed it. `PackAnswer` tells the member how it was answered, by direct message and as a
 short note in each Slack thread the change was refused in. See docs/integrations.md, Asking an admin for a pack.
 
-## Asking about memories
+## Telling a channel about memories
 
-`LearnedMemories` is every message that asks people to decide on memories: what an incident or its postmortem taught,
-what a chat or run learned or disputed, and the weekly reminder of what nobody confirmed (`:bell:`), in an incident's
-channel or by direct message. A reminder opens with one line saying how many wait and why confirming matters, then each
-memory with Confirm, Not right and Correct, and a footer linking the Memory page. See docs/ai.md, Reminders reach the
-person who should know.
+`LearnedMemories` is every message that tells an incident's channel about memories: what an incident or its postmortem
+taught, and what a chat or run learned or disputed. Nobody is asked to confirm anything, since Halon reviews memories
+against production in a nightly check, a batch at a time (docs/ai.md, Halon checks what it remembers). Each memory nobody has decided on carries
+Not right and Edit (which opens the form for what is right instead), for anyone who knows better, and the footer says Halon reviews them in its nightly check. A memory Halon
+checked reads "Checked by Halon against production", and a merged one says it lives on in another. When the nightly check
+finds evidence against a memory a person confirmed, that person gets one direct message (`challenged`, titled "Halon
+found evidence against a memory you confirmed") with Still right, Not right and Edit. No reminder is posted any more. A weekly reminder (`:bell:`) or a message with Confirm or Still right posted before then is redrawn
+without those buttons when someone decides on it there, and an old Confirm still works.
+
+## A high risk pull request
+
+`HighRiskPullRequest` (`:octagonal_sign:`) is posted in the channel of the service that owns a repository when Halon
+reviews one of its pull requests as high risk. Title, divider, the pull request linked with why it is risky quoted under
+it, the open findings most severe first (three, then how many more) each with the lesson behind it, a footer naming the
+service and where to turn this off, and an Open pull request button. The title, the reason and the findings came from
+the code host or a model, so each is escaped. The fallback text is the title and the pull request.
+
+```
+:octagonal_sign:  *High risk pull request in acme/checkout*
+─────────────────────────
+*#412 Raise the payment timeout*
+> Checkout retries rise with the timeout, as in INC-012.
+• *Major*  Raises the payment timeout  ·  _Lesson from INC-012_
+Halon reviewed it for Checkout  ·  Turn this off on Checkout in the catalog
+[Open pull request]
+```
 
 ## Proposing a handbook edit or page
 

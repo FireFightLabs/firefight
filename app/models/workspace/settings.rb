@@ -5,7 +5,7 @@ module Workspace::Settings
   KEYS = %i[transcript_access_enabled transcript_retention_days archive_channel_delay web_search_enabled halon_regression_enabled
             memory_expiry_days code_fix_agent issue_tracker issue_creation issue_tracker_target issue_webhook_secret
             alert_investigations_enabled alert_storm_ceiling_cents on_call_paging_enabled code_fix_budget_cents
-            safe_changes_without_asking pull_request_reviews_on_open pull_request_review_repositories].freeze
+            safe_changes_without_asking pull_request_reviews_on_open pull_request_review_repositories memory_review_enabled].freeze
   # Taken, never shown again, so what is read back says only whether one is saved.
   WRITE_ONLY = %i[issue_webhook_secret].freeze
   # What a form may send, a hash where the setting holds one.

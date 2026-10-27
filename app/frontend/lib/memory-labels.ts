@@ -1,12 +1,13 @@
 import type { ChatMemoryState } from "@/lib/generated/constants"
 
 export const STATE_LABELS: Record<ChatMemoryState, string> = {
-  unconfirmed: "Unconfirmed",
+  unconfirmed: "Unchecked",
   confirmed: "Confirmed",
   disputed: "Disputed",
   outdated: "Possibly outdated",
   rejected: "Rejected",
   expired: "Expired",
+  merged: "Merged",
 }
 
 export const STATE_TONES: Record<ChatMemoryState, string> = {
@@ -16,4 +17,5 @@ export const STATE_TONES: Record<ChatMemoryState, string> = {
   outdated: "border-warning/35 bg-warning-tint text-warning",
   rejected: "border-border-strong bg-stage-canceled-tint text-fg-muted",
   expired: "border-border-strong bg-stage-canceled-tint text-fg-muted",
+  merged: "border-border-strong bg-stage-canceled-tint text-fg-muted",
 }

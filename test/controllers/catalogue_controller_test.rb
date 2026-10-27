@@ -356,4 +356,26 @@ class CatalogueControllerTest < ActionDispatch::IntegrationTest
     ApplicationController.any_instance.stubs(:current_workspace).returns(workspace)
     ApplicationController.any_instance.stubs(:user_signed_in?).returns(true)
   end
+
+  test "a service switches posting high risk pull requests in its channel off and on, with a toast" do
+    entry = catalog_entries(:auth_service)
+
+    patch catalogue_entry_review_alerts_path(entry), params: { enabled: false }
+    assert_not entry.reload.review_alerts
+    assert_equal "High risk pull requests no longer post in Auth Service's channel.", flash[:notice]
+
+    patch catalogue_entry_review_alerts_path(entry), params: { enabled: true }
+    assert entry.reload.review_alerts
+    assert_equal "High risk pull requests post in Auth Service's channel.", flash[:notice]
+  end
+
+  test "the switch is shown only for a type that holds a repository" do
+    get catalogue_type_path(catalog_types(:service_ws1).slug), headers: inertia_headers
+    assert_nil inertia_props["entries"].find { |entry| entry["name"] == "Auth Service" }["reviewAlerts"]
+
+    catalog_types(:service_ws1).catalog_attribute_definitions.create!(name: "Code", slug: "code", attribute_type: CatalogAttributeDefinition::TYPE_TEXT,
+                                                                      role: CatalogAttributeDefinition::ROLE_REPOSITORY, position: 9)
+    get catalogue_type_path(catalog_types(:service_ws1).slug), headers: inertia_headers
+    assert inertia_props["entries"].find { |entry| entry["name"] == "Auth Service" }["reviewAlerts"]
+  end
 end

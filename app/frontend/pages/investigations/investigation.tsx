@@ -5,6 +5,7 @@ import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { InvestigationStory, investigationTitle } from "@/components/investigations/investigation-story"
 import { fixMoving, useLiveInvestigation } from "@/components/investigations/use-live-investigation"
 import { INVESTIGATION_PROP } from "@/lib/generated/constants"
+import { memoryPath } from "@/lib/routes"
 import { LifecycleFormDialog } from "@/components/incidents/lifecycle-form-dialog"
 import type { InvestigationPageProps } from "@/pages/investigations/types"
 
@@ -14,13 +15,15 @@ export default function Investigation() {
   useLiveInvestigation(investigation.status, INVESTIGATION_PROP, fixMoving(investigation.finding?.fix))
   const title = investigationTitle(investigation)
   const [ declaring, setDeclaring ] = useState(false)
+  // The nightly memory check is reached from the Memory page.
+  const activeUrl = investigation.memoryCheck ? memoryPath() : undefined
 
   function startDeclaring() {
     setDeclaring(true)
   }
 
   return (
-    <AuthenticatedLayout title="Investigation">
+    <AuthenticatedLayout title="Investigation" activeUrl={activeUrl}>
       <Head title={title} />
       <div className="mx-auto w-full max-w-3xl px-6 py-4 md:py-8 lg:px-10">
         <InvestigationStory

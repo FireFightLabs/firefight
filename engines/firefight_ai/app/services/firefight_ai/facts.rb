@@ -9,9 +9,12 @@ module FirefightAi
                     "shows, and propose the edit with propose_handbook_edit. search_handbook reads a page named but not given whole.",
       "instructions" => "instructions are how people here want you to work, headed by where each applies, the more specific " \
                         "one winning where two differ. They say how to work, and what happened comes from what you read.",
-      "memories" => "memories are what this workspace remembers: hunches to check against live results, of which only a " \
-                    "confirmed one was vouched for by a person, so say so when you rely on one that is not. When a result " \
-                    "contradicts one, dispute it with dispute_memory.",
+      "memories" => "memories are what this workspace remembers: hunches to check against live results. Each says who " \
+                    "stands behind it, a person, a postmortem or your own nightly check against production, so say so when " \
+                    "you rely on one nobody confirmed. When a result contradicts one, dispute it with dispute_memory.",
+      "memories_to_check" => "memories_to_check are tonight's memories, each with its id, the fact, what it is about, who " \
+                             "stands behind it, why it is disputed when it is, the memories it says otherwise than, and what " \
+                             "you found the last time you checked it. Settle each with settle_memory.",
       "resources" => "resources are where the services involved run on the map, with how many depend on each and what " \
                      "changed on them in the day before. Start from them with the map tools: get_resource for one, " \
                      "get_resource_neighbours and traverse_resource_map for what it depends on and what depends on it, " \

@@ -21,6 +21,25 @@ module Integrations
     LEFT_OUT_UNREAD = "its diff could not be read from the code host or the sandbox".freeze
 
     READ_HOOKS = %i[pull_request_for_review pull_request_files_for_review pull_request_checkout pull_request_sandbox_files pull_request_file_link].freeze
+    # How a pull request ended, read once it merged or closed: who ended it, the reason the host keeps for closing it,
+    # every commit on it and the comments in its conversation.
+    OUTCOME_HOOK = :pull_request_outcome
+    # How much of what people changed on a pull request a lesson is read from.
+    OUTCOME_DIFF_LIMIT = 20_000
+    OUTCOME_COMMENTS = 30
+
+    # Sets the review's check on a commit, as a commit status the host shows beside the pull request's other checks and a
+    # branch rule can require.
+    CHECK_HOOK = :set_review_check
+
+    CHECK_PASSING = "passing".freeze
+    CHECK_FAILING = "failing".freeze
+    CHECK_STATES = [ CHECK_PASSING, CHECK_FAILING ].freeze
+    # What the check is called on every host, and the key a host that asks for one files it under.
+    CHECK_NAME = "Halon review".freeze
+    CHECK_KEY = "firefight-halon-review".freeze
+    # The shortest any host keeps of a check's words.
+    CHECK_DESCRIPTION_LIMIT = 140
 
     HUNK = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/
     BINARY = /^Binary files .* differ$|^GIT binary patch$/
@@ -59,6 +78,30 @@ module Integrations
       def read? = left_out.nil?
     end
 
+    # One commit on a pull request. email is its author's, which tells Halon's own commits apart. merge is true for a
+    # commit that brought the base in, which changes nothing a person wrote.
+    OutcomeCommit = Data.define(:sha, :author, :email, :message, :merge) do
+      def initialize(author: nil, email: nil, message: "", merge: false, **) = super
+    end
+
+    # One comment in a pull request's conversation, person false for a bot.
+    OutcomeComment = Data.define(:author, :person, :body)
+
+    # How a pull request ended. state is STATE_MERGED, STATE_CLOSED or STATE_OPEN when it has not ended after all.
+    # ended_by is who merged or closed it, by the name the host gives them, and ended_by_person false for a bot or an
+    # app. reason is what the host itself keeps for closing it, nil where it keeps none. commits are oldest first.
+    Outcome = Data.define(:state, :ended_by, :ended_by_person, :reason, :commits, :comments) do
+      def initialize(ended_by: nil, ended_by_person: true, reason: nil, commits: [], comments: [], **) = super
+    end
+
+    # A check as the review sets it. description says why it stands where it does, url opens where a person can see the
+    # findings and override them.
+    Check = Data.define(:state, :description, :url) do
+      def passing? = state == CHECK_PASSING
+
+      def short_description = description.to_s.truncate(CHECK_DESCRIPTION_LIMIT)
+    end
+
     module_function
 
     def reviews?(integration)
@@ -77,8 +120,10 @@ module Integrations
       rows(workspace).find { |row| PullRequests.holds?(row, repository) }
     end
 
+    # The description is the author's own words, so a credential in it is taken out as from any provider's answer.
     def pull_request(row, repository:, number:)
-      pack(row).pull_request_for_review(row, repository: repository, number: number)
+      pull = pack(row).pull_request_for_review(row, repository: repository, number: number)
+      pull.body.nil? ? pull : pull.with(body: redacted(row, pull.body))
     end
 
     # Every file the pull request changes, as the host lists them. A list the host cuts short is refused.
@@ -97,12 +142,43 @@ module Integrations
       pack(row, key).pull_request_sandbox_files(row, checkout: checkout, base_sha: base_sha, path: path)
     end
 
+    def reads_outcomes?(integration)
+      pack = NativePack.for(integration.provider)
+      pack.present? && pack.method_defined?(OUTCOME_HOOK)
+    end
+
+    def outcome(row, repository:, number:)
+      pack(row).pull_request_outcome(row, repository: repository, number: number)
+    end
+
+    # What the commits between from and to changed, as a git style diff cut to OUTCOME_DIFF_LIMIT.
+    def changes_between(row, repository:, from:, to:)
+      pack(row).pull_request_changes_between(row, repository: repository, from: from, to: to).to_s.truncate(OUTCOME_DIFF_LIMIT)
+    end
+
+    # A refusal worth trying again: a rate limit, a host that did not answer in time, or one that failed on its side.
+    def retryable?(error)
+      error.is_a?(RateLimited) || error.is_a?(TimedOut) || error.try(:http_status).to_i >= 500
+    end
+
+    def sets_checks?(integration)
+      pack = NativePack.for(integration.provider)
+      pack.present? && pack.method_defined?(CHECK_HOOK)
+    end
+
+    def set_check!(row, repository:, sha:, check:)
+      raise ArgumentError, "#{check.state} is not a check state" unless CHECK_STATES.include?(check.state)
+
+      pack(row).set_review_check(row, repository: repository, sha: sha, check: check)
+    end
+
     def file_link(row, repository:, sha:, path:, line: nil)
       pack(row).pull_request_file_link(row, repository: repository, sha: sha, path: path, line: line)
     end
 
     # Every changed file as the review reads it. Files the host gave no text for are read from the sandbox in one go,
-    # and one that cannot be read either is left out with why, never dropped without a word.
+    # and one that cannot be read either is left out with why, never dropped without a word. A credential in a file
+    # whose path does not say it holds secrets is taken out of its text.
     def diffs(row, files, checkout:, base_sha:, key:)
       missing = files.select { |file| file.patch.blank? && !file.binary && !secret?(file.path) && !secret?(file.previous_path) }
       read = missing.any? ? sandbox_read(row, checkout, base_sha, key) : {}
@@ -113,7 +189,8 @@ module Integrations
         next FileDiff.new(path: file.path, left_out: LEFT_OUT_UNREAD) unless given
         next FileDiff.new(path: file.path, left_out: LEFT_OUT_BINARY) if given.binary
 
-        FileDiff.new(path: file.path, text: "#{header(file)}#{given.patch.to_s.chomp}#{"\n" if given.patch.present?}")
+        text = "#{header(file)}#{given.patch.to_s.chomp}#{"\n" if given.patch.present?}"
+        FileDiff.new(path: file.path, text: Redactions.diff(text, **Redactions.rules(row.integration.provider)))
       end
     end
 
@@ -161,7 +238,7 @@ module Integrations
     def sandbox_read(row, checkout, base_sha, key)
       sandbox_files(row, checkout, base_sha: base_sha, key: key).index_by(&:path)
     rescue Error => error
-      Rails.logger.warn({ event: "review_host.sandbox_unread", integration_id: row.integration_id, error: error.message }.to_json)
+      Rails.logger.warn({ event: "review_host.sandbox_unread", integration_id: row.integration_id, error: redacted(row, error.message) }.to_json)
       {}
     end
 
@@ -174,6 +251,9 @@ module Integrations
       found = rest.match(%r{\Aa/(.+?) b/(.+)\z})
       found ? [ found[1], found[2] ] : [ rest, rest ]
     end
+
+    # As every other answer a provider gives is (Redactions), with the provider's own credential shapes.
+    def redacted(row, text) = Redactions.message(text, **Redactions.rules(row.integration.provider))
 
     def renamed(lines, prefix) = lines.find { |line| line.start_with?(prefix) }&.delete_prefix(prefix)&.chomp
 

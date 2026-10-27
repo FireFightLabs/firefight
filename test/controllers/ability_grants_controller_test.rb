@@ -219,7 +219,9 @@ class AbilityGrantsControllerTest < ActionDispatch::IntegrationTest
     bob = inertia_props["principals"].find { |principal| principal["id"] == @member.id }
     assert_equal [ [ Ability::Action::MAP_READ, WorkspaceMembership::DEFAULT_NOTES[WorkspaceMembership::DEFAULT_NO_ACCESS] ],
                    [ Ability::Action::INVESTIGATIONS_CREATE, WorkspaceMembership::DEFAULT_NOTES[WorkspaceMembership::DEFAULT_HELD] ],
-                   [ Ability::Action::WORKFLOWS_CREATE, WorkspaceMembership::DEFAULT_NOTES[WorkspaceMembership::DEFAULT_HELD] ] ],
+                   [ Ability::Action::WORKFLOWS_CREATE, WorkspaceMembership::DEFAULT_NOTES[WorkspaceMembership::DEFAULT_HELD] ],
+                   [ Ability::Action::LESSON_DECIDE, WorkspaceMembership::OWNED_NOTES[Ability::Action::LESSON_DECIDE] ],
+                   [ Ability::Action::LESSON_OVERRIDE, WorkspaceMembership::OWNED_NOTES[Ability::Action::LESSON_OVERRIDE] ] ],
                  bob["defaultAccess"].map { |access| access.values_at("actionKey", "note") }
     assert_empty bob["grants"]
     alice = inertia_props["principals"].find { |principal| principal["id"] == workspace_memberships(:alice_workspace_one).id }

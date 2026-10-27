@@ -56,6 +56,7 @@ class PullRequestReview::ReportFinding < RubyLLM::Tool
           "description" => "What shows each step of the chain"
         },
         "suggested_fix" => { "type" => "string", "description" => "The change itself, as a short diff or code (optional)" },
+        "lesson" => { "type" => "string", "description" => "The id of the approved lesson from a past incident this finding comes from, as the facts list it (optional)" },
         "agent_instructions" => { "type" => "string", "description" => "The same finding as steps a coding agent can follow alone" }
       },
       "required" => %w[path category severity effort serious claim why failure_chain evidence agent_instructions]

@@ -60,10 +60,14 @@ class Investigation < ApplicationRecord
   TRIGGER_SECURITY_EVENT = "security_event"
   # A workflow's Investigate step, which waits for what it finds.
   TRIGGER_WORKFLOW = "workflow"
+  # Halon's nightly check of what the workspace remembers (Chat::MemoryReview), which nobody asked for.
+  TRIGGER_MEMORY_REVIEW = "memory_review"
   TRIGGER_SOURCES = [
     TRIGGER_COMMAND, TRIGGER_BUTTON, TRIGGER_CONVERSATION, TRIGGER_MCP, TRIGGER_DASHBOARD, TRIGGER_REHEARSAL, TRIGGER_ALERT, TRIGGER_SCHEDULE,
-    TRIGGER_SECURITY_EVENT, TRIGGER_WORKFLOW
+    TRIGGER_SECURITY_EVENT, TRIGGER_WORKFLOW, TRIGGER_MEMORY_REVIEW
   ].freeze
+  # What a workflow can hear finish. A memory check is Halon's own housekeeping, so no workflow is told of it.
+  WORKFLOW_TRIGGER_SOURCES = (TRIGGER_SOURCES - [ TRIGGER_MEMORY_REVIEW ]).freeze
 
   belongs_to :workspace
   # What the run is about. None for a question asked before anyone declared an incident, which is answered where it
@@ -177,6 +181,26 @@ class Investigation < ApplicationRecord
   # A scheduled check looks for problems and says each through Investigation::Notice, rather than answering a question.
   def scheduled? = subject_type == Investigation::Check.name
 
+  # A night's check of the workspace's memories, which settles each it was handed and says nothing anywhere.
+  def memory_review? = subject_type == Chat::MemoryReview.name
+
+  # Why its answer cannot be rated, or nil. The nightly memory check's answer is a count of what it settled, and each
+  # verdict is on the Memory page, where a person decides on it.
+  def rating_blocked_reason
+    "The nightly memory check has no answer to rate. Decide on each memory on the Memory page." if memory_review?
+  end
+
+  # Whether principal may read it. A nightly memory check reads about every memory it checked, so only someone who may see
+  # them all may read it. Every way of reading a run asks this.
+  def readable_by?(principal) = !memory_review? || memory_review.visible_to?(principal)
+
+  # Whether somebody or something asked for it, so its story opens with the ask. Nobody asks for the nightly memory check.
+  def asked? = !memory_review?
+
+  def memory_review
+    subject if subject.is_a?(Chat::MemoryReview)
+  end
+
   # A run on an incident speaks in the incident's channel. A question asked in a channel is answered there.
   def channel_id
     incident ? incident.channel_id : super
@@ -211,6 +235,7 @@ class Investigation < ApplicationRecord
   def label
     return "#{incident.identifier} #{incident.name}" if incident
     return check.name if check
+    return "Nightly memory check" if memory_review?
 
     question.to_s
   end
@@ -579,10 +604,10 @@ class Investigation < ApplicationRecord
   # What a workflow step waiting for this run to finish waits on.
   def finished_signal = "investigation.finished:#{id}"
 
-  # A run that concluded or gave up is heard by the workspace's workflows once. One a person stopped, and a rehearsal,
-  # are not.
+  # A run that concluded or gave up is heard by the workspace's workflows once. One a person stopped, a rehearsal and a
+  # memory check are not.
   def tell_workflows!
-    return if rehearsal? || status == STATUS_CANCELED
+    return if rehearsal? || memory_review? || status == STATUS_CANCELED
 
     Workflow::Trigger::Events.fire!(workspace, Workflow::Trigger::KIND_INVESTIGATION_FINISHED, key: id, subject: self, actor: triggered_by)
   end

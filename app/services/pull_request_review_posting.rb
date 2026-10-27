@@ -78,9 +78,10 @@ class PullRequestReviewPosting
   end
 
   # A finding a later push fixed or a person showed was wrong: its line comment and its own comment say so, and the
-  # summary is edited.
+  # summary is edited. A finding from a lesson is edited while open too, since its comment says whether it holds the
+  # check, which an override or a change to the lesson moves.
   def finding_changed!(finding)
-    edit_finding!(finding) if finding && !finding.open?
+    edit_finding!(finding) if finding && (!finding.open? || finding.lesson_id.present?)
     summary!
   end
 

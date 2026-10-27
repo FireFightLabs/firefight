@@ -39,7 +39,7 @@ class AgentChatsController < InertiaController
   PROP_PULL_REQUEST_NOTICES = "pullRequestNotices"
   # Code changes from this chat that reached their spending limit, each with Continue and Stop until someone decides.
   PROP_CODE_PAUSES = "codePauses"
-  # Memories something contradicted in this chat, each asking the person which is right.
+  # Memories something contradicted in this chat, each asking the person which is right, from before Halon checked memories itself.
   PROP_MEMORY_QUESTIONS = "memoryQuestions"
   # The checks Halon handed to helpers in this chat, each drawn under the step that started it with the steps it took.
   PROP_HELPERS = "helpers"

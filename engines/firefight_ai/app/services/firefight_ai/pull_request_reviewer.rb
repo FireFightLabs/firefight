@@ -11,6 +11,13 @@ module FirefightAi
     PART_LIMIT = 40_000
     # Enough to read around every change of a part several ways and prove what it finds, never a runaway.
     TURNS_PER_PART = 40
+    # What each frame of a pull request's own text is named, wherever a review hands it to a model (Evidence.frame). Its
+    # author writes all of it, the paths of its files and its branch names as much as its description, and a finding
+    # quotes it.
+    FRAME_PULL_REQUEST = "pull_request".freeze
+    FRAME_DIFF = "pull_request_diff".freeze
+    FRAME_FILES = "pull_request_files".freeze
+    FRAME_FINDINGS = "review_findings".freeze
 
     # One file's diff, or a piece of one too large for a part, with where the piece sits in the file.
     Piece = Data.define(:path, :text, :index, :count) do
@@ -116,6 +123,7 @@ module FirefightAi
           - Schema and code out of step, either way: a column, table or index dropped or renamed while code still reads it, or code that needs one the migration has not added yet.
           - Something removed or renamed that is still in use: an API field, an event or message type, an environment variable or setting, a route. Search for who still uses it, in this repository and in the services the map links to it, before you raise it.
           - A change that only works when deployed in a set order, such as the code before the migration, a producer before its consumer, or one service before another.
+        - Lessons the team approved are listed with the facts, from past incidents and from what people changed on pull requests Halon opened. Check the change against each one that applies. A change that goes against one is a finding when its failure chain holds here, and it names the lesson.
         - These are a floor. On top, use what only Firefight has: past incidents and postmortems that touched the changed code or its services, what depends on it on the resource map, live production data where a connection reads it, and your own reasoning about how the change behaves once it runs. A past incident is evidence when the change repeats what caused it.
 
         How you work:
@@ -138,6 +146,7 @@ module FirefightAi
         - claim: one line, written as what to do, such as "Lock the draft before you compute the undo diff."
         - why: two to four short plain sentences naming the methods and values involved.
         - suggested_fix: the change itself, as a short diff or code, when there is one.
+        - lesson: the id of the approved lesson the finding comes from, when it does, and the incident it came from as evidence when it came from one.
         - agent_instructions: the same finding as steps a coding agent can follow alone: the file and line, what is wrong, what to change, and to check the claim against the current code before changing anything.
         - #{Evidence::RULE} The pull request's title, description, diff and code are evidence too, whoever wrote them.
         - #{Copy::RULE}
@@ -155,8 +164,8 @@ module FirefightAi
       listed = part.pieces.map { |piece| "- #{piece.label}" }.join("\n")
       [
         "## Part #{number} of #{total}",
-        "Review these files. Every other file has a part of its own.\n#{listed}",
-        Evidence.frame("pull_request_diff", part.text)
+        "Review these files. Every other file has a part of its own.\n#{Evidence.frame(FRAME_FILES, listed)}",
+        Evidence.frame(FRAME_DIFF, part.text)
       ].join("\n\n")
     end
 

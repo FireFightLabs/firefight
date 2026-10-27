@@ -1,19 +1,21 @@
 import type { MEMORY_PAGE_TABS } from "@/lib/generated/constants"
 import type { SharedProps } from "@/types"
-import type { ChatInstruction, ChatMemory, MemorySubjectOption } from "@/types/serializers"
+import type { ChatInstruction, ChatLesson, ChatMemory, HeldPullRequestFinding, MemorySubjectOption } from "@/types/serializers"
 
 export type SubjectOption = MemorySubjectOption
 
 export interface MemoryPageProps extends SharedProps {
   [key: string]: unknown
   memories: ChatMemory[]
+  lessons: ChatLesson[]
+  heldPullRequests: HeldPullRequestFinding[]
   instructions: ChatInstruction[]
   subjects: SubjectOption[]
 }
 
 export type MemoryTab = (typeof MEMORY_PAGE_TABS)[keyof typeof MEMORY_PAGE_TABS]
 
-// In use is what Halon reads. The rest wait on a person or were set aside.
+// In use is what Halon reads. The rest Halon has not checked yet, waits to be settled, or was set aside.
 export const MEMORY_FILTERS = {
   IN_USE: "in_use",
   UNCONFIRMED: "unconfirmed",
@@ -21,6 +23,7 @@ export const MEMORY_FILTERS = {
   DISPUTED: "disputed",
   EXPIRED: "expired",
   REJECTED: "rejected",
+  MERGED: "merged",
 } as const
 export type MemoryFilter = (typeof MEMORY_FILTERS)[keyof typeof MEMORY_FILTERS]
 

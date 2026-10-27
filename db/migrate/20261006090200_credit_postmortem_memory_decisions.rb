@@ -6,7 +6,10 @@ class CreditPostmortemMemoryDecisions < ActiveRecord::Migration[8.1]
 
   def up
     Chat::Memory.reset_column_information
-    Chat::Memory.where(state_reason: [ AGREES, SAYS_OTHERWISE ], source_type: Incident.name).includes(source: :postmortem).find_each do |memory|
+    # The reason is encrypted now, so it is compared once read rather than in the query.
+    Chat::Memory.where(source_type: Incident.name).where.not(state_reason: nil).includes(source: :postmortem).find_each do |memory|
+      next unless [ AGREES, SAYS_OTHERWISE ].include?(memory.state_reason)
+
       postmortem = memory.source&.postmortem
       next unless postmortem
 

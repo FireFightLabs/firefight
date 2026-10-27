@@ -5,7 +5,8 @@
 # instructions a coding agent can follow, and a hidden id the finding is known by. A host that renders no collapsed block
 # or hidden text gets plain sections and no id (collapses and hides, from the host's own markup). On a public repository
 # (evidence_page given) a finding keeps its claim, its why and failure chain in code terms and its suggested fix, and
-# links to its evidence in Firefight instead of naming any of it. Nothing here names a code host.
+# links to its evidence in Firefight instead of naming any of it. A finding a lesson produced names it under its claim,
+# and on a public repository only says a lesson stands behind it. Nothing here names a code host.
 class PullRequestReview::Comments
   SHA_SHOWN = 7
   # A coding agent reads these before acting on the findings, as a reviewer's words it checks rather than follows.
@@ -70,6 +71,7 @@ class PullRequestReview::Comments
       (state_lead(finding) unless finding.open?),
       "**#{finding.header}**",
       "**#{finding.claim}**",
+      lesson(finding),
       why(finding),
       failure_chain(finding),
       evidence(finding),
@@ -104,6 +106,7 @@ class PullRequestReview::Comments
       "**Halon found a serious problem#{where}.**",
       "**#{finding.header}**",
       "**#{finding.claim}**",
+      lesson(finding),
       why(finding),
       failure_chain(finding),
       evidence(finding),
@@ -124,6 +127,21 @@ class PullRequestReview::Comments
   def why(finding) = public? ? finding.public_why : finding.why
 
   def ended(text) = self.class.ended(text)
+
+  # "Lesson from INC-052", linked to the incident or the pull request it came from, and what a strict one does to the
+  # pull request. A public repository is told only that a lesson stands behind it, never which or what it says.
+  def lesson(finding)
+    label = finding.lesson_label
+    return if label.nil?
+
+    strict = " It is a strict lesson, so the #{Integrations::ReviewHost::CHECK_NAME} check fails until this is fixed or someone overrides it." if finding.holding?
+    return "From a lesson the team approved.#{strict}" if public?
+
+    origin = finding.lesson.lesson_origin
+    url = finding.lesson.lesson_origin_url
+    named = url.to_s.start_with?("http") ? label.sub(origin, "[#{origin}](#{url})") : label
+    "#{named}: #{ended(finding.lesson.text)}#{strict}"
+  end
 
   def collapsed(title, body)
     @collapses ? "<details><summary>#{title}</summary>\n\n#{body}\n\n</details>" : "**#{title}**\n\n#{body}"

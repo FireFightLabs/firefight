@@ -44,16 +44,18 @@ export function EntryTable({
   canManage: boolean
 }) {
   const [search, setSearch] = useState("")
-  const [selectedEntry, setSelectedEntry] = useState<CatalogEntry | null>(() => entries.find((entry) => entry.id === entryIdFromUrl()) ?? null)
+  // Held by id, so a change made from the sheet shows there once the page reloads its entries.
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(entryIdFromUrl)
+  const selectedEntry = entries.find((entry) => entry.id === selectedEntryId) ?? null
   const [editingEntry, setEditingEntry] = useState<CatalogEntry | null>(null)
 
   function openEntry(entry: CatalogEntry) {
-    setSelectedEntry(entry)
+    setSelectedEntryId(entry.id)
     rememberEntry(entry.id)
   }
 
   function closeEntry() {
-    setSelectedEntry(null)
+    setSelectedEntryId(null)
     rememberEntry(null)
   }
 

@@ -1,6 +1,6 @@
-# One place people were asked to decide on memories: a message in an incident's channel, a direct message reminding a
-# person, or a card in a dashboard chat. It keeps the memories it first showed, so redrawing it after a decision shows
-# those and nothing learned since.
+# One place people were told about memories: a message in an incident's channel, or, before Halon checked memories
+# itself, a direct message reminding a person or a card in a dashboard chat asking which is right. It keeps the memories
+# it first showed, so redrawing it after a decision shows those and nothing learned since.
 class Chat::MemoryPost < ApplicationRecord
   self.table_name = "chat_memory_posts"
 
@@ -10,18 +10,21 @@ class Chat::MemoryPost < ApplicationRecord
   # A chat or a run working on the incident learned a fact, or disputed one.
   KIND_LEARNED = "learned".freeze
   KIND_DISPUTED = "disputed".freeze
-  # Memories nobody confirmed for a while, to the person who taught them or for the team.
+  # Memories nobody confirmed for a while, to the person who taught them or for the team. None is sent any more, and one
+  # sent before is still redrawn when someone decides there.
   KIND_REMINDER = "reminder".freeze
-  KINDS = [ KIND_INCIDENT, KIND_POSTMORTEM, KIND_LEARNED, KIND_DISPUTED, KIND_REMINDER ].freeze
+  # Halon's nightly check found evidence against a memory a person confirmed, told to that person by direct message once.
+  KIND_CHALLENGED = "challenged".freeze
+  KINDS = [ KIND_INCIDENT, KIND_POSTMORTEM, KIND_LEARNED, KIND_DISPUTED, KIND_REMINDER, KIND_CHALLENGED ].freeze
 
   # What a dispute raised in a chat said showed the memory wrong, kept as the person read it.
   encrypts :evidence
 
   belongs_to :workspace
   belongs_to :incident, optional: true
-  # The dashboard chat the card sits in.
+  # The dashboard chat a card asked in, before Halon checked memories itself.
   belongs_to :conversation, optional: true
-  # Whom a reminder went to by direct message. A reminder in an incident's channel has none.
+  # Whom a direct message went to, a reminder or a memory Halon found evidence against. A post in a channel has none.
   belongs_to :recipient, class_name: "WorkspaceMembership", optional: true
 
   validates :kind, inclusion: { in: KINDS }
@@ -41,6 +44,7 @@ class Chat::MemoryPost < ApplicationRecord
   def place
     return incident.identifier if incident
     return "a chat" if conversation_id
+    return "a direct message" if kind == KIND_CHALLENGED
 
     "a reminder"
   end

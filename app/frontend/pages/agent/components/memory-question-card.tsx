@@ -15,7 +15,7 @@ interface MemoryQuestionCardProps {
 }
 
 // Something Halon read contradicted a memory, so it asks the person which is right while they still have the context.
-// Still right keeps the memory, Not right takes what Halon read instead, and Correct says what is right instead of both.
+// Still right keeps the memory, Not right takes what Halon read instead, and Edit says what is right instead of both.
 // The server ships whether each answer is open, and how it was settled once it was.
 export function MemoryQuestionCard({ question }: MemoryQuestionCardProps) {
   const [ sending, setSending ] = useState(false)
@@ -71,7 +71,7 @@ export function MemoryQuestionCard({ question }: MemoryQuestionCardProps) {
               Not right
             </Button>
             <Button size="sm" disabled={Boolean(question.rejectBlockedReason) || sending} onClick={openCorrection}>
-              Correct
+              Edit
             </Button>
           </>
         )}

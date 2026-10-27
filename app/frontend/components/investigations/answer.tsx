@@ -68,6 +68,9 @@ export function Answer({ investigation, onDeclare }: AnswerProps) {
   }
 
   const verdicts = Object.entries(finding.verdicts)
+  const rateable = !investigation.ratingBlockedReason
+  // An answer with nothing past its summary, such as the nightly memory check's, draws no empty section under it.
+  const hasDetails = Boolean(finding.cause || finding.evidence.length > 0 || finding.fix || finding.gaps || finding.outcome || verdicts.length > 0 || rateable)
   const summary = placeCharts([ { id: ANSWER_ID, text: finding.summary } ], investigation.charts, false).segments.get(ANSWER_ID) ?? []
 
   return (
@@ -97,48 +100,52 @@ export function Answer({ investigation, onDeclare }: AnswerProps) {
         </div>
       )}
 
-      <div className="mt-5 flex flex-col gap-4 border-t border-border pt-5">
-        {finding.cause && <AnswerPart label="Cause">{finding.cause}</AnswerPart>}
-        {finding.evidence.length > 0 && (
-          <AnswerPart label="Why it thinks so">
-            <ul className="flex flex-col gap-2.5">
-              {finding.evidence.map((item) => (
-                <li key={item.id} className="flex flex-col gap-1">
-                  <span>{item.claim}</span>
-                  <StepLinks steps={item.steps} />
-                </li>
-              ))}
-            </ul>
-          </AnswerPart>
-        )}
-        {finding.fix && (
-          <AnswerPart label="How to fix it">
-            <FixPlan investigationId={investigation.id} fix={finding.fix} screenshots={investigation.screenshots} />
-          </AnswerPart>
-        )}
-        {finding.fix?.undo && (
-          <AnswerPart label="How to undo it">
-            <FixPlan investigationId={investigation.id} fix={finding.fix.undo} screenshots={investigation.screenshots} />
-          </AnswerPart>
-        )}
-        {finding.gaps && (
-          <AnswerPart label="Could not check">
-            <span className="text-fg-secondary">{finding.gaps}</span>
-          </AnswerPart>
-        )}
-        {(finding.outcome || verdicts.length > 0) && (
-          <AnswerPart label="The team says">
-            <span className="text-fg-secondary">
-              {finding.outcome
-                ? labelFor(OUTCOME_LABELS, finding.outcome)
-                : verdicts.map(([outcome, count]) => `${count} ${labelFor(OUTCOME_LABELS, outcome)?.toLowerCase()}`).join(", ")}
-            </span>
-          </AnswerPart>
-        )}
-        <AnswerPart label="Was it right?">
-          <RateAnswer investigationId={investigation.id} mine={finding.myVerdict} />
-        </AnswerPart>
-      </div>
+      {hasDetails && (
+        <div className="mt-5 flex flex-col gap-4 border-t border-border pt-5">
+          {finding.cause && <AnswerPart label="Cause">{finding.cause}</AnswerPart>}
+          {finding.evidence.length > 0 && (
+            <AnswerPart label="Why it thinks so">
+              <ul className="flex flex-col gap-2.5">
+                {finding.evidence.map((item) => (
+                  <li key={item.id} className="flex flex-col gap-1">
+                    <span>{item.claim}</span>
+                    <StepLinks steps={item.steps} />
+                  </li>
+                ))}
+              </ul>
+            </AnswerPart>
+          )}
+          {finding.fix && (
+            <AnswerPart label="How to fix it">
+              <FixPlan investigationId={investigation.id} fix={finding.fix} screenshots={investigation.screenshots} />
+            </AnswerPart>
+          )}
+          {finding.fix?.undo && (
+            <AnswerPart label="How to undo it">
+              <FixPlan investigationId={investigation.id} fix={finding.fix.undo} screenshots={investigation.screenshots} />
+            </AnswerPart>
+          )}
+          {finding.gaps && (
+            <AnswerPart label="Could not check">
+              <span className="text-fg-secondary">{finding.gaps}</span>
+            </AnswerPart>
+          )}
+          {(finding.outcome || verdicts.length > 0) && (
+            <AnswerPart label="The team says">
+              <span className="text-fg-secondary">
+                {finding.outcome
+                  ? labelFor(OUTCOME_LABELS, finding.outcome)
+                  : verdicts.map(([outcome, count]) => `${count} ${labelFor(OUTCOME_LABELS, outcome)?.toLowerCase()}`).join(", ")}
+              </span>
+            </AnswerPart>
+          )}
+          {rateable && (
+            <AnswerPart label="Was it right?">
+              <RateAnswer investigationId={investigation.id} mine={finding.myVerdict} />
+            </AnswerPart>
+          )}
+        </div>
+      )}
     </section>
   )
 }

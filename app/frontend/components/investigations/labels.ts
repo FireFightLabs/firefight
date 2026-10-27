@@ -62,6 +62,7 @@ export const TRIGGER_LABELS: Record<InvestigationTrigger, string> = {
   schedule: "Scheduled check",
   security_event: "Security event",
   workflow: "Workflow",
+  memory_review: "Nightly memory check",
 }
 
 export const HYPOTHESIS_LABELS: Record<HypothesisStatus, string> = {

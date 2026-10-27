@@ -12,6 +12,7 @@ import type InvestigationStep from './InvestigationStep'
 
 export default interface InvestigationDetail {
   id: string
+  asked: boolean
   asker?: ActorCompact
   charts: ChatChart[]
   compactions: ChatCompaction[]
@@ -24,10 +25,12 @@ export default interface InvestigationDetail {
   incidentId?: string
   incidentIdentifier?: string
   incidentName?: string
+  memoryCheck: boolean
   modelSwitches: ChatModelSwitch[]
   noteBlockedReason?: string
   notes: InvestigationNote[]
   question?: string
+  ratingBlockedReason?: string
   screenshots: ChatScreenshot[]
   startedAt?: string
   status: string

@@ -256,10 +256,10 @@ staging:
     class: MemoryExpiryJob # stops using memories nobody confirmed within the workspace's window, where one is set
     queue: background
     schedule: every hour
-  memory_reminder:
-    class: MemoryReminderJob # reminds whoever should know about memories nobody confirmed, at most once a week each
+  memory_review:
+    class: MemoryReviewJob # Halon checks each workspace's memories against production and merges what says the same thing
     queue: background
-    schedule: every monday at 3pm
+    schedule: at 2am every day
   transcript_retention:
     class: TranscriptRetentionJob # drops raw incident conversations once the workspace's retention window has passed
     queue: background
@@ -430,10 +430,10 @@ production:
     class: MemoryExpiryJob # stops using memories nobody confirmed within the workspace's window, where one is set
     queue: background
     schedule: every hour
-  memory_reminder:
-    class: MemoryReminderJob # reminds whoever should know about memories nobody confirmed, at most once a week each
+  memory_review:
+    class: MemoryReviewJob # Halon checks each workspace's memories against production and merges what says the same thing
     queue: background
-    schedule: every monday at 3pm
+    schedule: at 2am every day
   transcript_retention:
     class: TranscriptRetentionJob # drops raw incident conversations once the workspace's retention window has passed
     queue: background

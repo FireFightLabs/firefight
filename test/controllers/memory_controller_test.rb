@@ -24,6 +24,125 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_includes inertia_props["subjects"].map { |subject| subject["value"] }, "CatalogEntry:#{@auth.id}"
   end
 
+  test "the page says how each memory stands, what Halon's nightly check found and when, and its history" do
+    review = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.current, removal_cap: 3)
+    checked = remember("web deploys from main")
+    checked.verified_by_halon!(evidence: "The deploy settings of web name main.", review: review)
+    tried = remember("Checkout runs in Frankfurt")
+    tried.unsettled_by_halon!(note: "Nothing Halon reads says where Checkout runs.")
+    yours = Chat::Memory.written_by!(@member, text: "Backups run nightly", subject: nil)
+
+    get memory_path, headers: inertia_headers
+
+    shown = inertia_props["memories"].index_by { |memory| memory["text"] }
+    assert_equal [ Chat::Memory::STANDING_HALON, true, "The deploy settings of web name main.", Chat::Memory::VERDICT_RIGHT ],
+                 shown["web deploys from main"].values_at("standing", "decidedByHalon", "verifiedEvidence", "checkOutcome")
+    assert_equal [ Chat::Memory::STANDING_UNCHECKED, Chat::Memory::VERDICT_UNSURE, false ], shown["Checkout runs in Frankfurt"].values_at("standing", "checkOutcome", "awaitingDecision")
+    assert shown["Checkout runs in Frankfurt"]["checkedAt"]
+    assert_equal Chat::Memory::STANDING_PERSON, shown["Backups run nightly"]["standing"]
+    assert_equal [ [ Chat::MemoryEvent::KIND_WRITTEN, Chat::MemoryEvent::ACTOR_PERSON, @member.display_name ] ],
+                 shown["Backups run nightly"]["events"].map { |event| event.values_at("kind", "actor", "by") }
+    assert_equal [ [ Chat::MemoryEvent::KIND_VERIFIED, "Halon", "The deploy settings of web name main." ] ],
+                 shown["web deploys from main"]["events"].map { |event| event.values_at("kind", "by", "detail") }
+    assert_nil shown["web deploys from main"]["confirmBlockedReason"], "a person may still confirm what only Halon checked"
+    assert_equal [ checked, tried, yours ].map(&:id).sort, shown.values.map { |memory| memory["id"] }.sort
+  end
+
+  test "Halon's evidence links to the run that checked it, which opens on its own page" do
+    review = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.current, removal_cap: 3)
+    run = @workspace.investigations.create!(subject: review, trigger_source: Investigation::TRIGGER_MEMORY_REVIEW, max_turns: 4, max_spend_cents: 400)
+    run.conclude!(summary: "Checked 1 of 1 memory against production.")
+    memory = remember("web deploys from main")
+    memory.verified_by_halon!(evidence: "The deploy settings of web name main.", review: review)
+
+    get memory_path, headers: inertia_headers
+    shown = inertia_props["memories"].sole
+    assert_equal [ run.id, run.id ], [ shown["verifiedInvestigationId"], shown["events"].sole["investigationId"] ]
+
+    get investigation_path(run), headers: inertia_headers
+    assert_response :success
+    shown_run = inertia_props["investigation"]
+    assert_equal [ "Nightly memory check", false, true ], shown_run.values_at("question", "asked", "memoryCheck")
+    assert shown_run["ratingBlockedReason"]
+
+    post investigation_rating_path(run), params: { outcome: Investigation::Finding::OUTCOME_CONFIRMED }
+    assert_equal run.rating_blocked_reason, flash[:alert]
+    assert_nil run.finding.reload.outcome
+  end
+
+  test "the run that checked a memory about something outside a person's map reach neither links nor opens for them" do
+    bob = workspace_memberships(:bob_workspace_one)
+    build_two_environment_map(@workspace)
+    limit_map_to(@workspace, bob, catalog_entries(:production_env))
+    hidden = Chat::Memory.create!(workspace: @workspace, text: "secret-db holds the card tokens", subject: map_resource(@workspace, "secret-db"),
+                                  state: Chat::Memory::STATE_UNCONFIRMED)
+    shown = remember("Deploys freeze on Fridays")
+    review = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.current, removal_cap: 3, memory_ids: [ hidden.id, shown.id ])
+    run = @workspace.investigations.create!(subject: review, trigger_source: Investigation::TRIGGER_MEMORY_REVIEW, max_turns: 4, max_spend_cents: 400)
+    shown.verified_by_halon!(evidence: "The deploy calendar blocks Fridays.", review: review)
+    sign_in(users(:bob), @workspace)
+
+    get memory_path, headers: inertia_headers
+    row = inertia_props["memories"].find { |memory| memory["id"] == shown.id }
+    assert_equal [ nil, nil ], [ row["verifiedInvestigationId"], row["events"].sole["investigationId"] ]
+    get investigation_path(run)
+    assert_response :not_found
+    post investigation_notes_path(run), params: { note: "Look at secret-db" }
+    assert_response :not_found
+    post investigation_stop_path(run)
+    assert_response :not_found
+    assert_raises(ActiveRecord::RecordNotFound) do
+      Mcp::Tools::GetInvestigation.perform_with_principal(workspace: @workspace, principal: bob, args: { investigation: run.id })
+    end
+  end
+
+  test "nobody adds notes to a nightly memory check, and stopping one takes leave to change memories" do
+    review = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.current, removal_cap: 3)
+    run = @workspace.investigations.create!(subject: review, trigger_source: Investigation::TRIGGER_MEMORY_REVIEW, max_turns: 4, max_spend_cents: 400)
+
+    post investigation_notes_path(run), params: { note: "Check web first" }
+    assert_equal Investigation::Noting::NOTE_TO_MEMORY_CHECK, flash[:alert]
+
+    AbilityGateway.stubs(:permitted?).returns(true)
+    AbilityGateway.stubs(:permitted?).with { |_principal, _action, key, *| key == "memory.update" }.returns(false)
+    post investigation_stop_path(run)
+    assert_equal InvestigationsController::MEMORY_CHECK_STOP_REFUSED, flash[:alert]
+    assert_not run.reload.cancel_requested
+
+    AbilityGateway.unstub(:permitted?)
+    post investigation_stop_path(run)
+    assert_equal Investigation::STOPPING, flash[:notice]
+    assert run.reload.cancel_requested
+  end
+
+  test "a person confirming what only Halon checked makes it theirs, and says so" do
+    review = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.current, removal_cap: 3)
+    memory = remember("web deploys from main")
+    memory.verified_by_halon!(evidence: "The deploy settings of web name main.", review: review)
+
+    post confirm_memory_path(memory)
+
+    assert_equal "Confirmed. Halon now reads it as confirmed by you.", flash[:notice]
+    assert_equal [ @member, false ], memory.reload.values_at(:confirmed_by, :decided_by_halon)
+  end
+
+  test "a person can still correct and reject what Halon checked, and each says so" do
+    review = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.current, removal_cap: 3)
+    corrected = remember("The primary is db-1")
+    corrected.verified_by_halon!(evidence: "The cluster lists db-1 as primary.", review: review)
+    rejected = remember("Checkout retries twice")
+    rejected.verified_by_halon!(evidence: "The client sets two retries.", review: review)
+
+    post correct_memory_path(corrected), params: { text: "The primary is db-2", reason: "We failed over" }
+    assert_equal "Corrected. Halon keeps the old wording as rejected so it does not learn it again.", flash[:notice]
+    post reject_memory_path(rejected), params: { reason: "Changed last week" }
+    assert_equal "Rejected. Halon stops using it and does not learn it again.", flash[:notice]
+
+    assert_equal [ Chat::Memory::STATE_REJECTED, @member, false ], corrected.reload.values_at(:state, :rejected_by, :decided_by_halon)
+    assert_equal [ Chat::Memory::STATE_REJECTED, @member ], rejected.reload.values_at(:state, :rejected_by)
+    assert_equal [ Chat::MemoryEvent::KIND_VERIFIED, Chat::MemoryEvent::KIND_REJECTED ], rejected.events.map(&:kind)
+  end
+
   test "the page redirects to the dashboard while Halon is unavailable" do
     Investigation.stubs(:available_for?).returns(false)
     Investigation.stubs(:unavailable_reason).returns("Halon is not turned on for this workspace.")
@@ -158,7 +277,7 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_equal Chat::Memory::STATE_UNCONFIRMED, memory.reload.state
   end
 
-  test "a card in a chat settles a contradiction and goes back to the chat with what changed, and the page counts what waits" do
+  test "a card posted in a chat before Halon checked memories itself still settles a contradiction, and the page counts only what Halon could not settle" do
     conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
     old = remember("web deploys from main")
     newer = Chat::Memory.create!(workspace: @workspace, text: "web deploys from release", state: Chat::Memory::STATE_UNCONFIRMED)
@@ -177,12 +296,115 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ Chat::Memory::STATE_CONFIRMED, @member ], newer.reload.values_at(:state, :confirmed_by)
 
     remember("Backups run nightly")
+    frankfurt = remember("Checkout runs in Frankfurt")
+    frankfurt.contradicted!(remember("Checkout runs in Dublin"), reason: "A chat showed \"Checkout runs in Dublin\".")
+    frankfurt.unsettled_by_halon!(note: "Nothing Halon reads says where Checkout runs.")
     get memory_path, headers: inertia_headers
-    assert_equal({ "Backups run nightly" => true, "web deploys from main" => false, "web deploys from release" => false },
+    assert_equal({ "Backups run nightly" => false, "web deploys from main" => false, "web deploys from release" => false,
+                   "Checkout runs in Frankfurt" => true, "Checkout runs in Dublin" => false },
                  inertia_props["memories"].to_h { |memory| [ memory["text"], memory["awaitingDecision"] ] })
+  end
+
+  test "the Lessons tab lists what incidents taught, leaving out wordings an edit replaced, with why a member cannot decide" do
+    lesson = taught("Checkout retries go up when the payment timeout changes")
+    taught("Checkout reads from the replica").edit_lesson!(by: @member, text: "Checkout reads from the primary", strict: false)
+    remember("Deploys happen from main")
+    sign_in(users(:bob), @workspace)
+
+    get memory_path, headers: inertia_headers
+
+    shipped = inertia_props["lessons"].index_by { |each| each["text"] }
+    assert_equal [ "Checkout reads from the primary", lesson.text ].sort, shipped.keys.sort
+    assert_equal [ Chat::Memory::Lesson::STATUS_WAITING, "INC-001 Database connection pool exhausted", "Only the INC-001 lead, a workspace admin or someone granted Decide on lessons can decide on its lessons." ],
+                 shipped[lesson.text].values_at("status", "origin", "approveBlockedReason")
+    assert_equal [ Chat::Memory::Lesson::STATUS_APPROVED, @member.display_name ], shipped["Checkout reads from the primary"].values_at("status", "approvedBy")
+  end
+
+  test "an admin approves, edits and turns down lessons, each with a toast" do
+    approved = taught("Checkout retries go up when the payment timeout changes")
+    edited = taught("Checkout reads from the replica")
+    turned_down = taught("Deploys on Fridays fail")
+
+    post approve_lesson_path(approved), params: { strict: "true" }
+    assert_redirected_to memory_path(tab: MemoryController::TAB_LESSONS)
+    assert_equal "Approved the INC-001 lesson. Pull request reviews check it from now on, and fail a check on a pull request that goes against it.", flash[:notice]
+    assert approved.reload.approved_lesson?
+    assert approved.strict
+
+    patch edit_lesson_path(edited), params: { text: "Checkout reads from the primary", strict: "false" }
+    assert_equal "Saved the INC-001 lesson. Pull request reviews check it from now on.", flash[:notice]
+    assert edited.reload.replaced_by.approved_lesson?
+
+    post turn_down_lesson_path(turned_down), params: { reason: "One off" }
+    assert_equal "Turned down the INC-001 lesson. Reviews and Halon stop using it.", flash[:notice]
+    assert_equal Chat::Memory::STATE_REJECTED, turned_down.reload.state
+  end
+
+  test "a member who is not the incident lead is refused with why, and the lead may decide" do
+    lesson = taught("Checkout retries go up when the payment timeout changes")
+    bob = workspace_memberships(:bob_workspace_one)
+    sign_in(users(:bob), @workspace)
+
+    post approve_lesson_path(lesson)
+    assert_equal "Only the INC-001 lead, a workspace admin or someone granted Decide on lessons can decide on its lessons.", flash[:alert]
+    post turn_down_lesson_path(lesson)
+    assert_equal "Only the INC-001 lead, a workspace admin or someone granted Decide on lessons can decide on its lessons.", flash[:alert]
+    patch edit_lesson_path(lesson), params: { text: "Anything" }
+    assert_equal "Only the INC-001 lead, a workspace admin or someone granted Decide on lessons can decide on its lessons.", flash[:alert]
+    assert_nil lesson.reload.approved_at
+
+    incidents(:active_critical_ws1).lead = bob
+    post approve_lesson_path(lesson)
+    assert_equal bob, lesson.reload.approved_by
+  end
+
+  test "a pull request a strict lesson holds is listed on the Lessons tab and overridden with a reason, with a toast" do
+    lesson = taught("Checkout retries go up when the payment timeout changes").tap { |each| each.approve!(by: @member, strict: true) }
+    review = PullRequestReview.create!(workspace: @workspace, repository: "acme/api", number: 7, head_sha: "a" * 40, title: "Raise the timeout",
+                                       trigger: PullRequestReview::TRIGGER_AUTOMATIC, max_spend_cents: 400)
+    finding = review.findings.create!(position: 1, fingerprint: "f" * 32, category: PullRequestReview::Finding::CATEGORY_STABILITY,
+                                      severity: PullRequestReview::Finding::SEVERITY_MAJOR, effort: PullRequestReview::Finding::EFFORT_QUICK_WIN,
+                                      claim: "Raises the payment timeout", why: "Retries go up.", lesson: lesson)
+
+    get memory_path, headers: inertia_headers
+    held = inertia_props["heldPullRequests"].sole
+    assert_equal [ review.id, "Lesson from INC-001", nil ], held.values_at("reviewId", "lessonLabel", "overriddenAt")
+
+    post override_finding_path(finding), params: { reason: "" }
+    assert_equal PullRequestReview::Finding::OVERRIDE_NEEDS_REASON, flash[:alert]
+
+    post override_finding_path(finding), params: { reason: "Behind a flag that stays off" }
+    assert_equal "Overrode the INC-001 lesson on #7 in acme/api. Its check passes once nothing else holds it.", flash[:notice]
+    assert_equal [ @member, "Behind a flag that stays off" ], [ finding.reload.overridden_by, finding.override_reason ]
+  end
+
+  test "a member who owns none of the pull request's services and holds no grant is refused, with who can as the tooltip and the alert" do
+    lesson = taught("Checkout retries go up when the payment timeout changes").tap { |each| each.approve!(by: @member, strict: true) }
+    review = PullRequestReview.create!(workspace: @workspace, repository: "acme/api", number: 7, head_sha: "a" * 40,
+                                       trigger: PullRequestReview::TRIGGER_AUTOMATIC, max_spend_cents: 400)
+    finding = review.findings.create!(position: 1, fingerprint: "f" * 32, category: PullRequestReview::Finding::CATEGORY_STABILITY,
+                                      severity: PullRequestReview::Finding::SEVERITY_MAJOR, effort: PullRequestReview::Finding::EFFORT_QUICK_WIN,
+                                      claim: "Raises the payment timeout", why: "Retries go up.", lesson: lesson)
+    refused = "Only a workspace admin, an owner of a service acme/api belongs to, or someone granted Override strict lessons can override it."
+    sign_in(users(:bob), @workspace)
+
+    get memory_path, headers: inertia_headers
+    assert_equal refused, inertia_props["heldPullRequests"].sole["overrideBlockedReason"]
+
+    post override_finding_path(finding), params: { reason: "Ship it" }
+    assert_equal refused, flash[:alert]
+    assert_nil finding.reload.overridden_at
+
+    Ability::Grant.grant!(workspace: @workspace, principal: workspace_memberships(:bob_workspace_one),
+                          target: { action: Ability::Action.lookup(Ability::Action::LESSON_OVERRIDE, @workspace) })
+    post override_finding_path(finding), params: { reason: "Ship it" }
+    assert_equal "Overrode the INC-001 lesson on #7 in acme/api. Its check passes once nothing else holds it.", flash[:notice]
+    assert_equal workspace_memberships(:bob_workspace_one), finding.reload.overridden_by
   end
 
   private
 
   def remember(text, subject: nil) = Chat::Memory.create!(workspace: @workspace, text: text, subject: subject, state: Chat::Memory::STATE_UNCONFIRMED)
+
+  def taught(text) = Chat::Memory.create!(workspace: @workspace, text: text, source: incidents(:active_critical_ws1), state: Chat::Memory::STATE_UNCONFIRMED)
 end

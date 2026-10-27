@@ -5,6 +5,7 @@ module Investigation::Seeding
   SEEDERS = {
     "Incident" => "Investigation::IncidentSeed",
     "Investigation::Check" => "Investigation::CheckSeed",
+    "Chat::MemoryReview" => "Investigation::MemoryReviewSeed",
     # A question asked before anyone declared an incident.
     nil => "Investigation::QuestionSeed"
   }.freeze
@@ -25,6 +26,8 @@ module Investigation::Seeding
   KEY_TOLD = "told".freeze
   # For a run an alert started: that nobody asked, what the team lets Halon change on its own, and whether it pages.
   KEY_ON_CALL = "on_call".freeze
+  # For a memory check: each memory it checks tonight. Kept with the notes, since memories are encrypted where they are kept.
+  KEY_TO_CHECK = "memories_to_check".freeze
 
   included do
     # Memories and instructions are encrypted where they are kept, so the run's copy of them is too.
@@ -40,13 +43,15 @@ module Investigation::Seeding
     return seed_pack if seed_pack.present?
 
     subjects = Chat::Memory.subjects_for(incident)
-    memories = Chat::Memory.starting_with(workspace, subjects, principal: acting_principal)
+    # A memory check is handed the memories it checks in its own facts, never as hunches it starts from.
+    memories = memory_review? ? [] : Chat::Memory.starting_with(workspace, subjects, principal: acting_principal)
     instructions = Chat::Instruction.for_subjects(workspace, subjects, principal: acting_principal).map(&:line)
-    # A scheduled check has no symptom, start time or alert to take clues from.
-    clues = scheduled? ? {} : { KEY_CLUES => Investigation::Clues.new(self).gather }
-    update!(seed_pack: seeder.gather.merge(clues),
-            seed_notes: Investigation::Seeding.notes(memories.map { |memory| { "id" => memory.id, "line" => memory.line } }, instructions,
-                                                     Chat::HandbookPage.halon_lines(workspace)))
+    # A scheduled check and a memory check have no symptom, start time or alert to take clues from.
+    clues = scheduled? || memory_review? ? {} : { KEY_CLUES => Investigation::Clues.new(self).gather }
+    seeding = seeder
+    notes = Investigation::Seeding.notes(memories.map { |memory| { "id" => memory.id, "line" => memory.line } }, instructions, Chat::HandbookPage.halon_lines(workspace))
+    notes = notes.merge(KEY_TO_CHECK => seeding.to_check) if memory_review?
+    update!(seed_pack: seeding.gather.merge(clues), seed_notes: notes)
     Chat::Memory.handed_to!(memories, self) if changes_memory?
     seed_pack
   end
@@ -59,7 +64,8 @@ module Investigation::Seeding
     # A rehearsal reads what its original read, never what changed since.
     changes = rehearsal? ? {} : starting_memory_changes
     lines = starting_memories.map { |memory| [ memory["line"], changes[memory["id"]]&.mark ].compact.join(" ") }
-    seed_pack.merge(KEY_HANDBOOK => Array(seed_notes[KEY_HANDBOOK]), KEY_MEMORIES => lines, KEY_INSTRUCTIONS => Array(seed_notes[KEY_INSTRUCTIONS]))
+    seed_pack.merge(KEY_HANDBOOK => Array(seed_notes[KEY_HANDBOOK]), KEY_MEMORIES => lines, KEY_INSTRUCTIONS => Array(seed_notes[KEY_INSTRUCTIONS]),
+                    KEY_TO_CHECK => seed_notes[KEY_TO_CHECK]).compact
   end
 
   # What changed in a starting memory since the run began that it has not been told yet, each as a short note, and

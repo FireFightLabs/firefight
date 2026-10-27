@@ -107,9 +107,9 @@ class Conversation::Context
 
     Chat::Memory.handed_to!(memories, @conversation) if hand_memories && @turn.changes_memory?
 
-    "What this workspace remembers. Each is a hunch to check against live results, and only a confirmed one was vouched " \
-      "for by a person, so say so when you rely on one that is not. When a result contradicts one, dispute it with " \
-      "dispute_memory:\n#{memories.map { |memory| "- #{memory.line}" }.join("\n")}"
+    "What this workspace remembers. Each is a hunch to check against live results. Each says who stands behind it, a " \
+      "person, a postmortem or your own nightly check against production, so say so when you rely on one nobody " \
+      "confirmed. When a result contradicts one, dispute it with dispute_memory:\n#{memories.map { |memory| "- #{memory.line}" }.join("\n")}"
   end
 
   # A run answers on its own, after the turn that started it ended, so the chat is told how its runs went.

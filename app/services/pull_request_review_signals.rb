@@ -1,7 +1,8 @@
 # What a code host said about a pull request, acted on for Halon's review of it. Someone adding Firefight as a reviewer or
 # asking in a comment starts a review. A pull request that opens is reviewed when the workspace reviews every pull
 # request when it opens there. A push to one Halon reviewed is reviewed again, and each open thread's fix is checked. A
-# reply from a person on one of Halon's threads gets an answer, and a merge is recorded. Nothing here names a host.
+# reply from a person on one of Halon's threads gets an answer, and a merge is recorded. A pull request Halon opened that
+# merged or closed is read for a lesson. Nothing here names a host.
 class PullRequestReviewSignals
   # A push that arrives while the review of an earlier one is still running is tried again this often, until it ends.
   RETRY_WAIT = 2.minutes
@@ -18,6 +19,7 @@ class PullRequestReviewSignals
     when Integrations::PullRequestReviews::OPENED then start!(signal, PullRequestReview::TRIGGER_AUTOMATIC, attempt) if on_open?(signal)
     when Integrations::PullRequestReviews::PUSHED then pushed!(signal, attempt)
     when Integrations::PullRequestReviews::MERGED then merged!(signal)
+    when Integrations::PullRequestReviews::CLOSED then ended!(signal)
     when Integrations::PullRequestReviews::COMMENTED then commented!(signal, attempt)
     end
   end
@@ -70,6 +72,13 @@ class PullRequestReviewSignals
   def merged!(signal)
     PullRequestReview.seen.where(workspace_id: @workspace.id).where("lower(repository) = ?", signal.repository.downcase).where(number: signal.number)
                      .find_each { |review| review.merged!(Time.current) }
+    ended!(signal)
+  end
+
+  # A pull request Halon opened that ended may teach a lesson from what a person did with it.
+  def ended!(signal)
+    session = CodeAgentSession.opened_pull_request(@workspace, signal.repository, signal.number)
+    PullRequestLessonJob.perform_later(session.id) if session
   end
 
   # A reply on one of Halon's threads is answered. Any other comment that asks Halon to review starts one.

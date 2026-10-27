@@ -50,6 +50,23 @@ class PullRequestReview::FindingTest < ActiveSupport::TestCase
     assert_equal [ PullRequestReview::CHANGE_FINDING_CHANGED ], announced.map(&:last)
   end
 
+  test "a finding another worker withdrew or fixed meanwhile is neither confirmed nor strengthened, and nothing is announced" do
+    finding = create_finding
+    stale = PullRequestReview::Finding.find(finding.id)
+    later = create_finding(claim: "Another problem", position: 2)
+    finding.withdraw!("It does not hold.")
+
+    announced = capture_announcements do
+      assert_not stale.confirmed!("It holds.", by: later)
+      assert_not stale.strengthened!("Worse.", by: later, severity: PullRequestReview::Finding::SEVERITY_CRITICAL)
+    end
+
+    finding.reload
+    assert_equal [ PullRequestReview::Finding::STATUS_WITHDRAWN, PullRequestReview::Finding::SEVERITY_MAJOR ], [ finding.status, finding.severity ]
+    assert_equal [ PullRequestReview::Finding::CROSS_CHECK_WITHDRAWN ], finding.cross_checks.map { |check| check["outcome"] }
+    assert_empty announced
+  end
+
   test "a problem counts as prevented when it was major or serious and fixed before the pull request merged" do
     major = create_finding
     minor_serious = create_finding(claim: "Serious minor", position: 2, severity: PullRequestReview::Finding::SEVERITY_MINOR, serious: true)

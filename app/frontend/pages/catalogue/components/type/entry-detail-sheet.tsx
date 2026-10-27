@@ -18,7 +18,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
+import { catalogueEntryReviewAlertsPath } from "@/lib/routes"
 import {
   Sheet,
   SheetContent,
@@ -59,6 +62,12 @@ export function EntryDetailSheet({
     router.delete(`/app/catalogue/entries/${entry.id}`, {
       onSuccess: () => onOpenChange(false),
     })
+  }
+
+  function switchReviewAlerts(enabled: boolean) {
+    if (entry) {
+      router.patch(catalogueEntryReviewAlertsPath(entry.id), { enabled }, { preserveScroll: true, preserveState: true })
+    }
   }
 
   const startEdit = () => {
@@ -145,6 +154,20 @@ export function EntryDetailSheet({
               )
             })}
           </div>
+
+          {entry.reviewAlerts !== null && entry.reviewAlerts !== undefined && (
+            <div className="flex items-start justify-between gap-4 rounded-md border bg-card px-3 py-2.5">
+              <div>
+                <Label htmlFor="review-alerts" className="text-foreground">
+                  Post high risk pull requests
+                </Label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  When Halon reviews a pull request in this repository as high risk, it also posts it in this channel, or the owning team&apos;s when there is none here.
+                </p>
+              </div>
+              <Switch id="review-alerts" checked={entry.reviewAlerts} onCheckedChange={switchReviewAlerts} disabled={!canManage} />
+            </div>
+          )}
 
           <Separator />
 

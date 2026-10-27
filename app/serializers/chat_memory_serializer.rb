@@ -1,4 +1,5 @@
-# A memory as the Memory page shows it: what it says, what it is about, where it came from, and who decided on it.
+# A memory as the Memory page shows it: what it says, what it is about, where it came from, who decided on it, how it
+# stands, what Halon's nightly check found, and its history.
 class ChatMemorySerializer < BaseSerializer
   object_as :memory
 
@@ -26,6 +27,7 @@ class ChatMemorySerializer < BaseSerializer
   def source_label
     case memory.source
     when Incident then "#{memory.source.identifier} #{memory.source.name}"
+    when CodeAgentSession then "#{memory.source.lesson_origin} in #{memory.source.repository}"
     when Investigation then "An investigation"
     when Conversation then "A chat"
     when WorkspaceMembership then "Written here"
@@ -45,6 +47,37 @@ class ChatMemorySerializer < BaseSerializer
   # A completed postmortem made the last decision, whoever completed it.
   type :boolean
   def decided_by_postmortem = memory.decided_by_postmortem_id.present?
+
+  # Halon's nightly check made the last decision, with no person behind it.
+  type :boolean
+  def decided_by_halon = memory.decided_by_halon
+
+  # Who stands behind a memory in use: a person, a postmortem, Halon's check, or nobody yet. Nil when it is not in use.
+  type "ChatMemoryStanding", optional: true
+  def standing = memory.standing
+
+  # When Halon last tried to check it, whatever came of it.
+  type :string, optional: true
+  def checked_at = memory.checked_at&.utc&.iso8601
+
+  type "ChatMemoryCheckOutcome", optional: true
+  def check_outcome = memory.check_outcome
+
+  # What Halon read in production the last time it showed it right, and when.
+  type :string, optional: true
+  def verified_evidence = verified&.detail
+
+  type :string, optional: true
+  def verified_at = verified&.created_at&.utc&.iso8601
+
+  # The nightly run that last showed it right, which opens on its own page, when the reader may open it (options[:runs]).
+  type :string, optional: true
+  def verified_investigation_id = verified&.investigation_id&.then { |id| id if options.fetch(:runs, Set.new).include?(id) }
+
+  # Everything that happened to it, oldest first.
+  has_many :events, serializer: ChatMemoryEventSerializer do
+    memory.events.to_a
+  end
 
   type :string, optional: true
   def confirmed_at = memory.confirmed_at&.utc&.iso8601
@@ -67,7 +100,8 @@ class ChatMemorySerializer < BaseSerializer
   type :boolean
   def in_use = memory.in_use?
 
-  # Waiting on a person, which the page counts on its tab.
+  # Waiting on a person, which the page counts on its tab: a contradiction Halon could not settle, or evidence Halon
+  # found against what a person decided.
   type :boolean
   def awaiting_decision = memory.awaiting_decision?
 
@@ -80,4 +114,8 @@ class ChatMemorySerializer < BaseSerializer
   # What deleting it means, said before and after.
   type :string
   def delete_consequence = memory.delete_consequence
+
+  private
+
+  def verified = memo.fetch(:verified) { memory.last_verified }
 end

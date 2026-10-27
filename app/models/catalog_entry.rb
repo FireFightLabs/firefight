@@ -55,6 +55,24 @@ class CatalogEntry < ApplicationRecord
 
   def repository = CodeChange.repository_name(role_value(CatalogAttributeDefinition::ROLE_REPOSITORY))
 
+  # The entries whose repository is the one named, in any case, such as the services a pull request's repository belongs to.
+  def self.owning_repository(workspace, repository)
+    wanted = repository.to_s.downcase
+    typed = workspace.catalog_types.active.joins(:catalog_attribute_definitions)
+                     .where(catalog_attribute_definitions: { role: CatalogAttributeDefinition::ROLE_REPOSITORY })
+    workspace.catalog_entries.active.where(catalog_type: typed).includes(catalog_type: :catalog_attribute_definitions).ordered
+             .select { |entry| entry.repository&.downcase == wanted }
+  end
+
+  # Where a high risk pull request in its repository is posted: its own channel, then an owning team's. Nil when it turned
+  # that off or has nowhere to post.
+  def review_alert_channel
+    return nil unless review_alerts
+
+    channel = role_value(CatalogAttributeDefinition::ROLE_NOTIFICATION_CHANNEL).presence
+    channel || owning_teams.filter_map { |team| team.role_value(CatalogAttributeDefinition::ROLE_NOTIFICATION_CHANNEL).presence }.first
+  end
+
   # What it is for, in the words of whoever wrote it in the catalog, ended as a sentence, since the catalog does not.
   def purpose
     written = entry_attributes[CatalogAttributeDefinition::SLUG_DESCRIPTION].to_s.strip

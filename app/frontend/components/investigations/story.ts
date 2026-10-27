@@ -50,7 +50,7 @@ export function buildStory(investigation: InvestigationDetail): StoryEntry[] {
   const steps = numbered.filter((step) => step.helperId == null)
   const batches = helperBatches(investigation.helpers, numbered)
   const unplaced = [...investigation.hypotheses].sort((first, second) => first.createdAt.localeCompare(second.createdAt))
-  const story: StoryEntry[] = [{ kind: "asked", key: "asked" }]
+  const story: StoryEntry[] = investigation.asked ? [{ kind: "asked", key: "asked" }] : []
 
   function placeTheoriesBefore(step: InvestigationStep | null) {
     while (unplaced.length > 0 && (step == null || beforeStep(unplaced[0], step))) {

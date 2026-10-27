@@ -1,4 +1,4 @@
-# Marks a memory a live result contradicted, so it is not used again until a person decides.
+# Marks a memory a live result contradicted, so it is not used again until the nightly check settles it against production.
 class Chat::Tools::DisputeMemory < RubyLLM::Tool
   def self.tool_name = "dispute_memory"
 
@@ -10,8 +10,8 @@ class Chat::Tools::DisputeMemory < RubyLLM::Tool
   def name = self.class.tool_name
 
   def description
-    "Mark a memory as disputed when a result you read contradicts it. It stops being used until a person confirms or " \
-      "rejects it. Say what showed it wrong, with the step it came from."
+    "Mark a memory as disputed when a result you read contradicts it. It stops being used until the nightly check against " \
+      "production settles it. Say what showed it wrong, with the step it came from."
   end
 
   def parameters_schema
@@ -33,8 +33,8 @@ class Chat::Tools::DisputeMemory < RubyLLM::Tool
     Chat::Tools.memory_change(@agent_run, Ability::Action::ACTION_UPDATE, tool_name: name, params: asked.slice("memory"), tool_call_id: tool_call&.id) do
       next refused(tool_call, "It is #{memory.state} already, so it is not in use.") unless memory.dispute!(asked["reason"].to_s.strip)
 
-      Chat::Tools.raise_dispute(@agent_run, memory, evidence: asked["reason"].to_s.strip)
-      "Disputed. It is not used again until a person confirms or rejects it."
+      Chat::Tools.raise_dispute(@agent_run, memory)
+      "Disputed. It is not used again until the nightly check against production settles it."
     end
   end
 

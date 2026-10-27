@@ -449,6 +449,50 @@ module Integrations
           nil
         end
 
+        # How a pull request ended (Integrations::ReviewHost.outcome): who merged it or closed it, every commit on it and
+        # the latest comments in its conversation. GitHub keeps no reason for closing one, so a reason is a comment.
+        def pull_request_outcome(environment_row, repository:, number:)
+          token = GithubApp.installation_token(environment_row)
+          pull = GithubApp.get("/repos/#{repository}/pulls/#{number}", token: token)
+          merged = pull["merged_at"].present?
+          state = if merged then ReviewHost::STATE_MERGED
+          elsif pull["state"] == "open" then ReviewHost::STATE_OPEN
+          else ReviewHost::STATE_CLOSED
+          end
+          ender = merged ? pull["merged_by"] : (GithubApp.get("/repos/#{repository}/issues/#{number}", token: token)["closed_by"] unless state == ReviewHost::STATE_OPEN)
+          commits = Array(GithubApp.get("/repos/#{repository}/pulls/#{number}/commits?per_page=100", token: token)).map do |commit|
+            ReviewHost::OutcomeCommit.new(sha: commit["sha"], author: commit.dig("author", "login") || commit.dig("commit", "author", "name"),
+                                          email: commit.dig("commit", "author", "email"), message: commit.dig("commit", "message").to_s,
+                                          merge: Array(commit["parents"]).size > 1)
+          end
+          comments = Array(GithubApp.get("/repos/#{repository}/issues/#{number}/comments?per_page=100", token: token)).last(ReviewHost::OUTCOME_COMMENTS).map do |comment|
+            ReviewHost::OutcomeComment.new(author: comment.dig("user", "login"), person: comment.dig("user", "type") == "User", body: comment["body"].to_s)
+          end
+          ReviewHost::Outcome.new(state: state, ended_by: ender&.dig("login"), ended_by_person: ender.is_a?(Hash) && ender["type"] == "User",
+                                  commits: commits, comments: comments)
+        rescue GithubApp::Error => error
+          fail! "GitHub could not read how PR ##{number} in #{repository} ended: #{error.message}"
+        end
+
+        # What the commits between two on a pull request changed, file by file (Integrations::ReviewHost.changes_between).
+        def pull_request_changes_between(environment_row, repository:, from:, to:)
+          compared = GithubApp.get("/repos/#{repository}/compare/#{from}...#{to}", token: GithubApp.installation_token(environment_row))
+          Array(compared["files"]).map { |file| "diff --git a/#{file['filename']} b/#{file['filename']}\n#{file['patch']}" }.join("\n")
+        rescue GithubApp::Error => error
+          fail! "GitHub could not compare #{from} with #{to} in #{repository}: #{error.message}"
+        end
+
+        # The review's check on a commit, as a commit status (Integrations::ReviewHost.set_check!), which needs the App's
+        # Commit statuses write permission.
+        def set_review_check(environment_row, repository:, sha:, check:)
+          body = { state: check.passing? ? "success" : "failure", context: Integrations::ReviewHost::CHECK_NAME,
+                   description: check.short_description, target_url: check.url }.compact
+          GithubApp.write(:post, "/repos/#{repository}/statuses/#{sha}", body, token: GithubApp.installation_token(environment_row))
+          nil
+        rescue GithubApp::NotPermitted
+          fail! "Firefight's GitHub App cannot set commit statuses on #{repository}. An organization owner accepts its Commit statuses write permission on GitHub."
+        end
+
         # A pull request as Halon's review reads it (Integrations::ReviewHost.pull_request).
         def pull_request_for_review(environment_row, repository:, number:)
           token = GithubApp.installation_token(environment_row)

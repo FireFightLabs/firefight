@@ -1,9 +1,11 @@
 # Something Halon or a person taught the workspace, such as which database is production. It is about a resource on the
 # map, a catalog entry, or the whole workspace, and it keeps where it came from. What Halon learns is used at once and
-# marked unconfirmed, a person confirms or rejects it, and a rejected one is kept so the same wrong idea is not learned
-# again. Halon treats every memory as a hunch to check, never as proof.
+# marked unconfirmed until Halon checks it against production (Chat::Memory::Checking) or a person decides, and a
+# rejected one is kept so the same wrong idea is not learned again. A person's decision always outranks Halon's. Halon
+# treats every memory as a hunch to check, never as proof.
 class Chat::Memory < ApplicationRecord
   include Chat::SecretFree
+  include Chat::Memory::Lesson
 
   self.table_name = "chat_memories"
 
@@ -16,11 +18,16 @@ class Chat::Memory < ApplicationRecord
   STATE_REJECTED = "rejected".freeze
   # Nobody confirmed it within the workspace's window, so it stopped being used.
   STATE_EXPIRED = "expired".freeze
-  STATES = [ STATE_UNCONFIRMED, STATE_CONFIRMED, STATE_DISPUTED, STATE_OUTDATED, STATE_REJECTED, STATE_EXPIRED ].freeze
-  # What Halon is handed. Disputed, rejected and expired memories are kept for people, never used.
+  # Another memory says the same thing about the same subject, and that one is kept (replaced_by).
+  STATE_MERGED = "merged".freeze
+  STATES = [ STATE_UNCONFIRMED, STATE_CONFIRMED, STATE_DISPUTED, STATE_OUTDATED, STATE_REJECTED, STATE_EXPIRED, STATE_MERGED ].freeze
+  # What Halon is handed. Disputed, rejected, expired and merged memories are kept for people, never used.
   USED_STATES = [ STATE_CONFIRMED, STATE_UNCONFIRMED, STATE_OUTDATED ].freeze
-  # Waiting on a person to say whether it is right. An expired one was set aside already.
-  AWAITING_STATES = [ STATE_UNCONFIRMED, STATE_DISPUTED, STATE_OUTDATED ].freeze
+
+  # After the states, which each reads.
+  include Chat::Memory::History
+  include Chat::Memory::Checking
+  include Chat::Memory::Merging
   SUBJECT_TYPES = [ ResourceMap::Resource.name, CatalogEntry.name ].freeze
   TEXT_LIMIT = 500
   # How many memories a chat or a run starts with, and recall answers with, so memory never crowds out the question.
@@ -42,6 +49,9 @@ class Chat::Memory < ApplicationRecord
   EXPIRY_CHOICES = [ 30, 60, 90, 180 ].freeze
 
   encrypts :text
+  # Why it stands where it does can quote production or another memory, so it is kept like the text. A row saved before
+  # it was encrypted is still read as it was, until the migration that encrypts them has run.
+  encrypts :state_reason, support_unencrypted_data: true
 
   belongs_to :workspace
   belongs_to :subject, polymorphic: true, optional: true
@@ -59,9 +69,10 @@ class Chat::Memory < ApplicationRecord
   validates :state, inclusion: { in: STATES }
   validates :subject_type, inclusion: { in: SUBJECT_TYPES }, allow_nil: true
   validates :outdated_cause, inclusion: { in: OUTDATED_CAUSES }, allow_nil: true
-  # What each decision may move a memory from. A rejected memory stays rejected.
-  CONFIRMABLE_FROM = STATES - [ STATE_REJECTED, STATE_CONFIRMED ]
-  REJECTABLE_FROM = STATES - [ STATE_REJECTED ]
+  # What each decision may move a memory from. A rejected memory stays rejected, and a merged one lives on in the one it
+  # was merged into. A person may confirm what only Halon confirmed, since a person's word outranks Halon's.
+  CONFIRMABLE_FROM = STATES - [ STATE_REJECTED, STATE_CONFIRMED, STATE_MERGED ]
+  REJECTABLE_FROM = STATES - [ STATE_REJECTED, STATE_MERGED ]
   # A postmortem confirms what Halon learned, never what Halon disputed or a person rejected.
   POSTMORTEM_CONFIRMS_FROM = [ STATE_UNCONFIRMED, STATE_OUTDATED, STATE_EXPIRED ].freeze
 
@@ -81,6 +92,9 @@ class Chat::Memory < ApplicationRecord
   JUDGED_STATES = [ STATE_UNCONFIRMED, STATE_CONFIRMED, STATE_OUTDATED, STATE_EXPIRED, STATE_REJECTED ].freeze
   # What a new fact may dispute.
   CONTRADICTABLE_FROM = [ STATE_UNCONFIRMED, STATE_CONFIRMED, STATE_OUTDATED ].freeze
+
+  # Something Halon wrote for a memory that memory never holds, such as a live value, with why.
+  class Refused < StandardError; end
 
   # What a name given for a memory's subject came to, the subject or why none was picked.
   Named = Data.define(:subject, :refusal)
@@ -185,7 +199,8 @@ class Chat::Memory < ApplicationRecord
     refusal = Chat::Memory::Screening.refusal(workspace, Chat::SecretFree.redacted(text.to_s))
     return Learned.new(outcome: LEARNED_REFUSED, reason: refusal) if refusal
 
-    around = where(workspace: workspace, subject: subject).order(updated_at: :desc).to_a
+    # A merged memory lives on in the one it was merged into, which is among these.
+    around = where(workspace: workspace, subject: subject).where.not(state: STATE_MERGED).order(updated_at: :desc).to_a
     signature = Chat::Memory::Words.signature(text)
     known = around.find { |memory| Chat::Memory::Words.signature(memory.text) == signature }
     verdicts = known ? {} : judged(judge, text, around.select { |memory| JUDGED_STATES.include?(memory.state) }.first(JUDGED_LIMIT))
@@ -197,6 +212,7 @@ class Chat::Memory < ApplicationRecord
     transaction do
       memory = create!(workspace: workspace, text: text, subject: subject, source: source, added_by: added_by,
                        state: confirmer ? STATE_CONFIRMED : STATE_UNCONFIRMED, confirmed_by: confirmer, confirmed_at: (Time.current if confirmer))
+      memory.record!(Chat::MemoryEvent::KIND_LEARNED, actor: confirmer ? Chat::MemoryEvent::ACTOR_PERSON : Chat::MemoryEvent::ACTOR_HALON, member: confirmer)
       contradicted = around.select { |each| verdicts[each.id] == FirefightAi::Schemas::MemoryVerdicts::CONTRADICTS }
                            .select { |each| each.contradicted!(memory, reason: contradiction.presence || "Halon learned \"#{text}\", which says otherwise.") }
       Learned.new(outcome: LEARNED_SAVED, memory: memory, contradicted: contradicted)
@@ -208,7 +224,7 @@ class Chat::Memory < ApplicationRecord
 
     # Learned again, so it is worth another wait for a person, and an unconfirmed one waits from now.
     if known.state == STATE_EXPIRED
-      known.revive!
+      transaction { known.record!(Chat::MemoryEvent::KIND_REVIVED, actor: Chat::MemoryEvent::ACTOR_HALON) if known.revive! }
     elsif known.state == STATE_UNCONFIRMED
       known.touch
     end
@@ -231,8 +247,12 @@ class Chat::Memory < ApplicationRecord
 
   # A fact a person wrote down themselves, so it counts as confirmed by them from the start.
   def self.written_by!(member, text:, subject:)
-    create!(workspace: member.workspace, text: text, subject: subject, state: STATE_CONFIRMED, source: member,
-            added_by: member, confirmed_by: member, confirmed_at: Time.current)
+    transaction do
+      create!(workspace: member.workspace, text: text, subject: subject, state: STATE_CONFIRMED, source: member,
+              added_by: member, confirmed_by: member, confirmed_at: Time.current).tap do |memory|
+        memory.record!(Chat::MemoryEvent::KIND_WRITTEN, actor: Chat::MemoryEvent::ACTOR_PERSON, member: member)
+      end
+    end
   end
 
   # What an incident touches: the catalog services named on it and the resources those services run on.
@@ -280,6 +300,10 @@ class Chat::Memory < ApplicationRecord
     return Change.new(key: CHANGE_DELETED, mark: "[deleted since this run started]", note: "Memory #{id} was deleted by a person since you started. Do not rely on it.") unless memory
 
     case memory.state
+    when STATE_MERGED
+      kept = memory.replaced_by
+      Change.new(key: "merged:#{memory.replaced_by_id}", mark: "[merged since this run started#{" into memory #{kept.id}: #{kept.text}" if kept}]",
+                 note: "Memory #{id} said the same as #{kept ? "memory #{kept.id} (#{kept.text})" : 'another memory'}, so the two were merged since you started.")
     when STATE_REJECTED
       if memory.replaced_by
         Change.new(key: "corrected:#{memory.replaced_by_id}", mark: "[corrected since this run started: #{memory.replaced_by.text}]",
@@ -290,7 +314,7 @@ class Chat::Memory < ApplicationRecord
       end
     when STATE_DISPUTED
       Change.new(key: STATE_DISPUTED, mark: "[disputed since this run started: #{memory.state_reason}]",
-                 note: "Memory #{id} was disputed since you started: #{memory.state_reason} Do not rely on it until a person decides.")
+                 note: "Memory #{id} was disputed since you started: #{memory.state_reason} Do not rely on it until it is settled.")
     when STATE_EXPIRED
       Change.new(key: STATE_EXPIRED, mark: "[no longer in use since this run started]",
                  note: "Memory #{id} stopped being used since you started, since nobody confirmed it in time. Treat it as unchecked.")
@@ -301,15 +325,24 @@ class Chat::Memory < ApplicationRecord
   # over one subject or several, and a disputed, rejected or expired memory is left as it was. It keeps what it was so
   # the flag can be lifted.
   def self.flag_outdated!(subject, reason, cause:)
-    where(subject: subject, state: [ STATE_UNCONFIRMED, STATE_CONFIRMED ])
-      .update_all([ "outdated_from = state, state = ?, state_reason = ?, outdated_cause = ?, updated_at = ?", STATE_OUTDATED, reason, cause, Time.current ])
+    from = [ STATE_UNCONFIRMED, STATE_CONFIRMED ]
+    transaction do
+      moved = moved_ids(where(subject: subject, state: from), from,
+                        [ "outdated_from = state, state = ?, state_reason = ?, outdated_cause = ?, updated_at = ?", STATE_OUTDATED, stored_reason(reason), cause, Time.current ])
+      record_moved!(moved, Chat::MemoryEvent::KIND_OUTDATED, detail: reason)
+      moved.size
+    end
   end
 
   # The cause is gone, such as a removed resource the map sees again, so a memory still flagged for it goes back to what
   # it was. A memory a person decided on since is no longer outdated, so it is never touched.
   def self.clear_outdated!(subject, cause:)
-    where(subject: subject, state: STATE_OUTDATED, outdated_cause: cause).where.not(outdated_from: nil)
-      .update_all([ "state = outdated_from, state_reason = NULL, outdated_from = NULL, outdated_cause = NULL, updated_at = ?", Time.current ])
+    transaction do
+      moved = moved_ids(where(subject: subject, state: STATE_OUTDATED, outdated_cause: cause).where.not(outdated_from: nil), [ STATE_OUTDATED ],
+                        [ "state = outdated_from, state_reason = NULL, outdated_from = NULL, outdated_cause = NULL, updated_at = ?", Time.current ])
+      record_moved!(moved, Chat::MemoryEvent::KIND_CURRENT_AGAIN)
+      moved.size
+    end
   end
 
   # An unconfirmed memory nobody confirmed within the workspace's window stops being used, counted from when it was
@@ -318,15 +351,23 @@ class Chat::Memory < ApplicationRecord
     days = workspace.memory_expiry_days
     return 0 unless days
 
-    where(workspace: workspace, state: STATE_UNCONFIRMED).where(updated_at: ...days.days.ago)
-      .update_all(state: STATE_EXPIRED, state_reason: "Nobody confirmed it within #{days} days.", updated_at: Time.current)
+    reason = "Nobody confirmed it within #{days} days."
+    expiring = where(workspace: workspace, state: STATE_UNCONFIRMED).where(updated_at: ...days.days.ago)
+    # An approved lesson that expires stops holding its findings, so they are named before and said after.
+    held = held_finding_ids_of(expiring.where.not(approved_at: nil).select(:id))
+    expired = transaction do
+      moved = moved_ids(expiring, [ STATE_UNCONFIRMED ],
+                        [ "state = ?, state_reason = ?, updated_at = ?", STATE_EXPIRED, stored_reason(reason), Time.current ])
+      record_moved!(moved, Chat::MemoryEvent::KIND_EXPIRED, detail: reason)
+      moved.size
+    end
+    announce_findings_changed(held)
+    expired
   end
 
   def confirmed? = state == STATE_CONFIRMED
 
   def in_use? = USED_STATES.include?(state)
-
-  def awaiting_decision? = AWAITING_STATES.include?(state)
 
   # A lesson as it is shown beside the answer it came from.
   def lesson = { id: id, text: text, confirmed: confirmed? }
@@ -346,6 +387,7 @@ class Chat::Memory < ApplicationRecord
     return state unless confirmed?
     return "confirmed by #{confirmed_by.display_name}" if confirmed_by
     return "confirmed by a postmortem" if decided_by_postmortem_id
+    return "checked by Halon against production on #{confirmed_at.to_date.iso8601}" if decided_by_halon && confirmed_at
 
     "confirmed"
   end
@@ -356,6 +398,7 @@ class Chat::Memory < ApplicationRecord
     when Conversation then source.started_by == viewer ? "your chat" : "a chat with #{source.started_by.try(:actor_display_name) || 'someone'}"
     when Investigation then source.incident ? "the #{source.incident.identifier} investigation" : "an investigation"
     when Incident then source.identifier
+    when CodeAgentSession then "#{source.lesson_origin} in #{source.repository}"
     when WorkspaceMembership then source == viewer ? "what you wrote on the Memory page" : "what #{source.display_name} wrote on the Memory page"
     else "an earlier chat or incident"
     end
@@ -367,6 +410,7 @@ class Chat::Memory < ApplicationRecord
     return "confirmed by you" if confirmed_by && confirmed_by == viewer
     return "confirmed by #{confirmed_by.display_name}" if confirmed_by
     return "confirmed by a postmortem" if confirmed_at && decided_by_postmortem_id
+    return "checked by Halon against production" if confirmed_at && decided_by_halon
 
     "not confirmed yet"
   end
@@ -386,19 +430,27 @@ class Chat::Memory < ApplicationRecord
     person = rejected_by || confirmed_by
     return person.display_name if person
     return "a postmortem" if decided_by_postmortem_id
+    return "Halon" if decided_by_halon
 
     "a person"
   end
 
   # Why a person cannot confirm it now, or nil. The page and the controller ask this rather than reading the state.
+  # What only Halon confirmed a person may still confirm, so their own word stands behind it.
   def confirm_blocked_reason
+    return nil if state == STATE_CONFIRMED && decided_by_halon && confirmed_by_id.nil?
     return "It is confirmed already." if state == STATE_CONFIRMED
+    return "It was merged into another memory that says the same thing." if state == STATE_MERGED
     return "It was rejected. Add it again if it is right after all." unless CONFIRMABLE_FROM.include?(state)
 
     nil
   end
 
-  def reject_blocked_reason = ("It was rejected already." unless REJECTABLE_FROM.include?(state))
+  def reject_blocked_reason
+    return "It was merged into another memory that says the same thing." if state == STATE_MERGED
+
+    "It was rejected already." unless REJECTABLE_FROM.include?(state)
+  end
 
   # What deleting it means, for the dialog that asks first and the notice after.
   def delete_consequence
@@ -417,6 +469,7 @@ class Chat::Memory < ApplicationRecord
                                   decided_by_postmortem_id: postmortem&.id)
         nil
       elsif correction.blank?
+        record!(Chat::MemoryEvent::KIND_REJECTED, actor: decision_actor(by, postmortem), member: by, detail: reason.presence)
         contradicted_by.confirm!(by: by, reason: "It replaced \"#{text}\", which #{by.display_name} marked not right.") if by && contradicted_by
         update_columns(replaced_by_id: contradicted_by_id) if by && contradicted_by&.confirmed?
         self
@@ -424,6 +477,8 @@ class Chat::Memory < ApplicationRecord
         replacement = self.class.create!(workspace: workspace, text: correction, subject: subject, state: STATE_CONFIRMED, source: source,
                                          added_by: by, confirmed_by: by, confirmed_at: Time.current, decided_by_postmortem: postmortem)
         update_columns(replaced_by_id: replacement.id)
+        record!(Chat::MemoryEvent::KIND_CORRECTED, actor: decision_actor(by, postmortem), member: by, detail: reason.presence)
+        replacement.record!(Chat::MemoryEvent::KIND_LEARNED, actor: decision_actor(by, postmortem), member: by, detail: "It corrected \"#{text}\".")
         contradicted_by&.reject!(by: by, reason: "#{by&.display_name || 'A postmortem'} corrected what it contradicted instead.")
         replacement
       end
@@ -434,8 +489,11 @@ class Chat::Memory < ApplicationRecord
   # newer one is rejected.
   def confirm!(by:, reason: nil)
     transaction do
-      confirmed = decide!(STATE_CONFIRMED, from: CONFIRMABLE_FROM, confirmed_by_id: by&.id, confirmed_at: Time.current, state_reason: reason,
-                                           decided_by_postmortem_id: nil)
+      columns = { confirmed_by_id: by&.id, confirmed_at: Time.current, state_reason: reason, decided_by_postmortem_id: nil }
+      confirmed = decide!(STATE_CONFIRMED, from: CONFIRMABLE_FROM, **columns) ||
+                  # What only Halon confirmed is confirmed again, now by the person, while it still is only Halon's.
+                  decide!(STATE_CONFIRMED, from: [ STATE_CONFIRMED ], only: { confirmed_by_id: nil, decided_by_halon: true }, **columns)
+      record!(Chat::MemoryEvent::KIND_CONFIRMED, actor: Chat::MemoryEvent::ACTOR_PERSON, member: by, detail: reason) if confirmed
       contradicted_by&.reject!(by: by, reason: "#{by&.display_name || 'A person'} confirmed \"#{text}\" is still right.") if confirmed
       confirmed
     end
@@ -443,17 +501,33 @@ class Chat::Memory < ApplicationRecord
 
   # A completed postmortem agreeing with what Halon learned, credited to whoever completed it when that was a person.
   def confirm_from_postmortem!(postmortem, by:)
-    decide!(STATE_CONFIRMED, from: POSTMORTEM_CONFIRMS_FROM, confirmed_by_id: by&.id, confirmed_at: Time.current,
-                             state_reason: "The #{postmortem.incident.identifier} postmortem agrees", decided_by_postmortem_id: postmortem.id)
+    reason = "The #{postmortem.incident.identifier} postmortem agrees"
+    transaction do
+      confirmed = decide!(STATE_CONFIRMED, from: POSTMORTEM_CONFIRMS_FROM, confirmed_by_id: by&.id, confirmed_at: Time.current,
+                                           state_reason: reason, decided_by_postmortem_id: postmortem.id)
+      record!(Chat::MemoryEvent::KIND_CONFIRMED, actor: decision_actor(by, postmortem), member: by, detail: reason) if confirmed
+      confirmed
+    end
   end
 
-  def dispute!(reason)
-    decide!(STATE_DISPUTED, from: CONTRADICTABLE_FROM, state_reason: reason)
+  # A live result or a postmortem showed it may be wrong. Halon raises it from a chat or a run, and a postmortem when a
+  # person had confirmed what it contradicts.
+  # investigation is the nightly run that found it, when one did.
+  def dispute!(reason, by: Chat::MemoryEvent::ACTOR_HALON, checked: nil, investigation: nil)
+    transaction do
+      disputed = decide!(STATE_DISPUTED, from: CONTRADICTABLE_FROM, state_reason: reason, decided_by_halon: decided_by_halon, checked: checked)
+      record!(Chat::MemoryEvent::KIND_DISPUTED, actor: by, detail: reason, investigation: investigation) if disputed
+      disputed
+    end
   end
 
-  # A newer memory says otherwise, so this one waits on a person, who settles both at once.
+  # A newer memory says otherwise, so this one is set aside until Halon settles the two against production, or a person does.
   def contradicted!(challenger, reason:)
-    decide!(STATE_DISPUTED, from: CONTRADICTABLE_FROM, state_reason: reason, contradicted_by_id: challenger.id)
+    transaction do
+      disputed = decide!(STATE_DISPUTED, from: CONTRADICTABLE_FROM, state_reason: reason, contradicted_by_id: challenger.id, decided_by_halon: decided_by_halon)
+      record!(Chat::MemoryEvent::KIND_DISPUTED, actor: Chat::MemoryEvent::ACTOR_HALON, detail: reason) if disputed
+      disputed
+    end
   end
 
   # An expired memory learned again goes back to waiting for a person, with a fresh window.
@@ -461,18 +535,68 @@ class Chat::Memory < ApplicationRecord
     decide!(STATE_UNCONFIRMED, from: [ STATE_EXPIRED ], state_reason: nil)
   end
 
+  # A change Halon makes to memory outside a chat or a run, such as a nightly merge or a lesson from a chat gone quiet, as
+  # the investigator through the gateway, so an admin who revokes its memory grant stops it and each change is in
+  # Activity under Halon, from the chat it read when there is one. Answers what the block answers, or nil when the
+  # investigator may not.
+  def self.changed_by_halon(workspace, crud_action, params:, chat: nil, &)
+    context = chat ? { source: AbilityGateway::SOURCE_CONVERSATION, incident_id: chat.incident_id } : { source: AbilityGateway::SOURCE_INVESTIGATION }
+    AbilityGateway.authorize!(principal: SystemAgent.investigator, workspace: workspace, holdable: false, params: params, context: context,
+                              action_key: Ability::Action.system_key(Ability::Action::RESOURCE_MEMORY, crud_action), &)
+  rescue AbilityGateway::Denied
+    nil
+  end
+
   # Every memory read at once is counted in one statement.
   def self.used!(memories)
     where(id: memories.map(&:id)).update_all([ "use_count = use_count + 1, last_used_at = ?", Time.current ]) if memories.any?
   end
 
+  # The ids a guarded bulk move took, so each gets its history. from repeats the states scope may leave, checked again
+  # as each row is updated, so a memory decided on meanwhile is never moved.
+  def self.moved_ids(scope, from, assignments)
+    set, *values = assignments
+    sql = sanitize_sql_array([
+      "UPDATE chat_memories SET #{set} WHERE chat_memories.id IN (#{scope.select(:id).to_sql}) AND chat_memories.state IN (?) RETURNING chat_memories.id",
+      *values, from
+    ])
+    with_connection { |connection| connection.select_values(sql) }
+  end
+  private_class_method :moved_ids
+
+  # A reason as the column keeps it, encrypted, for a statement written by hand.
+  def self.stored_reason(reason) = type_for_attribute(:state_reason).serialize(reason)
+  private_class_method :stored_reason
+
+  def self.record_moved!(ids, kind, detail: nil)
+    where(id: ids).distinct.pluck(:workspace_id).each do |workspace_id|
+      Chat::MemoryEvent.record_all!(where(id: ids, workspace_id: workspace_id).pluck(:id), workspace_id: workspace_id, kind: kind, detail: detail)
+    end
+  end
+  private_class_method :record_moved!
+
   private
 
-  # Guarded, so two people deciding on the same memory at once cannot both land. A decision ends any outdated flag.
-  def decide!(state, from:, **columns)
-    moved = self.class.where(id: id, state: from)
-                      .update_all(columns.merge(state: state, outdated_from: nil, outdated_cause: nil, updated_at: Time.current)) > 0
+  def decision_actor(by, postmortem)
+    return Chat::MemoryEvent::ACTOR_POSTMORTEM if postmortem
+    return Chat::MemoryEvent::ACTOR_PERSON if by
+
+    nil
+  end
+
+  # Guarded, so two people deciding on the same memory at once cannot both land. A decision ends any outdated flag, and
+  # one by a person or a postmortem is no longer Halon's. checked is what Halon's check came to when the check made the
+  # decision, kept with the same time as the change so the memory never reads as changed since it was checked.
+  # halon_only moves it only while no person stands behind it, checked in the same statement, so a person confirming it
+  # while Halon's check runs is never overturned. only adds other columns the row must still hold.
+  def decide!(state, from:, decided_by_halon: false, checked: nil, halon_only: false, only: {}, **columns)
+    now = Time.current
+    columns = columns.merge(checked_at: now, check_outcome: checked) if checked
+    guarded = self.class.where(id: id, state: from).where(only)
+    guarded = guarded.where(confirmed_by_id: nil) if halon_only
+    moved = guarded.update_all(columns.merge(state: state, outdated_from: nil, outdated_cause: nil, decided_by_halon: decided_by_halon, updated_at: now)) > 0
     reload
+    announce_lesson_change if moved && approved?
     moved
   end
 end

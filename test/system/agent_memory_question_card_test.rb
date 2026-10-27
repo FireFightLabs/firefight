@@ -1,7 +1,8 @@
 require "application_system_test_case"
 
-# Halon read a deploy log that says web deploys from the release branch, while it remembered main. The chat asks which
-# is right at once, says where the old memory came from, and an answer settles both memories with a toast.
+# Halon read a deploy log that says web deploys from the release branch, while it remembered main. A card asked about it
+# in the chat before Halon checked memories itself. It still says where the old memory came from, and an answer settles
+# both memories with a toast.
 class AgentMemoryQuestionCardTest < ApplicationSystemTestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -18,7 +19,8 @@ class AgentMemoryQuestionCardTest < ApplicationSystemTestCase
                                 created_at: Time.zone.parse("2026-10-03 10:00"))
     @newer = Chat::Memory.learn!(@workspace, text: "web deploys from the release branch", subject: nil, source: @conversation,
                                              judge: judging(@old), contradiction: "The deploy log of web shows \"web deploys from the release branch\".").memory
-    MemoryPostService.new(@workspace).ask_in_chat!(@conversation, @old.reload, evidence: "The deploy log of web shows \"web deploys from the release branch\".")
+    Chat::MemoryPost.create!(workspace: @workspace, conversation: @conversation, kind: Chat::MemoryPost::KIND_DISPUTED, memory_ids: [ @old.id ],
+                             evidence: "The deploy log of web shows \"web deploys from the release branch\".")
   end
 
   test "the chat asks which is right with where the memory came from, and Not right takes what Halon read instead" do
@@ -44,9 +46,9 @@ class AgentMemoryQuestionCardTest < ApplicationSystemTestCase
     assert_text "Which is right?"
     watch_page
 
-    click_on "Correct"
+    click_on "Edit"
     fill_in "What is true", with: "web deploys from the release branch on weekdays and from main on Sundays"
-    click_on "Save correction"
+    click_on "Save"
 
     assert_text "Corrected. Halon keeps the old wording as rejected so it does not learn it again."
     assert_equal Chat::Memory::STATE_REJECTED, @newer.reload.state

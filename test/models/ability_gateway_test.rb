@@ -18,6 +18,26 @@ class AbilityGatewayTest < ActiveSupport::TestCase
     policy
   end
 
+  test "an agent's read of a connection outside its tools needs the connection's read pack, and is ledgered under it either way" do
+    integration = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub")
+    investigator = SystemAgent.investigator
+    reads = Ability::Role.reads_key(integration.id)
+    context = { source: AbilityGateway::SOURCE_PULL_REQUEST_REVIEW, triggered_by_label: "Review of PR #7 in acme/api" }
+
+    assert_equal :pull_request, AbilityGateway.authorize_connection_read!(principal: investigator, integration: integration, context: context) { :pull_request }
+
+    allowed = Ability::Invocation.find_by!(workspace: @workspace, action_key: reads)
+    assert_equal [ Ability::Invocation::DECISION_ALLOW, Ability::Invocation::OUTCOME_SUCCESS, AbilityGateway::SOURCE_PULL_REQUEST_REVIEW, "Review of PR #7 in acme/api" ],
+                 [ allowed.decision, allowed.outcome, allowed.source, allowed.triggered_by_label ]
+    assert_equal integration.display_name, Ability::Invocation.with_connection_names([ allowed ]).sole.connection_name
+
+    @workspace.ability_grants.find_by!(principal: investigator, role: @workspace.ability_roles.find_by!(integration: integration, pack: Ability::Role::PACK_READ)).destroy!
+    assert_raises(AbilityGateway::Denied) do
+      AbilityGateway.authorize_connection_read!(principal: investigator, integration: integration, context: context) { flunk "nothing is read without the pack" }
+    end
+    assert Ability::Invocation.exists?(workspace: @workspace, action_key: reads, decision: Ability::Invocation::DECISION_DENY)
+  end
+
   test "a member holds incident participation without a grant" do
     member = workspace_memberships(:bob_workspace_one)
 

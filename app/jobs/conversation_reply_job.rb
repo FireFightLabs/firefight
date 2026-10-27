@@ -54,5 +54,7 @@ class ConversationReplyJob < ApplicationJob
                                                              code_pause: continuing, plan: plan, plan_move: (plan_move if plan) }.compact).run
     # The next question may read the same code, so the box waits a while before it is let go.
     CodeBoxIdleJob.set(wait: CodeBox::IDLE_AFTER).perform_later(conversation.code_box_key) if CodeBox.live.exists?(key: conversation.code_box_key)
+    # Once the chat goes quiet, Halon reads it for anything worth remembering.
+    ConversationLearningJob.set(wait: ConversationLearningJob::QUIET_AFTER).perform_later(conversation.id, Time.current)
   end
 end
