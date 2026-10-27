@@ -36,6 +36,7 @@ class InteractionDispatcher
     Identifiers::SUBSCRIBE_INCIDENT => Interactions::SubscribeIncidentHandler,
     Identifiers::UNSUBSCRIBE_INCIDENT => Interactions::UnsubscribeIncidentHandler,
     Identifiers::OPEN_INCIDENT_CHANNEL => Interactions::NoopHandler,
+    Identifiers::OPEN_PULL_REQUEST => Interactions::NoopHandler,
     Identifiers::INCIDENT_HOMEPAGE => Interactions::NoopHandler,
     Identifiers::HOME_ACTION_SELECT => Interactions::HomeActionSelectHandler,
     Identifiers::ACCEPT_INCIDENT => Interactions::AcceptIncidentHandler,

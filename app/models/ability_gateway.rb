@@ -187,7 +187,7 @@ class AbilityGateway
     # A member an admin removed reaches nothing, whatever they left running.
     return false if principal.is_a?(WorkspaceMembership) && principal.removed?
     return true if Ability::Action.open?(action_key)
-    return true if principal.implicitly_allowed?(action, resolved)
+    return true if principal.implicitly_allowed?(action, resolved, scope: scope)
     return true if Ability::Approval.decides_by_name?(principal, action_key, scope, workspace, loaded: approval)
 
     resolved ||= Ability::Resolver.resolve(principal, workspace)

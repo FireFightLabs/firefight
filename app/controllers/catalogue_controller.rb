@@ -2,7 +2,7 @@ class CatalogueController < InertiaController
   authorizes Ability::Action::RESOURCE_CATALOG,
     read: %i[index show search_members search_channels],
     create: %i[create_type create_entry],
-    update: %i[update_type update_entry],
+    update: %i[update_type update_entry update_review_alerts],
     delete: %i[destroy_type destroy_entry]
 
   def index
@@ -88,6 +88,13 @@ class CatalogueController < InertiaController
     redirect_to catalogue_type_path(entry.catalog_type.slug), notice: "#{entry.name} was updated."
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: catalogue_path, inertia: { errors: e.record.errors.to_hash }
+  end
+
+  def update_review_alerts
+    entry = current_workspace.catalog_entries.active.find(params[:id])
+    entry.update!(review_alerts: ActiveModel::Type::Boolean.new.cast(params[:enabled]) || false)
+    notice = entry.review_alerts ? "High risk pull requests post in #{entry.name}'s channel." : "High risk pull requests no longer post in #{entry.name}'s channel."
+    redirect_to catalogue_type_path(entry.catalog_type.slug), notice: notice
   end
 
   def destroy_entry

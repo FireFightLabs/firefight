@@ -79,6 +79,8 @@ module TypescriptConstants
       Export.new("CHAT_MEMORY_STATES", Chat::Memory::STATES, "ChatMemoryState"),
       Export.new("CHAT_MEMORY_STATE", Chat::Memory::STATES.index_by { |state| state.upcase }, nil),
       Export.new("CHAT_MEMORY_TEXT_LIMIT", Chat::Memory::TEXT_LIMIT, nil),
+      Export.new("LESSON_STATUSES", Chat::Memory::Lesson::STATUSES, "LessonStatus"),
+      Export.new("LESSON_STATUS", Chat::Memory::Lesson::STATUSES.index_by { |status| status.upcase }, nil),
       Export.new("MEMORY_EXPIRY_DAY_CHOICES", Chat::Memory::EXPIRY_CHOICES, nil),
       Export.new("CHAT_INSTRUCTION_TEXT_LIMIT", Chat::Instruction::TEXT_LIMIT, nil),
       Export.new("HANDBOOK_PAGE_KINDS", {
@@ -113,8 +115,9 @@ module TypescriptConstants
         "ADDED" => Workflow::Changes::KIND_ADDED, "REMOVED" => Workflow::Changes::KIND_REMOVED, "CHANGED" => Workflow::Changes::KIND_CHANGED
       }, nil),
       Export.new("WORKFLOW_FILE_EXTENSION", Workflow::Document::EXTENSION, nil),
-      Export.new("MEMORY_PAGE_TABS", { "MEMORIES" => MemoryController::TAB_MEMORIES, "INSTRUCTIONS" => MemoryController::TAB_INSTRUCTIONS }, nil),
+      Export.new("MEMORY_PAGE_TABS", { "MEMORIES" => MemoryController::TAB_MEMORIES, "LESSONS" => MemoryController::TAB_LESSONS, "INSTRUCTIONS" => MemoryController::TAB_INSTRUCTIONS }, nil),
       Export.new("MEMORY_PAGE_TAB_QUERY", MemoryController::TAB_QUERY, nil),
+      Export.new("MEMORY_PAGE_REVIEW_QUERY", MemoryController::REVIEW_QUERY, nil),
       Export.new("MEMORY_QUERY_PARAM", Chat::Memory::QUERY_PARAM, nil),
       Export.new("CATALOG_ENTRY_QUERY_PARAM", CatalogEntry::QUERY_PARAM, nil),
       Export.new("RESOURCE_MAP_PAGE_QUERY", { "VIEW" => ResourceMap::PAGE_VIEW_PARAM, "RESOURCE" => ResourceMap::PAGE_RESOURCE_PARAM }, nil),

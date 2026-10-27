@@ -27,4 +27,15 @@ class CatalogEntryRepositoryTest < ActiveSupport::TestCase
 
     assert_nil @service.reload.repository
   end
+
+  test "the services a repository belongs to are found in any case, and a high risk pull request goes to their channel" do
+    @service.update!(attributes: { "code" => "https://github.com/Acme/Auth", "slack_channel" => "C-AUTH" })
+    CatalogEntry.create!(workspace: @service.workspace, catalog_type: @service.catalog_type, name: "Payments", slug: "payments", attributes: { "code" => "acme/payments" })
+
+    assert_equal [ @service ], CatalogEntry.owning_repository(workspaces(:slack_workspace_one), "acme/auth")
+    assert_equal "C-AUTH", @service.review_alert_channel
+
+    @service.update!(review_alerts: false)
+    assert_nil @service.review_alert_channel
+  end
 end

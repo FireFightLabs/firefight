@@ -7,6 +7,8 @@ class PullRequestReview < ApplicationRecord
   include PullRequestReview::Posting
   include PullRequestReview::Holding
   include PullRequestReview::Requesting
+  include PullRequestReview::Lessons
+  include PullRequestReview::StrictCheck
   include PullRequestReview::Reading
 
   STATUS_QUEUED = "queued"

@@ -14,12 +14,13 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
+const apiActions = ABILITY_ACTIONS
+// A resource whose only action is none of the four columns, such as overriding a lesson, is granted on the Permissions screen.
 const apiResources = ABILITY_GRANTABLE_RESOURCES.map((key) => ({
   key,
   label: ABILITY_RESOURCE_LABELS[key],
   offered: new Set<string>(ABILITY_RESOURCE_ACTIONS[key]),
-}))
-const apiActions = ABILITY_ACTIONS
+})).filter((resource) => apiActions.some((action) => resource.offered.has(action)))
 
 export function PermissionsMatrix({
   perms,

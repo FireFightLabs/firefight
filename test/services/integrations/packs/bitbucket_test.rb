@@ -518,6 +518,37 @@ module Integrations
         @pack.flag_pull_request(@row, repository: "acme/web", number: 42, body: "Look here.")
       end
 
+      test "how a pull request ended: who declined it and the reason Bitbucket keeps, its commits oldest first and its comments" do
+        BitbucketApi.any_instance.stubs(:get).with("#{REPO}/pullrequests/42").returns(
+          "state" => "DECLINED", "reason" => "Not how we version the API", "closed_by" => { "nickname" => "ada", "type" => "user" }
+        )
+        BitbucketApi.any_instance.stubs(:list).with("#{REPO}/pullrequests/42/commits", {}, pages: 3).returns([ [
+          { "hash" => "b1", "author" => { "raw" => "Ada <ada@acme.test>", "user" => { "nickname" => "ada" } }, "message" => "Rename", "parents" => [ {} ] },
+          { "hash" => "a1", "author" => { "raw" => "Halon <#{CodeAgentSession::COMMIT_EMAIL}>" }, "message" => "Change", "parents" => [ {} ] }
+        ], false ])
+        BitbucketApi.any_instance.stubs(:list).with("#{REPO}/pullrequests/42/comments", {}, pages: 2).returns([ [
+          { "content" => { "raw" => "Use v2 paths" }, "user" => { "nickname" => "ada", "type" => "user" } },
+          { "content" => { "raw" => "On a line" }, "inline" => { "path" => "a.rb" }, "user" => { "nickname" => "ada", "type" => "user" } }
+        ], false ])
+
+        outcome = @pack.pull_request_outcome(@row, repository: "acme/web", number: 42)
+
+        assert_equal [ Integrations::ReviewHost::STATE_CLOSED, "ada", true, "Not how we version the API" ], [ outcome.state, outcome.ended_by, outcome.ended_by_person, outcome.reason ]
+        assert_equal [ [ "a1", "Halon", CodeAgentSession::COMMIT_EMAIL ], [ "b1", "ada", "ada@acme.test" ] ], outcome.commits.map { |commit| [ commit.sha, commit.author, commit.email ] }
+        assert_equal [ "Use v2 paths" ], outcome.comments.map(&:body)
+      end
+
+      test "the review's check is a build status under its own key and name" do
+        BitbucketApi.any_instance.expects(:post).with("#{REPO}/commit/#{'a' * 40}/statuses/build", {
+          "key" => Integrations::ReviewHost::CHECK_KEY, "state" => "SUCCESSFUL", "name" => Integrations::ReviewHost::CHECK_NAME,
+          "description" => "Every finding is fixed.", "url" => "https://firefight.test/x"
+        }).returns({})
+        check = Integrations::ReviewHost::Check.new(state: Integrations::ReviewHost::CHECK_PASSING, description: "Every finding is fixed.", url: "https://firefight.test/x")
+
+        assert Integrations::ReviewHost.sets_checks?(@row.integration)
+        @pack.set_review_check(@row, repository: "acme/web", sha: "a" * 40, check: check)
+      end
+
       private
 
       def call(tool, arguments = {}) = @pack.call(tool.to_s, environment_row: @row, arguments: arguments)

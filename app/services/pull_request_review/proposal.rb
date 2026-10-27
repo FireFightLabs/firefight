@@ -48,9 +48,13 @@ class PullRequestReview::Proposal
       "#{PullRequestReview::Finding::EFFORT_LABELS.fetch(attributes[:effort])}#{' | serious' if attributes[:serious]}",
       "Where: #{path}#{":#{line}" if line}",
       "Claim: #{claim}", "Why: #{attributes[:why]}", "Failure chain:\n#{chain}", "Evidence:\n#{evidence}",
-      ("Suggested fix:\n#{attributes[:suggested_fix]}" if attributes[:suggested_fix].present?)
+      ("Suggested fix:\n#{attributes[:suggested_fix]}" if attributes[:suggested_fix].present?),
+      ("Lesson from #{lesson.lesson_origin}: #{lesson.text}" if lesson)
     ].compact.join("\n")
   end
+
+  # The approved lesson the finding comes from, when the reviewer named one it was handed.
+  def lesson = (@lesson ||= @runner.lesson_cited(@arguments["lesson"]) if @arguments["lesson"].present?)
 
   private
 
@@ -62,8 +66,18 @@ class PullRequestReview::Proposal
       serious: @arguments["serious"] == true, claim: @arguments["claim"].to_s.squish, why: @arguments["why"].to_s.strip,
       failure_chain: Array(@arguments["failure_chain"]).map { |step| step.to_s.squish }.compact_blank,
       evidence: Array(@arguments["evidence"]).filter_map { |item| resolved(item) if item.is_a?(Hash) },
-      suggested_fix: @arguments["suggested_fix"].to_s.strip.presence, agent_instructions: @arguments["agent_instructions"].to_s.strip.presence
+      suggested_fix: @arguments["suggested_fix"].to_s.strip.presence, agent_instructions: @arguments["agent_instructions"].to_s.strip.presence,
+      lesson_id: cited_lesson_id
     }
+  end
+
+  # A lesson id that is not one of those listed names none, and is said, so the finding is still checked on its own.
+  def cited_lesson_id
+    return nil if @arguments["lesson"].blank?
+    return lesson.id if lesson
+
+    @dropped << "The lesson #{@arguments['lesson'].to_s.inspect} is not one of the approved lessons listed, so the finding names none."
+    nil
   end
 
   def resolved(item)
