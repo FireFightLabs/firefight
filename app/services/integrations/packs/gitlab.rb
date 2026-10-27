@@ -471,7 +471,7 @@ module Integrations
       def pull_request_for_review(environment_row, repository:, number:)
         gitlab = api(environment_row)
         request = gitlab.get("#{GitlabApi.project(repository)}/merge_requests/#{number}")
-        source = (fork_source(gitlab, request["source_project_id"]) if request["source_project_id"] != request["target_project_id"])
+        source = (fork_source(gitlab, request["source_project_id"]) if request["source_project_id"].present? && request["source_project_id"] != request["target_project_id"])
         ReviewHost::PullRequest.new(
           repository: repository, number: number, title: request["title"].to_s, body: request["description"], author: request.dig("author", "username"),
           url: request["web_url"], state: REVIEW_STATES.fetch(request["state"], ReviewHost::STATE_CLOSED), draft: request["draft"] == true || request["work_in_progress"] == true,
