@@ -20,14 +20,19 @@ module PullRequestReview::Finding::LessonCheck
   end
 
   class_methods do
-    # An owner of a service the pull request belongs to may override its findings without a grant, as an admin may.
-    def overrides_as_owner?(principal, action_key, scope, workspace)
-      return false unless action_key.to_s == Ability::Action::LESSON_OVERRIDE && principal.is_a?(WorkspaceMembership) && workspace
-
+    # Whether member owns a service the pull request of the finding the scope names belongs to.
+    def overrides_as_owner?(member, scope)
       id = scope.to_h.stringify_keys[SCOPE_FINDING]
-      finding = id.present? && joins(:review).where(pull_request_reviews: { workspace_id: workspace.id }).find_by(id: id)
-      finding.present? && finding.review.owned_by?(principal)
+      finding = id.present? && joins(:review).where(pull_request_reviews: { workspace_id: member.workspace_id }).find_by(id: id)
+      finding.present? && finding.review.owned_by?(member)
     end
+
+    # The same problem found again on a later head of a pull request counts once, as the Lessons tab lists it and the
+    # check counts it.
+    def once_per_problem(findings) = findings.uniq { |finding| [ finding.review.repository.downcase, finding.review.number, finding.fingerprint ] }
+
+    # What the Lessons tab lists as held: each problem once, as its newest review found it.
+    def held_on_pull_requests(workspace, lessons) = once_per_problem(from_strict_lessons(workspace, lessons).to_a)
 
     # Open findings from lessons that are strict now on pull requests not merged yet, overridden or not, newest first.
     # lessons is the memories the reader may see.
@@ -88,9 +93,9 @@ module PullRequestReview::Finding::LessonCheck
 
     moved = self.class.where(id: id, status: PullRequestReview::Finding::STATUS_OPEN, overridden_at: nil)
                 .update_all(overridden_by_id: by.id, overridden_at: Time.current, override_reason: reason, updated_at: Time.current) > 0
+    reload
     return false unless moved
 
-    reload
     review.announce!(PullRequestReview::CHANGE_FINDING_CHANGED, finding: self)
     true
   end

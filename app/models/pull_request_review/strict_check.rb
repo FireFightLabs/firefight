@@ -20,8 +20,9 @@ module PullRequestReview::StrictCheck
 
   # The findings holding the check failing, the same problem found again on a later head counted once.
   def holding_findings
-    PullRequestReview::Finding.holding.where(pull_request_review_id: reviews_of_pull_request.select(:id)).preload(lesson: :source)
-                              .order(:created_at).to_a.uniq(&:fingerprint)
+    PullRequestReview::Finding.once_per_problem(
+      PullRequestReview::Finding.holding.where(pull_request_review_id: reviews_of_pull_request.select(:id)).preload(:review, lesson: :source).order(:created_at).to_a
+    )
   end
 
   # What the check should say now, or nil when no strict lesson was ever involved and no check was set before.
@@ -50,6 +51,15 @@ module PullRequestReview::StrictCheck
                 .update_all(commit_status: state, commit_status_sha: sha, commit_status_error: nil, updated_at: Time.current) > 0
     reload if moved
     moved
+  end
+
+  # Why the check could not be set, in words for the Lessons tab, or nil while it was set.
+  def commit_status_problem
+    return nil if commit_status_error.blank?
+
+    host = integration&.name.presence || "the code host"
+    error = commit_status_error.strip
+    "Couldn't set the check on #{host}: #{error.match?(/[.!?]\z/) ? error : "#{error}."}"
   end
 
   # The host refused, so the next change tries again, and why is kept for whoever looks.

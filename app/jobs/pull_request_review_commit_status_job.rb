@@ -5,6 +5,7 @@ class PullRequestReviewCommitStatusJob < ApplicationJob
   # One at a time per pull request, so the host is told states in the order they were worked out.
   limits_concurrency key: ->(review_id) { PullRequestReviewPostJob.pull_request_key(review_id) }, duration: 5.minutes
 
+  retry_on PullRequestReviewCommitStatusService::Retry, wait: :polynomially_longer, attempts: 5
   discard_on ActiveRecord::RecordNotFound
 
   def perform(review_id)

@@ -124,6 +124,7 @@ function HeldRow({ finding, focused, onOverride }: HeldRowProps) {
           ) : (
             <span className="text-error">Failing</span>
           )}
+          {finding.checkProblem && <div className="text-xs">{finding.checkProblem}</div>}
         </div>
       </TableCell>
       <TableCell className="pr-6 text-right">

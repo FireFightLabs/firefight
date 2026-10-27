@@ -1065,6 +1065,7 @@ export const ABILITY_RESOURCE_ACTIONS = {
     "create"
   ],
   "lessons": [
+    "decide",
     "override"
   ]
 } as const

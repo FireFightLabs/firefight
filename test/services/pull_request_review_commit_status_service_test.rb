@@ -48,6 +48,14 @@ class PullRequestReviewCommitStatusServiceTest < ActiveSupport::TestCase
     assert_nil @review.commit_status
   end
 
+  test "a host that limited the rate is tried again by the job, with why on the Lessons tab meanwhile" do
+    finding
+    Integrations::ReviewHost.stubs(:set_check!).raises(Integrations::GithubApp::RateLimited, "GitHub answered 429")
+
+    assert_raises(PullRequestReviewCommitStatusService::Retry) { service.update! }
+    assert_equal "Couldn't set the check on GitHub: GitHub answered 429.", @review.reload.commit_status_problem
+  end
+
   test "nothing is set for a review no strict lesson touched or a rehearsal" do
     Integrations::ReviewHost.expects(:set_check!).never
 

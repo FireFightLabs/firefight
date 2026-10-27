@@ -66,6 +66,14 @@ class PullRequestReviewAlertServiceTest < ActiveSupport::TestCase
     assert_equal %w[C-AUTH C-PAY], @review.reload.high_risk_posted_channels
   end
 
+  test "the post is claimed in one statement that no other review of the pull request took first" do
+    other = review!(head_sha: "d" * 40)
+    PullRequestReview.where(id: other.id).update_all(high_risk_posted_at: Time.current)
+
+    assert_not service.send(:claim!)
+    assert_nil @review.reload.high_risk_posted_at
+  end
+
   test "a review that finished is posted from a job" do
     running = review!(number: 11, status: PullRequestReview::STATUS_RUNNING)
 

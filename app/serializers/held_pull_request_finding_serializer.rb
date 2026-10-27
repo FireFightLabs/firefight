@@ -42,6 +42,10 @@ class HeldPullRequestFindingSerializer < BaseSerializer
   type :string, optional: true
   def override_reason = finding.override_reason
 
+  # Why the pull request's check is stale, such as a code host that refused it.
+  type :string, optional: true
+  def check_problem = PullRequestReview.latest_of(finding.review.workspace, finding.review.repository, finding.review.number)&.commit_status_problem
+
   type :string, optional: true
   def override_blocked_reason = finding.override_blocked_reason(options[:member])
 end

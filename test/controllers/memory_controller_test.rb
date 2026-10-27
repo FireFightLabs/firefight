@@ -192,7 +192,7 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
 
     shipped = inertia_props["lessons"].index_by { |each| each["text"] }
     assert_equal [ "Checkout reads from the primary", lesson.text ].sort, shipped.keys.sort
-    assert_equal [ Chat::Memory::Lesson::STATUS_WAITING, "INC-001 Database connection pool exhausted", "Only the INC-001 lead or a workspace admin can decide on its lessons." ],
+    assert_equal [ Chat::Memory::Lesson::STATUS_WAITING, "INC-001 Database connection pool exhausted", "Only the INC-001 lead, a workspace admin or someone granted Decide on lessons can decide on its lessons." ],
                  shipped[lesson.text].values_at("status", "origin", "approveBlockedReason")
     assert_equal [ Chat::Memory::Lesson::STATUS_APPROVED, @member.display_name ], shipped["Checkout reads from the primary"].values_at("status", "approvedBy")
   end
@@ -223,11 +223,11 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     sign_in(users(:bob), @workspace)
 
     post approve_lesson_path(lesson)
-    assert_equal "Only the INC-001 lead or a workspace admin can decide on its lessons.", flash[:alert]
+    assert_equal "Only the INC-001 lead, a workspace admin or someone granted Decide on lessons can decide on its lessons.", flash[:alert]
     post turn_down_lesson_path(lesson)
-    assert_equal "Only the INC-001 lead or a workspace admin can decide on its lessons.", flash[:alert]
+    assert_equal "Only the INC-001 lead, a workspace admin or someone granted Decide on lessons can decide on its lessons.", flash[:alert]
     patch edit_lesson_path(lesson), params: { text: "Anything" }
-    assert_equal "Only the INC-001 lead or a workspace admin can decide on its lessons.", flash[:alert]
+    assert_equal "Only the INC-001 lead, a workspace admin or someone granted Decide on lessons can decide on its lessons.", flash[:alert]
     assert_nil lesson.reload.approved_at
 
     incidents(:active_critical_ws1).lead = bob

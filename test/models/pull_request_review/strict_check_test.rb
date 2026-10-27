@@ -49,6 +49,9 @@ class PullRequestReview::StrictCheckTest < ActiveSupport::TestCase
 
     assert_equal [ @admin, "Behind a flag that stays off" ], [ held.overridden_by, held.override_reason ]
     assert_equal "#{@admin.display_name} overrode it already.", held.override_blocked_reason(@admin)
+    stale = PullRequestReview::Finding.find(held.id).tap { |each| each.overridden_at = nil }
+    assert_not stale.override!(by: @admin, reason: "Mine too")
+    assert_equal "#{@admin.display_name} overrode it already.", stale.override_state_blocked_reason, "the one who lost is told who won"
     assert_equal PullRequestReview::COMMIT_STATUS_PASSING, @review.commit_status_due
   end
 
@@ -67,7 +70,12 @@ class PullRequestReview::StrictCheckTest < ActiveSupport::TestCase
     team = catalog_entries(:platform_team)
     team.update!(attributes: team.entry_attributes.merge("members" => [ bob.id ]))
     assert_nil PullRequestReview.find(@review.id).findings.first.override_blocked_reason(bob), "an owner of the owning team's service may override"
-    assert_not PullRequestReview::Finding.overrides_as_owner?(bob, Ability::Action::LESSON_OVERRIDE, {}, @workspace), "never without the finding named"
+    assert_not PullRequestReview::Finding.overrides_as_owner?(bob, {}), "never without the finding named"
+
+    Ability::Grant.withhold!(workspace: @workspace, principal: bob, action: Ability::Action.lookup(Ability::Action::LESSON_OVERRIDE, @workspace))
+    assert_equal refused, PullRequestReview.find(@review.id).findings.first.override_blocked_reason(bob), "No access takes the owner's default away"
+    assert_equal WorkspaceMembership::DEFAULT_NO_ACCESS, bob.reload.default_access.find { |row| row.action&.key == Ability::Action::LESSON_OVERRIDE }.state
+    bob.ability_grants.destroy_all
 
     team.update!(attributes: team.entry_attributes.merge("members" => []))
     Ability::Grant.grant!(workspace: @workspace, principal: bob, target: { action: Ability::Action.lookup(Ability::Action::LESSON_OVERRIDE, @workspace) })

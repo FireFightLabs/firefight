@@ -23,7 +23,8 @@ class PullRequestReviewAlertService
 
     destinations = @review.owning_services.filter_map { |service| [ service.review_alert_channel, service ] if service.review_alert_channel }
                           .uniq(&:first)
-    return [] if destinations.empty? || !claim!
+    return [] if destinations.empty?
+    return [] unless claim! || @review.high_risk_posted_at.present?
 
     again = []
     posted = destinations.filter_map do |channel_id, service|
@@ -53,11 +54,16 @@ class PullRequestReviewAlertService
                       .where.not(id: @review.id).where.not(high_risk_posted_at: nil).exists?
   end
 
-  # Takes the pull request's one post for this review, or finds it taken by this review already, as on a retry.
+  # Takes the pull request's one post for this review, in one statement that no other review of it took first. Returns
+  # whether this call took it. A retry by the review that holds it carries on with the channels still missing.
   def claim!
-    taken = PullRequestReview.where(id: @review.id, high_risk_posted_at: nil).update_all(high_risk_posted_at: Time.current, updated_at: Time.current) > 0
+    taken = PullRequestReview.where(id: @review.id, high_risk_posted_at: nil).where(<<~SQL.squish).update_all(high_risk_posted_at: Time.current, updated_at: Time.current) > 0
+      NOT EXISTS (SELECT 1 FROM pull_request_reviews others WHERE others.workspace_id = pull_request_reviews.workspace_id
+        AND lower(others.repository) = lower(pull_request_reviews.repository) AND others.number = pull_request_reviews.number
+        AND others.rehearsal = false AND others.id <> pull_request_reviews.id AND others.high_risk_posted_at IS NOT NULL)
+    SQL
     @review.reload
-    taken || @review.high_risk_posted_at.present?
+    taken
   end
 
   def delivered!(channel_id)

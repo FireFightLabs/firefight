@@ -47,6 +47,23 @@ module Chat::Memory::Lesson
     end
   end
 
+  # The lesson a decision is asked about, as the gateway's scope names it.
+  SCOPE_LESSON = "lesson".freeze
+
+  class_methods do
+    # An incident's lead decides on its lessons, and whoever asked Halon for a pull request on its lessons, without a grant.
+    def decided_by_owner?(member, scope)
+      id = scope.to_h.stringify_keys[SCOPE_LESSON]
+      lesson = id.present? && lessons.where(workspace_id: member.workspace_id).find_by(id: id)
+      lesson.present? && lesson.lesson_owner == member
+    end
+  end
+
+  def decide_scope = { SCOPE_LESSON => id }
+
+  # Who holds deciding on it without a grant, beside admins: the incident's lead, or whoever asked for the pull request.
+  def lesson_owner = from_incident? ? source.lead : source.requester
+
   def from_incident? = source_type == Incident.polymorphic_name
 
   def from_pull_request? = source_type == CodeAgentSession.polymorphic_name
@@ -78,16 +95,20 @@ module Chat::Memory::Lesson
     STATUS_WAITING
   end
 
-  # Who may approve, edit or turn down a lesson: a workspace admin, the incident's lead, or whoever asked Halon for the
-  # pull request that taught it.
+  # Who may approve, edit or turn down a lesson, as the gateway answers lessons.decide for it: an admin, the incident's
+  # lead or whoever asked Halon for the pull request that taught it, or anyone granted it.
   def lesson_blocked_reason(member)
     return "Only lessons an incident or one of Halon's pull requests taught are approved for pull request reviews." unless lesson?
-    return nil if member&.admin_access?
-    return nil if member && (from_incident? ? source.lead : source.requester) == member
 
-    return "Only whoever asked for #{source.lesson_origin} in #{source.repository} or a workspace admin can decide on its lessons." if from_pull_request?
+    action = Ability::Action.lookup(Ability::Action::LESSON_DECIDE, workspace)
+    return nil if member && AbilityGateway.permitted?(member, action, Ability::Action::LESSON_DECIDE, workspace, decide_scope)
 
-    "Only the #{source.identifier} lead or a workspace admin can decide on its lessons."
+    if from_pull_request?
+      return "Only whoever asked for #{source.lesson_origin} in #{source.repository}, a workspace admin or someone granted Decide on lessons " \
+             "can decide on its lessons."
+    end
+
+    "Only the #{source.identifier} lead, a workspace admin or someone granted Decide on lessons can decide on its lessons."
   end
 
   def approve_blocked_reason(member)
@@ -102,12 +123,13 @@ module Chat::Memory::Lesson
     lesson_blocked_reason(member) || reject_blocked_reason
   end
 
-  # Approval is the lesson's own and leaves how Halon trusts the memory as it was. Guarded on it still being in use,
-  # so someone turning it down at the same moment wins. Returns whether it is approved now.
+  # Approval is the lesson's own and leaves how Halon trusts the memory as it was. Guarded on it still being in use and
+  # not approved yet, so someone turning it down at the same moment wins and of two approvals only the first lands.
+  # Returns whether this call approved it.
   def approve!(by:, strict: false)
     return false if approve_blocked_reason(by)
 
-    approved = self.class.where(id: id, state: Chat::Memory::USED_STATES)
+    approved = self.class.where(id: id, state: Chat::Memory::USED_STATES, approved_at: nil)
                          .update_all(approved_by_id: by.id, approved_at: Time.current, strict: strict, updated_at: Time.current) > 0
     reload
     announce_lesson_change if approved

@@ -88,7 +88,7 @@ class PullRequestLessonServiceTest < ActiveSupport::TestCase
     other = Chat::Memory.create!(workspace: @workspace, text: "Another", source: session!(number: 14, principal: nil), state: Chat::Memory::STATE_UNCONFIRMED)
 
     assert_nil lesson.approve_blocked_reason(@bob)
-    assert_equal "Only whoever asked for PR #14 in acme/api or a workspace admin can decide on its lessons.", other.approve_blocked_reason(@bob)
+    assert_equal "Only whoever asked for PR #14 in acme/api, a workspace admin or someone granted Decide on lessons can decide on its lessons.", other.approve_blocked_reason(@bob)
     assert lesson.approve!(by: @bob)
     assert_equal "Lesson from PR #12", PullRequestReview::Finding.new(lesson: lesson).lesson_label
   end

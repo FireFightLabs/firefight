@@ -3,10 +3,11 @@ class MemoryController < InertiaController
   authorizes Ability::Action::RESOURCE_MEMORY,
     read: %i[index],
     create: %i[create_memory],
-    update: %i[confirm_memory correct_memory reject_memory destroy_memory approve_lesson edit_lesson turn_down_lesson]
+    update: %i[confirm_memory correct_memory reject_memory destroy_memory]
   authorizes Ability::Action::RESOURCE_CATALOG, update: %i[create_instruction update_instruction destroy_instruction]
-  # override_finding is authorized in the action, as lessons.override on the one finding, since owning the pull request's
-  # services is what lets most people do it.
+  # Deciding on a lesson and overriding a finding are authorized in the action, as lessons.decide on the one lesson and
+  # lessons.override on the one finding, since leading the incident, asking for the pull request or owning its services is
+  # what lets most people do them.
 
   TAB_QUERY = "tab"
   TAB_MEMORIES = "memories"
@@ -27,7 +28,8 @@ class MemoryController < InertiaController
     render inertia: "memory/index", props: {
       memories: ChatMemorySerializer.many(memories),
       lessons: ChatLessonSerializer.many(lessons, member: current_membership),
-      heldPullRequests: HeldPullRequestFindingSerializer.many(held_pull_requests, member: current_membership),
+      heldPullRequests: HeldPullRequestFindingSerializer.many(PullRequestReview::Finding.held_on_pull_requests(current_workspace, memories),
+                                                              member: current_membership),
       instructions: ChatInstructionSerializer.many(Chat::Instruction.with_history(current_workspace, principal: current_membership)),
       subjects: MemorySubjectOptionSerializer.many(Chat::Memory.subject_choices(current_workspace, principal: current_membership))
     }
@@ -77,6 +79,7 @@ class MemoryController < InertiaController
 
   def approve_lesson
     lesson = lessons.find(params[:id])
+    return unless decide!(lesson)
     return redirect_to(lessons_page, alert: lesson.approve_blocked_reason(current_membership)) unless lesson.approve!(by: current_membership, strict: strict_param)
 
     redirect_to lessons_page, notice: "Approved the #{lesson.lesson_origin} lesson. #{lesson.strict ? STRICT_CHECKS : REVIEWS_CHECK_IT}"
@@ -84,6 +87,7 @@ class MemoryController < InertiaController
 
   def edit_lesson
     lesson = lessons.find(params[:id])
+    return unless decide!(lesson)
     edited = lesson.edit_lesson!(by: current_membership, text: params[:text].to_s.strip, strict: strict_param)
     return redirect_to(lessons_page, alert: lesson.edit_lesson_blocked_reason(current_membership) || lesson.approve_blocked_reason(current_membership)) unless edited
 
@@ -94,6 +98,7 @@ class MemoryController < InertiaController
 
   def turn_down_lesson
     lesson = lessons.find(params[:id])
+    return unless decide!(lesson)
     turned_down = lesson.turn_down!(by: current_membership, reason: params[:reason].to_s.strip)
     return redirect_to(lessons_page, alert: lesson.turn_down_blocked_reason(current_membership)) unless turned_down
 
@@ -147,10 +152,15 @@ class MemoryController < InertiaController
 
   def lessons_page = memory_path(TAB_QUERY => TAB_LESSONS)
 
-  # The same problem found again on a later head of a pull request is listed once, as its newest review found it.
-  def held_pull_requests
-    PullRequestReview::Finding.from_strict_lessons(current_workspace, memories).to_a
-                              .uniq { |finding| [ finding.review.repository.downcase, finding.review.number, finding.fingerprint ] }
+  # The lesson's own sentence when the member may not decide on it, then the gateway, which ledgers the decision.
+  def decide!(lesson)
+    refused = lesson.lesson_blocked_reason(current_membership)
+    if refused
+      redirect_to lessons_page, alert: refused
+      return false
+    end
+
+    authorize_web!(Ability::Action::RESOURCE_LESSONS, Ability::Action::ACTION_DECIDE, scope: lesson.decide_scope)
   end
 
   # What an incident taught, apart from wordings an edit or a correction replaced, which the Memories tab keeps.

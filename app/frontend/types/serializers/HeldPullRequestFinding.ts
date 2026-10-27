@@ -2,6 +2,7 @@
 
 export default interface HeldPullRequestFinding {
   id: string
+  checkProblem?: string
   claim: string
   lessonElsewhere: boolean
   lessonLabel: string

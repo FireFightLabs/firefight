@@ -12,7 +12,7 @@ class Chat::Memory::LessonTest < ActiveSupport::TestCase
     lesson = taught("A 5xx spike on web after a deploy has meant the migration job failed")
 
     assert_nil lesson.approve_blocked_reason(@admin)
-    assert_equal "Only the INC-001 lead or a workspace admin can decide on its lessons.", lesson.approve_blocked_reason(@member)
+    assert_equal "Only the INC-001 lead, a workspace admin or someone granted Decide on lessons can decide on its lessons.", lesson.approve_blocked_reason(@member)
 
     @incident.lead = @member
     assert_nil lesson.reload.approve_blocked_reason(@member)
@@ -31,6 +31,31 @@ class Chat::Memory::LessonTest < ActiveSupport::TestCase
     assert_equal [ lesson ], Chat::Memory.for_review(@workspace, [])
     assert_equal "It is approved already.", lesson.approve_blocked_reason(@admin)
     assert_not lesson.approve!(by: @admin)
+  end
+
+  test "of two approvals at once only the first lands, so the second never overwrites whether it is strict" do
+    lesson = taught("Checkout retries go up when the payment timeout changes")
+    stale = Chat::Memory.find(lesson.id)
+
+    assert lesson.approve!(by: @admin, strict: true)
+    assert_not stale.approve!(by: @admin, strict: false)
+    assert lesson.reload.strict
+  end
+
+  test "deciding on a lesson is a permission: a grant lets anyone, and No access takes the lead's default away" do
+    lesson = taught("Checkout retries go up when the payment timeout changes")
+    decide = Ability::Action.lookup(Ability::Action::LESSON_DECIDE, @workspace)
+
+    Ability::Grant.grant!(workspace: @workspace, principal: @member, target: { action: decide })
+    assert_nil lesson.approve_blocked_reason(@member)
+
+    @member.ability_grants.destroy_all
+    @incident.lead = @member
+    assert_nil lesson.reload.approve_blocked_reason(@member.reload)
+    Ability::Grant.withhold!(workspace: @workspace, principal: @member, action: decide)
+    assert_equal "Only the INC-001 lead, a workspace admin or someone granted Decide on lessons can decide on its lessons.", lesson.reload.approve_blocked_reason(@member.reload)
+    row = @member.default_access.find { |each| each.action&.key == Ability::Action::LESSON_DECIDE }
+    assert_equal WorkspaceMembership::DEFAULT_NO_ACCESS, row.state
   end
 
   test "a member cannot approve, and an approved lesson that is disputed since stops being checked until a person decides" do

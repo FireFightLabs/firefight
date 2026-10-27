@@ -59,6 +59,15 @@ class WorkspaceMembership < ApplicationRecord
   # and running one that is published) is ledgered like any other change, and publishing one is an admin's.
   NARROWABLE_KEYS = [ Ability::Action::MAP_READ, Ability::Action::INVESTIGATIONS_CREATE, Ability::Action::WORKFLOWS_CREATE ].freeze
 
+  # Held without a grant only where the member owns what the call is about, named by its scope: the lessons of an
+  # incident they lead or of a pull request they asked Halon for, and overriding a finding on a pull request whose services
+  # they own. A grant narrows it and No access takes it away, as for the defaults above.
+  OWNED_KEYS = [ Ability::Action::LESSON_DECIDE, Ability::Action::LESSON_OVERRIDE ].freeze
+  OWNED_NOTES = {
+    Ability::Action::LESSON_DECIDE => "Every member has this for the lessons of incidents they lead and of pull requests they asked Halon for.",
+    Ability::Action::LESSON_OVERRIDE => "Every member has this on pull requests in the repositories of services they own in the catalog."
+  }.freeze
+
   # Where one of those defaults stands for a member: held, narrowed by a grant, or taken away by an admin.
   DEFAULT_HELD = "held"
   DEFAULT_NARROWED = "narrowed"
@@ -70,15 +79,16 @@ class WorkspaceMembership < ApplicationRecord
   }.freeze
   # One of the defaults, either a system action or a connection's read pack, which stands for every tool on it that reads.
   DefaultAccess = Data.define(:action, :role, :state, :grant) do
-    def note = DEFAULT_NOTES.fetch(state)
+    def note = (state == DEFAULT_HELD && action && OWNED_NOTES[action.key]) || DEFAULT_NOTES.fetch(state)
   end
 
   # Admins hold every catalogued ability including integration tools. A member reads every connected tool that only
   # reads, the way they read Firefight's own data, while a tool that changes something stays an explicit grant. reads
   # says the call is shown to read through a tool that can also change things, which a member holds as a read.
-  def implicitly_allowed?(action, resolved = nil, reads: false)
+  def implicitly_allowed?(action, resolved = nil, reads: false, scope: {})
     return true if admin_access?
     return default_read?(action, resolved, reads: reads) if action.tool?
+    return owns?(action.key, scope) && !(resolved || Ability::Resolver.resolve(self, workspace_id)).granted_ever?(action.key) if OWNED_KEYS.include?(action.key)
 
     implicitly_permits?(*action.key.split("."), resolved)
   end
@@ -94,6 +104,15 @@ class WorkspaceMembership < ApplicationRecord
     return true if crud_action.to_s == Ability::Action::ACTION_READ
 
     PARTICIPATION.fetch(resource, []).include?(crud_action.to_s)
+  end
+
+  # Whether the member owns what the scope names, for one of OWNED_KEYS.
+  def owns?(key, scope)
+    case key
+    when Ability::Action::LESSON_DECIDE then Chat::Memory.decided_by_owner?(self, scope)
+    when Ability::Action::LESSON_OVERRIDE then PullRequestReview::Finding.overrides_as_owner?(self, scope)
+    else false
+    end
   end
 
   # A connected tool that only reads, held until a grant of it, alone or in a set such as its connection's read pack,
@@ -112,7 +131,7 @@ class WorkspaceMembership < ApplicationRecord
   def self.default_target?(action: nil, role: nil)
     return role.read_pack? && role.every_member? if role
 
-    action.present? && (NARROWABLE_KEYS.include?(action.key) || (action.tool? && action.read?))
+    action.present? && (NARROWABLE_KEYS.include?(action.key) || OWNED_KEYS.include?(action.key) || (action.tool? && action.read?))
   end
 
   def implicit_authority
@@ -133,7 +152,8 @@ class WorkspaceMembership < ApplicationRecord
       "can do in each tool, above, can leave a connection's reads to the people chosen for it, or let every member change it. No access " \
       "below takes any of these away at once, and Restore gives it back. Configuring the workspace and any tool that " \
       "changes something needs one of the grants below, such as a connection's changes pack. Members also build " \
-      "workflows, test them and run published ones. Publishing one is an admin's."
+      "workflows, test them and run published ones. Publishing one is an admin's. A member decides on the lessons of incidents " \
+      "they lead and of pull requests they asked Halon for, and overrides a strict lesson on pull requests whose services they own."
   }.freeze
 
   def implicit_authority_note = IMPLICIT_AUTHORITY_NOTES.fetch(implicit_authority)
@@ -148,7 +168,7 @@ class WorkspaceMembership < ApplicationRecord
     withheld = grants.select { |grant| grant.workspace_id == workspace_id && grant.no_access? }
     by_action = withheld.select(&:action).index_by { |grant| grant.action.key }
     by_role = withheld.select(&:role).index_by(&:role_id)
-    system = NARROWABLE_KEYS.map do |key|
+    system = (NARROWABLE_KEYS + OWNED_KEYS).map do |key|
       DefaultAccess.new(action: Ability::Action.system!(key), role: nil, state: default_state(key, by_action, resolved), grant: by_action[key])
     end
     system + read_packs.map do |pack|
