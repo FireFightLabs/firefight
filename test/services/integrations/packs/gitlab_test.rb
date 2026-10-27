@@ -568,6 +568,15 @@ module Integrations
         @pack.flag_pull_request(@row, repository: "acme/platform/web", number: 42, body: "Look here.")
       end
 
+      test "a check GitLab failed on its side is raised as it came, so it is tried again" do
+        failed = GitlabApi::Error.new("GitLab answered 503").tap { |error| error.http_status = 503 }
+        GitlabApi.any_instance.stubs(:post).raises(failed)
+        check = Integrations::ReviewHost::Check.new(state: Integrations::ReviewHost::CHECK_FAILING, description: "Open.", url: nil)
+
+        raised = assert_raises(GitlabApi::Error) { @pack.set_review_check(@row, repository: "acme/platform/web", sha: "a" * 40, check: check) }
+        assert Integrations::ReviewHost.retryable?(raised)
+      end
+
       test "how a merge request ended: who closed it, its commits oldest first, and the notes people wrote, never GitLab's own" do
         GitlabApi.any_instance.stubs(:get).with("#{PROJECT}/merge_requests/42").returns("state" => "closed", "closed_by" => { "username" => "lea" })
         GitlabApi.any_instance.stubs(:list).with("#{PROJECT}/merge_requests/42/commits", {}, pages: 3).returns([ [

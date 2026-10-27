@@ -154,6 +154,11 @@ module Integrations
       pack(row).pull_request_changes_between(row, repository: repository, from: from, to: to).to_s.truncate(OUTCOME_DIFF_LIMIT)
     end
 
+    # A refusal worth trying again: a rate limit, a host that did not answer in time, or one that failed on its side.
+    def retryable?(error)
+      error.is_a?(RateLimited) || error.is_a?(TimedOut) || error.try(:http_status).to_i >= 500
+    end
+
     def sets_checks?(integration)
       pack = NativePack.for(integration.provider)
       pack.present? && pack.method_defined?(CHECK_HOOK)

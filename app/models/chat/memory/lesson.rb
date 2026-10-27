@@ -15,9 +15,6 @@ module Chat::Memory::Lesson
   STATUSES = [ STATUS_WAITING, STATUS_APPROVED, STATUS_TURNED_DOWN ].freeze
   # How many approved lessons one review reads, those about what the change touches first.
   REVIEW_LIMIT = 40
-  # Said once an approved lesson changes in a way that can change a pull request's check, naming the reviews whose
-  # open findings it produced. The model never names who listens.
-  EVENT = "changed.lesson".freeze
 
   included do
     belongs_to :approved_by, class_name: "WorkspaceMembership", optional: true
@@ -26,15 +23,32 @@ module Chat::Memory::Lesson
     # What reviews check: approved, and still in use, so one disputed or rejected since waits on a person again.
     scope :approved_lessons, -> { lessons.in_use.where.not(approved_at: nil) }
 
-    # Deleting an approved lesson clears the findings it produced, so the reviews they hold are named before it goes.
-    before_destroy -> { @held_review_ids = held_review_ids }, if: :approved?
-    after_destroy_commit -> { announce_lesson_change(@held_review_ids) }, if: :approved?
+    # Deleting an approved lesson clears the findings it produced, so they are named before it goes.
+    before_destroy -> { @held_finding_ids = held_finding_ids }, if: :approved?
+    after_destroy_commit -> { announce_lesson_change(@held_finding_ids) }, if: :approved?
   end
 
   # What a lesson can come from: an incident, or a pull request Halon opened (its coding agent's session).
   def self.source_types = [ Incident.polymorphic_name, CodeAgentSession.polymorphic_name ]
 
   class_methods do
+    # The open findings the given lessons produced on pull requests not merged yet.
+    def held_finding_ids_of(lesson_ids)
+      PullRequestReview::Finding.still_open.where(lesson_id: lesson_ids).joins(:review).where(pull_request_reviews: { merged_at: nil }).pluck(:id)
+    end
+
+    # Each finding changed with its lesson, once the change commits, so the pull request's check is worked out again
+    # and its comments say where the lesson stands now. A change that rolls back is never said.
+    def announce_findings_changed(finding_ids)
+      return if finding_ids.blank?
+
+      ActiveRecord.after_all_transactions_commit do
+        PullRequestReview::Finding.where(id: finding_ids).includes(:review).each do |finding|
+          finding.review.announce!(PullRequestReview::CHANGE_FINDING_CHANGED, finding: finding)
+        end
+      end
+    end
+
     # The approved lessons a review of a change checks: those about the given subjects, such as the services that own
     # the repository and the resources they run on, then those about the whole workspace, then the rest, newest first.
     def for_review(workspace, subjects)
@@ -164,18 +178,9 @@ module Chat::Memory::Lesson
     reject!(by: by, reason: reason.presence || "#{TURNED_DOWN} by #{by.display_name}")
   end
 
-  # The reviews of pull requests not merged yet where a finding it produced is still open.
-  def held_review_ids
-    PullRequestReview::Finding.still_open.where(lesson_id: id).joins(:review).where(pull_request_reviews: { merged_at: nil })
-                              .distinct.pluck(:pull_request_review_id)
-  end
+  def held_finding_ids = self.class.held_finding_ids_of([ id ])
 
-  # Waits for the outermost transaction, so a change that rolls back is never said.
-  def announce_lesson_change(review_ids = held_review_ids)
-    return if review_ids.blank?
-
-    ActiveRecord.after_all_transactions_commit { ActiveSupport::Notifications.instrument(EVENT, review_ids: review_ids) }
-  end
+  def announce_lesson_change(finding_ids = held_finding_ids) = self.class.announce_findings_changed(finding_ids)
 
   private
 

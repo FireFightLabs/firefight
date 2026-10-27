@@ -4,6 +4,7 @@ class PullRequestReviewCommitStatusServiceTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
   setup do
+    Integrations::PullRequestReviews.stubs(:public?).returns(false)
     @workspace = workspaces(:slack_workspace_one)
     @admin = workspace_memberships(:alice_workspace_one)
     @integration = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub")
@@ -54,6 +55,18 @@ class PullRequestReviewCommitStatusServiceTest < ActiveSupport::TestCase
 
     assert_raises(PullRequestReviewCommitStatusService::Retry) { service.update! }
     assert_equal "Couldn't set the check on GitHub: GitHub answered 429.", @review.reload.commit_status_problem
+  end
+
+  test "a host that failed on its side is tried again too, and a public repository's check names no lesson" do
+    finding
+    failed = Integrations::GithubApp::Error.new("GitHub answered 502").tap { |error| error.http_status = 502 }
+    Integrations::ReviewHost.stubs(:set_check!).raises(failed)
+
+    assert_raises(PullRequestReviewCommitStatusService::Retry) { service.update! }
+
+    Integrations::PullRequestReviews.stubs(:public?).returns(true)
+    Integrations::ReviewHost.stubs(:set_check!).with { |_row, check:, **| check.description == "1 finding from a strict lesson is open." }
+    assert_equal PullRequestReview::COMMIT_STATUS_FAILING, service.update!
   end
 
   test "nothing is set for a review no strict lesson touched or a rehearsal" do

@@ -86,17 +86,23 @@ module PullRequestReview::Finding::LessonCheck
     nil
   end
 
-  # A person letting the pull request through although the finding stands, saying why. Guarded, so two people
-  # overriding at once land once. Returns whether it is overridden now.
+  # A person letting the pull request through although the finding stands, saying why. Every open copy of the same
+  # problem on the pull request's earlier heads is overridden with it, in one guarded statement, so two people
+  # overriding at once land once and no earlier copy keeps the check failing. Returns whether this call overrode it.
   def override!(by:, reason:)
     return false if override_state_blocked_reason || reason.blank?
 
-    moved = self.class.where(id: id, status: PullRequestReview::Finding::STATUS_OPEN, overridden_at: nil)
-                .update_all(overridden_by_id: by.id, overridden_at: Time.current, override_reason: reason, updated_at: Time.current) > 0
+    # Kept to the microsecond the database keeps, so this call can tell its own write.
+    at = Time.current.floor(6)
+    copies = self.class.where(pull_request_review_id: review.reviews_of_pull_request.select(:id), fingerprint: fingerprint,
+                              status: PullRequestReview::Finding::STATUS_OPEN, overridden_at: nil)
+    copies.update_all(overridden_by_id: by.id, overridden_at: at, override_reason: reason, updated_at: at)
     reload
-    return false unless moved
+    return false unless overridden_at == at && overridden_by_id == by.id
 
-    review.announce!(PullRequestReview::CHANGE_FINDING_CHANGED, finding: self)
+    self.class.where(fingerprint: fingerprint, overridden_at: at, overridden_by_id: by.id).includes(:review).each do |copy|
+      copy.review.announce!(PullRequestReview::CHANGE_FINDING_CHANGED, finding: copy)
+    end
     true
   end
 end

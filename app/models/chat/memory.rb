@@ -319,8 +319,12 @@ class Chat::Memory < ApplicationRecord
     days = workspace.memory_expiry_days
     return 0 unless days
 
-    where(workspace: workspace, state: STATE_UNCONFIRMED).where(updated_at: ...days.days.ago)
-      .update_all(state: STATE_EXPIRED, state_reason: "Nobody confirmed it within #{days} days.", updated_at: Time.current)
+    expiring = where(workspace: workspace, state: STATE_UNCONFIRMED).where(updated_at: ...days.days.ago)
+    # An approved lesson that expires stops holding its findings, so they are named before and said after.
+    held = held_finding_ids_of(expiring.where.not(approved_at: nil).select(:id))
+    expired = expiring.update_all(state: STATE_EXPIRED, state_reason: "Nobody confirmed it within #{days} days.", updated_at: Time.current)
+    announce_findings_changed(held)
+    expired
   end
 
   def confirmed? = state == STATE_CONFIRMED

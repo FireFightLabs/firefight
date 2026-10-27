@@ -131,16 +131,44 @@ class PullRequestReview::StrictCheckTest < ActiveSupport::TestCase
     assert @review.claim_commit_status!(PullRequestReview::COMMIT_STATUS_FAILING, "b" * 40)
   end
 
-  test "a change to an approved lesson names the reviews its open findings hold, after it commits" do
-    finding(lesson: @strict)
+  test "a change to an approved lesson announces each open finding it produced, after it commits, and so does its expiry" do
+    held = finding(lesson: @strict)
     said = []
-    subscriber = ActiveSupport::Notifications.subscribe(Chat::Memory::Lesson::EVENT) { |event| said << event.payload[:review_ids] }
+    subscriber = ActiveSupport::Notifications.subscribe(PullRequestReview::EVENT) { |event| said << event.payload.values_at(:finding_id, :change) }
 
     @strict.turn_down!(by: @admin, reason: "One off")
+    assert_equal [ [ held.id, PullRequestReview::CHANGE_FINDING_CHANGED ] ], said
 
-    assert_equal [ [ @review.id ] ], said
+    expiring = lesson("Web runs three replicas", strict: true)
+    other = finding(lesson: expiring, claim: "Scales web to one")
+    expiring.update_columns(updated_at: 40.days.ago)
+    said.clear
+    @workspace.update!(memory_expiry_days: 30)
+    assert_equal 1, Chat::Memory.expire!(@workspace)
+    assert_equal [ [ other.id, PullRequestReview::CHANGE_FINDING_CHANGED ] ], said
+    assert_not other.reload.holding?
   ensure
     ActiveSupport::Notifications.unsubscribe(subscriber)
+  end
+
+  test "overriding the newest copy of a problem overrides the open copies on earlier heads too, so the check passes" do
+    older = finding(lesson: @strict)
+    @review.update_columns(status: PullRequestReview::STATUS_DONE)
+    newer_review = PullRequestReview.create!(workspace: @workspace, repository: "acme/api", number: 7, head_sha: "b" * 40,
+                                             trigger: PullRequestReview::TRIGGER_AUTOMATIC, max_spend_cents: 400)
+    newer = newer_review.findings.create!(position: 1, fingerprint: older.fingerprint, category: older.category, severity: older.severity,
+                                          effort: older.effort, claim: older.claim, why: older.why, lesson: @strict)
+
+    assert newer.override!(by: @admin, reason: "Behind a flag")
+
+    assert_equal [ @admin, "Behind a flag" ], [ older.reload.overridden_by, older.override_reason ]
+    assert_equal PullRequestReview::COMMIT_STATUS_PASSING, newer_review.commit_status_due
+  end
+
+  test "on a public repository the check's words name no lesson" do
+    finding(lesson: @strict)
+
+    assert_equal "1 finding from a strict lesson is open.", @review.commit_status_words(PullRequestReview::COMMIT_STATUS_FAILING, public: true)
   end
 
   test "a review hands the model the approved lessons about the services owning its repository first, and only those can be cited" do

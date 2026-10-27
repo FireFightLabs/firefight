@@ -37,12 +37,15 @@ module PullRequestReview::StrictCheck
   end
 
   # The words the code host shows beside the check, short since some hosts cut them.
-  def commit_status_words(state)
+  # A public repository is never told which incident or pull request a lesson came from.
+  def commit_status_words(state, public: false)
     return "Every finding from a strict lesson is fixed or overridden." if state == COMMIT_STATUS_PASSING
 
     held = holding_findings
-    labels = held.filter_map(&:lesson_label).uniq.to_sentence
-    "#{held.size} #{'finding'.pluralize(held.size)} from a strict lesson #{held.size == 1 ? 'is' : 'are'} open: #{labels}."
+    open = "#{held.size} #{'finding'.pluralize(held.size)} from a strict lesson #{held.size == 1 ? 'is' : 'are'} open"
+    return "#{open}." if public
+
+    "#{open}: #{held.filter_map(&:lesson_label).uniq.to_sentence}."
   end
 
   # Claims setting state on sha, once. Guarded, so of two workers deciding the same thing only one calls the host.

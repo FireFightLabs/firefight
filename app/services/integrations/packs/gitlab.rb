@@ -503,8 +503,8 @@ module Integrations
         api(environment_row).post("#{GitlabApi.project(repository)}/statuses/#{Http.segment(sha)}", body)
         nil
       rescue GitlabApi::Error => error
-        # A limit or a slow host is raised as it came, so the check is tried again.
-        raise if error.is_a?(Integrations::RateLimited) || error.is_a?(Integrations::TimedOut)
+        # A limit, a slow host or the host's own failure is raised as it came, so the check is tried again.
+        raise if ReviewHost.retryable?(error)
 
         fail! error.message
       end
