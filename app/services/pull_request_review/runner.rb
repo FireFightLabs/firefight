@@ -197,7 +197,7 @@ class PullRequestReview::Runner
   def conclude!
     standing = review.findings.reload.standing.to_a
     summary = FirefightAi::ReviewSummarizer.new(review.workspace, inferable: review, choice: choice).summarize(
-      pull_request: "#{@pull.title}\n\n#{@pull.body}", files: files_text, reach: context.reach,
+      pull_request: "#{@pull.title}\n\n#{@pull.body}", files: files_text, reach: context.reach, risks: PullRequestReview::RISKS,
       findings: standing.map { |finding| "- #{finding.header}#{' | serious' if finding.serious}: #{finding.claim} (#{finding.path})" }.join("\n")
     )
     purse.add(summary.spent_micros)

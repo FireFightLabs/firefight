@@ -238,6 +238,16 @@ class PullRequestReview::RunnerTest < ActiveSupport::TestCase
     assert_equal 17_000, @review.spent_micros, "the part's 10,000 and the summary's 7,000"
   end
 
+  test "the summary may answer only the review's own risks, and a summary that gave none leaves the review done with no risk" do
+    stub_review_model(ScriptedReviewer.new(->(*) { }, []), ScriptedVerifier.new([]))
+    FirefightAi::ReviewSummarizer.any_instance.expects(:summarize).with(has_entry(:risks, PullRequestReview::RISKS)).returns(review_summary(risk: nil))
+
+    result = PullRequestReview::Runner.new(@review, by: "job-1").run
+
+    assert_equal PullRequestReview::STATUS_DONE, result.status
+    assert_equal [ "Retries a failed charge.", nil ], [ @review.reload.summary, @review.risk ]
+  end
+
   test "a retried review carries on from the parts it already reviewed" do
     @review.update!(reviewed_paths: @files.map(&:path))
     reviewer = ScriptedReviewer.new(->(*) { }, [])
