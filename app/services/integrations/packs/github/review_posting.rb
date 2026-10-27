@@ -84,6 +84,13 @@ module Integrations
           def review_markup = { collapses: true, hides: true }
         end
 
+        # Every line comment a review posted, read back page by page (pulls/list-comments-for-review).
+        def review_comments_of(environment_row, repository:, number:, review:)
+          review_comments_posted(repository, number, review, GithubApp.installation_token(environment_row)).map do |comment|
+            PullRequestReviews::PostedComment.new(reference: comment["id"]&.to_s, url: comment["html_url"], body: comment["body"].to_s)
+          end
+        end
+
         # Whether the repository is private (repos/get-a-repository, private).
         def review_visibility(environment_row, repository:)
           found = GithubApp.get("/repos/#{repository}", token: GithubApp.installation_token(environment_row))

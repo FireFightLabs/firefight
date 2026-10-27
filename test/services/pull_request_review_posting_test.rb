@@ -276,10 +276,10 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
     posting.run!(PullRequestReview::CHANGE_FINDING_CHANGED, finding: finding)
 
     edits = @posts.map(&:last)
-    assert_equal [ "100", "701", "200" ], edits.map { |given| given[:reference] }
-    assert_equal [ false, true, false ], edits.map { |given| given[:line] || false }
-    assert edits.drop(1).all? { |given| given[:body].start_with?("Fixed in bbbbbbb.") }
-    assert_includes edits.first[:body], "0 open, 1 fixed."
+    assert_equal [ "701", "200", "100" ], edits.map { |given| given[:reference] }
+    assert_equal [ true, false, false ], edits.map { |given| given[:line] || false }
+    assert edits.first(2).all? { |given| given[:body].start_with?("Fixed in bbbbbbb.") }
+    assert_includes edits.last[:body], "0 open, 1 fixed."
   end
 
   test "a rehearsal posts nothing" do

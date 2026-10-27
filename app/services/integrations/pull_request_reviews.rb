@@ -75,6 +75,9 @@ module Integrations
     # A line comment as a review posts it.
     LineComment = Data.define(:path, :line, :body)
 
+    # A line comment a review posted, read back: the host's reference to it, its page and its words.
+    PostedComment = Data.define(:reference, :url, :body)
+
     # What a review posted: the host's reference to the review and its page, and one reference and page per line comment in
     # the order given, nil for a line the host would not place.
     # unread is true when the line comments went up but the host would not say which is which, so none can be followed.
@@ -132,6 +135,19 @@ module Integrations
     rescue StandardError => error
       Rails.logger.warn({ event: "pull_request_reviews.visibility_unread", integration_environment_id: environment_row.id, error: error.class.name }.to_json)
       true
+    end
+
+    # The line comments a review posted, read back from the host, or nil when the read failed or the host cannot read
+    # them back. A host whose review is several calls always says each comment's id as it posts, so only a host that posts
+    # a review whole answers this.
+    def posted_comments(environment_row, repository:, number:, review:)
+      pack = NativePack.fetch!(environment_row.integration)
+      return unless pack.respond_to?(:review_comments_of)
+
+      pack.review_comments_of(environment_row, repository: repository, number: number, review: review)
+    rescue Integrations::Error => error
+      Rails.logger.warn({ event: "pull_request_reviews.comments_unread", integration_environment_id: environment_row.id, error: error.class.name }.to_json)
+      nil
     end
 
     # Whether one review call posts every line comment or none, so a refusal leaves nothing behind.
