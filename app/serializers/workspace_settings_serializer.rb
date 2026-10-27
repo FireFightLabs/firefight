@@ -4,7 +4,7 @@ class WorkspaceSettingsSerializer < BaseSerializer
   ISSUE_CREATION_UNION = Workspace::IssueSync::ISSUE_CREATIONS.map(&:inspect).join(" | ")
 
   attributes(transcript_access_enabled: { type: :boolean }, web_search_enabled: { type: :boolean }, halon_regression_enabled: { type: :boolean },
-             safe_changes_without_asking: { type: :boolean })
+             safe_changes_without_asking: { type: :boolean }, memory_review_enabled: { type: :boolean })
 
   # The connected team's own name in the chat platform, or null while the workspace has none connected.
   type :string, optional: true

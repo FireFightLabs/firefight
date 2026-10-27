@@ -8,5 +8,6 @@ export default interface ChatMemoryEvent {
   at: string
   by?: string
   detail?: string
+  investigationId?: string
   kind: ChatMemoryEventKind
 }

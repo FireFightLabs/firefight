@@ -7,8 +7,9 @@ class MemoryReviewService
     @workspace = workspace
   end
 
-  # The night's review, or nil when Halon cannot run here or this night already has one.
+  # The night's review, or nil when the workspace turned the check off, Halon cannot run here, or this night already has one.
   def start!(on: Date.current)
+    return nil unless @workspace.memory_review_enabled?
     return nil if Investigation.start_refusal(@workspace)
 
     review = Chat::MemoryReview.open!(@workspace, on: on)
@@ -17,8 +18,8 @@ class MemoryReviewService
     picks = Chat::Memory.to_check(@workspace).to_a
     merge!(review, picks)
     # A pick merged away lives on in the one it was merged into.
-    still = Chat::Memory.where(id: picks.map(&:id), state: Chat::Memory::CHECKED_STATES).pluck(:id).to_set
-    review.picked!(picks.select { |memory| still.include?(memory.id) })
+    merged = Chat::Memory.where(id: picks.map(&:id), state: Chat::Memory::STATE_MERGED).pluck(:id).to_set
+    review.picked!(picks.reject { |memory| merged.include?(memory.id) })
     return review.tap(&:finish!) if review.memory_ids.empty?
 
     started = InvestigationService.new(@workspace).start(review, trigger_source: Investigation::TRIGGER_MEMORY_REVIEW)
@@ -63,7 +64,7 @@ class MemoryReviewService
         memory.merge_into!(keeper)
       end
       if merged
-        review.class.where(id: review.id).update_all("merged = merged + 1")
+        review.count_merge!
         next
       end
 

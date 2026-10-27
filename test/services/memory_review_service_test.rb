@@ -85,6 +85,23 @@ class MemoryReviewServiceTest < ActiveSupport::TestCase
     assert review.finished_at
   end
 
+  test "a workspace that turned the nightly check off gets no review" do
+    remember("web deploys from main")
+    @workspace.update!(memory_review_enabled: false)
+
+    assert_nil MemoryReviewService.new(@workspace).start!
+    assert_not Chat::MemoryReview.exists?(workspace: @workspace)
+  end
+
+  test "what Halon rejected 90 days ago is checked again tonight" do
+    rejected = remember("Checkout runs in Frankfurt", state: Chat::Memory::STATE_REJECTED, decided_by_halon: true, rejected_at: 100.days.ago,
+                                                      checked_at: 100.days.ago)
+
+    review = MemoryReviewService.new(@workspace).start!
+
+    assert_includes review.memory_ids, rejected.id
+  end
+
   test "the nightly job reviews every workspace, and one failing never stops the next" do
     MemoryReviewService.any_instance.stubs(:start!).raises(StandardError, "boom").then.returns(nil)
 
@@ -93,5 +110,5 @@ class MemoryReviewServiceTest < ActiveSupport::TestCase
 
   private
 
-  def remember(text, **columns) = Chat::Memory.create!(workspace: @workspace, text: text, state: Chat::Memory::STATE_UNCONFIRMED, **columns)
+  def remember(text, state: Chat::Memory::STATE_UNCONFIRMED, **columns) = Chat::Memory.create!(workspace: @workspace, text: text, state: state, **columns)
 end

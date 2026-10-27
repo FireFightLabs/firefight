@@ -10,7 +10,7 @@ class Slack::Messages::LearnedMemoriesTest < ActiveSupport::TestCase
     assert_equal ":brain:  *What Halon learned from INC-007*", blocks.first.dig(:text, :text)
     assert_equal "divider", blocks.second[:type]
     actions = blocks.find { |block| block[:type] == "actions" }[:elements]
-    assert_equal [ "Not right", "Correct" ], actions.map { |button| button.dig(:text, :text) }
+    assert_equal [ "Not right", "Edit" ], actions.map { |button| button.dig(:text, :text) }
     assert_equal [ Identifiers::MEMORY_REJECT, Identifiers::MEMORY_CORRECT ], actions.map { |button| button[:action_id] }
     assert(actions.all? { |button| button[:value] == "post-1:memory-1" })
     assert_equal Slack::Messages::LearnedMemories::LESSONS, blocks.last[:elements].first[:text], "the footer says Halon checks them"
@@ -22,9 +22,9 @@ class Slack::Messages::LearnedMemoriesTest < ActiveSupport::TestCase
 
     assert_equal ":grey_question:  *Halon disputed a memory*", disputed.first.dig(:text, :text)
     assert_includes context_text(disputed), "Disputed. The resolver answered fine. Halon stopped using it until its nightly check against production settles it."
-    assert_equal [ "Not right", "Correct" ], buttons(disputed)
-    assert_equal [ "Not right", "Correct" ], buttons(build(Chat::MemoryPost::KIND_INCIDENT, memory(Chat::Memory::STATE_OUTDATED, reason: "web was renamed api")))
-    assert_equal [ "Not right", "Correct" ], buttons(build(Chat::MemoryPost::KIND_INCIDENT, memory(Chat::Memory::STATE_EXPIRED, reason: "Nobody confirmed it within 30 days.")))
+    assert_equal [ "Not right", "Edit" ], buttons(disputed)
+    assert_equal [ "Not right", "Edit" ], buttons(build(Chat::MemoryPost::KIND_INCIDENT, memory(Chat::Memory::STATE_OUTDATED, reason: "web was renamed api")))
+    assert_equal [ "Not right", "Edit" ], buttons(build(Chat::MemoryPost::KIND_INCIDENT, memory(Chat::Memory::STATE_EXPIRED, reason: "Nobody confirmed it within 30 days.")))
   end
 
   test "a memory Halon checked says so, and one merged says it lives on in another" do
@@ -66,7 +66,7 @@ class Slack::Messages::LearnedMemoriesTest < ActiveSupport::TestCase
     assert_equal ":bell:  *Memories nobody confirmed yet*", blocks.first.dig(:text, :text)
     assert_equal "Halon picked up 2 things from your chats that nobody has confirmed yet. Confirming keeps them in use, and anything wrong stops Halon repeating it.",
                  blocks.third.dig(:text, :text)
-    assert_equal [ "Not right", "Correct" ] * 2, buttons(blocks)
+    assert_equal [ "Not right", "Edit" ] * 2, buttons(blocks)
     assert_equal "Everything waiting is on the <https://firefight.test/app/memory|Memory page>.", blocks.last[:elements].first[:text]
   end
 

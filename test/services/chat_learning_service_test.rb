@@ -78,6 +78,28 @@ class ChatLearningServiceTest < ActiveSupport::TestCase
     ConversationLearningJob.perform_now(@conversation.id)
   end
 
+  test "archiving a chat, however it is archived, has Halon read it at once, and restoring it does not" do
+    assert_enqueued_with(job: ConversationLearningJob, args: [ @conversation.id ]) { @conversation.archive!(true) }
+    assert_no_enqueued_jobs(only: ConversationLearningJob) { @conversation.archive!(false) }
+  end
+
+  test "a chat about an incident tells its channel what it learned, as remember does, and one about nothing tells nobody" do
+    lessons([ "web deploys from the release branch", nil ])
+    FirefightAi::ChatLessons.any_instance.stubs(:extract).returns(@lessons)
+    assert_no_enqueued_jobs(only: MemoryNoteJob) { ChatLearningService.new(@conversation).learn! }
+
+    incident = incidents(:active_critical_ws1)
+    chat = Conversation.start_personal!(workspace: @workspace, member: @member)
+    chat.update!(subject: incident)
+    chat.ask!("Where does checkout deploy from?")
+    lessons([ "Checkout deploys from main", nil ])
+    FirefightAi::ChatLessons.any_instance.stubs(:extract).returns(@lessons)
+
+    assert_enqueued_with(job: MemoryNoteJob, args: ->(args) { args[1] == Chat::MemoryPost::KIND_LEARNED && args[2] == chat }) do
+      ChatLearningService.new(chat).learn!
+    end
+  end
+
   test "every turn queues a read for when the chat goes quiet" do
     Conversation::Runner.any_instance.stubs(:run)
 

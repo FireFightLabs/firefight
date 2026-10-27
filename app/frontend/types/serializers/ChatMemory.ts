@@ -34,4 +34,5 @@ export default interface ChatMemory {
   useCount: number
   verifiedAt?: string
   verifiedEvidence?: string
+  verifiedInvestigationId?: string
 }

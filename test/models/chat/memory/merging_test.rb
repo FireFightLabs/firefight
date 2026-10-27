@@ -52,6 +52,16 @@ class Chat::Memory::MergingTest < ActiveSupport::TestCase
     assert_not merged.merge_into!(keeper), "a memory already merged is left alone"
   end
 
+  test "a memory a person confirmed while the night's merge was getting ready is never merged" do
+    keeper = remember("web deploys from main")
+    duplicate = remember("Web deploys from main.")
+    stale = Chat::Memory.find(duplicate.id)
+    duplicate.confirm!(by: @alice)
+
+    assert_not stale.merge_into!(keeper)
+    assert_equal [ Chat::Memory::STATE_CONFIRMED, @alice ], duplicate.reload.values_at(:state, :confirmed_by)
+  end
+
   test "learning the wording of a merged memory again finds the one kept" do
     keeper = remember("web deploys from main")
     remember("Web deploys from main.").merge_into!(keeper)

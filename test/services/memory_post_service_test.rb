@@ -70,8 +70,35 @@ class MemoryPostServiceTest < ActiveSupport::TestCase
     assert_equal "Marked not right in a reminder", taught.reload.state_reason
   end
 
-  test "Halon no longer sends reminders, so a person is never messaged directly about memories" do
+  test "Halon no longer sends reminders" do
     assert_not_respond_to MemoryPostService.new(@workspace), :remind!
-    assert_not PlatformAdapter.method_defined?(:post_learned_memories_to_user)
+  end
+
+  test "the person who confirmed a memory Halon found evidence against is told once by direct message, with Still right, Not right and Edit" do
+    @memory.confirm!(by: @member)
+    @memory.dispute!("Halon checked it against production and found otherwise.")
+    @adapter.expects(:post_learned_memories_to_user).with { |user_id:, post:|
+      user_id == @member.platform_user_id && post.kind == Chat::MemoryPost::KIND_CHALLENGED && post.memories.map(&:id) == [ @memory.id ]
+    }.returns(message_id: "9.1", channel_id: "D9")
+
+    MemoryChallengeJob.perform_now(@memory.id)
+
+    post = Chat::MemoryPost.find_by!(kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: @member)
+    assert_equal [ "D9", "9.1", "a direct message" ], [ post.channel_id, post.message_id, post.place ]
+    buttons = Slack::Messages::LearnedMemories.build(MemoryPostService.new(@workspace).shown(post))
+                                              .select { |block| block[:type] == "actions" }.flat_map { |block| block[:elements].map { |button| button.dig(:text, :text) } }
+    assert_equal [ "Still right", "Not right", "Edit" ], buttons
+  end
+
+  test "nobody is messaged when the memory is no longer disputed, the person has no platform account, or the platform refuses" do
+    @adapter.expects(:post_learned_memories_to_user).never
+    @memory.confirm!(by: @member)
+    assert_nil MemoryPostService.new(@workspace).tell_confirmer!(@memory)
+
+    @adapter.unstub(:post_learned_memories_to_user)
+    @memory.dispute!("Found otherwise.")
+    @adapter.stubs(:post_learned_memories_to_user).raises(AdapterError::NotFound)
+    assert_nil MemoryPostService.new(@workspace).tell_confirmer!(@memory.reload)
+    assert_not Chat::MemoryPost.exists?(kind: Chat::MemoryPost::KIND_CHALLENGED)
   end
 end

@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Investigation::MemoryReviewRunTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @memory = Chat::Memory.create!(workspace: @workspace, text: "web deploys from main", state: Chat::Memory::STATE_UNCONFIRMED)
@@ -42,6 +44,15 @@ class Investigation::MemoryReviewRunTest < ActiveSupport::TestCase
     entry = @workspace.ability_invocations.find_by!(action_key: "memory.update", principal: SystemAgent.investigator)
     assert_equal({ "memory" => @memory.id, "verdict" => "right" }, entry.params)
     assert_equal AbilityGateway::SOURCE_INVESTIGATION, entry.source
+  end
+
+  test "a wrong verdict on a memory a person confirmed disputes it for them and queues one direct message to them" do
+    @memory.confirm!(by: workspace_memberships(:alice_workspace_one))
+
+    assert_enqueued_with(job: MemoryChallengeJob, args: [ @memory.id ]) do
+      assert_match "they are told", settle("verdict" => "wrong", "evidence" => "The deploy settings of web name release.")
+    end
+    assert_equal Chat::Memory::STATE_DISPUTED, @memory.reload.state
   end
 
   test "unsure needs no step, and an admin who revokes the investigator's memory grant stops every verdict" do

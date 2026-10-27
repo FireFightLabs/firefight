@@ -111,6 +111,8 @@ export const EVENT_LABELS: Record<ChatMemoryEventKind, string> = {
   current_again: "No longer flagged as outdated",
   expired: "Expired",
   revived: "Learned again after it expired",
+  restored: "Checked again, and it holds after all",
+  still_wrong: "Checked again, and it is still wrong",
 }
 
 // The same, said after who did it, such as "Ada confirmed it".
@@ -130,6 +132,8 @@ const EVENT_ACTS: Record<ChatMemoryEventKind, string> = {
   current_again: "cleared its outdated flag",
   expired: "set it aside as expired",
   revived: "learned it again after it expired",
+  restored: "checked it again and it holds after all, so it is in use again",
+  still_wrong: "checked it again and it is still wrong",
 }
 
 // One line of history, such as "Ada confirmed it", or "Expired" when nobody did it.

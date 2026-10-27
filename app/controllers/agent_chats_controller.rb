@@ -593,8 +593,6 @@ class AgentChatsController < InertiaController
   def archive
     archived = ActiveModel::Type::Boolean.new.cast(params[:archived])
     conversation.archive!(archived)
-    # An archived chat has ended, so Halon reads it for anything worth remembering now rather than once it goes quiet.
-    ConversationLearningJob.perform_later(conversation.id) if archived
 
     redirect_back_or_to agent_chat_path(conversation), notice: archived ? "Chat was archived." : "Chat was restored."
   end

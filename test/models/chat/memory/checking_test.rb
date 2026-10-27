@@ -20,6 +20,53 @@ class Chat::Memory::CheckingTest < ActiveSupport::TestCase
     assert_equal [ changed, never ], Chat::Memory.to_check(@workspace, limit: 2).to_a
   end
 
+  test "what Halon rejected is picked again once 90 days have passed since it last checked it, and what a person rejected never is" do
+    halon = remember("Checkout runs in Frankfurt", state: Chat::Memory::STATE_REJECTED, decided_by_halon: true, rejected_at: 100.days.ago,
+                                                   checked_at: 100.days.ago, updated_at: 100.days.ago)
+    remember("Checkout runs in Paris", state: Chat::Memory::STATE_REJECTED, decided_by_halon: true, rejected_at: 10.days.ago, checked_at: 10.days.ago)
+    remember("Checkout runs in Rome", state: Chat::Memory::STATE_REJECTED, rejected_by: @alice, rejected_at: 100.days.ago, checked_at: 100.days.ago)
+
+    assert_equal [ halon ], Chat::Memory.to_check(@workspace).to_a
+  end
+
+  test "checked again and right, what Halon rejected is in use again as confirmed by Halon, may be learned again, and what replaced it is rejected" do
+    old = remember("The primary is db-1")
+    old.found_wrong_by_halon!(evidence: "The cluster lists db-2 as primary.", correction: "The primary is db-2", review: @review)
+    replacement = old.reload.replaced_by
+    later = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.tomorrow, removal_cap: 3)
+
+    settled = old.verified_by_halon!(evidence: "The cluster lists db-1 as primary again.", review: later)
+
+    assert_equal [ Chat::Memory::STATE_CONFIRMED, true, nil, nil ], old.reload.values_at(:state, :decided_by_halon, :replaced_by_id, :rejected_at)
+    assert_match "Restored.", settled.words
+    assert_equal Chat::MemoryEvent::KIND_RESTORED, old.events.last.kind
+    assert_equal Chat::Memory::STATE_REJECTED, replacement.reload.state
+    learned = Chat::Memory.learn!(@workspace, text: "The primary is db-1", subject: nil, source: nil)
+    assert_equal [ Chat::Memory::LEARNED_KNOWN, old ], [ learned.outcome, learned.memory ]
+  end
+
+  test "checked again and still wrong, what Halon rejected stays rejected and waits another 90 days, using no removal" do
+    old = remember("Checkout retries twice")
+    old.found_wrong_by_halon!(evidence: "The client sets three retries.", correction: nil, review: @review)
+    later = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.tomorrow, removal_cap: 3)
+
+    settled = old.found_wrong_by_halon!(evidence: "The client still sets three retries.", correction: nil, review: later)
+
+    assert_equal "Still wrong, so it stays rejected.", settled.words
+    assert_equal [ Chat::Memory::STATE_REJECTED, Chat::Memory::VERDICT_WRONG ], old.reload.values_at(:state, :check_outcome)
+    assert_equal [ Chat::MemoryEvent::KIND_REJECTED, Chat::MemoryEvent::KIND_STILL_WRONG ], old.events.map(&:kind)
+    assert_equal 0, later.reload.removals
+  end
+
+  test "each line of history Halon's check writes links the run that checked it" do
+    run = @workspace.investigations.create!(subject: @review, trigger_source: Investigation::TRIGGER_MEMORY_REVIEW, max_turns: 4, max_spend_cents: 400)
+    memory = remember("web deploys from main")
+
+    memory.verified_by_halon!(evidence: "The deploy settings of web name main.", review: @review)
+
+    assert_equal run, memory.reload.last_verified.investigation
+  end
+
   test "a night may reject or merge 15 percent of the memories in use, and never fewer than three" do
     assert_equal 3, Chat::Memory.removal_cap(@workspace)
 
@@ -103,8 +150,9 @@ class Chat::Memory::CheckingTest < ActiveSupport::TestCase
   test "a person's memory is never rejected by Halon, only disputed, and never again with evidence they already saw" do
     memory = remember("web deploys from main", state: Chat::Memory::STATE_CONFIRMED, confirmed_by: @alice, confirmed_at: 5.days.ago)
 
-    memory.found_wrong_by_halon!(evidence: "The deploy settings of web name release.", correction: "web deploys from release", review: @review)
+    first = memory.found_wrong_by_halon!(evidence: "The deploy settings of web name release.", correction: "web deploys from release", review: @review)
 
+    assert_equal [ memory.id ], first.challenged, "the person who confirmed it is told"
     assert_equal [ Chat::Memory::STATE_DISPUTED, @alice, nil ], memory.reload.values_at(:state, :confirmed_by, :replaced_by_id)
     assert memory.awaiting_decision?
     assert_equal 0, @review.reload.removals, "a dispute removes nothing"
@@ -115,10 +163,60 @@ class Chat::Memory::CheckingTest < ActiveSupport::TestCase
     settled = memory.found_wrong_by_halon!(evidence: "The deploy settings of web name release.", correction: nil, review: @review)
 
     assert_equal Chat::Memory::OUTCOME_HELD, settled.outcome
+    assert_empty settled.challenged, "nothing new, so nobody is told again"
     assert_equal [ Chat::Memory::STATE_CONFIRMED, Chat::Memory::OUTCOME_HELD ], memory.reload.values_at(:state, :check_outcome)
 
     memory.found_wrong_by_halon!(evidence: "The deploy log shows the last three deploys came from the hotfix branch.", correction: nil, review: @review)
     assert_equal Chat::Memory::STATE_DISPUTED, memory.reload.state, "new evidence is raised again"
+  end
+
+  test "a person confirming a memory while Halon's check runs is never rejected by that check, and the removal goes back" do
+    memory = remember("Checkout retries twice")
+    stale = Chat::Memory.find(memory.id)
+    memory.confirm!(by: @alice)
+    stale.define_singleton_method(:person_stands_behind?) { false }
+
+    settled = stale.found_wrong_by_halon!(evidence: "The client sets three retries.", correction: nil, review: @review)
+
+    assert_nil settled.outcome
+    assert_match "changed while you checked it", settled.words
+    assert_equal [ Chat::Memory::STATE_CONFIRMED, @alice ], memory.reload.values_at(:state, :confirmed_by)
+    assert_equal 0, @review.reload.removals
+  end
+
+  test "a person confirming the other side of a contradiction while Halon's check runs is not rejected, and the removal goes back" do
+    older = remember("web deploys from main")
+    newer = remember("web deploys from release")
+    older.contradicted!(newer, reason: "A chat showed \"web deploys from release\".")
+    stale_older = Chat::Memory.find(older.id)
+    older.confirm!(by: @alice)
+    stale_older.define_singleton_method(:person_stands_behind?) { false }
+
+    assert_nil stale_older.send(:settle_against!, newer, "The deploy settings of web name release.", @review, [])
+    assert_equal [ Chat::Memory::STATE_CONFIRMED, @alice ], older.reload.values_at(:state, :confirmed_by)
+    assert_equal 0, @review.reload.removals
+  end
+
+  test "Halon checking again what a person confirmed never moves the date they confirmed it" do
+    confirmed_at = 3.days.ago.change(usec: 0)
+    memory = remember("web deploys from main", state: Chat::Memory::STATE_CONFIRMED, confirmed_by: @alice, confirmed_at: confirmed_at)
+
+    memory.verified_by_halon!(evidence: "The deploy settings of web name main.", review: @review)
+
+    assert_equal confirmed_at, memory.reload.confirmed_at
+    assert_equal Chat::Memory::VERDICT_RIGHT, memory.check_outcome
+  end
+
+  test "two people confirming at once what only Halon confirmed land once" do
+    memory = remember("web deploys from main")
+    memory.verified_by_halon!(evidence: "The deploy settings of web name main.", review: @review)
+    first = Chat::Memory.find(memory.id)
+    second = Chat::Memory.find(memory.id)
+    bob = workspace_memberships(:bob_workspace_one)
+
+    assert first.confirm!(by: @alice)
+    assert_not second.confirm!(by: bob)
+    assert_equal @alice, memory.reload.confirmed_by
   end
 
   test "past tonight's limit a wrong memory is left as it was, marked as held, and checked again another night" do

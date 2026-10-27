@@ -24,8 +24,12 @@ class Chat::MemoryEvent < ApplicationRecord
   KIND_CURRENT_AGAIN = "current_again".freeze
   KIND_EXPIRED = "expired".freeze
   KIND_REVIVED = "revived".freeze
+  # What Halon rejected, checked again later: it held after all and is in use again, or it is still wrong.
+  KIND_RESTORED = "restored".freeze
+  KIND_STILL_WRONG = "still_wrong".freeze
   KINDS = [ KIND_LEARNED, KIND_WRITTEN, KIND_CONFIRMED, KIND_VERIFIED, KIND_UNSETTLED, KIND_HELD, KIND_DISPUTED, KIND_CORRECTED,
-            KIND_REJECTED, KIND_MERGED, KIND_ABSORBED, KIND_OUTDATED, KIND_CURRENT_AGAIN, KIND_EXPIRED, KIND_REVIVED ].freeze
+            KIND_REJECTED, KIND_MERGED, KIND_ABSORBED, KIND_OUTDATED, KIND_CURRENT_AGAIN, KIND_EXPIRED, KIND_REVIVED, KIND_RESTORED,
+            KIND_STILL_WRONG ].freeze
 
   ACTOR_PERSON = "person".freeze
   ACTOR_HALON = "halon".freeze
@@ -37,6 +41,8 @@ class Chat::MemoryEvent < ApplicationRecord
   belongs_to :workspace
   belongs_to :memory, class_name: "Chat::Memory"
   belongs_to :member, class_name: "WorkspaceMembership", optional: true
+  # The nightly run that checked it, which the Memory page links Halon's evidence to.
+  belongs_to :investigation, optional: true
 
   validates :kind, inclusion: { in: KINDS }
   validates :actor, inclusion: { in: ACTORS }, allow_nil: true

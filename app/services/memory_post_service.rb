@@ -44,7 +44,25 @@ class MemoryPostService
     post!(incident, [ memory ], kind: kind, thread_id: thread_id)
   end
 
-  # Someone pressing Not right, or Confirm on a message posted before Halon checked memories itself. reference is the post a button names, or the incident on a message posted
+  # Halon's nightly check found evidence against a memory a person confirmed, so that person is told once by direct
+  # message, with Still right, Not right and Edit. Nothing is sent when they have no platform account, or when the
+  # platform cannot take it, and the memory waits on the Memory page either way. Returns the post, or nil.
+  def tell_confirmer!(memory)
+    person = memory.confirmed_by
+    return nil unless memory.state == Chat::Memory::STATE_DISPUTED && person&.platform_user_id.present? && @workspace.platform.present?
+
+    post = Chat::MemoryPost.create!(workspace: @workspace, kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: person, channel_id: person.platform_user_id,
+                                    memory_ids: [ memory.id ])
+    posted = adapter.post_learned_memories_to_user(user_id: person.platform_user_id, post: shown(post))
+    post.posted!(posted[:message_id], channel_id: posted[:channel_id] || post.channel_id)
+    post
+  rescue AdapterError => error
+    post&.destroy!
+    Rails.logger.info({ event: "memory_post.confirmer_not_told", memory_id: memory.id, error: error.class.name }.to_json)
+    nil
+  end
+
+  # Someone pressing Still right or Not right, or Confirm on a message posted before Halon checked memories itself. reference is the post a button names, or the incident on a message posted
   # before posts were kept. Returns false when the memory is not one the message shows.
   def decide!(reference:, memory_id:, member:, confirmed:, channel_id:, message_id:)
     post = post_for(reference, channel_id: channel_id, message_id: message_id)

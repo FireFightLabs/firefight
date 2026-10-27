@@ -14,8 +14,8 @@ module Slack
           type: "modal",
           callback_id: Identifiers::MEMORY_CORRECT_MODAL,
           private_metadata: ModalState.encode(memory_post_id: post_id, memory_id: memory.id),
-          title: { type: "plain_text", text: "Correct memory" },
-          submit: { type: "plain_text", text: "Correct" },
+          title: { type: "plain_text", text: "Edit memory" },
+          submit: { type: "plain_text", text: "Save" },
           close: { type: "plain_text", text: "Cancel" },
           blocks: [
             { type: "section", text: { type: "mrkdwn", text: "*Halon remembers*\n> #{Slack::Mrkdwn.escape(memory.text).gsub("\n", "\n> ")}" } },

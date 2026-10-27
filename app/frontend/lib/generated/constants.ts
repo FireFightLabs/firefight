@@ -366,7 +366,9 @@ export const CHAT_MEMORY_EVENT_KINDS = [
   "outdated",
   "current_again",
   "expired",
-  "revived"
+  "revived",
+  "restored",
+  "still_wrong"
 ] as const
 export type ChatMemoryEventKind = (typeof CHAT_MEMORY_EVENT_KINDS)[number]
 
@@ -385,7 +387,9 @@ export const CHAT_MEMORY_EVENT_KIND = {
   "OUTDATED": "outdated",
   "CURRENT_AGAIN": "current_again",
   "EXPIRED": "expired",
-  "REVIVED": "revived"
+  "REVIVED": "revived",
+  "RESTORED": "restored",
+  "STILL_WRONG": "still_wrong"
 } as const
 
 export const CHAT_MEMORY_ACTORS = [

@@ -34,6 +34,7 @@ module Mcp
           archive_channel_delay: { type: "string", enum: ARCHIVE_VALUES, description: "How long after an incident ends its channel is archived. #{ARCHIVE_CHOICES}" },
           web_search_enabled: { type: "boolean", description: "Whether Halon and its coding agent may search and read the public web, through Firefight" },
           halon_regression_enabled: { type: "boolean", description: "Whether Firefight may replay Halon's investigations whose answer the team confirmed or marked wrong, to test new versions of Halon. Off by default" },
+          memory_review_enabled: { type: "boolean", description: "Whether Halon checks what the workspace remembers against production every night at 02:00 UTC, a batch at a time, confirming, correcting or rejecting each with evidence. On by default" },
           memory_expiry_days: { type: [ "integer", "null" ], enum: [ *Chat::Memory::EXPIRY_CHOICES, nil ], description: "Days a memory Halon learned may go unconfirmed before Halon stops using it and it moves to Expired on the Memory page. null keeps using it until a person decides, the default" },
           code_fix_agent: { type: [ "string", "null" ], description: "The connection slug of a connected coding agent (the coding_agents category of list_integrations), which then writes a fix's code changes and opens the pull request. null for Firefight's own agent, the default" },
           code_fix_budget_cents: { type: "integer", minimum: Workspace::CodeFixes::MIN_CODE_FIX_BUDGET_CENTS, maximum: Workspace::CodeFixes::MAX_CODE_FIX_BUDGET_CENTS,

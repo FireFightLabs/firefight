@@ -20,6 +20,10 @@ class ChatMemoryEventSerializer < BaseSerializer
   type :string, optional: true
   def detail = event.detail
 
+  # The nightly run that checked it, which opens on its own page.
+  type :string, optional: true
+  def investigation_id = event.investigation_id
+
   type :string
   def at = event.created_at.utc.iso8601
 end

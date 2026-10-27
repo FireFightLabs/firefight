@@ -39,10 +39,10 @@ module Chat::Memory::Merging
   end
 
   # Merged into keeper, which takes over its uses and anything that pointed at it. Guarded, so a memory someone decided
-  # on meanwhile is left alone. Returns whether it was merged.
+  # on meanwhile, or one a person stands behind, is left alone. Returns whether it was merged.
   def merge_into!(keeper)
     transaction do
-      moved = decide!(Chat::Memory::STATE_MERGED, from: MERGEABLE_STATES, decided_by_halon: true, replaced_by_id: keeper.id,
+      moved = decide!(Chat::Memory::STATE_MERGED, from: MERGEABLE_STATES, decided_by_halon: true, halon_only: true, replaced_by_id: keeper.id,
                                                   state_reason: "It says the same as \"#{keeper.text}\".")
       next false unless moved
 

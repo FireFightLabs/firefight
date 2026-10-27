@@ -24,6 +24,7 @@ class Investigation::MemoryReviewSeed
     {
       "id" => memory.id, "fact" => memory.text, "about" => about(memory), "state" => memory.state, "stands_behind" => behind(memory),
       "why_disputed" => (memory.state_reason if memory.state == Chat::Memory::STATE_DISPUTED),
+      "why_rejected" => (memory.state_reason if memory.rejected_by_halon?),
       "says_otherwise_than" => partners(memory).presence,
       "last_checked" => last_checked(memory)
     }.compact
@@ -41,6 +42,9 @@ class Investigation::MemoryReviewSeed
     return "#{memory.confirmed_by.display_name}, a person, confirmed it on #{memory.confirmed_at.to_date.iso8601}" if memory.confirmed_by && memory.confirmed_at
     return "a completed postmortem confirmed it" if memory.confirmed? && memory.decided_by_postmortem_id
     return "you confirmed it on an earlier night" if memory.confirmed? && memory.decided_by_halon
+    if memory.rejected_by_halon?
+      return "you rejected it on #{memory.rejected_at&.to_date&.iso8601 || 'an earlier night'}. Check whether it holds now, since production may have changed"
+    end
 
     "nobody yet"
   end

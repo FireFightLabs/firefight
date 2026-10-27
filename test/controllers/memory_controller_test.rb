@@ -48,6 +48,22 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ checked, tried, yours ].map(&:id).sort, shown.values.map { |memory| memory["id"] }.sort
   end
 
+  test "Halon's evidence links to the run that checked it, which opens on its own page" do
+    review = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.current, removal_cap: 3)
+    run = @workspace.investigations.create!(subject: review, trigger_source: Investigation::TRIGGER_MEMORY_REVIEW, max_turns: 4, max_spend_cents: 400)
+    run.conclude!(summary: "Checked 1 of 1 memory against production.")
+    memory = remember("web deploys from main")
+    memory.verified_by_halon!(evidence: "The deploy settings of web name main.", review: review)
+
+    get memory_path, headers: inertia_headers
+    shown = inertia_props["memories"].sole
+    assert_equal [ run.id, run.id ], [ shown["verifiedInvestigationId"], shown["events"].sole["investigationId"] ]
+
+    get investigation_path(run), headers: inertia_headers
+    assert_response :success
+    assert_equal "Nightly memory check", inertia_props["investigation"]["question"]
+  end
+
   test "a person confirming what only Halon checked makes it theirs, and says so" do
     review = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.current, removal_cap: 3)
     memory = remember("web deploys from main")

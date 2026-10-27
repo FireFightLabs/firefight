@@ -48,7 +48,7 @@ class AgentMemoryQuestionCardTest < ApplicationSystemTestCase
 
     click_on "Correct"
     fill_in "What is true", with: "web deploys from the release branch on weekdays and from main on Sundays"
-    click_on "Save correction"
+    click_on "Save"
 
     assert_text "Corrected. Halon keeps the old wording as rejected so it does not learn it again."
     assert_equal Chat::Memory::STATE_REJECTED, @newer.reload.state

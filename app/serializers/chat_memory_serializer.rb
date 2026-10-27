@@ -69,6 +69,10 @@ class ChatMemorySerializer < BaseSerializer
   type :string, optional: true
   def verified_at = verified&.created_at&.utc&.iso8601
 
+  # The nightly run that last showed it right, which opens on its own page.
+  type :string, optional: true
+  def verified_investigation_id = verified&.investigation_id
+
   # Everything that happened to it, oldest first.
   has_many :events, serializer: ChatMemoryEventSerializer
 

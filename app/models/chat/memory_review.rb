@@ -28,7 +28,13 @@ class Chat::MemoryReview < ApplicationRecord
 
   def picked!(memories) = update!(memory_ids: memories.map(&:id))
 
+  # The run checking tonight's memories, which each line of history Halon writes links to.
+  def run = investigations.order(:created_at).last
+
   def settled?(memory) = settled_ids.include?(memory.id)
+
+  # One more memory merged tonight, counted in one statement.
+  def count_merge! = self.class.where(id: id).update_all("merged = merged + 1")
 
   # A removal taken for a change that did not happen, such as a merge refused or decided on meanwhile, is given back.
   def give_back_removal!
@@ -60,7 +66,7 @@ class Chat::MemoryReview < ApplicationRecord
     settled = case verdict
     when Chat::Memory::VERDICT_RIGHT then memory.verified_by_halon!(evidence: evidence, review: self)
     when Chat::Memory::VERDICT_WRONG then memory.found_wrong_by_halon!(evidence: evidence, correction: correction, review: self)
-    else memory.unsettled_by_halon!(note: evidence)
+    else memory.unsettled_by_halon!(note: evidence, review: self)
     end
     release!(memory) unless settled.outcome
     settled
@@ -74,7 +80,7 @@ class Chat::MemoryReview < ApplicationRecord
     return false unless self.class.where(id: id, finished_at: nil).update_all(finished_at: Time.current, updated_at: Time.current) > 0
 
     reload
-    memories.reject { |memory| settled?(memory) }.each { |memory| memory.unsettled_by_halon!(note: NOT_REACHED) }
+    memories.reject { |memory| settled?(memory) }.each { |memory| memory.unsettled_by_halon!(note: NOT_REACHED, review: self) }
     true
   end
 

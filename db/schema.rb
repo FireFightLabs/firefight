@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_26_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_27_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -759,6 +759,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_150000) do
     t.uuid "member_id"
     t.text "detail"
     t.datetime "created_at", null: false
+    t.uuid "investigation_id"
+    t.index ["investigation_id"], name: "index_chat_memory_events_on_investigation_id"
     t.index ["member_id"], name: "index_chat_memory_events_on_member_id"
     t.index ["memory_id", "created_at"], name: "index_chat_memory_events_on_memory_id_and_created_at"
     t.index ["workspace_id"], name: "index_chat_memory_events_on_workspace_id"
@@ -3737,6 +3739,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_150000) do
     t.integer "workflow_run_retention_days", default: 90, null: false
     t.integer "code_fix_budget_cents", default: 200, null: false
     t.boolean "safe_changes_without_asking", default: true, null: false
+    t.boolean "memory_review_enabled", default: true, null: false
     t.index ["created_by_id"], name: "index_workspaces_on_created_by_id"
     t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
     t.index ["issue_webhook_token"], name: "index_workspaces_on_issue_webhook_token", unique: true
@@ -3845,6 +3848,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_150000) do
   add_foreign_key "chat_memories", "workspace_memberships", column: "rejected_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspaces"
   add_foreign_key "chat_memory_events", "chat_memories", column: "memory_id", on_delete: :cascade
+  add_foreign_key "chat_memory_events", "investigations", on_delete: :nullify
   add_foreign_key "chat_memory_events", "workspace_memberships", column: "member_id", on_delete: :nullify
   add_foreign_key "chat_memory_events", "workspaces", on_delete: :cascade
   add_foreign_key "chat_memory_posts", "conversations", on_delete: :cascade

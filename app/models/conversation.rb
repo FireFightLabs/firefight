@@ -349,7 +349,13 @@ class Conversation < ApplicationRecord
 
   def pin!(pinned) = update_in_place!(pinned_at: pinned ? Time.current : nil)
 
-  def archive!(archived) = update_in_place!(archived_at: archived ? Time.current : nil)
+  # An archived chat has ended, so Halon reads it for anything worth remembering now rather than once it goes quiet.
+  def archive!(archived)
+    update_in_place!(archived_at: archived ? Time.current : nil).tap { ConversationLearningJob.perform_later(id) if archived }
+  end
+
+  # Halon has read the chat for lessons up to at, never moving back.
+  def learned_through!(at) = self.class.where(id: id).update_all([ "learned_through_at = GREATEST(learned_through_at, ?)", at ])
 
   def rename!(new_title) = update_in_place!(title: new_title.to_s.strip.truncate(TITLE_LIMIT))
 

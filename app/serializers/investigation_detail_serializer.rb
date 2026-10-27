@@ -28,9 +28,11 @@ class InvestigationDetailSerializer < BaseSerializer
   end
 
   # What whoever asked said was wrong, the run's own question. Asked in the chat platform, it reads as the platform shows
-  # it, from the platform_texts handed in.
+  # it, from the platform_texts handed in. The nightly memory check was asked nothing, so it is named for what it is.
   type :string, optional: true
   def question
+    return investigation.label if investigation.memory_review?
+
     question = investigation.question
     investigation.question_in_platform_markup? ? options.fetch(:platform_texts, {}).fetch(question, question) : question
   end

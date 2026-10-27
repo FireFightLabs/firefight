@@ -6,7 +6,7 @@ import { type Decision, DECISIONS } from "@/components/memory/decide-memory-dial
 import { Button } from "@/components/ui/button"
 import { TableCell, TableRow } from "@/components/ui/table"
 import { formatDate, formatDateTime } from "@/lib/formatters"
-import { confirmMemoryPath, incidentPath } from "@/lib/routes"
+import { confirmMemoryPath, incidentPath, investigationPath } from "@/lib/routes"
 import { STATE_LABELS, STATE_TONES } from "@/lib/memory-labels"
 import { checkLine, eventHeadline, vouch } from "@/pages/memory/lib/labels"
 import { Blocked } from "@/components/blocked-tooltip"
@@ -21,7 +21,7 @@ interface MemoryRowProps {
   onDelete: (memory: ChatMemory) => void
 }
 
-// Confirm, Correct and Not right stay on every row a person may decide on, whatever Halon's check found, since a person's
+// Confirm, Edit and Not right stay on every row a person may decide on, whatever Halon's check found, since a person's
 // word outranks Halon's. One the memory refuses is inert, with why as its tooltip.
 export function MemoryRow({ memory, focused, canCurate, onDecide, onDelete }: MemoryRowProps) {
   const row = useRef<HTMLTableRowElement>(null)
@@ -72,9 +72,21 @@ export function MemoryRow({ memory, focused, canCurate, onDecide, onDelete }: Me
           <p className="text-sm leading-relaxed">{memory.text}</p>
           {memory.reason && <p className="text-xs text-muted-foreground">{memory.reason}</p>}
           {memory.awaitingDecision && (
-            <p className="text-xs font-medium text-warning">Halon could not settle this against production, so it waits on a person. Confirm it, correct it or mark it not right.</p>
+            <p className="text-xs font-medium text-warning">Halon could not settle this against production, so it waits on a person. Confirm it, edit it or mark it not right.</p>
           )}
-          {checked && <p className="text-xs text-muted-foreground">{checked}</p>}
+          {checked && (
+            <p className="text-xs text-muted-foreground">
+              {checked}
+              {memory.verifiedInvestigationId && (
+                <>
+                  {" "}
+                  <Link href={investigationPath(memory.verifiedInvestigationId)} className="text-link hover:underline">
+                    See the check
+                  </Link>
+                </>
+              )}
+            </p>
+          )}
           {memory.events.length > 0 && (
             <div className="flex flex-col gap-2 pt-0.5">
               <button
@@ -94,6 +106,11 @@ export function MemoryRow({ memory, focused, canCurate, onDecide, onDelete }: Me
                         {eventHeadline(event)}, {formatDateTime(event.at)}
                       </span>
                       {event.detail && <p className="text-xs whitespace-pre-wrap text-muted-foreground">{event.detail}</p>}
+                      {event.investigationId && (
+                        <Link href={investigationPath(event.investigationId)} className="w-fit text-xs text-link hover:underline">
+                          See the check
+                        </Link>
+                      )}
                     </li>
                   ))}
                 </ol>
@@ -130,7 +147,7 @@ export function MemoryRow({ memory, focused, canCurate, onDecide, onDelete }: Me
             </Blocked>
             <Blocked reason={rejectReason}>
               <Button type="button" size="sm" variant="outline" disabled={Boolean(rejectReason)} onClick={correct}>
-                Correct
+                Edit
               </Button>
             </Blocked>
             <Blocked reason={rejectReason}>

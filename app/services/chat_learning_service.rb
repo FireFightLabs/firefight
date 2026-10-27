@@ -3,7 +3,7 @@
 # each lesson goes through Chat::Memory.learn!, so it is screened, never saved twice in any words, never learned again
 # once rejected, and disputes what it contradicts. What Halon already remembered in the chat is handed over as known, so
 # nothing is learned twice. Saved as the investigator through the gateway, so an admin who revokes its memory grant stops
-# it and each save is in Activity.
+# it and each save is in Activity. A chat about an incident tells its channel what it learned, as remember does.
 class ChatLearningService
   # How much of what the workspace already holds the model reads, the most recently changed first.
   REMEMBERED_LIMIT = 60
@@ -24,7 +24,8 @@ class ChatLearningService
 
     lessons = FirefightAi::ChatLessons.new(@workspace, inferable: @conversation, member: member).extract(transcript: transcript(messages), remembered: remembered)
     saved = lessons.filter_map { |lesson| save(lesson) }
-    read_through!(messages.last.created_at)
+    @conversation.learned_through!(messages.last.created_at)
+    saved.each { |memory| tell_incident(memory) }
     saved
   rescue FirefightAi::Error => error
     Rails.logger.info({ event: "chat_learning.failed", conversation_id: @conversation.id, error: error.class.name }.to_json)
@@ -98,7 +99,10 @@ class ChatLearningService
 
   def reader = @conversation.turn_asker(nil) || SystemAgent.investigator
 
-  def read_through!(at)
-    Conversation.where(id: @conversation.id).update_all([ "learned_through_at = GREATEST(learned_through_at, ?)", at ])
+  # A chat about an incident tells its channel what it learned, as remember does (Chat::Tools.tell_incident).
+  def tell_incident(memory)
+    return unless @conversation.incident&.channel_id.present?
+
+    MemoryNoteJob.perform_later(memory.id, Chat::MemoryPost::KIND_LEARNED, @conversation)
   end
 end

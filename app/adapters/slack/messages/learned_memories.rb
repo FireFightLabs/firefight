@@ -10,15 +10,17 @@ module Slack
         Chat::MemoryPost::KIND_POSTMORTEM => ":brain:  *What Halon learned from the %<incident>s postmortem*",
         Chat::MemoryPost::KIND_LEARNED => ":brain:  *Halon learned something about your setup*",
         Chat::MemoryPost::KIND_DISPUTED => ":grey_question:  *Halon disputed a memory*",
-        Chat::MemoryPost::KIND_REMINDER => ":bell:  *Memories nobody confirmed yet*"
+        Chat::MemoryPost::KIND_REMINDER => ":bell:  *Memories nobody confirmed yet*",
+        Chat::MemoryPost::KIND_CHALLENGED => ":grey_question:  *Halon found evidence against a memory you confirmed*"
       }.freeze
-      LESSONS = "Halon already uses these and reviews them against production in its nightly check. If one is wrong, mark it not right or correct it.".freeze
+      LESSONS = "Halon already uses these and reviews them against production in its nightly check. If one is wrong, mark it not right or edit it.".freeze
       FOOTERS = {
         Chat::MemoryPost::KIND_INCIDENT => LESSONS,
         Chat::MemoryPost::KIND_POSTMORTEM => LESSONS,
-        Chat::MemoryPost::KIND_LEARNED => "Halon already uses this and reviews it against production in its nightly check. If it is wrong, mark it not right or correct it.",
+        Chat::MemoryPost::KIND_LEARNED => "Halon already uses this and reviews it against production in its nightly check. If it is wrong, mark it not right or edit it.",
         Chat::MemoryPost::KIND_DISPUTED => "Something Halon read contradicted this, so it stopped using it until its nightly check against production settles it.",
-        Chat::MemoryPost::KIND_REMINDER => "Everything waiting is on the Memory page."
+        Chat::MemoryPost::KIND_REMINDER => "Everything waiting is on the Memory page.",
+        Chat::MemoryPost::KIND_CHALLENGED => "Halon stopped using it until you decide. Keep it if it is still right, mark it not right, or edit it."
       }.freeze
       # Where the team's memories in a reminder came from, as its opening line names them.
       TEAM_SOURCES = "incidents and investigations".freeze
@@ -31,7 +33,7 @@ module Slack
           { type: "section", text: { type: "mrkdwn", text: title(post) } },
           { type: "divider" },
           (intro_block(post) if post.reminder),
-          *(post.memories.empty? ? [ gone ] : post.memories.flat_map { |memory| memory_blocks(post.post_id, memory) }),
+          *(post.memories.empty? ? [ gone ] : post.memories.flat_map { |memory| memory_blocks(post, memory) }),
           (footer(post) if post.memories.any? { |memory| WAITING.include?(memory.state) })
         ].compact
       end
@@ -80,11 +82,11 @@ module Slack
       def self.gone = { type: "context", elements: [ { type: "mrkdwn", text: "Someone deleted these on the Memory page." } ] }
 
       # The memory came from a model or a person, so it is escaped like any other outside text.
-      def self.memory_blocks(post_id, memory)
+      def self.memory_blocks(post, memory)
         [
           { type: "section", text: { type: "mrkdwn", text: Slack::Mrkdwn.escape(memory.text) } },
           { type: "context", elements: [ { type: "mrkdwn", text: [ about(memory), standing(memory) ].compact.join("  ·  ") } ] },
-          (actions(post_id, memory) if WAITING.include?(memory.state))
+          (actions(post, memory) if WAITING.include?(memory.state))
         ].compact
       end
 
@@ -121,12 +123,15 @@ module Slack
         said.end_with?(".", "!", "?") ? said : "#{said}."
       end
 
-      def self.actions(post_id, memory)
-        value = "#{post_id}:#{memory.id}"
+      # Only the person asked about evidence against what they confirmed is offered to keep it, as Still right.
+      def self.actions(post, memory)
+        value = "#{post.post_id}:#{memory.id}"
+        keep = { type: "button", style: "primary", action_id: Identifiers::MEMORY_CONFIRM, text: { type: "plain_text", text: "Still right" }, value: value }
         { type: "actions", elements: [
+          (keep if post.kind == Chat::MemoryPost::KIND_CHALLENGED),
           { type: "button", action_id: Identifiers::MEMORY_REJECT, text: { type: "plain_text", text: "Not right" }, value: value },
-          { type: "button", action_id: Identifiers::MEMORY_CORRECT, text: { type: "plain_text", text: "Correct" }, value: value }
-        ] }
+          { type: "button", action_id: Identifiers::MEMORY_CORRECT, text: { type: "plain_text", text: "Edit" }, value: value }
+        ].compact }
       end
     end
   end

@@ -88,6 +88,7 @@ export default function Workspace() {
   const [webSearch, setWebSearch] = useState(settings.webSearchEnabled)
   const [regression, setRegression] = useState(settings.halonRegressionEnabled)
   const [safeChanges, setSafeChanges] = useState(settings.safeChangesWithoutAsking)
+  const [memoryReview, setMemoryReview] = useState(settings.memoryReviewEnabled)
   const [memoryExpiry, setMemoryExpiry] = useState(expiryChoice(settings.memoryExpiryDays))
   const [codeFixAgent, setCodeFixAgent] = useState(agentChoice(settings.codeFixAgent))
   const [codeFixBudget, setCodeFixBudget] = useState(dollarsField(settings.codeFixBudgetCents))
@@ -134,6 +135,7 @@ export default function Workspace() {
         web_search_enabled: webSearch,
         halon_regression_enabled: regression,
         safe_changes_without_asking: safeChanges,
+        memory_review_enabled: memoryReview,
         memory_expiry_days: expiryDays(memoryExpiry),
         code_fix_agent: agentSlug(codeFixAgent),
         code_fix_budget_cents: fieldCents(codeFixBudget),
@@ -304,6 +306,21 @@ export default function Workspace() {
                 </p>
               </div>
               <Switch id="safe-changes" checked={safeChanges} onCheckedChange={setSafeChanges} />
+            </div>
+
+            <div className="flex items-start justify-between gap-6">
+              <div className="max-w-prose">
+                <Label htmlFor="memory-review" className="text-foreground">
+                  Halon checks its memories every night
+                </Label>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  On by default. Every night at 02:00 UTC, Halon checks a batch of what it remembers against production
+                  with its read tools, and confirms, corrects or rejects each one with the evidence. Each check is a run
+                  that spends from your AI budget. Turn it off and memories stay as they are until someone decides on
+                  them on the Memory page.
+                </p>
+              </div>
+              <Switch id="memory-review" checked={memoryReview} onCheckedChange={setMemoryReview} />
             </div>
 
             <div className="max-w-prose">

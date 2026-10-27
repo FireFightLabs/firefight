@@ -33,6 +33,9 @@ class MemoryPageTest < ApplicationSystemTestCase
 
   test "each memory says how it stands and what Halon's nightly check found, with its history a click away, and a person can still confirm it" do
     review = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.current, removal_cap: 3)
+    run = @workspace.investigations.create!(subject: review, trigger_source: Investigation::TRIGGER_MEMORY_REVIEW, max_turns: 4, max_spend_cents: 400)
+    run.conclude!(summary: "Checked 1 of 1 memory against production.")
+    run.finish!(status: Investigation::STATUS_SUCCEEDED)
     checked = Chat::Memory.create!(workspace: @workspace, text: "web deploys from main", state: Chat::Memory::STATE_UNCONFIRMED)
     checked.record!(Chat::MemoryEvent::KIND_LEARNED, actor: Chat::MemoryEvent::ACTOR_HALON)
     checked.verified_by_halon!(evidence: "The deploy settings of web name main.", review: review)
@@ -49,7 +52,13 @@ class MemoryPageTest < ApplicationSystemTestCase
     within(:xpath, "//tr[.//p[text()='web deploys from main']]") { click_button "Show history" }
     assert_text "Halon added it"
     assert_text "Halon checked it against production and it held"
+    within(:xpath, "//tr[.//p[text()='web deploys from main']]") { assert_button "Edit" }
     page.save_screenshot(Rails.root.join("tmp/screenshots/memory-checked-by-halon.png"))
+    within(:xpath, "//tr[.//p[text()='web deploys from main']]") { first(:link, "See the check").click }
+    assert_text "Nightly memory check"
+    assert_text "Checked 1 of 1 memory against production."
+    page.save_screenshot(Rails.root.join("tmp/screenshots/memory-check-run.png"))
+    visit memory_path
 
     find("[role=tab]", text: "Memories").assert_text("1")
     assert_text "Halon reviews them against production in a nightly check, a batch at a time"

@@ -52,6 +52,7 @@ class Investigation::Tools::SettleMemory < RubyLLM::Tool
       settled = review.settle!(memory, verdict: verdict, evidence: evidence, correction: asked["correction"].to_s.strip.presence)
       next refused(tool_call, settled.words) unless settled.outcome
 
+      settled.challenged.each { |id| MemoryChallengeJob.perform_later(id) }
       settled.words
     end
   rescue Investigation::Evidence::Refused, Chat::Memory::Refused => error

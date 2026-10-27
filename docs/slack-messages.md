@@ -509,9 +509,10 @@ short note in each Slack thread the change was refused in. See docs/integrations
 `LearnedMemories` is every message that tells an incident's channel about memories: what an incident or its postmortem
 taught, and what a chat or run learned or disputed. Nobody is asked to confirm anything, since Halon reviews memories
 against production in a nightly check, a batch at a time (docs/ai.md, Halon checks what it remembers). Each memory nobody has decided on carries
-Not right and Correct, for anyone who knows better, and the footer says Halon reviews them in its nightly check. A memory Halon
-checked reads "Checked by Halon against production", and a merged one says it lives on in another. No reminder is
-posted any more. A weekly reminder (`:bell:`) or a message with Confirm or Still right posted before then is redrawn
+Not right and Edit (which opens the form for what is right instead), for anyone who knows better, and the footer says Halon reviews them in its nightly check. A memory Halon
+checked reads "Checked by Halon against production", and a merged one says it lives on in another. When the nightly check
+finds evidence against a memory a person confirmed, that person gets one direct message (`challenged`, titled "Halon
+found evidence against a memory you confirmed") with Still right, Not right and Edit. No reminder is posted any more. A weekly reminder (`:bell:`) or a message with Confirm or Still right posted before then is redrawn
 without those buttons when someone decides on it there, and an old Confirm still works.
 
 ## Proposing a handbook edit or page

@@ -473,10 +473,10 @@ class Chat::Memory < ApplicationRecord
   # newer one is rejected.
   def confirm!(by:, reason: nil)
     transaction do
-      # What only Halon confirmed is confirmed again, now by the person.
-      from = CONFIRMABLE_FROM + (confirm_blocked_reason.nil? && confirmed? ? [ STATE_CONFIRMED ] : [])
-      confirmed = decide!(STATE_CONFIRMED, from: from, confirmed_by_id: by&.id, confirmed_at: Time.current, state_reason: reason,
-                                           decided_by_postmortem_id: nil)
+      columns = { confirmed_by_id: by&.id, confirmed_at: Time.current, state_reason: reason, decided_by_postmortem_id: nil }
+      confirmed = decide!(STATE_CONFIRMED, from: CONFIRMABLE_FROM, **columns) ||
+                  # What only Halon confirmed is confirmed again, now by the person, while it still is only Halon's.
+                  decide!(STATE_CONFIRMED, from: [ STATE_CONFIRMED ], only: { confirmed_by_id: nil, decided_by_halon: true }, **columns)
       record!(Chat::MemoryEvent::KIND_CONFIRMED, actor: Chat::MemoryEvent::ACTOR_PERSON, member: by, detail: reason) if confirmed
       contradicted_by&.reject!(by: by, reason: "#{by&.display_name || 'A person'} confirmed \"#{text}\" is still right.") if confirmed
       confirmed
@@ -494,9 +494,10 @@ class Chat::Memory < ApplicationRecord
 
   # A live result or a postmortem showed it may be wrong. Halon raises it from a chat or a run, and a postmortem when a
   # person had confirmed what it contradicts.
-  def dispute!(reason, by: Chat::MemoryEvent::ACTOR_HALON, checked: nil)
+  # investigation is the nightly run that found it, when one did.
+  def dispute!(reason, by: Chat::MemoryEvent::ACTOR_HALON, checked: nil, investigation: nil)
     disputed = decide!(STATE_DISPUTED, from: CONTRADICTABLE_FROM, state_reason: reason, decided_by_halon: decided_by_halon, checked: checked)
-    record!(Chat::MemoryEvent::KIND_DISPUTED, actor: by, detail: reason) if disputed
+    record!(Chat::MemoryEvent::KIND_DISPUTED, actor: by, detail: reason, investigation: investigation) if disputed
     disputed
   end
 
@@ -560,11 +561,14 @@ class Chat::Memory < ApplicationRecord
   # Guarded, so two people deciding on the same memory at once cannot both land. A decision ends any outdated flag, and
   # one by a person or a postmortem is no longer Halon's. checked is what Halon's check came to when the check made the
   # decision, kept with the same time as the change so the memory never reads as changed since it was checked.
-  def decide!(state, from:, decided_by_halon: false, checked: nil, **columns)
+  # halon_only moves it only while no person stands behind it, checked in the same statement, so a person confirming it
+  # while Halon's check runs is never overturned. only adds other columns the row must still hold.
+  def decide!(state, from:, decided_by_halon: false, checked: nil, halon_only: false, only: {}, **columns)
     now = Time.current
     columns = columns.merge(checked_at: now, check_outcome: checked) if checked
-    moved = self.class.where(id: id, state: from)
-                      .update_all(columns.merge(state: state, outdated_from: nil, outdated_cause: nil, decided_by_halon: decided_by_halon, updated_at: now)) > 0
+    guarded = self.class.where(id: id, state: from).where(only)
+    guarded = guarded.where(confirmed_by_id: nil) if halon_only
+    moved = guarded.update_all(columns.merge(state: state, outdated_from: nil, outdated_cause: nil, decided_by_halon: decided_by_halon, updated_at: now)) > 0
     reload
     moved
   end
