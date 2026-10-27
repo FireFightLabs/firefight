@@ -117,7 +117,7 @@ class Chat::Memory < ApplicationRecord
     about = subjects.compact.group_by { |subject| subject.class.name }.map { |type, found| where(subject_type: type, subject_id: found.map(&:id)) }
     scope = visible_to(principal, workspace).in_use
     relevant = about.inject(scope.where(subject_id: nil)) { |union, part| union.or(scope.merge(part)) }
-    relevant.includes(:subject, :confirmed_by).most_trusted_first.limit(STARTING_LIMIT).to_a
+    relevant.includes(:subject, :confirmed_by, :approved_by).most_trusted_first.limit(STARTING_LIMIT).to_a
   end
 
   # Memories a chat or run was handed at its start count as used, once for each chat or run however many turns it takes.
@@ -266,7 +266,7 @@ class Chat::Memory < ApplicationRecord
   # The workspace's memories in use about a subject, or matching the words asked. The best come first, ranked by how many
   # of the words they hold and how rare each is with a boost for the whole phrase, then confirmed first, then newest.
   def self.recall(workspace, principal:, subject: nil, query: nil)
-    found = visible_to(principal, workspace).in_use.includes(:subject, :confirmed_by)
+    found = visible_to(principal, workspace).in_use.includes(:subject, :confirmed_by, :approved_by)
     found = found.where(subject: subject) if subject
     found = found.to_a
     ranked = if Chat::Memory::Words.stems(query).empty?
@@ -379,8 +379,10 @@ class Chat::Memory < ApplicationRecord
     "#{id} (#{[ about, trust ].compact.join(', ')}): #{text}"
   end
 
-  # Who stands behind it, in words. Only a person is ever named, and a postmortem nobody signed off is never one.
+  # Who stands behind it, in words. Only a person is ever named, and a postmortem nobody signed off is never one. A lesson
+  # a person approved reads as theirs, as a confirmation does.
   def trust
+    return "approved by #{approved_by.display_name} for pull request reviews" if approved_by && confirmed_by_id.nil? && [ STATE_UNCONFIRMED, STATE_CONFIRMED ].include?(state)
     return state unless confirmed?
     return "confirmed by #{confirmed_by.display_name}" if confirmed_by
     return "confirmed by a postmortem" if decided_by_postmortem_id

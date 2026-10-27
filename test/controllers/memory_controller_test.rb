@@ -191,6 +191,25 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Rejected. Halon stops using it and does not learn it again.", flash[:notice]
   end
 
+  test "Edit on an approved lesson by someone who may decide keeps the new words approved, and the same words on a disputed one keep it" do
+    lesson = taught("Checkout retries go up when the payment timeout changes")
+    assert lesson.approve!(by: @member, strict: true)
+
+    post correct_memory_path(lesson), params: { text: "Checkout retries go up when the payment timeout drops", reason: "" }
+
+    replacement = lesson.reload.replaced_by
+    assert_equal [ @member, true, Chat::Memory::Lesson::STATUS_APPROVED ], [ replacement.approved_by, replacement.strict, replacement.lesson_status ]
+    assert_equal "Corrected. Halon keeps the old wording as rejected so it does not learn it again. The new wording stays approved for pull request reviews.",
+                 flash[:notice]
+
+    replacement.dispute!("Halon checked it against production and found otherwise.")
+    post correct_memory_path(replacement), params: { text: replacement.text, reason: "" }
+
+    assert_equal [ Chat::Memory::STATE_CONFIRMED, @member, nil, Chat::Memory::Lesson::STATUS_APPROVED ],
+                 [ replacement.reload.state, replacement.confirmed_by, replacement.replaced_by_id, replacement.lesson_status ]
+    assert_equal "Kept as still right. It is in use again and stays approved for pull request reviews.", flash[:notice]
+  end
+
   test "a decision the memory no longer allows says why, and the page ships the same reasons" do
     confirmed = remember("Auth Service runs on web")
     confirmed.confirm!(by: @member)

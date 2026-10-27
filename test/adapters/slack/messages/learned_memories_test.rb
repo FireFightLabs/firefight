@@ -83,9 +83,9 @@ class Slack::Messages::LearnedMemoriesTest < ActiveSupport::TestCase
 
   private
 
-  def memory(state, text: "Sessions live in Redis", about: nil, about_removed: false, reason: nil, decided_by: nil, correction: nil, checked_by_halon: false)
+  def memory(state, text: "Sessions live in Redis", about: nil, about_removed: false, reason: nil, decided_by: nil, correction: nil, checked_by_halon: false, approved_by: nil)
     Memory.new(id: "memory-1", text: text, about: about, about_removed: about_removed, state: state, reason: reason, decided_by: decided_by,
-               correction: correction, checked_by_halon: checked_by_halon)
+               correction: correction, checked_by_halon: checked_by_halon, approved_by: approved_by)
   end
 
   def build(kind, *memories) = Slack::Messages::LearnedMemories.build(Shown.new(post_id: "post-1", kind: kind, incident_identifier: "INC-007", memories: memories))

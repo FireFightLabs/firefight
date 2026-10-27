@@ -106,11 +106,15 @@ module Slack
         "About #{Slack::Mrkdwn.escape(memory.about)}#{', which is no longer on the map' if memory.about_removed}"
       end
 
-      # Where the memory stands, said in words, so a disputed or outdated one never reads as if it were live.
+      # Where the memory stands, said in words, so a disputed or outdated one never reads as if it were live. An approved
+      # lesson in use names who approved it, as a confirmed memory names who confirmed it.
       def self.standing(memory)
         by = " by #{Slack::Mrkdwn.escape(memory.decided_by)}" if memory.decided_by
+        approved = ":white_check_mark: Approved by #{Slack::Mrkdwn.escape(memory.approved_by)} for pull request reviews" if memory.approved_by
         case memory.state
+        when Chat::Memory::STATE_UNCONFIRMED then approved
         when Chat::Memory::STATE_CONFIRMED
+          return approved if approved
           return ":white_check_mark: Checked by Halon against production" if memory.checked_by_halon
 
           ":white_check_mark: Confirmed#{by}"

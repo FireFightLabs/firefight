@@ -35,7 +35,7 @@ class Chat::MemoryPost < ApplicationRecord
 
   # The memories it shows, in the order first shown. One deleted since is left out.
   def memories
-    found = Chat::Memory.where(workspace_id: workspace_id, id: memory_ids).includes(:subject, :confirmed_by, :rejected_by, :replaced_by).index_by(&:id)
+    found = Chat::Memory.where(workspace_id: workspace_id, id: memory_ids).includes(:subject, :confirmed_by, :approved_by, :rejected_by, :replaced_by).index_by(&:id)
     memory_ids.filter_map { |id| found[id] }
   end
 

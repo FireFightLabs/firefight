@@ -193,19 +193,50 @@ class MemoryPostServiceTest < ActiveSupport::TestCase
     assert_equal Chat::Memory::Lesson::STATUS_WAITING, replacement.lesson_status
   end
 
-  test "a channel message about an approved lesson Halon confirmed still says Halon checked it" do
+  test "a channel message says who approved a lesson the way it says who confirmed one, whatever Halon's check made of it" do
     lesson = challenged_lesson
     lesson.confirm!(by: @member)
     lesson.update_columns(confirmed_by_id: nil, decided_by_halon: true)
+    unchecked = Chat::Memory.create!(workspace: @workspace, text: "Checkout keeps sessions in Redis", state: Chat::Memory::STATE_UNCONFIRMED, source: @incident)
+    assert unchecked.approve!(by: @member)
+    post = Chat::MemoryPost.create!(workspace: @workspace, incident: @incident, kind: Chat::MemoryPost::KIND_INCIDENT, channel_id: @incident.channel_id,
+                                    memory_ids: [ lesson.id, unchecked.id ])
+
+    said = context_text(MemoryPostService.new(@workspace).shown(post))
+
+    assert_equal 2, said.scan(":white_check_mark: Approved by #{@member.display_name} for pull request reviews").size
+    assert_not_includes said, "Checked by Halon"
+  end
+
+  test "Edit in an incident channel message keeps an approved lesson approved when the editor may decide on lessons" do
+    lesson = challenged_lesson(strict: true)
+    lesson.confirm!(by: @member)
     post = Chat::MemoryPost.create!(workspace: @workspace, incident: @incident, kind: Chat::MemoryPost::KIND_INCIDENT, channel_id: @incident.channel_id,
                                     memory_ids: [ lesson.id ])
 
-    blocks = Slack::Messages::LearnedMemories.build(MemoryPostService.new(@workspace).shown(post))
+    assert_nil MemoryPostService.new(@workspace).correct!(post_id: post.id, memory_id: lesson.id, member: @member,
+                                                          correction: "Checkout retries go up when the payment timeout drops", reason: nil)
 
-    assert_includes blocks.flat_map { |block| Array(block[:elements]).map { |element| element[:text] } }.join(" "), ":white_check_mark: Checked by Halon against production"
+    replacement = lesson.reload.replaced_by
+    assert_equal [ @member, true, Chat::Memory::Lesson::STATUS_APPROVED ], [ replacement.approved_by, replacement.strict, replacement.lesson_status ]
+  end
+
+  test "Edit with the same words on a disputed approved lesson keeps it as still right, whoever edits it" do
+    bob = workspace_memberships(:bob_workspace_one)
+    lesson = challenged_lesson
+    post = Chat::MemoryPost.create!(workspace: @workspace, kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: bob, channel_id: "D8", memory_ids: [ lesson.id ])
+
+    assert_nil MemoryPostService.new(@workspace).correct!(post_id: post.id, memory_id: lesson.id, member: bob, correction: lesson.text, reason: nil)
+
+    assert_equal [ Chat::Memory::STATE_CONFIRMED, bob, nil, Chat::Memory::Lesson::STATUS_APPROVED ],
+                 [ lesson.reload.state, lesson.confirmed_by, lesson.replaced_by_id, lesson.lesson_status ]
   end
 
   private
+
+  def context_text(shown)
+    Slack::Messages::LearnedMemories.build(shown).flat_map { |block| Array(block[:elements]).filter_map { |element| element[:text] if element.is_a?(Hash) && block[:type] == "context" } }.join(" ")
+  end
 
   def challenged_lesson(strict: false)
     lesson = Chat::Memory.create!(workspace: @workspace, text: "Checkout retries go up when the payment timeout changes", state: Chat::Memory::STATE_UNCONFIRMED,

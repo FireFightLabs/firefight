@@ -118,6 +118,24 @@ class Chat::Memory::LessonTest < ActiveSupport::TestCase
 
   private
 
+  test "the same words on a disputed approved lesson keep it as still right, back in use and still approved" do
+    lesson = taught("Checkout keeps sessions in Redis")
+    assert lesson.approve!(by: @admin, strict: true)
+    lesson.dispute!("Halon checked it against production and found otherwise.")
+
+    assert_equal lesson, lesson.edit_lesson!(by: @admin, text: lesson.text, strict: true)
+
+    assert_equal [ Chat::Memory::STATE_CONFIRMED, @admin, true, Chat::Memory::Lesson::STATUS_APPROVED ],
+                 [ lesson.reload.state, lesson.confirmed_by, lesson.strict, lesson.lesson_status ]
+  end
+
+  test "Halon reads an approved lesson as approved by a person, never as unconfirmed" do
+    lesson = taught("Checkout keeps sessions in Redis")
+    assert lesson.approve!(by: @admin)
+
+    assert_equal "#{lesson.id} (approved by #{@admin.display_name} for pull request reviews): Checkout keeps sessions in Redis", lesson.line
+  end
+
   def taught(text, subject: nil)
     Chat::Memory.create!(workspace: @workspace, text: text, subject: subject, source: @incident, state: Chat::Memory::STATE_UNCONFIRMED)
   end

@@ -54,10 +54,10 @@ class MemoryController < InertiaController
 
   def correct_memory
     memory = memories.find(params[:id])
-    replacement = memory.reject!(by: current_membership, reason: params[:reason].to_s.strip, correction: params[:text].to_s.strip)
-    return redirect_back_or_to(memory_path, alert: memory.reject_blocked_reason) unless replacement
+    standing = memory.edit_by!(by: current_membership, words: params[:text], reason: params[:reason].to_s.strip, source: AbilityGateway::SOURCE_WEB)
+    return redirect_back_or_to(memory_path, alert: memory.edit_blocked_reason(current_membership)) unless standing
 
-    redirect_back_or_to memory_path, notice: "Corrected. Halon keeps the old wording as rejected so it does not learn it again."
+    redirect_back_or_to memory_path, notice: corrected_notice(memory, standing)
   rescue ActiveRecord::RecordInvalid => error
     redirect_back_or_to memory_path, alert: error.record.errors.full_messages.to_sentence
   end
@@ -167,6 +167,13 @@ class MemoryController < InertiaController
     end
 
     authorize_web!(Ability::Action::RESOURCE_LESSONS, Ability::Action::ACTION_DECIDE, scope: lesson.decide_scope)
+  end
+
+  def corrected_notice(memory, standing)
+    return "Kept as still right. It is in use again and stays approved for pull request reviews." if standing == memory && standing.confirmed?
+
+    kept = " The new wording stays approved for pull request reviews." if standing != memory && standing.approved?
+    "Corrected. Halon keeps the old wording as rejected so it does not learn it again.#{kept}"
   end
 
   # What an incident taught, apart from wordings an edit or a correction replaced, which the Memories tab keeps.
