@@ -1,4 +1,5 @@
-# What the workspace remembers and the instructions people give Halon, where people review, correct and write them.
+# What the workspace remembers and the instructions people give Halon, where people see how each memory stands and what
+# Halon's nightly check found, and confirm, correct, reject, delete and write them whenever they like.
 class MemoryController < InertiaController
   authorizes Ability::Action::RESOURCE_MEMORY,
     read: %i[index],
@@ -23,10 +24,10 @@ class MemoryController < InertiaController
   before_action :require_agent!
 
   def index
-    memories = self.memories.includes(:subject, :source, :added_by, :confirmed_by, :rejected_by).order(updated_at: :desc)
+    memories = self.memories.includes(:subject, :source, :added_by, :confirmed_by, :rejected_by, events: { member: :user }).order(updated_at: :desc)
 
     render inertia: "memory/index", props: {
-      memories: ChatMemorySerializer.many(memories),
+      memories: ChatMemorySerializer.many(memories, runs: openable_runs(memories)),
       lessons: ChatLessonSerializer.many(lessons, member: current_membership),
       heldPullRequests: HeldPullRequestFindingSerializer.many(PullRequestReview::Finding.held_on_pull_requests(current_workspace, memories),
                                                               member: current_membership),
@@ -149,6 +150,11 @@ class MemoryController < InertiaController
   private
 
   def instructions_page = memory_path(TAB_QUERY => TAB_INSTRUCTIONS)
+
+  # The nightly runs a link on this page may open: those whose every checked memory this person may see.
+  def openable_runs(memories)
+    Chat::MemoryReview.runs_visible_to(current_membership, memories.flat_map(&:events).filter_map(&:investigation_id).uniq)
+  end
 
   def lessons_page = memory_path(TAB_QUERY => TAB_LESSONS)
 

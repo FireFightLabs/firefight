@@ -17,12 +17,13 @@ import { MEMORY_FILTERS, type MemoryFilter, type SubjectOption } from "@/pages/m
 import type { ChatMemory } from "@/types/serializers"
 
 const EMPTY: Record<MemoryFilter, string> = {
-  in_use: "Nothing remembered yet. Halon learns from each incident as it ends, and anything you add here is used from then on.",
-  unconfirmed: "Nothing unconfirmed. A person or a postmortem has confirmed every memory Halon uses.",
+  in_use: "Nothing remembered yet. Halon learns from each incident as it ends and from each chat once it goes quiet, and anything you add here is used from then on.",
+  unconfirmed: "Nothing unchecked. Halon has checked every memory it uses against production, or a person or a postmortem confirmed it.",
   outdated: "Nothing looks outdated. A memory lands here when what it is about is renamed, archived in the catalog or gone from the map.",
-  disputed: "Nothing disputed. Halon moves a memory here when a live result or a postmortem contradicts it, and stops using it until you decide.",
+  disputed: "Nothing disputed. Halon moves a memory here when a live result, a postmortem or another memory contradicts it, and stops using it until its nightly check settles it. It asks you only when it cannot.",
   expired: "Nothing expired. When an admin sets how long unconfirmed memories last under Settings, Workspace, one nobody confirms in time lands here and Halon stops using it.",
   rejected: "Nothing rejected.",
+  merged: "Nothing merged. When two memories say the same thing about the same subject, Halon keeps the one with the strongest trust and the other lands here.",
 }
 
 interface MemoriesTabProps {
@@ -80,7 +81,7 @@ export function MemoriesTab({ memories, subjects, canCurate, focusedId }: Memori
       <CardHeader>
         <CardTitle>What Halon remembers</CardTitle>
         <CardDescription className="mt-1">
-          Facts Halon learned from incidents or was told. It checks each one against live results, and says so when it relies on one nobody confirmed.
+          Facts Halon learned from incidents and chats or was told. Halon reviews them against production in a nightly check, a batch at a time, and says so when it relies on one nobody confirmed. You can confirm, correct, reject or delete any of them.
         </CardDescription>
         {canCurate && (
           <CardAction>

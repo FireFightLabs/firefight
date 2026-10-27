@@ -319,7 +319,8 @@ export const CHAT_MEMORY_STATES = [
   "disputed",
   "outdated",
   "rejected",
-  "expired"
+  "expired",
+  "merged"
 ] as const
 export type ChatMemoryState = (typeof CHAT_MEMORY_STATES)[number]
 
@@ -329,10 +330,95 @@ export const CHAT_MEMORY_STATE = {
   "DISPUTED": "disputed",
   "OUTDATED": "outdated",
   "REJECTED": "rejected",
-  "EXPIRED": "expired"
+  "EXPIRED": "expired",
+  "MERGED": "merged"
 } as const
 
 export const CHAT_MEMORY_TEXT_LIMIT = 500 as const
+
+export const CHAT_MEMORY_STANDINGS = [
+  "person",
+  "postmortem",
+  "halon",
+  "unchecked"
+] as const
+export type ChatMemoryStanding = (typeof CHAT_MEMORY_STANDINGS)[number]
+
+export const CHAT_MEMORY_STANDING = {
+  "PERSON": "person",
+  "POSTMORTEM": "postmortem",
+  "HALON": "halon",
+  "UNCHECKED": "unchecked"
+} as const
+
+export const CHAT_MEMORY_EVENT_KINDS = [
+  "learned",
+  "written",
+  "confirmed",
+  "verified",
+  "unsettled",
+  "held",
+  "disputed",
+  "corrected",
+  "rejected",
+  "merged",
+  "absorbed",
+  "outdated",
+  "current_again",
+  "expired",
+  "revived",
+  "restored",
+  "still_wrong"
+] as const
+export type ChatMemoryEventKind = (typeof CHAT_MEMORY_EVENT_KINDS)[number]
+
+export const CHAT_MEMORY_EVENT_KIND = {
+  "LEARNED": "learned",
+  "WRITTEN": "written",
+  "CONFIRMED": "confirmed",
+  "VERIFIED": "verified",
+  "UNSETTLED": "unsettled",
+  "HELD": "held",
+  "DISPUTED": "disputed",
+  "CORRECTED": "corrected",
+  "REJECTED": "rejected",
+  "MERGED": "merged",
+  "ABSORBED": "absorbed",
+  "OUTDATED": "outdated",
+  "CURRENT_AGAIN": "current_again",
+  "EXPIRED": "expired",
+  "REVIVED": "revived",
+  "RESTORED": "restored",
+  "STILL_WRONG": "still_wrong"
+} as const
+
+export const CHAT_MEMORY_ACTORS = [
+  "person",
+  "halon",
+  "postmortem"
+] as const
+export type ChatMemoryActor = (typeof CHAT_MEMORY_ACTORS)[number]
+
+export const CHAT_MEMORY_ACTOR = {
+  "PERSON": "person",
+  "HALON": "halon",
+  "POSTMORTEM": "postmortem"
+} as const
+
+export const CHAT_MEMORY_CHECK_OUTCOMES = [
+  "right",
+  "wrong",
+  "unsure",
+  "held"
+] as const
+export type ChatMemoryCheckOutcome = (typeof CHAT_MEMORY_CHECK_OUTCOMES)[number]
+
+export const CHAT_MEMORY_CHECK_OUTCOME = {
+  "RIGHT": "right",
+  "WRONG": "wrong",
+  "UNSURE": "unsure",
+  "HELD": "held"
+} as const
 
 export const LESSON_STATUSES = [
   "waiting",
@@ -1124,7 +1210,6 @@ export const AGENT_STREAM_EVENTS = {
   "SECRET_ENTRY": "secret_entry",
   "PULL_REQUEST": "pull_request",
   "CODE_FIX": "code_fix",
-  "MEMORY": "memory",
   "PLAN": "plan",
   "SAFEGUARD": "safeguard",
   "HELPERS": "helpers",
@@ -1456,7 +1541,8 @@ export const INVESTIGATION_TRIGGERS = [
   "alert",
   "schedule",
   "security_event",
-  "workflow"
+  "workflow",
+  "memory_review"
 ] as const
 export type InvestigationTrigger = (typeof INVESTIGATION_TRIGGERS)[number]
 

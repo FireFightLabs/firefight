@@ -35,9 +35,9 @@ interface DecideMemoryDialogProps {
 
 const COPY: Record<Decision, { title: string; description: string; submit: string }> = {
   correct: {
-    title: "Correct this memory",
+    title: "Edit this memory",
     description: "Write what is true instead. Halon keeps the old wording as rejected so it never learns it again, and uses your correction as confirmed by you.",
-    submit: "Save correction",
+    submit: "Save",
   },
   reject: {
     title: "Mark as not right",

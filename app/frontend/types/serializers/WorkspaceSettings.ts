@@ -20,6 +20,7 @@ export default interface WorkspaceSettings {
   issueWebhookSecretSet: boolean
   issueWebhookThroughApp: boolean
   memoryExpiryDays?: number
+  memoryReviewEnabled: boolean
   safeChangesWithoutAsking: boolean
   transcriptAccessEnabled: boolean
   transcriptRetentionDays?: number

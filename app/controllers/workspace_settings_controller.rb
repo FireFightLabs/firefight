@@ -56,20 +56,25 @@ class WorkspaceSettingsController < InertiaController
   end
 
   # A new code fix budget is named, since it is what every fix may spend from now on, and so is whether Halon asks
-  # before a safe change, since it changes what every chat does next.
+  # before a safe change, since it changes what every chat does next, and whether Halon checks its memories each night.
   def updated_words(before)
     changed = current_workspace.settings.reject { |key, value| before[key] == value }.keys
-    named = [ (budget_words if changed.include?(:code_fix_budget_cents)), (safe_change_words if changed.include?(:safe_changes_without_asking)) ].compact
+    named = [ (budget_words if changed.include?(:code_fix_budget_cents)), (safe_change_words if changed.include?(:safe_changes_without_asking)),
+              (memory_review_words if changed.include?(:memory_review_enabled)) ].compact
     return UPDATED if named.empty?
 
     (changed - NAMED_SETTINGS).empty? ? named.join(" ") : [ UPDATED, *named ].join(" ")
   end
 
-  NAMED_SETTINGS = %i[code_fix_budget_cents safe_changes_without_asking].freeze
+  NAMED_SETTINGS = %i[code_fix_budget_cents safe_changes_without_asking memory_review_enabled].freeze
 
   def budget_words = "Code fix budget was set to #{current_workspace.shown_code_fix_budget}."
 
   def safe_change_words
     current_workspace.safe_changes_without_asking? ? "Halon makes safe changes without asking." : "Halon now asks before safe changes."
+  end
+
+  def memory_review_words
+    current_workspace.memory_review_enabled? ? "Halon checks its memories every night." : "Halon's nightly memory check is off."
   end
 end

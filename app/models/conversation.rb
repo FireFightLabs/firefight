@@ -34,7 +34,7 @@ class Conversation < ApplicationRecord
   has_one :chat, as: :owner, dependent: :destroy
   # The runs this chat started. A run outlives the chat that asked for it.
   has_many :investigations, dependent: :nullify
-  # Cards asking the person about a memory something contradicted in this chat.
+  # Cards that asked the person about a memory something contradicted in this chat, before Halon checked memories itself.
   has_many :memory_posts, class_name: "Chat::MemoryPost", dependent: :delete_all
   # Handbook edits Halon proposed in this chat. They outlive it on the Handbook page.
   has_many :handbook_proposals, class_name: "Chat::HandbookProposal", dependent: :nullify
@@ -349,7 +349,13 @@ class Conversation < ApplicationRecord
 
   def pin!(pinned) = update_in_place!(pinned_at: pinned ? Time.current : nil)
 
-  def archive!(archived) = update_in_place!(archived_at: archived ? Time.current : nil)
+  # An archived chat has ended, so Halon reads it for anything worth remembering now rather than once it goes quiet.
+  def archive!(archived)
+    update_in_place!(archived_at: archived ? Time.current : nil).tap { ConversationLearningJob.perform_later(id) if archived }
+  end
+
+  # Halon has read the chat for lessons up to at, never moving back.
+  def learned_through!(at) = self.class.where(id: id).update_all([ "learned_through_at = GREATEST(learned_through_at, ?)", at ])
 
   def rename!(new_title) = update_in_place!(title: new_title.to_s.strip.truncate(TITLE_LIMIT))
 

@@ -52,9 +52,10 @@ function findActiveItem(sections: NavSection[], currentUrl: string): string | nu
   return bestTitle
 }
 
-export function NavMain({ sections }: { sections: NavSection[] }) {
+// activeUrl marks another page than the one open, for a page reached from there.
+export function NavMain({ sections, activeUrl }: { sections: NavSection[]; activeUrl?: string }) {
   const { url: currentUrl } = usePage()
-  const activeTitle = findActiveItem(sections, currentUrl)
+  const activeTitle = findActiveItem(sections, activeUrl ?? currentUrl)
 
   return (
     <>

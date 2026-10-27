@@ -605,23 +605,17 @@ module Chat::Tools
     Chat::Chart::Marker.note(chat.charts.where(tool_call_id: tool_call_id, created_at: since..).to_a) if chat && tool_call_id.present?
   end
 
-  # A chat or run working on an incident tells its channel what it learned or disputed, so people can decide on it there.
-  # Elsewhere the Memory page's count is the sign.
+  # A chat or run working on an incident tells its channel what it learned or disputed. Elsewhere the Memory page shows it.
   def self.tell_incident(agent_run, memory, kind)
     return unless agent_run.changes_memory? && agent_run.incident&.channel_id.present?
 
     MemoryNoteJob.perform_later(memory.id, kind, agent_run.chat_owner)
   end
 
-  # A memory something contradicted is asked about at once where it was found, while the person still has the context:
-  # in its incident's channel like any dispute, and as a card in a dashboard chat. evidence is what showed it wrong, said
-  # to the chat's owner.
-  def self.raise_dispute(agent_run, memory, evidence:)
+  # A memory something contradicted is told to its incident's channel like any dispute. Nobody is asked about it there.
+  # The nightly check settles it against production, and only one it cannot settle waits on a person on the Memory page.
+  def self.raise_dispute(agent_run, memory)
     tell_incident(agent_run, memory, Chat::MemoryPost::KIND_DISPUTED)
-    chat = agent_run.chat_owner
-    return unless agent_run.changes_memory? && chat.is_a?(Conversation) && chat.personal?
-
-    MemoryPostService.new(agent_run.workspace).ask_in_chat!(chat, memory, evidence: evidence)
   end
 
   # A memory write as whoever the agent acts for. A refusal is text the model reads, and the call is marked.

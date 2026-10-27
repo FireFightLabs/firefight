@@ -121,10 +121,12 @@ class Investigation::Runner
     true
   end
 
-  # A scheduled check reasons with its own prompts, in the same loop.
+  # A scheduled check and a memory check reason with their own prompts, in the same loop.
   def investigator
     @investigator ||= if @investigation.scheduled?
       FirefightAi::Monitor.new(@investigation.workspace, inferable: @investigation, model: @investigation.ai_model)
+    elsif @investigation.memory_review?
+      FirefightAi::MemoryChecker.new(@investigation.workspace, inferable: @investigation, model: @investigation.ai_model)
     else
       FirefightAi::Investigator.new(@investigation.workspace, inferable: @investigation, member: member, model: @investigation.ai_model)
     end

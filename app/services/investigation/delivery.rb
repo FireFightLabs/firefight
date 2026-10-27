@@ -14,6 +14,7 @@ class Investigation::Delivery
   def self.for(investigation)
     return Investigation::QuietDelivery.new(investigation) if investigation.rehearsal?
     return Investigation::CheckDelivery.new(investigation) if investigation.scheduled?
+    return Investigation::MemoryReviewDelivery.new(investigation) if investigation.memory_review?
 
     new(investigation)
   end

@@ -96,7 +96,7 @@ class Mcp::Tools::InvestigationsTest < ActiveSupport::TestCase
                   fix: { summary: "Revert the pool size", steps: [ { kind: "pull_request", description: "Put the pool back to 10", repository: "acme/api" } ] })
     run.finish!(status: Investigation::STATUS_SUCCEEDED)
 
-    response = Mcp::Tools::GetInvestigation.perform(workspace: @workspace, args: { investigation: run.id })
+    response = Mcp::Tools::GetInvestigation.perform_with_principal(workspace: @workspace, principal: @member, args: { investigation: run.id })
     body = response.structured_content
 
     assert_equal Investigation::STATUS_SUCCEEDED, body[:status]
@@ -121,7 +121,7 @@ class Mcp::Tools::InvestigationsTest < ActiveSupport::TestCase
                             fix: { summary: "Revert it", steps: [ { kind: "manual", description: "Put the pool back" } ] })
     finding.remediation_plan.propose_undo!("summary" => "Raise it again", "steps" => [ { "kind" => "manual", "description" => "Set the pool to 20" } ])
 
-    body = Mcp::Tools::GetInvestigation.perform(workspace: @workspace, args: { investigation: run.id }).structured_content
+    body = Mcp::Tools::GetInvestigation.perform_with_principal(workspace: @workspace, principal: @member, args: { investigation: run.id }).structured_content
 
     assert_equal [ "Revert it", "Raise it again" ], [ body.dig(:finding, :fix, :summary), body.dig(:finding, :fix, :undo, :summary) ]
   end
@@ -131,7 +131,7 @@ class Mcp::Tools::InvestigationsTest < ActiveSupport::TestCase
     older.finish!(status: Investigation::STATUS_FAILED, error_summary: "x")
     newer = @workspace.investigations.create!(subject: @incident, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400)
 
-    response = Mcp::Tools::GetInvestigation.perform(workspace: @workspace, args: { incident: @incident.identifier })
+    response = Mcp::Tools::GetInvestigation.perform_with_principal(workspace: @workspace, principal: @member, args: { incident: @incident.identifier })
 
     assert_equal newer.id, response.structured_content[:id]
   end
@@ -142,10 +142,10 @@ class Mcp::Tools::InvestigationsTest < ActiveSupport::TestCase
       subject: @incident, trigger_source: Investigation::TRIGGER_REHEARSAL, rehearsal: true, max_turns: 10, max_spend_cents: 400
     )
 
-    response = Mcp::Tools::GetInvestigation.perform(workspace: @workspace, args: { incident: @incident.identifier })
+    response = Mcp::Tools::GetInvestigation.perform_with_principal(workspace: @workspace, principal: @member, args: { incident: @incident.identifier })
     assert_equal real.id, response.structured_content[:id]
     assert_raises(ActiveRecord::RecordNotFound) do
-      Mcp::Tools::GetInvestigation.perform(workspace: @workspace, args: { investigation: rehearsal.id })
+      Mcp::Tools::GetInvestigation.perform_with_principal(workspace: @workspace, principal: @member, args: { investigation: rehearsal.id })
     end
   end
 
@@ -154,7 +154,7 @@ class Mcp::Tools::InvestigationsTest < ActiveSupport::TestCase
     run = other.investigations.create!(subject: other.incidents.first, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400)
 
     assert_raises(ActiveRecord::RecordNotFound) do
-      Mcp::Tools::GetInvestigation.perform(workspace: @workspace, args: { investigation: run.id })
+      Mcp::Tools::GetInvestigation.perform_with_principal(workspace: @workspace, principal: @member, args: { investigation: run.id })
     end
   end
 
@@ -162,7 +162,7 @@ class Mcp::Tools::InvestigationsTest < ActiveSupport::TestCase
     run = @workspace.investigations.create!(subject: @incident, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400)
     run.finish!(status: Investigation::STATUS_FAILED, error_summary: "ContextLengthExceededError")
 
-    body = Mcp::Tools::GetInvestigation.perform(workspace: @workspace, args: { investigation: run.id }).structured_content
+    body = Mcp::Tools::GetInvestigation.perform_with_principal(workspace: @workspace, principal: @member, args: { investigation: run.id }).structured_content
 
     assert_equal Investigation::STATUS_FAILED, body[:status]
     assert_no_match(/ContextLength/, body.to_json)

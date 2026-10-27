@@ -2,7 +2,7 @@ import { type ChatStreamHandlers, useChatStream } from "@/hooks/use-chat-stream"
 import type { StreamEvent } from "@/lib/agent-chat/stream-order"
 import { AGENT_CARD_KINDS, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
 import {
-  refreshCharts, refreshHandbookProposals, refreshSkillProposals, refreshScreenshots, refreshHeldCalls, refreshHelpers, refreshMemoryQuestions, refreshOpenChat, refreshPackRefusals, refreshPlans, refreshWorkflows,
+  refreshCharts, refreshHandbookProposals, refreshSkillProposals, refreshScreenshots, refreshHeldCalls, refreshHelpers, refreshOpenChat, refreshPackRefusals, refreshPlans, refreshWorkflows,
   refreshPullRequestNotices, refreshRuns,
   refreshSafeguards, refreshSecretEntries,
   refreshWatches,
@@ -20,7 +20,6 @@ const NOTICES: Partial<Record<string, () => void>> = {
   [AGENT_STREAM_EVENTS.PULL_REQUEST]: refreshPullRequestNotices,
   [AGENT_STREAM_EVENTS.PLAN]: refreshPlans,
   [AGENT_STREAM_EVENTS.WORKFLOW]: refreshWorkflows,
-  [AGENT_STREAM_EVENTS.MEMORY]: refreshMemoryQuestions,
   [AGENT_STREAM_EVENTS.SAFEGUARD]: refreshSafeguards,
   [AGENT_STREAM_EVENTS.HELPERS]: refreshHelpers,
   [AGENT_STREAM_EVENTS.HANDBOOK]: refreshHandbookProposals,

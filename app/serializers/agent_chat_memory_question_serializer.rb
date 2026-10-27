@@ -1,5 +1,6 @@
-# A memory something contradicted in this chat, asked about where the person read it: what Halon remembered, where it
-# came from, what showed otherwise, and how it was settled. The blocked reasons decide which answers the card offers.
+# A memory something contradicted in this chat, asked about where the person read it before Halon checked memories itself:
+# what Halon remembered, where it came from, what showed otherwise, and how it was settled. The blocked reasons decide
+# which answers the card offers.
 class AgentChatMemoryQuestionSerializer < BaseSerializer
   object_as :post
 

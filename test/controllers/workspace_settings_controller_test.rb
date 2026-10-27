@@ -236,6 +236,18 @@ class WorkspaceSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Workspace settings were updated. Halon makes safe changes without asking.", flash[:notice]
   end
 
+  test "Halon checks its memories every night until someone turns it off, and the notice says which way" do
+    assert @workspace.memory_review_enabled?
+
+    patch settings_workspace_path, params: { memory_review_enabled: false }
+    assert_not @workspace.reload.memory_review_enabled?
+    assert_equal "Halon's nightly memory check is off.", flash[:notice]
+
+    patch settings_workspace_path, params: { memory_review_enabled: true, web_search_enabled: false }
+    assert @workspace.reload.memory_review_enabled?
+    assert_equal "Workspace settings were updated. Halon checks its memories every night.", flash[:notice]
+  end
+
   test "a budget outside the range is refused with the range, and nothing is saved" do
     patch settings_workspace_path, params: { code_fix_budget_cents: 10_000 }
 

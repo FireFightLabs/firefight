@@ -11,7 +11,7 @@ module Investigation::Finding::Searchable
 
   # A rehearsal's answer is a measurement, never something to find again as a past answer.
   # A scheduled check's answer says what it looked at, which reads like no incident and would only crowd the search.
-  def search_embeddable? = !investigation.rehearsal? && !investigation.scheduled?
+  def search_embeddable? = !investigation.rehearsal? && !investigation.scheduled? && !investigation.memory_review?
 
   class_methods do
     def search_embedding_candidates(workspace_ids) = joins(:investigation).where(investigations: { workspace_id: workspace_ids }).includes(:investigation)
