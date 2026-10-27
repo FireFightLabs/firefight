@@ -182,6 +182,16 @@ module Integrations
       assert_equal 403, error.http_status
     end
 
+    test "a 403 that names a secondary rate limit is a rate limit with no header, and a 408 is a host that did not answer in time" do
+      Http.stubs(:request).returns(response(403, '{"message":"You have exceeded a secondary rate limit. Please wait a few minutes."}'))
+      assert_kind_of Integrations::RateLimited, assert_raises(AcmeError) { json }
+
+      Http.stubs(:request).returns(response(408, '{"message":"Request Timeout"}'))
+      error = assert_raises(AcmeError) { json }
+      assert_kind_of Integrations::TimedOut, error
+      assert_equal 408, error.http_status
+    end
+
     test "a path segment is escaped, so a name with a slash stays one segment" do
       assert_equal "a%2Fb%20c", Http.segment("a/b c")
     end

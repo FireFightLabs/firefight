@@ -529,6 +529,11 @@ module Integrations
         assert Bitbucket.tool_definitions.find { |tool| tool.name == "list_pull_request_comments" }.read_only
       end
 
+      test "a moment that is not a time is refused in words" do
+        error = assert_raises(Integrations::Error) { @pack.list_pull_request_comments(environment_row: @row, arguments: { "repo" => "acme/web", "number" => 42, "since" => "not a time" }) }
+        assert_equal "since must be a time in ISO 8601", error.message
+      end
+
       test "a flag is a comment on the pull request" do
         BitbucketApi.any_instance.expects(:post).with("#{REPO}/pullrequests/42/comments", { "content" => { "raw" => "Look here." } }).returns("id" => 1)
 

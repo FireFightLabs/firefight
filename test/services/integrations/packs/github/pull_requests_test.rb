@@ -163,6 +163,17 @@ module Integrations
                        Github.review_call(PullRequestReviews::CONVERSATION, repository: "acme/checkout", number: 412, since: Time.utc(2026, 10, 27, 10))
         end
 
+        test "with no moment given, only the conversation's newest page is read, the last one GitHub links to" do
+          GithubApp.expects(:page).with("/repos/acme/checkout/issues/412/comments?page=1&per_page=100", token: "ghs_token")
+                   .returns([ [ { "id" => 1, "body" => "Oldest", "user" => { "login" => "ada" }, "created_at" => "2026-10-01T10:00:00Z" } ], 3 ])
+          GithubApp.expects(:page).with("/repos/acme/checkout/issues/412/comments?page=3&per_page=100", token: "ghs_token")
+                   .returns([ [ { "id" => 250, "body" => "Newest", "user" => { "login" => "ada" }, "created_at" => "2026-10-27T10:00:00Z" } ], 3 ])
+
+          result = @pack.list_pull_request_comments(environment_row: @row, arguments: { "repo" => "acme/checkout", "number" => 412 })
+
+          assert_equal [ "250" ], Github.review_posted(PullRequestReviews::CONVERSATION, result.dig(Telemetry::STRUCTURED, Telemetry::FACTS)).map(&:reference)
+        end
+
         test "a reply goes in the review comment's thread" do
           GithubApp.expects(:write).with(:post, "/repos/acme/checkout/pulls/412/comments/77/replies", { body: "Fixed in the next commit" }, token: "ghs_token")
                    .returns("path" => "app/models/payment.rb", "html_url" => "https://github.com/acme/checkout/pull/412#discussion_r78")

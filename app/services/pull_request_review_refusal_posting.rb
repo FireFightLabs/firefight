@@ -48,8 +48,7 @@ class PullRequestReviewRefusalPosting
     return @refusal.dropped!("A review of the pull request started since.") if @refusal.superseded?
     return if @refusal.attempted_at && found_posted!(row)
 
-    @refusal.attempted!
-    posted = Integrations::PullRequestReviews.call!(row, Integrations::PullRequestReviews::COMMENT, authorize: authorizer(approval_id), repository: @refusal.repository,
+    posted = Integrations::PullRequestReviews.call!(row, Integrations::PullRequestReviews::COMMENT, authorize: authorizer(approval_id, attempt: true), repository: @refusal.repository,
                                                                                                    number: @refusal.number, body: sentence)
     @refusal.posted!(posted)
   rescue AbilityGateway::PendingApproval => pending
@@ -83,8 +82,15 @@ class PullRequestReviewRefusalPosting
     raise Retry, "The conversation could not be read back. #{error.message}"
   end
 
-  def authorizer(approval_id)
+  # attempt marks the comment tried once the gateway let the call through, right before the host is called, so a call an
+  # approval rule held is never taken for one that may have posted.
+  def authorizer(approval_id, attempt: false)
     refusal = @refusal
-    ->(tool, arguments, &run) { refusal.authorize_post!(tool, arguments, approval_id: approval_id, &run) }
+    lambda do |tool, arguments, &run|
+      refusal.authorize_post!(tool, arguments, approval_id: approval_id) do
+        refusal.attempted! if attempt
+        run.call
+      end
+    end
   end
 end

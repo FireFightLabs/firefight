@@ -7,6 +7,9 @@ module Integrations
     OPEN_TIMEOUT = 5
     TOO_MANY_REQUESTS = 429
     FORBIDDEN = 403
+    REQUEST_TIMEOUT = 408
+    # What a host says in a 403 that is a secondary rate limit, which may come with no header saying so.
+    SECONDARY_RATE_LIMIT = /secondary rate limit/i
     NOT_FOUND = 404
     # What a redirect to stored content keeps by default, the tail of a log where it says why something failed.
     DOWNLOAD_LIMIT = 2_000_000
@@ -49,9 +52,11 @@ module Integrations
       raise error_class.new("could not reach #{uri.host} (#{error.class.name})").extend(Unreachable)
     end
 
-    # A 429, or a 403 that says when to try again, as a secondary rate limit does (Retry-After, or no calls remaining).
-    def self.rate_limited?(code, headers)
-      code == TOO_MANY_REQUESTS || (code == FORBIDDEN && (headers["retry-after"].present? || headers["x-ratelimit-remaining"] == "0"))
+    # A 429, or a 403 that says when to try again or names a secondary rate limit (Retry-After, no calls remaining, or
+    # the host's own words).
+    def self.rate_limited?(code, headers, said = "")
+      code == TOO_MANY_REQUESTS ||
+        (code == FORBIDDEN && (headers["retry-after"].present? || headers["x-ratelimit-remaining"] == "0" || said.to_s.match?(SECONDARY_RATE_LIMIT)))
     end
 
     # The answer read as JSON. A 2xx answer that is not JSON still counts as done and reads as {}, so a change that went
@@ -80,9 +85,10 @@ module Integrations
       end
 
       said = (body.is_a?(Hash) && reason.call(body)).presence || "no reason given"
-      if rate_limited?(code, headers_of(response))
+      if rate_limited?(code, headers_of(response), said)
         raise answered((rate_limited || error_class).new("#{provider_name} answered #{code}: #{said}").extend(RateLimited), code)
       end
+      raise answered(error_class.new("#{provider_name} answered #{code}: the request timed out").extend(TimedOut), code) if code == REQUEST_TIMEOUT
       raise answered(error_class.new("#{provider_name} answered #{code} with something that is not JSON"), code) unless body
 
       error = answered((refine&.call(code, said) || error_class).new("#{provider_name} answered #{code}: #{said}"), code)

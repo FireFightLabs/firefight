@@ -68,23 +68,49 @@ class PullRequestReviewRefusalPostingTest < ActiveSupport::TestCase
   end
 
   test "a try that may have posted reads the conversation first, keeps a comment found there and never posts twice" do
+    comment_tool, list_tool = review_tools!
     refusal = create_refusal(Refusal::NO_ACCESS)
     timed_out = Integrations::Error.new("could not reach api.github.com (Net::ReadTimeout)").extend(Integrations::TimedOut)
-    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == COMMENT && (@posts << called) }.raises(timed_out)
+    Integrations::NativeExecutor.stubs(:call).with { |tool:, **| tool == comment_tool && (@posts << tool.name) }.raises(timed_out)
 
     assert_raises(PullRequestReviewRefusalPosting::Retry) { PullRequestReviewRefusalPosting.new(refusal).post! }
     assert refusal.reload.attempted_at
 
     travel 2.minutes
-    found = Integrations::PullRequestReviews::PostedComment.new(reference: "300", url: "https://github.com/acme/api/pull/7#issuecomment-300", body: SENTENCE,
-                                                                authors: [ "firefight-app[bot]" ], at: 1.minute.ago)
-    someone = Integrations::PullRequestReviews::PostedComment.new(reference: "299", url: nil, body: SENTENCE, authors: [ "ada" ], at: 1.minute.ago)
-    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **given| called == CONVERSATION && given[:since] <= refusal.attempted_at }.returns([ someone, found ])
+    listed = [ { "id" => 299, "url" => nil, "body" => SENTENCE, "authors" => [ "ada" ], "at" => 1.minute.ago.iso8601 },
+               { "id" => 300, "url" => "https://github.com/acme/api/pull/7#issuecomment-300", "body" => SENTENCE, "authors" => [ "firefight-app[bot]" ], "at" => 1.minute.ago.iso8601 } ]
+    Integrations::NativeExecutor.stubs(:call).with { |tool:, arguments:, **| tool == list_tool && Time.zone.parse(arguments["since"]) <= refusal.attempted_at }
+                                .returns(Integrations::Telemetry.result("Listed.", link: nil, facts: { "comments" => listed }))
 
     PullRequestReviewRefusalPosting.new(refusal.reload).post!
 
     assert_equal 1, @posts.size, "the comment the host took is not posted again"
     assert_equal [ Refusal::STATUS_POSTED, "300" ], refusal.reload.values_at(:status, :comment_id)
+  end
+
+  test "a comment an approval rule holds was never sent, so its try is not counted and the approved post reads nothing first" do
+    review_tools!
+    refusal = create_refusal(Refusal::NO_ACCESS)
+    approval = pending_approval
+    AbilityGateway.stubs(:authorize!).raises(AbilityGateway::PendingApproval.new(approval))
+
+    PullRequestReviewRefusalPosting.new(refusal).post!
+
+    assert_equal Refusal::STATUS_HELD, refusal.reload.status
+    assert_nil refusal.attempted_at
+  end
+
+  test "tries that run out after one that may have posted leave the comment unconfirmed, still said and never posted again" do
+    refusal = create_refusal(Refusal::NO_ACCESS)
+    refusal.attempted!
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == CONVERSATION }.raises(answered(502, "GitHub answered 502"))
+    Integrations::PullRequestReviews.expects(:call!).with { |_row, called, **| called == COMMENT }.never
+
+    perform_enqueued_jobs { PullRequestReviewRefusalPostJob.perform_later(refusal.id) }
+
+    assert_equal Refusal::STATUS_UNCONFIRMED, refusal.reload.status
+    assert refusal.still_said?
+    assert_nil Refusal.claim!(@row, signal("r9"), reason: Refusal::NO_ACCESS)
   end
 
   test "a try that may have posted and is not in the conversation is posted, and a conversation that cannot be read is tried again" do
@@ -139,7 +165,7 @@ class PullRequestReviewRefusalPostingTest < ActiveSupport::TestCase
     refusal.held!(approval)
     approval.update_columns(status: Ability::Approval::STATUS_APPROVED)
     Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, authorize:, **| called == COMMENT && (@posts << authorize) }.returns("302")
-    PullRequestReviewRefusalPosting.any_instance.expects(:authorizer).with(approval.id).returns(->(*) { nil })
+    PullRequestReviewRefusalPosting.any_instance.expects(:authorizer).with(approval.id, attempt: true).returns(->(*) { nil })
 
     perform_enqueued_jobs { PullRequestReviewRefusalPostJob.perform_later(refusal.id, approval.id) }
 
@@ -186,6 +212,19 @@ class PullRequestReviewRefusalPostingTest < ActiveSupport::TestCase
     assert Refusal.claim!(@row, signal("c4", comment: "94"), reason: Refusal::NO_ACCESS)
   end
 
+  test "a comment's ten minutes and a refusal held on its approval both end once a review of the pull request started since" do
+    assert Refusal.claim!(@row, signal("c1", comment: "91"), reason: Refusal::NO_ACCESS)
+    held = Refusal.claim!(@row, signal("c2", comment: "92"), reason: Refusal::MODEL_NOT_SET_UP)
+    held.held!(pending_approval)
+    travel 1.minute
+    PullRequestReview.create!(workspace: @workspace, integration_environment: @row, repository: "acme/api", number: 7, head_sha: "a" * 40,
+                              trigger: PullRequestReview::TRIGGER_REQUESTED, max_spend_cents: 400)
+    travel 1.minute
+
+    assert Refusal.claim!(@row, signal("c3", comment: "93"), reason: Refusal::NO_ACCESS)
+    assert Refusal.claim!(@row, signal("c4", comment: "94"), reason: Refusal::MODEL_NOT_SET_UP)
+  end
+
   private
 
   def create_refusal(reason, reference: "acme/api#7:asked:a")
@@ -194,6 +233,15 @@ class PullRequestReviewRefusalPostingTest < ActiveSupport::TestCase
 
   def signal(reference, comment: nil)
     Signal.new(kind: Integrations::PullRequestReviews::REQUESTED, repository: "acme/api", number: 7, reference: reference, comment: comment)
+  end
+
+  # The connection's comment and conversation tools, granted to Halon's review agent, so a call goes through the gateway.
+  def review_tools!
+    %w[comment_on_pull_request list_pull_request_comments].map do |name|
+      tool = @row.integration.tools.create!(name: name, description: name, enabled: true, read_only: name.start_with?("list"))
+      Ability::Grant.grant!(workspace: @workspace, principal: SystemAgent.pull_request_review, target: { action: tool.ability_action || tool.sync_ability_action! })
+      tool
+    end
   end
 
   def answered(status, message) = Integrations::Error.new(message).tap { |error| error.http_status = status }

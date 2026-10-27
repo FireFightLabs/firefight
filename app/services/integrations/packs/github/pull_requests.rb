@@ -780,13 +780,25 @@ module Integrations
           end
         end
 
+        # Every comment from since on, page by page. With no since, only the newest page, the last one GitHub links to, which
+        # holds any comment written a moment ago.
         def conversation_comments(repo, number, since, token)
+          return newest_conversation_page(repo, number, token) unless since
+
           query = { "since" => since, "per_page" => 100 }.compact
           (1..REVIEW_COMMENT_PAGES).each_with_object([]) do |page, listed|
             found = Array(GithubApp.get("/repos/#{repo}/issues/#{number}/comments?#{query.merge('page' => page).to_query}", token: token))
             listed.concat(found)
             break listed if found.size < 100
           end
+        end
+
+        def newest_conversation_page(repo, number, token)
+          path = "/repos/#{repo}/issues/#{number}/comments"
+          first, last = GithubApp.page("#{path}?#{{ 'page' => 1, 'per_page' => 100 }.to_query}", token: token)
+          return Array(first) if last <= 1
+
+          Array(GithubApp.page("#{path}?#{{ 'page' => last, 'per_page' => 100 }.to_query}", token: token).first)
         end
 
         def sha_argument(arguments, key)

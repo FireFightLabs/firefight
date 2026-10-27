@@ -145,7 +145,12 @@ module Integrations
         status.call(403).extend(Integrations::RateLimited), Integrations::Error.new("could not reach api.github.com (Errno::ECONNRESET)").extend(Integrations::Unreachable),
         Integrations::Error.new("could not reach api.github.com (Net::ReadTimeout)").extend(Integrations::TimedOut), Integrations::Error.new("no status"),
         PullRequestReviews::Stopped.new("comment_on_pull_request was not run."), PullRequestReviews::ToolOff.new("switched off"),
-        Integrations::PolicyRefusal.new("a rule").tap { |error| error.http_status = 403 }, StandardError.new("not ours")
+        Integrations::PolicyRefusal.new("a rule").tap { |error| error.http_status = 403 }, StandardError.new("not ours"),
+        status.call(401), status.call(408),
+        GithubApp::NotPermitted.new("GitHub: Resource not accessible by integration").tap { |error| error.http_status = 403 },
+        GithubApp::Unauthorized.new("GitHub: Bad credentials").tap { |error| error.http_status = 401 },
+        GitlabApi::Refused.new("GitLab answered 403: insufficient_scope").tap { |error| error.http_status = 403 },
+        BitbucketApi::Refused.new("Bitbucket answered 401").tap { |error| error.http_status = 401 }
       ]
       temporary.each { |error| assert_not PullRequestReviews.refused_for_good?(error), error.message }
     end

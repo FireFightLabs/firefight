@@ -8,7 +8,9 @@ module Integrations
       include Integrations::NotFound
     end
     # The token is not accepted, or may not do this.
-    class Refused < Error; end
+    class Refused < Error
+      include Integrations::NotAuthorized
+    end
 
     API_ROOT = "https://api.bitbucket.org/2.0".freeze
     HOST = "api.bitbucket.org".freeze

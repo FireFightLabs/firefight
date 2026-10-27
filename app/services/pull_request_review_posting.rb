@@ -310,6 +310,7 @@ class PullRequestReviewPosting
   def thread_refused(finding, body, recheck)
     lambda do |error|
       next unless Integrations::PullRequestReviews.refused_for_good?(error)
+      next if Integrations::PullRequestReviews.not_found?(error) && !pull_request_readable?
 
       words = refusal_words(error)
       if finding.thread_refused!(words)
@@ -318,6 +319,14 @@ class PullRequestReviewPosting
         keep_on_page!(finding, body, "Its thread refused an earlier reply, so this one is kept here. #{words}")
       end
     end
+  end
+
+  # A comment the host says is not there may be the connection's access to the repository lost rather than the comment
+  # gone, so the pull request's conversation is read through the same connection to tell them apart.
+  def pull_request_readable?
+    !call!(Integrations::PullRequestReviews::CONVERSATION, since: Time.current).nil?
+  rescue Held
+    false
   end
 
   def keep_on_page!(finding, body, reason)

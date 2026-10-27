@@ -577,6 +577,11 @@ module Integrations
         assert Gitlab.tool_definitions.find { |tool| tool.name == "list_merge_request_comments" }.read_only
       end
 
+      test "a moment that is not a time is refused in words" do
+        error = assert_raises(Integrations::Error) { @pack.list_merge_request_comments(environment_row: @row, arguments: { "repo" => "acme/platform/web", "iid" => 42, "since" => "2026-13-45T99:00:00Z" }) }
+        assert_equal "since must be a time in ISO 8601", error.message
+      end
+
       test "a flag is a note on the merge request" do
         GitlabApi.any_instance.expects(:post).with("#{PROJECT}/merge_requests/42/notes", { "body" => "Look here." }).returns("id" => 1)
 

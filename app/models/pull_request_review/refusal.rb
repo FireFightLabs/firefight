@@ -1,7 +1,7 @@
 # A review a person asked for on a pull request that could not start, and the comment Halon posts there to say why
 # (PullRequestReviewRefusalPosting). One per request, named by the delivery's reference, so a delivery sent again never
-# says it twice. Only a refusal that went up or may still go up (pending, held or posted) counts as said, so one that was
-# denied, declined, refused by the host or gave up never silences the next request.
+# says it twice. Only a refusal that went up or may have (pending, held, posted or unconfirmed) counts as said, so one that
+# was denied, declined, refused by the host or gave up before it was ever sent never silences the next request.
 class PullRequestReview::Refusal < ApplicationRecord
   RESUME_KIND = "pull_request_review_refusal".freeze
 
@@ -12,13 +12,15 @@ class PullRequestReview::Refusal < ApplicationRecord
   NO_ACCESS = "no_access".freeze
   REASONS = [ HALON_UNAVAILABLE, MODEL_NOT_SET_UP, NO_CONNECTION, NO_ACCESS ].freeze
 
-  # Where the comment stands. Waiting for its job, held for an approval, posted, or dropped with why.
+  # Where the comment stands. Waiting for its job, held for an approval, posted, unconfirmed (tried, and the host never
+  # said whether it went up, so it is never tried again), or dropped with why.
   STATUS_PENDING = "pending".freeze
   STATUS_HELD = "held".freeze
   STATUS_POSTED = "posted".freeze
+  STATUS_UNCONFIRMED = "unconfirmed".freeze
   STATUS_DROPPED = "dropped".freeze
-  STATUSES = [ STATUS_PENDING, STATUS_HELD, STATUS_POSTED, STATUS_DROPPED ].freeze
-  SAID = [ STATUS_PENDING, STATUS_HELD, STATUS_POSTED ].freeze
+  STATUSES = [ STATUS_PENDING, STATUS_HELD, STATUS_POSTED, STATUS_UNCONFIRMED, STATUS_DROPPED ].freeze
+  SAID = [ STATUS_PENDING, STATUS_HELD, STATUS_POSTED, STATUS_UNCONFIRMED ].freeze
   LIVE = [ STATUS_PENDING, STATUS_HELD ].freeze
 
   # A person asking again in a comment with the same reason is answered at most this often on one pull request, so
@@ -45,8 +47,8 @@ class PullRequestReview::Refusal < ApplicationRecord
       key = Zlib.crc32("pull_request_review_refusal:#{workspace_id}:#{signal.repository.downcase}:#{signal.number}")
       with_connection { |connection| connection.select_value(sanitize_sql_array([ "SELECT pg_advisory_xact_lock(?)::text", key ])) }
       same = of_pull_request(workspace_id, signal.repository, signal.number)
-      next if same.where(reason: reason, status: STATUS_HELD).any?(&:still_said?)
-      next if signal.comment.present? ? same.said.where(reason: reason).where(created_at: COMMENT_ANSWER_EVERY.ago..).any?(&:still_said?) : said_already?(same, reason)
+      next if same.where(reason: reason, status: STATUS_HELD).any?(&:standing?)
+      next if signal.comment.present? ? same.said.where(reason: reason).where(created_at: COMMENT_ANSWER_EVERY.ago..).any?(&:standing?) : said_already?(same, reason)
 
       now = Time.current
       inserted = insert_all([ { workspace_id: workspace_id, integration_environment_id: environment_row.id, repository: signal.repository, number: signal.number,
@@ -63,7 +65,7 @@ class PullRequestReview::Refusal < ApplicationRecord
   # The pull request's last refusal that was said gave this reason, and no review of it started since.
   def self.said_already?(same, reason)
     last = same.said.order(:created_at).select(&:still_said?).last
-    last&.reason == reason && !last.superseded?
+    last&.reason == reason && last.standing?
   end
   private_class_method :said_already?
 
@@ -71,7 +73,7 @@ class PullRequestReview::Refusal < ApplicationRecord
 
   def live? = LIVE.include?(status)
 
-  # Posted, waiting for its job, or held on an approval that may still let it go up. One whose approval lapsed or was
+  # Posted or unconfirmed, waiting for its job, or held on an approval that may still let it go up. One whose approval lapsed or was
   # decided against is not said, whatever its status still reads.
   def still_said?
     return false unless SAID.include?(status)
@@ -80,6 +82,9 @@ class PullRequestReview::Refusal < ApplicationRecord
     approval = Ability::Approval.find_by(id: held_approval_id)
     approval.present? && (approval.pending? || approval.usable?)
   end
+
+  # Said, and still true, since no review of the pull request started after it.
+  def standing? = still_said? && !superseded?
 
   # A review of the pull request started after this refusal, so it says nothing true any more.
   def superseded?
@@ -92,6 +97,9 @@ class PullRequestReview::Refusal < ApplicationRecord
 
   # Held on an approval, which a later request of the same reason waits on.
   def held!(approval) = move!(LIVE, status: STATUS_HELD, held_approval_id: approval.id)
+
+  # Tried, and no read could say whether it went up, so it counts as said and is never posted again.
+  def unconfirmed!(why) = move!(LIVE, status: STATUS_UNCONFIRMED, dropped_reason: why.to_s.truncate(500))
 
   # Not said, and why, so it no longer counts as said.
   def dropped!(why) = move!(LIVE, status: STATUS_DROPPED, dropped_reason: why.to_s.truncate(500))

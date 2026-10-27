@@ -104,6 +104,9 @@ module Integrations
     # Refused.
     class Stopped < Integrations::Error; end
 
+    # Statuses that say nothing about the thing a call named. Its credential, a request that timed out, a rate limit.
+    NOT_THE_THING = [ 401, Http::REQUEST_TIMEOUT, Http::TOO_MANY_REQUESTS ].freeze
+
     module_function
 
     def source_of(provider_key) = MapEvents.source_of(provider_key)
@@ -247,17 +250,23 @@ module Integrations
     def unplaceable?(error) = UNPLACEABLE.include?(error.try(:http_status))
 
     # The host refused a post and will refuse it again however often it is asked, as a reply to a comment that was deleted
-    # or on a conversation that was locked. Only an answer the host gave counts: a 4xx other than 429, or its word that the
-    # thing is not there, said by the error or by one it was raised from. A rate limit, a host that failed on its side or
-    # could not be reached, an error with no answer behind it, and Firefight's own rules and state never do.
+    # or on a conversation that was locked. Only an answer the host gave about the thing counts, a 4xx or its word that the
+    # thing is not there, said by the error or by one it was raised from. A rate limit, a request that timed out, a host
+    # that failed on its side or could not be reached, a refusal of Firefight's own credential or permission
+    # (NotAuthorized, or a 401), an error with no answer behind it, and Firefight's own rules and state never do.
+    # The host said the thing a call named is not there, by the error or by one it was raised from.
+    def not_found?(error)
+      ReviewHost.causes(error).any? { |each| each.is_a?(Integrations::NotFound) || each.try(:http_status).to_i == Http::NOT_FOUND }
+    end
+
     def refused_for_good?(error)
       return false unless error.is_a?(Integrations::Error)
       return false if [ PolicyRefusal, ToolOff, Stopped, Unavailable ].any? { |kind| error.is_a?(kind) } || ReviewHost.retryable?(error)
 
-      ReviewHost.causes(error).any? do |each|
-        status = each.try(:http_status).to_i
-        each.is_a?(Integrations::NotFound) || (status.between?(400, 499) && status != Http::TOO_MANY_REQUESTS)
-      end
+      chain = ReviewHost.causes(error)
+      return false if chain.any? { |each| each.is_a?(NotAuthorized) || NOT_THE_THING.include?(each.try(:http_status).to_i) }
+
+      chain.any? { |each| each.is_a?(Integrations::NotFound) || each.try(:http_status).to_i.between?(400, 499) }
     end
 
     def answer_text(result) = Array(result.to_h["content"]).filter_map { |part| part["text"] }.join("\n").strip

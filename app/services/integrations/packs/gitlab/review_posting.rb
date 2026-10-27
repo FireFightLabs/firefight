@@ -147,7 +147,7 @@ module Integrations
         # read oldest first. Each keeps every name GitLab gives its author.
         def list_merge_request_comments(environment_row:, arguments:)
           repo, iid, gitlab = merge_request_target(arguments, environment_row)
-          since = arguments["since"].to_s.strip.presence&.then { |value| Time.zone.parse(value) || fail!("since must be a time in ISO 8601") }
+          since = since_argument(arguments)
           request = gitlab.get("#{GitlabApi.project(repo)}/merge_requests/#{iid}")
           notes = Array(gitlab.get("#{GitlabApi.project(repo)}/merge_requests/#{iid}/notes", { "sort" => "desc", "order_by" => "created_at", "per_page" => CONVERSATION_PAGE }))
           notes = notes.reject { |note| note["system"] }.select { |note| since.nil? || Time.zone.parse(note["created_at"].to_s).to_i >= since.to_i }.reverse
@@ -293,6 +293,16 @@ module Integrations
           return if note.dig("author", "id").present? && note.dig("author", "id") == me["id"]
 
           fail_policy! "Only a #{what} Firefight started is changed here, and #{what} #{id} is #{note.dig('author', 'username').presence || 'someone else'}'s. A person changes it on GitLab."
+        end
+
+        # The moment a read starts from, or nil when none was given. One that is not a time is refused in words.
+        def since_argument(arguments)
+          value = arguments["since"].to_s.strip.presence
+          return unless value
+
+          Time.zone.parse(value) || fail!("since must be a time in ISO 8601")
+        rescue ArgumentError
+          fail!("since must be a time in ISO 8601")
         end
 
         def note_url(request, note_id) = request["web_url"].present? && note_id ? "#{request['web_url']}#note_#{note_id}" : request["web_url"]

@@ -144,7 +144,7 @@ module Integrations
         # lines and deleted ones, read oldest first. Each keeps every name Bitbucket gives its author.
         def list_pull_request_comments(environment_row:, arguments:)
           repo, number, bitbucket = comment_target(arguments, environment_row)
-          since = arguments["since"].to_s.strip.presence&.then { |value| Time.zone.parse(value) || fail!("since must be a time in ISO 8601") }
+          since = since_argument(arguments)
           pull = bitbucket.get("#{BitbucketApi.repository(repo)}/pullrequests/#{number}")
           listed = bitbucket.get(comments_path(repo, number), { "sort" => "-created_on", "pagelen" => CONVERSATION_PAGE })
           comments = Array(listed["values"]).reject { |comment| comment["inline"] || comment["deleted"] }
@@ -222,6 +222,16 @@ module Integrations
         end
 
         private
+
+        # The moment a read starts from, or nil when none was given. One that is not a time is refused in words.
+        def since_argument(arguments)
+          value = arguments["since"].to_s.strip.presence
+          return unless value
+
+          Time.zone.parse(value) || fail!("since must be a time in ISO 8601")
+        rescue ArgumentError
+          fail!("since must be a time in ISO 8601")
+        end
 
         def comments_path(repo, number) = "#{BitbucketApi.repository(repo)}/pullrequests/#{number}/comments"
 

@@ -134,7 +134,9 @@ module Integrations
           asking("list_pull_request_comments", "GitHub has no pull request #{number} in #{repo}") do
             comments = conversation_comments(repo, number, since, token)
             lines = comments.last(COMMENTS_SHOWN).map { |comment| "#{comment['id']} by #{comment.dig('user', 'login')} at #{comment['created_at']}  #{comment['html_url']}" }
-            linked("PR ##{number} in #{repo} has #{comments.size} #{'comment'.pluralize(comments.size)} in its conversation#{" since #{since}" if since}.\n#{lines.join("\n")}".strip,
+            said = since ? "PR ##{number} in #{repo} has #{comments.size} #{'comment'.pluralize(comments.size)} in its conversation since #{since}." :
+                           "The newest #{comments.size} #{'comment'.pluralize(comments.size)} in the conversation of PR ##{number} in #{repo}."
+            linked("#{said}\n#{lines.join("\n")}".strip,
                    "https://github.com/#{repo}/pull/#{number}",
                    facts: { "comments" => comments.map do |comment|
                      { "id" => comment["id"], "url" => comment["html_url"], "body" => comment["body"].to_s, "authors" => [ comment.dig("user", "login") ], "at" => comment["created_at"] }

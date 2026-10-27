@@ -2823,10 +2823,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_090100) do
     t.text "dropped_reason"
     t.datetime "attempted_at"
     t.uuid "held_approval_id"
+    t.index "workspace_id, lower((repository)::text), number", name: "index_pull_request_review_refusals_on_pull_request"
     t.index ["integration_environment_id"], name: "index_pull_request_review_refusals_on_environment"
     t.index ["workspace_id", "reference"], name: "index_pull_request_review_refusals_once", unique: true
-    t.index ["workspace_id", "repository", "number"], name: "index_pull_request_review_refusals_on_pull_request"
-    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'held'::character varying, 'posted'::character varying, 'dropped'::character varying]::text[])", name: "pull_request_review_refusals_status"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'held'::character varying, 'posted'::character varying, 'unconfirmed'::character varying, 'dropped'::character varying]::text[])", name: "pull_request_review_refusals_status"
   end
 
   create_table "pull_request_reviews", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

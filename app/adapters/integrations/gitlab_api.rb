@@ -8,7 +8,9 @@ module Integrations
       include Integrations::NotFound
     end
     # The token is not accepted, or may not do this.
-    class Refused < Error; end
+    class Refused < Error
+      include Integrations::NotAuthorized
+    end
 
     DEFAULT_URL = "https://gitlab.com".freeze
     API_PATH = "/api/v4".freeze

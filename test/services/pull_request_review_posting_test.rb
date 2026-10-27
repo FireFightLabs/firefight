@@ -323,6 +323,7 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
     finding = create_finding
     finding.update_columns(host_comment_id: "701", host_comment_url: "https://example.com/pull/7#discussion_r701")
     Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == REPLY }.raises(answered(404, "GitHub has no review comment 701 on pull request 7 in acme/api."))
+    readable_conversation!
     answer(COMMENT => "300")
 
     posting.reply!(finding, "Fixed in bbbbbbb. The job now waits.", then_resolve: true)
@@ -343,6 +344,7 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
     finding.update_columns(host_comment_id: "701")
     replies = 0
     Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == REPLY && (replies += 1) }.raises(answered(404, "GitHub has no review comment 701."))
+    readable_conversation!
     answer(COMMENT => "300")
 
     posting.reply!(finding, "Not fixed yet in bbbbbbb.", recheck: true)
@@ -355,6 +357,30 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
     kept = finding.unposted_replies
     assert_equal [ "Fixed in ccccccc.", "Still fixed." ], kept.map { |reply| reply["body"] }
     assert kept.all? { |reply| reply["reason"].include?("GitHub has no review comment 701.") }
+  end
+
+  test "a reply refused as not found while the pull request cannot be read either is the connection's access, so the thread is left as it was" do
+    finding = create_finding
+    finding.update_columns(host_comment_id: "701")
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == REPLY }.raises(answered(404, "GitHub has no review comment 701."))
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == Integrations::PullRequestReviews::CONVERSATION }
+                                     .raises(answered(404, "GitHub has no pull request 7 in acme/api."))
+    Integrations::PullRequestReviews.expects(:call!).with { |_row, called, **| called == COMMENT }.never
+
+    assert_nil posting.reply!(finding, "Fixed.")
+
+    assert_nil finding.reload.thread_refusal
+    assert_empty finding.unposted_replies
+  end
+
+  test "the review page keeps the newest replies that could not be posted, at most twenty" do
+    finding = create_finding
+
+    25.times { |index| finding.unposted_reply!(body: "Reply #{index}.", reason: "Locked.") }
+
+    kept = finding.reload.unposted_replies
+    assert_equal PullRequestReview::Finding::Threading::UNPOSTED_KEPT, kept.size
+    assert_equal [ "Reply 5.", "Reply 24." ], [ kept.first["body"], kept.last["body"] ]
   end
 
   test "a reply refused for good whose comment is refused too stays on the review page with why" do
@@ -377,6 +403,7 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
     finding = create_finding
     finding.update_columns(host_comment_id: "701")
     Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == REPLY }.raises(answered(404, "Gone."))
+    readable_conversation!
     answer(COMMENT => "300")
 
     posting.reply!(finding, "Still open.")
@@ -409,6 +436,7 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
     @review.update_columns(summary_comment_id: "100")
     @review.hold!(approval, operation: REPLY, given: { reference: "701", body: "Fixed." }, purpose: { "record" => "reply", "finding_id" => finding.id, "body" => "Fixed.", "resolve" => true })
     Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == REPLY }.raises(answered(404, "GitHub has no review comment 701."))
+    readable_conversation!
     answer(COMMENT => "300", EDIT => "100")
 
     posting.run!(PullRequestReviewPosting::RESUMED, approval_id: approval.id)
@@ -492,6 +520,11 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
     Ability::Approval.create!(workspace: @workspace, principal_type: SystemAgent.polymorphic_name, principal_id: SystemAgent.pull_request_review.id,
                               principal_label: "Halon pull request review", action_key: action_key, request_digest: SecureRandom.hex(4), scope: {}, params: {},
                               status: Ability::Approval::STATUS_APPROVED, required_role: WorkspaceMembership.roles[:admin])
+  end
+
+  # The pull request is still there to read, so a comment not found is the thread's and not the connection's access.
+  def readable_conversation!
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == Integrations::PullRequestReviews::CONVERSATION }.returns([])
   end
 
   def answered(status, message) = Integrations::Error.new(message).tap { |error| error.http_status = status }
