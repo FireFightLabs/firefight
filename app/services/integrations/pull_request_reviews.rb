@@ -67,8 +67,9 @@ module Integrations
 
     # What a review posted: the host's reference to the review and its page, and one reference and page per line comment in
     # the order given, nil for a line the host would not place.
-    Posted = Data.define(:reference, :comments, :urls, :url) do
-      def initialize(urls: [], url: nil, **) = super
+    # unread is true when the line comments went up but the host would not say which is which, so none can be followed.
+    Posted = Data.define(:reference, :comments, :urls, :url, :unread) do
+      def initialize(urls: [], url: nil, unread: false, **) = super
     end
 
     class Refused < Integrations::Error; end

@@ -712,7 +712,12 @@ module Integrations
         def review_comment_facts(repo, number, review_id, comments, token)
           return {} unless comments.any? && review_id
 
-          posted = review_comments_posted(repo, number, review_id, token)
+          posted = begin
+            review_comments_posted(repo, number, review_id, token)
+          rescue GithubApp::Error
+            # The review went up, so a failed read back never makes it look refused.
+            return { "comments_unread" => true }
+          end
           found = comments.map do |comment|
             match = posted.find do |each|
               each["path"] == comment[:path] && [ each["line"], each["original_line"] ].include?(comment[:line]) && each["body"].to_s.strip == comment[:body].to_s.strip

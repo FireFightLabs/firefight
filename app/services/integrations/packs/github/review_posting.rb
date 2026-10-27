@@ -70,7 +70,7 @@ module Integrations
             case operation
             when PullRequestReviews::REVIEW
               PullRequestReviews::Posted.new(reference: facts["review_id"]&.to_s, comments: Array(facts["comment_ids"]).map { |id| id&.to_s },
-                                             urls: Array(facts["comment_urls"]))
+                                             urls: Array(facts["comment_urls"]), unread: facts["comments_unread"] == true)
             else facts["comment_id"]&.to_s
             end
           end

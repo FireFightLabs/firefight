@@ -75,12 +75,16 @@ class PullRequestReviewPosting
 
   # The review itself, once, then the summary as it ends. A review the host took none of is handed back, so the job's
   # retry posts it.
+  # A review that went up while the comment holding the findings it could not place did not is finished by the retry,
+  # which posts only that comment.
   def finished!
     if @review.claim_review_post!
       unless post_review!
         @review.release_review_post!
         raise NotPosted, "The code host took nothing of the review of PR ##{@review.number} in #{@review.repository}."
       end
+    elsif @review.review_comment_id.present?
+      place_pending!
     end
     summary!
   end
@@ -108,11 +112,31 @@ class PullRequestReviewPosting
     true
   end
 
-  # Findings the host would not take on their lines go up together in the conversation, or stay in the review's body when
-  # it already holds them, which only the review posted with no line comments does.
+  # Findings the host would not take on their lines go up together in the conversation. The review posted with no line
+  # comments holds them in its body already, and a review whose line comments went up but could not be read back holds
+  # them on their lines, so either opens at the review.
   def place!(unplaced, posted)
-    _, url = call!(Integrations::PullRequestReviews::COMMENT, body: PullRequestReview::Comments.unplaced(unplaced), with_link: true) unless posted.comments.empty?
-    unplaced.each { |finding| finding.posted_at!(url || posted.url) }
+    return unplaced.each { |finding| finding.posted_at!(posted.url) } if posted.comments.empty? || posted.unread
+
+    post_unplaced!(unplaced, fallback: posted.url)
+  end
+
+  # The comment holding findings no line took. Each is kept as posted only once it went up, and one that did not raises,
+  # so the retry posts it without posting the review again.
+  def post_unplaced!(unplaced, fallback: nil)
+    posted, url = call!(Integrations::PullRequestReviews::COMMENT, body: PullRequestReview::Comments.unplaced(unplaced), with_link: true)
+    raise NotPosted, "The findings no line took on PR ##{@review.number} in #{@review.repository} did not go up." unless posted
+
+    unplaced.each { |finding| finding.posted_at!(url || fallback) }
+  end
+
+  # Findings meant for a line that neither went on one nor into the conversation.
+  def place_pending!
+    pending = @review.findings.still_open.select do |finding|
+      finding.path.present? && finding.line.present? && !finding.outside_diff? && finding.host_comment_id.blank? && finding.host_comment_url.blank? &&
+        !@review.posted_before?(finding)
+    end
+    post_unplaced!(pending) if pending.any?
   end
 
   # One review with its line comments, or nil when the host refused it.

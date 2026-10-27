@@ -119,6 +119,38 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
     assert_includes comment.last[:body], finding.claim
   end
 
+  test "findings no line took stay pending when their comment fails, and the retry posts only that comment" do
+    @review.update_columns(summary_comment_id: "100")
+    finding = create_finding
+    @review.finish!(status: PullRequestReview::STATUS_DONE)
+    answer(REVIEW => Integrations::PullRequestReviews::Posted.new(reference: "55", comments: [ nil ], url: "https://example.com/r55"), COMMENT => nil, EDIT => "100")
+
+    assert_raises(PullRequestReviewPosting::NotPosted) { posting.run!(PullRequestReview::CHANGE_FINISHED) }
+    assert_nil finding.reload.host_comment_url
+
+    Integrations::PullRequestReviews.unstub(:call!)
+    @posts = []
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **given| called == COMMENT && (@posts << [ called, given ]) }.returns([ "300", "https://example.com/c300" ])
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **given| called == EDIT && (@posts << [ called, given ]) }.returns("100")
+
+    posting.run!(PullRequestReview::CHANGE_FINISHED)
+
+    assert_equal [ COMMENT, EDIT ], @posts.map(&:first)
+    assert_equal "https://example.com/c300", finding.reload.host_comment_url
+  end
+
+  test "line comments that went up but could not be read back open at the review and are not posted again" do
+    @review.update_columns(summary_comment_id: "100")
+    finding = create_finding
+    @review.finish!(status: PullRequestReview::STATUS_DONE)
+    answer(REVIEW => Integrations::PullRequestReviews::Posted.new(reference: "55", comments: [], url: "https://example.com/r55", unread: true), EDIT => "100")
+
+    posting.run!(PullRequestReview::CHANGE_FINISHED)
+
+    assert_equal [ REVIEW, EDIT ], @posts.map(&:first)
+    assert_equal "https://example.com/r55", finding.reload.host_comment_url
+  end
+
   test "a failed review says it stopped and never that it found nothing" do
     @review.update_columns(error_summary: PullRequestReview::GAVE_UP, status: PullRequestReview::STATUS_FAILED)
 
