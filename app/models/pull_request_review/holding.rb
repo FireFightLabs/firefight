@@ -75,9 +75,16 @@ module PullRequestReview::Holding
   end
 
   # One post that waited, taken off the queue once it was sent, or once it was held again, which its approval replays.
+  # Only the first entry equal to it goes, so a second reply with the same words stays queued until it is sent too.
   def sent_pending!(post)
-    self.class.where(id: id).update_all([ "pending_posts = (SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb) FROM jsonb_array_elements(pending_posts) AS elem " \
-                                          "WHERE elem <> ?::jsonb), updated_at = ?", post.to_json, Time.current ])
+    self.class.where(id: id).update_all([ <<~SQL.squish, post.to_json, Time.current ])
+      pending_posts = (SELECT COALESCE(jsonb_agg(entry.value ORDER BY entry.position), '[]'::jsonb)
+                       FROM jsonb_array_elements(pending_posts) WITH ORDINALITY AS entry(value, position)
+                       WHERE entry.position <> COALESCE((SELECT MIN(first.position)
+                                                         FROM jsonb_array_elements(pending_posts) WITH ORDINALITY AS first(value, position)
+                                                         WHERE first.value = ?::jsonb), 0)),
+      updated_at = ?
+    SQL
   end
 
   # A waiting post stops the queue from holding a second copy of the same thing: the edit of one finding, or the check

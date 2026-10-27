@@ -188,6 +188,26 @@ class PullRequestReviewCatchUpTest < ActiveSupport::TestCase
     assert_empty @review.reload.pending_posts
   end
 
+  test "a post sent leaves an identical one still waiting queued" do
+    2.times { @review.wait!({ "kind" => "reply", "finding_id" => @finding.id, "body" => "Same", "resolve" => false }) }
+
+    @review.sent_pending!(@review.reload.pending_posts.first)
+
+    assert_equal [ "Same" ], @review.reload.pending_posts.map { |post| post["body"] }
+  end
+
+  test "a signal whose line comments cannot be read back yet raises, so its job tries again" do
+    @review.release_held!(@approval.id)
+    @review.update_columns(comments_unread: true)
+    Integrations::GithubApp.stubs(:bot_login).returns("firefight-app[bot]")
+    Integrations::PullRequestReviews.unstub(:call!)
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == POSTED }.raises(Integrations::PullRequestReviews::Refused, "GitHub answered 502")
+    reply = Integrations::PullRequestReviews::Signal.new(kind: Integrations::PullRequestReviews::COMMENTED, repository: "acme/api", number: 7, reference: "r",
+                                                         comment: "88", thread: "999", body: "Why?", author: "ada")
+
+    assert_raises(PullRequestReviewPosting::NotPosted) { PullRequestReviewSignals.new(@row).receive!(reply) }
+  end
+
   test "only the newest check of a push waits per thread, a person's answers all wait, and the queue is capped" do
     3.times { |push| @review.wait!({ "kind" => "reply", "finding_id" => @finding.id, "body" => "Push #{push}", "resolve" => false, "recheck" => true }) }
     2.times { |answer| @review.wait!({ "kind" => "reply", "finding_id" => @finding.id, "body" => "Answer #{answer}", "resolve" => false, "recheck" => false }) }

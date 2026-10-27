@@ -93,13 +93,9 @@ class PullRequestReviewSignals
   end
 
   # Line comments of this pull request's reviews not yet matched to their findings are read back first, so a push or a
-  # reply reaches their threads. One that still cannot be read waits for its own job's retry.
+  # reply reaches their threads. A read that fails raises, so the signal is tried again once they can be read.
   def adopt_unread!(review)
-    PullRequestReview.of_same_pull_request(review).where(comments_unread: true).find_each do |unread|
-      PullRequestReviewPosting.new(unread).adopt!
-    rescue PullRequestReviewPosting::NotPosted
-      nil
-    end
+    PullRequestReview.of_same_pull_request(review).where(comments_unread: true).find_each { |unread| PullRequestReviewPosting.new(unread).adopt! }
   end
 
   def reviewed?(signal)
