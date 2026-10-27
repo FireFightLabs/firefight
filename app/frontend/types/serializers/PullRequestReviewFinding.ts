@@ -16,6 +16,7 @@ export default interface PullRequestReviewFinding {
   severity: string
   status: string
   suggestedFix?: string
+  unpostedReplies: { body: string; reason: string; at: string }[]
   why: string
   withdrawnReason?: string
 }

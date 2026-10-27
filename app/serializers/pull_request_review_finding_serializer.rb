@@ -1,5 +1,5 @@
 # One finding of a review in full, as its page shows it to a workspace member: the claim, why, how it fails, the evidence
-# the viewer may see, the fix and where it stands.
+# the viewer may see, the fix, where it stands and the replies Halon could not post on the pull request, each with why.
 class PullRequestReviewFindingSerializer < BaseSerializer
   object_as :finding
 
@@ -43,4 +43,7 @@ class PullRequestReviewFindingSerializer < BaseSerializer
 
   type :string, optional: true
   def comment_url = finding.host_comment_url.presence
+
+  type "{ body: string; reason: string; at: string }[]"
+  def unposted_replies = Array(finding.unposted_replies).map { |reply| reply.slice("body", "reason", "at") }
 end

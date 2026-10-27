@@ -3,8 +3,16 @@
 # review spends at most what the workspace lets one of Halon's runs spend (PullRequestReview.request!). Posting what it
 # found is not done here.
 class PullRequestReview::Start
-  # Why a review cannot start, in a sentence for whoever asked.
-  class Refused < StandardError; end
+  # Why a review cannot start, in a sentence for whoever asked, and which of PullRequestReview::Refusal::REASONS it is, so
+  # the pull request can be told in words of its own.
+  class Refused < StandardError
+    attr_reader :reason
+
+    def initialize(message = nil, reason: nil)
+      super(message)
+      @reason = reason
+    end
+  end
 
   NOT_HELD = "No code host connected to this workspace holds %<repository>s on its resource map, so Halon cannot read it.".freeze
   NOT_ALLOWED = "Halon has no access to read %<connection>s, so it cannot review this pull request.".freeze
@@ -23,10 +31,10 @@ class PullRequestReview::Start
 
   def call
     unavailable = Investigation.unavailable_reason(@workspace)
-    raise Refused, unavailable if unavailable
+    raise Refused.new(unavailable, reason: unavailable == Investigation::MODEL_NOT_SET_UP ? PullRequestReview::Refusal::MODEL_NOT_SET_UP : PullRequestReview::Refusal::HALON_UNAVAILABLE) if unavailable
 
     row = @row || Integrations::ReviewHost.row_for(@workspace, @repository)
-    raise Refused, format(NOT_HELD, repository: @repository) unless row
+    raise Refused.new(format(NOT_HELD, repository: @repository), reason: PullRequestReview::Refusal::NO_CONNECTION) unless row
 
     pull = head(row)
     PullRequestReview.request!(row, repository: @repository, number: @number, head_sha: pull.head_sha, trigger: @trigger, title: pull.title, url: pull.url,
@@ -41,6 +49,6 @@ class PullRequestReview::Start
       Integrations::ReviewHost.pull_request(row, repository: @repository, number: @number)
     end
   rescue PullRequestReview::Reading::NotAllowed
-    raise Refused, format(NOT_ALLOWED, connection: row.integration.display_name)
+    raise Refused.new(format(NOT_ALLOWED, connection: row.integration.display_name), reason: PullRequestReview::Refusal::NO_ACCESS)
   end
 end
