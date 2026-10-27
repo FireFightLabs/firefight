@@ -14,6 +14,8 @@ class ApprovalResumption
   KIND_WORKFLOW_STEP = "workflow_step"
   # Publishing a workflow an agent made, which approving publishes at the revision it was asked about.
   KIND_WORKFLOW_PUBLISH = Workflow::PUBLISH_APPROVAL_KIND
+  # A post of Halon's pull request review, made once approved and caught up after (PullRequestReviewPosting).
+  KIND_PULL_REQUEST_REVIEW = PullRequestReview::RESUME_KIND
 
   def self.park!(approval, subject, kind)
     approval.update!(resume_payload: {
@@ -56,7 +58,7 @@ class ApprovalResumption
     when KIND_WORKFLOW_PUBLISH then publish_words(approval, payload)
     when KIND_FIX_STEP then "#{fix_applier(payload)} can run it now."
     when Chat::HeldCall::RESUME_KIND then RUNS_NOW
-    when KIND_INTERACTION, KIND_COMMAND, KIND_WEB, KIND_ISSUE_SYNC, KIND_PAGING then RUNS_NOW
+    when KIND_INTERACTION, KIND_COMMAND, KIND_WEB, KIND_ISSUE_SYNC, KIND_PAGING, KIND_PULL_REQUEST_REVIEW then RUNS_NOW
     else ASKER_RUNS
     end
   end
@@ -88,6 +90,7 @@ class ApprovalResumption
     return Conversation::HeldCalls.approved!(approval) if payload["kind"] == Chat::HeldCall::RESUME_KIND
     return IssueSyncService.new(approval.workspace).decided(approval, payload) if payload["kind"] == KIND_ISSUE_SYNC
     return OnCallSyncService.new(approval.workspace).decided(approval, payload) if payload["kind"] == KIND_PAGING
+    return PullRequestReviewPosting.decided(approval, payload) if payload["kind"] == KIND_PULL_REQUEST_REVIEW
     return resume_web!(approval, payload) if payload["kind"] == KIND_WEB
 
     subject = rebuild(approval, payload)
@@ -134,6 +137,7 @@ class ApprovalResumption
     return if payload["kind"] == KIND_WORKFLOW_PUBLISH
     return IssueSyncService.new(approval.workspace).decided(approval, payload) if payload["kind"] == KIND_ISSUE_SYNC
     return OnCallSyncService.new(approval.workspace).decided(approval, payload) if payload["kind"] == KIND_PAGING
+    return PullRequestReviewPosting.decided(approval, payload) if payload["kind"] == KIND_PULL_REQUEST_REVIEW
     return Conversation::HeldCalls.denied!(approval) if payload["kind"] == Chat::HeldCall::RESUME_KIND
 
     notify(approval, payload, "#{approver_name(approval)} declined your request. Nothing has changed.")

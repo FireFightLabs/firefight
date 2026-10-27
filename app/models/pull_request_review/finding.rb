@@ -3,6 +3,8 @@
 # evidence behind each link, and a fix with instructions a coding agent can follow. A later finding can confirm,
 # strengthen or withdraw it, and a push can fix it.
 class PullRequestReview::Finding < ApplicationRecord
+  include PullRequestReview::Finding::Threading
+
   CATEGORY_CORRECTNESS = "correctness"
   CATEGORY_STABILITY = "stability"
   CATEGORY_SECURITY = "security"

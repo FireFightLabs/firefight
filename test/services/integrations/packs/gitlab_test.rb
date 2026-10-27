@@ -16,9 +16,10 @@ module Integrations
       test "the token is the one credential, the address an optional connect field that must be https, and only the test runner and pipeline changes write" do
         assert_equal "glpat-token", ConnectionSettings.of(@row.reload).credential(Gitlab::TOKEN)
         assert_equal [ Gitlab::TOKEN ], Gitlab.credential_fields.map(&:key)
-        assert_equal %w[run_tests retry_pipeline run_pipeline cancel_pipeline retry_job play_job cancel_job redeploy approve_deployment stop_environment],
+        assert_equal %w[run_tests retry_pipeline run_pipeline cancel_pipeline retry_job play_job cancel_job redeploy approve_deployment stop_environment
+                        comment_on_merge_request edit_merge_request_comment review_merge_request reply_to_merge_request_thread resolve_merge_request_thread],
                      Gitlab.tool_definitions.reject(&:read_only).map(&:name),
-                     "only the sandbox's test runner and the pipeline, job, deployment and environment changes write, so they arrive switched off"
+                     "only the sandbox's test runner, the pipeline, job, deployment and environment changes and the merge request comments write"
         address = IntegrationProvider.find(Gitlab::PROVIDER_KEY).connect_fields.sole
         assert_equal [ Gitlab::URL, true ], [ address.key, address.optional ]
         assert_nil address.refusal("https://gitlab.example.com/gitlab")

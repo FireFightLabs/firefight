@@ -104,6 +104,19 @@ module Integrations
       end
     end
 
+    # What a delivery says about a pull request reaches Halon's review of it through each of these connections, once each
+    # (Integrations::PullRequestReviews).
+    def report_review_signals!(rows, payload, headers:)
+      return if rows.empty?
+
+      signals = PullRequestReviews.signals(rows.first.integration.provider, payload, headers: headers)
+      return if signals.empty?
+
+      rows.uniq { |row| row.integration.workspace_id }.each do |row|
+        signals.each { |signal| PullRequestReviewSignalJob.perform_later(row.id, signal.to_h.transform_keys(&:to_s)) }
+      end
+    end
+
     # Labels added to an issue reach the workflows of each workspace these connections belong to (IssueLabels).
     def report_issue_labels!(rows, payload, headers:)
       return if rows.empty?

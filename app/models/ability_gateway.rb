@@ -24,7 +24,8 @@ class AbilityGateway
   SOURCE_PAGING = "paging"
   # A step of a workspace's workflow, acting as the workflow's own identity.
   SOURCE_WORKFLOW = "workflow"
-  # Halon reviewing a pull request, reading as the investigator agent.
+  # Halon reviewing a pull request, reading as the investigator agent, and posting its review and answering on its threads
+  # as its review agent.
   SOURCE_PULL_REQUEST_REVIEW = "pull_request_review"
   SOURCES = [ SOURCE_API, SOURCE_MCP, SOURCE_SLACK, SOURCE_WEB, SOURCE_INVESTIGATION, SOURCE_CONVERSATION, SOURCE_MAP_SWEEP,
               SOURCE_HEALTH_CHECK, SOURCE_CODE_AGENT, SOURCE_ISSUE_SYNC, SOURCE_WATCH, SOURCE_HANDBOOK_SYNC, SOURCE_PAGING,

@@ -11,6 +11,7 @@ module Integrations
       include Actions
       include Asking
       include PullRequests
+      include ReviewPosting
       include RepositoryIssues
       include Checks
       include Releases
@@ -292,6 +293,8 @@ module Integrations
         "comment_on_issue" => { "issues" => WRITE },
         "delete_issue_comment" => { "issues" => WRITE },
         "delete_pull_request_comment" => { "pull_requests" => WRITE },
+        "edit_pull_request_comment" => { "pull_requests" => WRITE },
+        "resolve_review_thread" => { "pull_requests" => WRITE },
         "update_issue" => { "issues" => WRITE },
         "label_issue" => { "issues" => WRITE },
         "assign_issue" => { "issues" => WRITE },

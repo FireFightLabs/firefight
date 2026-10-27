@@ -1,0 +1,134 @@
+require "test_helper"
+
+class PullRequestReviewThreadsTest < ActiveSupport::TestCase
+  setup do
+    @workspace = workspaces(:slack_workspace_one)
+    github = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub")
+    @row = github.integration_environments.create!(base_config: { "installation_id" => "12345" })
+    @review = PullRequestReview.create!(workspace: @workspace, integration_environment: @row, repository: "acme/api", number: 7, head_sha: "a" * 40,
+                                        trigger: PullRequestReview::TRIGGER_REQUESTED, max_spend_cents: 400, status: PullRequestReview::STATUS_DONE)
+    @finding = @review.findings.create!(position: 1, fingerprint: "f" * 32, category: PullRequestReview::Finding::CATEGORY_STABILITY,
+                                        severity: PullRequestReview::Finding::SEVERITY_MAJOR, effort: PullRequestReview::Finding::EFFORT_QUICK_WIN,
+                                        claim: "Queue the retry for its backoff delay", why: "It waits five minutes.", path: "app/jobs/retry_job.rb", line: 12,
+                                        host_comment_id: "701")
+    @said = []
+    PullRequestReviewPosting.any_instance.stubs(:changes).returns("diff --git a/app/jobs/retry_job.rb b/app/jobs/retry_job.rb\n+ wait: backoff")
+    PullRequestReviewPosting.any_instance.stubs(:file).returns("12  RetryJob.set(wait: backoff).perform_later")
+    PullRequestReviewPosting.any_instance.stubs(:public?).returns(false)
+    PullRequestReviewPosting.any_instance.stubs(:reply!).with do |_finding, body, options = {}|
+      @said << [ :reply, body ]
+      @said << [ :resolve ] if options[:then_resolve]
+      true
+    end
+  end
+
+  test "a push that fixed a finding says so on its thread, resolves it and marks it fixed in that commit, once" do
+    FirefightAi::ReviewThread.any_instance.expects(:recheck).once.returns(FirefightAi::ReviewThread::Recheck.new(outcome: "fixed", words: "The job now waits for its backoff"))
+
+    threads.recheck!("a" * 40, "b" * 40)
+    threads.recheck!("a" * 40, "b" * 40)
+
+    assert_equal [ [ :reply, "Fixed in bbbbbbb. The job now waits for its backoff." ], [ :resolve ] ], @said
+    assert_equal [ PullRequestReview::Finding::STATUS_FIXED, "b" * 40 ], @finding.reload.values_at(:status, :fixed_in_sha)
+  end
+
+  test "a push that did not fix it says so and leaves the thread open" do
+    FirefightAi::ReviewThread.any_instance.stubs(:recheck).returns(FirefightAi::ReviewThread::Recheck.new(outcome: "not_fixed", words: "It still queues with no wait"))
+
+    threads.recheck!("a" * 40, "b" * 40)
+
+    assert_equal [ [ :reply, "Not fixed yet in bbbbbbb. It still queues with no wait." ] ], @said
+    assert @finding.reload.open?
+  end
+
+  test "a push whose changes cannot be read hands the check back for a retry" do
+    PullRequestReviewPosting.any_instance.stubs(:changes).returns(nil)
+
+    assert_raises(PullRequestReviewThreads::Unread) { threads.recheck!("a" * 40, "b" * 40) }
+    assert_nil @finding.reload.rechecked_sha
+  end
+
+  test "a file that cannot be read stops the check and the answer before the model judges anything" do
+    PullRequestReviewPosting.any_instance.stubs(:file).returns(nil)
+    FirefightAi::ReviewThread.any_instance.expects(:recheck).never
+    FirefightAi::ReviewThread.any_instance.expects(:answer).never
+    reply = Integrations::PullRequestReviews::Signal.new(kind: Integrations::PullRequestReviews::COMMENTED, repository: "acme/api", number: 7, reference: "r",
+                                                         comment: "91", thread: "701", body: "Why?", author: "ada")
+
+    assert_raises(PullRequestReviewThreads::Unread) { threads.recheck!("a" * 40, "b" * 40) }
+    assert_raises(PullRequestReviewThreads::Unread) { threads.answer!(reply) }
+    assert_nil @finding.reload.rechecked_sha
+    assert_empty @finding.answered_comment_ids
+  end
+
+  test "a reply the model could not answer is handed back so a retry answers it" do
+    FirefightAi::ReviewThread.any_instance.stubs(:answer).raises(FirefightAi::TransientError, "overloaded")
+    reply = Integrations::PullRequestReviews::Signal.new(kind: Integrations::PullRequestReviews::COMMENTED, repository: "acme/api", number: 7, reference: "r",
+                                                         comment: "90", thread: "701", body: "Why?", author: "ada")
+
+    assert_raises(FirefightAi::TransientError) { threads.answer!(reply) }
+    assert_empty @finding.reload.answered_comment_ids
+  end
+
+  test "a reply is answered with the thread so far, which keeps what the person said" do
+    @finding.said!(comment: "702", author: SystemAgent::HALON, body: "Not fixed yet in bbbbbbb.", halon: true)
+    asked = nil
+    FirefightAi::ReviewThread.any_instance.stubs(:answer).with { |**given| asked = given }
+                         .returns(FirefightAi::ReviewThread::Answer.new(answer: "It still queues with no wait.", withdraw: false, reason: ""))
+    reply = Integrations::PullRequestReviews::Signal.new(kind: Integrations::PullRequestReviews::COMMENTED, repository: "acme/api", number: 7, reference: "r",
+                                                         comment: "703", thread: "702", body: "Still?", author: "ada")
+
+    threads.answer!(reply)
+
+    assert_equal "Halon: Not fixed yet in bbbbbbb.", asked[:thread]
+    assert_equal %w[701 702 703], @finding.reload.thread_comments
+  end
+
+  test "on a public repository the model is told so" do
+    PullRequestReviewPosting.any_instance.unstub(:public?)
+    PullRequestReviewPosting.any_instance.stubs(:public?).returns(true)
+    FirefightAi::ReviewThread.expects(:new).with(@workspace, inferable: @review, public: true)
+                         .returns(stub(recheck: FirefightAi::ReviewThread::Recheck.new(outcome: "unclear", words: "")))
+
+    threads.recheck!("a" * 40, "b" * 40)
+  end
+
+  test "a push that did not touch the finding's file says nothing" do
+    PullRequestReviewPosting.any_instance.stubs(:changes).returns("diff --git a/README.md b/README.md")
+    FirefightAi::ReviewThread.any_instance.expects(:recheck).never
+
+    threads.recheck!("a" * 40, "b" * 40)
+
+    assert_empty @said
+  end
+
+  test "a reply that shows the finding wrong withdraws it, says so and resolves the thread, and the same reply is answered once" do
+    FirefightAi::ReviewThread.any_instance.expects(:answer).once
+                         .returns(FirefightAi::ReviewThread::Answer.new(answer: "You are right, the job sets its wait.", withdraw: true, reason: "The job already waits for its backoff."))
+    reply = Integrations::PullRequestReviews::Signal.new(kind: Integrations::PullRequestReviews::COMMENTED, repository: "acme/api", number: 7, reference: "r",
+                                                         comment: "88", thread: "701", body: "RetryJob sets wait itself", author: "ada")
+
+    threads.answer!(reply)
+    threads.answer!(reply)
+
+    assert_equal :reply, @said.first.first
+    assert_includes @said.first.last, "My finding was wrong, and I withdraw it. The job already waits for its backoff."
+    assert_equal [ :resolve ], @said.last
+    assert_equal "The job already waits for its backoff.", @finding.reload.withdrawn_reason
+  end
+
+  test "a reply that does not show the finding wrong is answered and the finding stands" do
+    FirefightAi::ReviewThread.any_instance.stubs(:answer).returns(FirefightAi::ReviewThread::Answer.new(answer: "It still queues with no wait on line 12.", withdraw: false, reason: ""))
+    reply = Integrations::PullRequestReviews::Signal.new(kind: Integrations::PullRequestReviews::COMMENTED, repository: "acme/api", number: 7, reference: "r",
+                                                         comment: "89", thread: "701", body: "Is this real?", author: "ada")
+
+    threads.answer!(reply)
+
+    assert_equal [ [ :reply, "It still queues with no wait on line 12." ] ], @said
+    assert @finding.reload.open?
+  end
+
+  private
+
+  def threads = PullRequestReviewThreads.new(@finding.reload)
+end

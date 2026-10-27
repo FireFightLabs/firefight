@@ -234,7 +234,10 @@ class Integration::Tool < ApplicationRecord
     action.assign_attributes(ability_action_attributes)
     action.save!
     Ability::Role.file!(action, integration)
-    grant_paging!(action) if minted
+    if minted
+      grant_paging!(action)
+      grant_reviewing!(action)
+    end
     action
   end
 
@@ -281,7 +284,10 @@ class Integration::Tool < ApplicationRecord
     tools.each do |tool|
       action = known[tool.action_key]&.tap { |found| found.update!(tool.ability_action_attributes) } || minted.fetch(tool.action_key)
       Ability::Role.file!(action, integration)
-      tool.send(:grant_paging!, action) if minted.key?(tool.action_key)
+      next unless minted.key?(tool.action_key)
+
+      tool.send(:grant_paging!, action)
+      tool.send(:grant_reviewing!, action)
     end
   end
   private_class_method :mint_ability_actions!
@@ -294,6 +300,14 @@ class Integration::Tool < ApplicationRecord
     return unless Integrations::Paging.sync_tools(integration.provider).include?(name)
 
     Ability::Grant.grant!(workspace: integration.workspace, principal: SystemAgent.paging, target: { action: action })
+  end
+
+  # A tool Halon posts its pull request reviews through is granted to its review agent the first time it is minted, the
+  # same way, so a grant an admin later revokes is never given back.
+  def grant_reviewing!(action)
+    return unless Integrations::PullRequestReviews.tools(integration.provider).include?(name)
+
+    Ability::Grant.grant!(workspace: integration.workspace, principal: SystemAgent.pull_request_review, target: { action: action })
   end
 
   def count_definition_chars

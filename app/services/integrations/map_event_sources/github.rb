@@ -17,6 +17,18 @@ module Integrations
       # About a pull request, its reviews and the checks on its commits, which reach a pull request Halon follows.
       PULL_REQUEST = "pull_request".freeze
       PULL_REQUEST_REVIEW = "pull_request_review".freeze
+      # A comment in a pull request's conversation (issue_comment, on an issue that is a pull request) and one on its code
+      # (pull_request_review_comment, in_reply_to_id naming the comment that started its thread), which arrive once the App
+      # subscribes to Issue comments and Pull request review comments.
+      ISSUE_COMMENT = "issue_comment".freeze
+      PULL_REQUEST_REVIEW_COMMENT = "pull_request_review_comment".freeze
+      CREATED = "created".freeze
+      # The pull_request actions that say it opened, got new commits, closed or someone was asked to review it.
+      OPENS = %w[opened reopened ready_for_review].freeze
+      SYNCHRONIZE = "synchronize".freeze
+      CLOSED = "closed".freeze
+      REVIEW_REQUESTED = "review_requested".freeze
+      PERSON = "User".freeze
       CHECK_SUITE = "check_suite".freeze
       CHECK_RUN = "check_run".freeze
       STATUS = "status".freeze
@@ -131,6 +143,28 @@ module Integrations
           [ Integrations::PullRequests::Nudge.new(repository: repository, numbers: numbers, branches: branches) ]
         end
 
+        # What a delivery says about a pull request Halon may review (Integrations::PullRequestReviews): someone asked
+        # for a review from the App or in a comment, it opened, got new commits, merged or closed, or someone commented.
+        def review_signals(payload, headers:)
+          repository = payload.dig("repository", "full_name")
+          return [] if repository.blank?
+
+          case headers[EVENT_HEADER].to_s
+          when PULL_REQUEST then pull_request_signals(payload, repository)
+          when ISSUE_COMMENT
+            issue = payload["issue"].to_h
+            return [] unless payload["action"] == CREATED && issue["pull_request"].is_a?(Hash)
+
+            [ comment_signal(payload, repository, issue["number"], nil, nil) ]
+          when PULL_REQUEST_REVIEW_COMMENT
+            return [] unless payload["action"] == CREATED
+
+            comment = payload["comment"].to_h
+            [ comment_signal(payload, repository, payload.dig("pull_request", "number"), comment["in_reply_to_id"]&.to_s, payload.dig("pull_request", "head", "sha")) ]
+          else []
+          end.compact
+        end
+
         def wakes?(payload, headers:)
           event = headers[EVENT_HEADER].to_s
           return false unless WAKE_ACTIONS.key?(event)
@@ -200,6 +234,36 @@ module Integrations
         end
 
         private
+
+        def pull_request_signals(payload, repository)
+          pull = payload["pull_request"].to_h
+          number = pull["number"] || payload["number"]
+          return [] if number.blank?
+
+          action = payload["action"].to_s
+          head = pull.dig("head", "sha")
+          given = { repository: repository, number: number.to_i, head_sha: head, author: payload.dig("sender", "login"),
+                    person: payload.dig("sender", "type") == PERSON, draft: pull["draft"] == true }
+          kind, reference = if OPENS.include?(action) then [ PullRequestReviews::OPENED, "#{action}:#{head}" ]
+          elsif action == SYNCHRONIZE then [ PullRequestReviews::PUSHED, "push:#{head}" ]
+          elsif action == CLOSED then [ pull["merged"] || pull["merged_at"] ? PullRequestReviews::MERGED : PullRequestReviews::CLOSED, "closed" ]
+          elsif action == REVIEW_REQUESTED then [ PullRequestReviews::REQUESTED, "asked:#{head}:#{payload.dig('requested_reviewer', 'id') || payload.dig('requested_team', 'id')}" ]
+          end
+          return [] unless kind
+
+          reviewers = [ payload.dig("requested_reviewer", "login"), payload.dig("requested_team", "slug") ].compact
+          [ PullRequestReviews::Signal.new(kind: kind, reference: "#{repository}##{number}:#{reference}", reviewers: reviewers, **given) ]
+        end
+
+        def comment_signal(payload, repository, number, thread, head)
+          comment = payload["comment"].to_h
+          return if number.blank? || comment["id"].blank?
+
+          PullRequestReviews::Signal.new(kind: PullRequestReviews::COMMENTED, repository: repository, number: number.to_i,
+                                         reference: "#{repository}##{number}:comment:#{comment['id']}", head_sha: head,
+                                         author: comment.dig("user", "login"), person: comment.dig("user", "type") == PERSON,
+                                         comment: comment["id"].to_s, thread: thread, body: comment["body"].to_s)
+        end
 
         def workflow_run_ended(payload)
           run = payload["workflow_run"].to_h

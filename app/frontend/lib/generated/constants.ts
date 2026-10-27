@@ -731,6 +731,12 @@ export const STORM_CEILING_CENTS = {
   "MAX": 100000
 } as const
 
+export const PULL_REQUEST_REVIEWS_ON_OPEN = {
+  "OFF": "off",
+  "ALL": "all",
+  "CHOSEN": "chosen"
+} as const
+
 export const CODE_FIX_BUDGET_CENTS = {
   "DEFAULT": 200,
   "MIN": 50,

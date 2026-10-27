@@ -63,6 +63,12 @@ module Integrations
       assert_equal [ ReviewHost::STATUS_REMOVED, 0, 2 ], files["gone.rb"].then { |file| [ file.status, file.additions, file.deletions ] }
     end
 
+    test "a path that holds the separator itself is read whole when both names are the same" do
+      file = ReviewHost.parse_git_diff("diff --git a/docs/a b/c.md b/docs/a b/c.md\n--- a/docs/a b/c.md\n+++ b/docs/a b/c.md\n@@ -1 +1 @@\n-old\n+new\n").sole
+
+      assert_equal [ "docs/a b/c.md", nil, ReviewHost::STATUS_MODIFIED ], [ file.path, file.previous_path, file.status ]
+    end
+
     test "a comment can sit on the lines inside a hunk of the new file, and a hunk that only removes holds none" do
       ranges = ReviewHost.commentable_lines("@@ -10,3 +10,4 @@ class Order\n x\n@@ -40 +41 @@\n-a\n+b\n@@ -60,2 +61,0 @@\n-c\n-d\n")
 

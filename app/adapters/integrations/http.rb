@@ -77,6 +77,7 @@ module Integrations
       raise error_class, "#{provider_name} answered #{code} with something that is not JSON" unless body
 
       error = (refine&.call(code, said) || error_class).new("#{provider_name} answered #{code}: #{said}")
+      error.http_status = code if error.respond_to?(:http_status=)
       raise code == NOT_FOUND ? error.extend(NotFound) : error
     end
 
