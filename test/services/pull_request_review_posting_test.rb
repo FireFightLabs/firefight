@@ -294,8 +294,8 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
     posting.run!(PullRequestReview::CHANGE_FINDING_CHANGED, finding: finding.reload)
 
     edits = @posts.map(&:last)
-    assert_equal [ "100", "701", "200" ], edits.map { |given| given[:reference] }
-    assert edits.drop(1).all? { |given| given[:body].include?("Lesson from INC-001") && !given[:body].include?("check fails") }
+    assert_equal [ "701", "200", "100" ], edits.map { |given| given[:reference] }
+    assert edits.first(2).all? { |given| given[:body].include?("Lesson from INC-001") && !given[:body].include?("check fails") }
   end
 
   test "a rehearsal posts nothing" do
