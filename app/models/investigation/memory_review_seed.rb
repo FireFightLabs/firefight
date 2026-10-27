@@ -40,6 +40,7 @@ class Investigation::MemoryReviewSeed
   # Who decided, and when, so a person's decision is never read as Halon's.
   def behind(memory)
     return "#{memory.confirmed_by.display_name}, a person, confirmed it on #{memory.confirmed_at.to_date.iso8601}" if memory.confirmed_by && memory.confirmed_at
+    return "#{memory.approved_by.display_name}, a person, approved it for pull request reviews on #{memory.approved_at.to_date.iso8601}" if memory.approved_by && memory.approved_at
     return "a completed postmortem confirmed it" if memory.confirmed? && memory.decided_by_postmortem_id
     return "you confirmed it on an earlier night" if memory.confirmed? && memory.decided_by_halon
     if memory.rejected_by_halon?

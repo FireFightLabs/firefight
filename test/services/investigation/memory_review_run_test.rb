@@ -33,6 +33,21 @@ class Investigation::MemoryReviewRunTest < ActiveSupport::TestCase
     assert_equal 0, @memory.reload.use_count
   end
 
+  test "its facts say a lesson a person approved for pull request reviews has a person behind it, and a wrong verdict queues them a message" do
+    alice = workspace_memberships(:alice_workspace_one)
+    @memory.update_columns(source_type: Incident.polymorphic_name, source_id: incidents(:active_critical_ws1).id)
+    assert @memory.approve!(by: alice)
+    @run.build_seed_pack!
+
+    behind = @run.starting_facts[Investigation::Seeding::KEY_TO_CHECK].sole["stands_behind"]
+    assert_equal "#{alice.display_name}, a person, approved it for pull request reviews on #{Date.current.iso8601}", behind
+
+    assert_enqueued_with(job: MemoryChallengeJob, args: [ @memory.id ]) do
+      assert_match "they are told", settle("verdict" => "wrong", "evidence" => "The deploy settings of web name release.")
+    end
+    assert_equal [ Chat::Memory::STATE_DISPUTED, alice ], @memory.reload.values_at(:state, :approved_by)
+  end
+
   test "right needs a step tonight behind it, and settles through the gateway as the investigator, with ids only in the ledger" do
     assert_match "cites step 9", settle("steps" => [ 9 ])
     assert_match "is not one of tonight's", settle("memory" => Chat::Memory.create!(workspace: @workspace, text: "Backups run nightly", state: Chat::Memory::STATE_UNCONFIRMED).id)

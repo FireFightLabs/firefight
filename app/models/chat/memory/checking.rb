@@ -1,10 +1,11 @@
 # Halon checking a memory against production, in its nightly check, as the investigator. What it shows right counts as confirmed
 # by Halon, with the evidence and the date kept. What it shows wrong is corrected or rejected with the evidence, and what
 # it cannot tell either way is kept, with when it was last tried. A person's own decision always outranks Halon's. What a
-# person confirmed is never rejected or corrected by Halon, only disputed for them when Halon found something they had
-# not seen, and that person is told. Removals are held to a share of the workspace's memories each night
-# (Chat::MemoryReview#take_removal!). What Halon itself rejected is checked again after a while, and restored when it
-# holds after all. Every line of history a check writes keeps the run that checked it.
+# person confirmed, or approved as a lesson for pull request reviews, is never rejected, corrected or merged by Halon,
+# only disputed for them when Halon found something they had not seen, and that person is told. Removals are held to a
+# share of the workspace's memories each night (Chat::MemoryReview#take_removal!). What Halon itself rejected is checked
+# again after a while, and restored when it holds after all. Every line of history a check writes keeps the run that
+# checked it.
 module Chat::Memory::Checking
   extend ActiveSupport::Concern
 
@@ -41,6 +42,9 @@ module Chat::Memory::Checking
 
   included do
     validates :check_outcome, inclusion: { in: OUTCOMES }, allow_nil: true
+
+    # Nobody stands behind it, so Halon's own decisions may move it (person_behind?, as one condition of a guarded update).
+    scope :without_person_behind, -> { where(confirmed_by_id: nil, approved_at: nil) }
   end
 
   class_methods do
@@ -64,7 +68,7 @@ module Chat::Memory::Checking
   # Waiting on a person, when two memories say otherwise and Halon could not settle which is right, or when Halon found
   # evidence against what a person decided. Either way Halon has tried since it was disputed.
   def awaiting_decision?
-    state == Chat::Memory::STATE_DISPUTED && checked_at.present? && checked_at >= updated_at && (confirmed_by_id.present? || contradicted_by_id.present?)
+    state == Chat::Memory::STATE_DISPUTED && checked_at.present? && checked_at >= updated_at && (person_behind? || contradicted_by_id.present?)
   end
 
   # How it stands, or nil when it is not in use and its state says it all.
@@ -80,8 +84,14 @@ module Chat::Memory::Checking
   # Rejected by Halon's own check, never by a person, so Halon may check it again and restore it.
   def rejected_by_halon? = state == Chat::Memory::STATE_REJECTED && decided_by_halon && rejected_by_id.nil?
 
-  # A person stands behind it, so Halon never overturns it.
-  def person_stands_behind? = confirmed_by_id.present? && [ Chat::Memory::STATE_CONFIRMED, Chat::Memory::STATE_OUTDATED, Chat::Memory::STATE_DISPUTED ].include?(state)
+  # A person vouched for it, by confirming it or by approving it as a lesson for pull request reviews.
+  def person_behind? = confirmed_by_id.present? || approved?
+
+  # A person stands behind it and it is still checked, so Halon never overturns it.
+  def person_stands_behind? = person_behind? && CHECKED_STATES.include?(state)
+
+  # Who stands behind it, as the check's words name them.
+  def person_behind_words = confirmed_by_id ? "a person confirmed it" : "a person approved it for pull request reviews"
 
   # Production shows it holds. What Halon or nobody stood behind becomes confirmed by Halon. A person's confirmation stays
   # theirs, with Halon's check kept beside it. A memory it disputed, or that disputed it, is settled against it.
@@ -107,7 +117,7 @@ module Chat::Memory::Checking
       halon_record!(Chat::MemoryEvent::KIND_VERIFIED, evidence, review)
       challenged = []
       partners = contradiction_partners.map { |partner| partner.settle_against!(self, evidence, review, challenged) }.compact
-      Settled.new(outcome: VERDICT_RIGHT, words: [ person_stands_behind? ? "Recorded. A person confirmed it, and your check is kept beside theirs." : "Confirmed by your check.", *partners ].join(" "),
+      Settled.new(outcome: VERDICT_RIGHT, words: [ person_stands_behind? ? "Recorded. #{person_behind_words.upcase_first}, and your check is kept beside theirs." : "Confirmed by your check.", *partners ].join(" "),
                   challenged: challenged)
     end
   end
@@ -177,7 +187,7 @@ module Chat::Memory::Checking
   # winner was shown right and says otherwise than this one. One a person stands behind is disputed for them with the
   # evidence. Any other is rejected, as the one it said otherwise than, while tonight's removals allow. Returns what
   # became of it in words, or nil when nothing did.
-  # challenged collects a memory disputed for the person who confirmed it.
+  # challenged collects a memory disputed for the person who stands behind it.
   def settle_against!(winner, evidence, review, challenged)
     reason = "Halon checked \"#{winner.text}\" against production and it holds. #{evidence}"
     if person_stands_behind?
@@ -188,7 +198,7 @@ module Chat::Memory::Checking
       return nil unless disputed
 
       challenged << id if fresh
-      return "Memory #{id} says otherwise and a person confirmed it, so it is disputed for them to decide."
+      return "Memory #{id} says otherwise and #{person_behind_words}, so it is disputed for them to decide."
     end
     return nil unless Chat::Memory::REJECTABLE_FROM.include?(state)
     return (held!(reason, review) && "Memory #{id} says otherwise, but tonight's limit on removals is reached, so it is left for another night.") unless review.take_removal!
@@ -206,8 +216,8 @@ module Chat::Memory::Checking
 
   private
 
-  # Halon found evidence against what a person decided. It is raised as a dispute, which waits on a person, and only
-  # with evidence Halon had not already raised before they decided.
+  # Halon found evidence against what a person confirmed or approved. It is raised as a dispute, which waits on a
+  # person, and only with evidence Halon had not already raised before they decided.
   # A dispute already waiting on the person takes the newer evidence as its reason, and the person is told again only
   # when that evidence is new.
   def disputed_for_person!(evidence, review)
@@ -218,9 +228,12 @@ module Chat::Memory::Checking
     reason = "Halon checked it against production on #{Date.current.iso8601} and found otherwise. #{evidence}"
     moved = waiting ? touch_dispute!(reason, review) : dispute!(reason, checked: VERDICT_WRONG, investigation: review.run)
     return Settled.new(outcome: nil, words: "It changed while you checked it. Leave it for tonight.") unless moved
-    return Settled.new(outcome: VERDICT_WRONG, words: "It already waits on the person who confirmed it, and this says nothing new, so they are not told again.") unless fresh
+    unless fresh
+      return Settled.new(outcome: VERDICT_WRONG, words: "It already waits on the person who #{confirmed_by_id ? 'confirmed' : 'approved'} it, and this says nothing new, " \
+                                                        "so they are not told again.")
+    end
 
-    Settled.new(outcome: VERDICT_WRONG, words: "A person confirmed it, so it is not changed. It is disputed with your evidence for them to decide, and they are told.",
+    Settled.new(outcome: VERDICT_WRONG, words: "#{person_behind_words.upcase_first}, so it is not changed. It is disputed with your evidence for them to decide, and they are told.",
                 challenged: [ id ])
   end
 

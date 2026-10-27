@@ -107,23 +107,61 @@ class MemoryPostServiceTest < ActiveSupport::TestCase
     @memory.confirm!(by: @member)
     @memory.dispute!("Found otherwise.")
     @adapter.stubs(:post_learned_memories_to_user).raises(AdapterError::RateLimited.new("slow down"))
-    assert_raises(AdapterError::RateLimited) { MemoryPostService.new(@workspace).tell_confirmer!(@memory.reload) }
+    assert_raises(AdapterError::RateLimited) { MemoryPostService.new(@workspace).tell_people_behind!(@memory.reload) }
     assert_not Chat::MemoryPost.exists?(kind: Chat::MemoryPost::KIND_CHALLENGED)
 
     @adapter.expects(:post_learned_memories_to_user).never
     @member.update_columns(removed_at: Time.current)
-    assert_nil MemoryPostService.new(@workspace).tell_confirmer!(@memory.reload)
+    assert_empty MemoryPostService.new(@workspace).tell_people_behind!(@memory.reload)
   end
 
   test "nobody is messaged when the memory is no longer disputed, the person has no platform account, or the platform refuses" do
     @adapter.expects(:post_learned_memories_to_user).never
     @memory.confirm!(by: @member)
-    assert_nil MemoryPostService.new(@workspace).tell_confirmer!(@memory)
+    assert_empty MemoryPostService.new(@workspace).tell_people_behind!(@memory)
 
     @adapter.unstub(:post_learned_memories_to_user)
     @memory.dispute!("Found otherwise.")
     @adapter.stubs(:post_learned_memories_to_user).raises(AdapterError::NotFound)
-    assert_nil MemoryPostService.new(@workspace).tell_confirmer!(@memory.reload)
+    assert_empty MemoryPostService.new(@workspace).tell_people_behind!(@memory.reload)
     assert_not Chat::MemoryPost.exists?(kind: Chat::MemoryPost::KIND_CHALLENGED)
+  end
+
+  test "the person who approved a lesson Halon found evidence against is told once by direct message, as a lesson they approved" do
+    lesson = Chat::Memory.create!(workspace: @workspace, text: "Checkout retries go up when the payment timeout changes", state: Chat::Memory::STATE_UNCONFIRMED,
+                                  source: @incident)
+    assert lesson.approve!(by: @member)
+    lesson.dispute!("Halon checked it against production and found otherwise.")
+    @adapter.expects(:post_learned_memories_to_user).with { |user_id:, post:|
+      user_id == @member.platform_user_id && post.kind == Chat::MemoryPost::KIND_CHALLENGED && post.memories.map(&:id) == [ lesson.id ]
+    }.once.returns(message_id: "9.1", channel_id: "D9")
+
+    2.times { MemoryChallengeJob.perform_now(lesson.id) }
+
+    post = Chat::MemoryPost.find_by!(kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: @member)
+    shown = MemoryPostService.new(@workspace).shown(post)
+    assert shown.approved_lesson
+    assert_equal "Halon found evidence against a lesson you approved", Slack::Messages::LearnedMemories.plain_title(shown)
+    blocks = Slack::Messages::LearnedMemories.build(shown)
+    assert_equal "Halon and pull request reviews stopped using it until you decide. Keep it if it is still right, mark it not right, or edit it.",
+                 blocks.last[:elements].sole[:text]
+  end
+
+  test "when one person confirmed a lesson and another approved it, each is told once, the confirmer as before" do
+    bob = workspace_memberships(:bob_workspace_one)
+    lesson = Chat::Memory.create!(workspace: @workspace, text: "Checkout retries go up when the payment timeout changes", state: Chat::Memory::STATE_UNCONFIRMED,
+                                  source: @incident)
+    assert lesson.approve!(by: @member)
+    lesson.confirm!(by: bob)
+    lesson.dispute!("Halon checked it against production and found otherwise.")
+    @adapter.expects(:post_learned_memories_to_user).twice.returns(message_id: "9.1", channel_id: "D9")
+
+    2.times { MemoryChallengeJob.perform_now(lesson.id) }
+
+    service = MemoryPostService.new(@workspace)
+    to_bob = Chat::MemoryPost.find_by!(kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: bob)
+    to_approver = Chat::MemoryPost.find_by!(kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: @member)
+    assert_equal "Halon found evidence against a memory you confirmed", Slack::Messages::LearnedMemories.plain_title(service.shown(to_bob))
+    assert_equal "Halon found evidence against a lesson you approved", Slack::Messages::LearnedMemories.plain_title(service.shown(to_approver))
   end
 end

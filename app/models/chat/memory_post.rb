@@ -13,7 +13,8 @@ class Chat::MemoryPost < ApplicationRecord
   # Memories nobody confirmed for a while, to the person who taught them or for the team. None is sent any more, and one
   # sent before is still redrawn when someone decides there.
   KIND_REMINDER = "reminder".freeze
-  # Halon's nightly check found evidence against a memory a person confirmed, told to that person by direct message once.
+  # Halon's nightly check found evidence against a memory a person confirmed or approved as a lesson, told to each such
+  # person by direct message once.
   KIND_CHALLENGED = "challenged".freeze
   KINDS = [ KIND_INCIDENT, KIND_POSTMORTEM, KIND_LEARNED, KIND_DISPUTED, KIND_REMINDER, KIND_CHALLENGED ].freeze
 

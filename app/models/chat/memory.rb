@@ -587,13 +587,14 @@ class Chat::Memory < ApplicationRecord
   # Guarded, so two people deciding on the same memory at once cannot both land. A decision ends any outdated flag, and
   # one by a person or a postmortem is no longer Halon's. checked is what Halon's check came to when the check made the
   # decision, kept with the same time as the change so the memory never reads as changed since it was checked.
-  # halon_only moves it only while no person stands behind it, checked in the same statement, so a person confirming it
-  # while Halon's check runs is never overturned. only adds other columns the row must still hold.
+  # halon_only moves it only while no person stands behind it (without_person_behind), checked in the same statement, so
+  # a person confirming or approving it while Halon's check runs is never overturned. only adds other columns the row
+  # must still hold.
   def decide!(state, from:, decided_by_halon: false, checked: nil, halon_only: false, only: {}, **columns)
     now = Time.current
     columns = columns.merge(checked_at: now, check_outcome: checked) if checked
     guarded = self.class.where(id: id, state: from).where(only)
-    guarded = guarded.where(confirmed_by_id: nil) if halon_only
+    guarded = guarded.without_person_behind if halon_only
     moved = guarded.update_all(columns.merge(state: state, outdated_from: nil, outdated_cause: nil, decided_by_halon: decided_by_halon, updated_at: now)) > 0
     reload
     announce_lesson_change if moved && approved?

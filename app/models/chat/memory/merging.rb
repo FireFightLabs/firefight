@@ -23,11 +23,11 @@ module Chat::Memory::Merging
       peers.group_by { |memory| root.(memory.id) }.values.select { |set| set.size > 1 }
     end
 
-    # The memory a set is merged into: a person's confirmation first, then a postmortem's, then Halon's, then one in use
-    # over one flagged outdated, then the most used, then the oldest.
+    # The memory a set is merged into: one a person stands behind first (confirmed, or approved as a lesson), then a
+    # postmortem's confirmation, then Halon's, then one in use over one flagged outdated, then the most used, then the oldest.
     def strongest(set)
       set.min_by do |memory|
-        trust = if memory.confirmed_by_id then 0
+        trust = if memory.person_behind? then 0
         elsif memory.confirmed? && memory.decided_by_postmortem_id then 1
         elsif memory.confirmed? && memory.decided_by_halon then 2
         elsif memory.state == Chat::Memory::STATE_UNCONFIRMED then 3
@@ -39,7 +39,8 @@ module Chat::Memory::Merging
   end
 
   # Merged into keeper, which takes over its uses and anything that pointed at it. Guarded, so a memory someone decided
-  # on meanwhile, or one a person stands behind, is left alone. Returns whether it was merged.
+  # on meanwhile, or one a person stands behind, is left alone, so of two a person stands behind both stay.
+  # Returns whether it was merged.
   def merge_into!(keeper)
     transaction do
       # Locked, so the keeper cannot be rejected or merged itself while this one moves into it.

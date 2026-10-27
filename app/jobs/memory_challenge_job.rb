@@ -1,5 +1,5 @@
-# Tells the person who confirmed a memory that Halon's nightly check found evidence against it, once, by direct message
-# (MemoryPostService#tell_confirmer!).
+# Tells whoever confirmed a memory, and whoever approved it as a lesson for pull request reviews, that Halon's nightly
+# check found evidence against it, each once, by direct message (MemoryPostService#tell_people_behind!).
 class MemoryChallengeJob < ApplicationJob
   queue_as :default
 
@@ -8,6 +8,6 @@ class MemoryChallengeJob < ApplicationJob
 
   def perform(memory_id)
     memory = Chat::Memory.find(memory_id)
-    MemoryPostService.new(memory.workspace).tell_confirmer!(memory)
+    MemoryPostService.new(memory.workspace).tell_people_behind!(memory)
   end
 end

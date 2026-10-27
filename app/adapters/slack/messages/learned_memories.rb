@@ -24,6 +24,9 @@ module Slack
       }.freeze
       # Where the team's memories in a reminder came from, as its opening line names them.
       TEAM_SOURCES = "incidents and investigations".freeze
+      # A direct message to the person who approved the lesson Halon found evidence against, in place of the confirmer's words.
+      APPROVED_LESSON_TITLE = ":grey_question:  *Halon found evidence against a lesson you approved*".freeze
+      APPROVED_LESSON_FOOTER = "Halon and pull request reviews stopped using it until you decide. Keep it if it is still right, mark it not right, or edit it.".freeze
       # A memory in one of these nobody has decided on, so it carries Not right and Correct.
       WAITING = [ Chat::Memory::STATE_UNCONFIRMED, Chat::Memory::STATE_OUTDATED, Chat::Memory::STATE_DISPUTED, Chat::Memory::STATE_EXPIRED ].freeze
 
@@ -69,14 +72,21 @@ module Slack
 
       def self.things(count) = count == 1 ? "1 thing" : "#{count} things"
 
-      def self.title(post) = format(TITLES.fetch(post.kind), incident: post.incident_identifier)
+      def self.title(post)
+        return APPROVED_LESSON_TITLE if post.approved_lesson
+
+        format(TITLES.fetch(post.kind), incident: post.incident_identifier)
+      end
 
       def self.footer(post) = { type: "context", elements: [ { type: "mrkdwn", text: footer_text(post) } ] }
 
       # A reminder links the Memory page when the dashboard's address is known.
       def self.footer_text(post)
         url = Slack::DashboardUrl.memory if post.reminder
-        url ? "Everything waiting is on the <#{url}|Memory page>." : FOOTERS.fetch(post.kind)
+        return "Everything waiting is on the <#{url}|Memory page>." if url
+        return APPROVED_LESSON_FOOTER if post.approved_lesson
+
+        FOOTERS.fetch(post.kind)
       end
 
       def self.gone = { type: "context", elements: [ { type: "mrkdwn", text: "Someone deleted these on the Memory page." } ] }
