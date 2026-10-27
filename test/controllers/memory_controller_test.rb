@@ -87,6 +87,32 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ nil, nil ], [ row["verifiedInvestigationId"], row["events"].sole["investigationId"] ]
     get investigation_path(run)
     assert_response :not_found
+    post investigation_notes_path(run), params: { note: "Look at secret-db" }
+    assert_response :not_found
+    post investigation_stop_path(run)
+    assert_response :not_found
+    assert_raises(ActiveRecord::RecordNotFound) do
+      Mcp::Tools::GetInvestigation.perform_with_principal(workspace: @workspace, principal: bob, args: { investigation: run.id })
+    end
+  end
+
+  test "nobody adds notes to a nightly memory check, and stopping one takes leave to change memories" do
+    review = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.current, removal_cap: 3)
+    run = @workspace.investigations.create!(subject: review, trigger_source: Investigation::TRIGGER_MEMORY_REVIEW, max_turns: 4, max_spend_cents: 400)
+
+    post investigation_notes_path(run), params: { note: "Check web first" }
+    assert_equal Investigation::Noting::NOTE_TO_MEMORY_CHECK, flash[:alert]
+
+    AbilityGateway.stubs(:permitted?).returns(true)
+    AbilityGateway.stubs(:permitted?).with { |_principal, _action, key, *| key == "memory.update" }.returns(false)
+    post investigation_stop_path(run)
+    assert_equal InvestigationsController::MEMORY_CHECK_STOP_REFUSED, flash[:alert]
+    assert_not run.reload.cancel_requested
+
+    AbilityGateway.unstub(:permitted?)
+    post investigation_stop_path(run)
+    assert_equal Investigation::STOPPING, flash[:notice]
+    assert run.reload.cancel_requested
   end
 
   test "a person confirming what only Halon checked makes it theirs, and says so" do

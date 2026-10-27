@@ -90,6 +90,19 @@ class MemoryPostServiceTest < ActiveSupport::TestCase
     assert_equal [ "Still right", "Not right", "Edit" ], buttons
   end
 
+  test "a second job for the same dispute sends nothing, and a new dispute with new words is sent" do
+    @memory.confirm!(by: @member)
+    @memory.dispute!("Halon found the settings name release.")
+    @adapter.expects(:post_learned_memories_to_user).twice.returns(message_id: "9.1", channel_id: "D9")
+
+    2.times { MemoryChallengeJob.perform_now(@memory.id) }
+    @memory.update_columns(state_reason: nil)
+    @memory.update!(state_reason: "Halon found the last deploys came from the hotfix branch.")
+    MemoryChallengeJob.perform_now(@memory.id)
+
+    assert_equal 2, Chat::MemoryPost.where(kind: Chat::MemoryPost::KIND_CHALLENGED).count
+  end
+
   test "a passing platform error is raised for the job to try again, and a person who left or can no longer see it is not told" do
     @memory.confirm!(by: @member)
     @memory.dispute!("Found otherwise.")

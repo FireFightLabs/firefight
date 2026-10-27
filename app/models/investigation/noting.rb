@@ -3,6 +3,8 @@
 module Investigation::Noting
   extend ActiveSupport::Concern
 
+  # Nobody steers the nightly memory check. It settles what it was handed, and a person decides on the Memory page.
+  NOTE_TO_MEMORY_CHECK = "Nobody adds notes to the nightly memory check. Decide on its memories on the Memory page.".freeze
   NOTE_AFTER_THE_END = "This investigation has finished, so it cannot take anything more.".freeze
   NOTE_EMPTY = "Write what Halon should know first.".freeze
   NOTE_ADDED = "Added. Halon reads it at its next step.".freeze
@@ -10,6 +12,7 @@ module Investigation::Noting
   FILES_WITH_THE_ASK = "Shared when asking for this run.".freeze
 
   def note_blocked_reason(text = nil)
+    return NOTE_TO_MEMORY_CHECK if memory_review?
     return NOTE_AFTER_THE_END unless live?
 
     NOTE_EMPTY if text && text.strip.empty?

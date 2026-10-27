@@ -190,6 +190,10 @@ class Investigation < ApplicationRecord
     "The nightly memory check has no answer to rate. Decide on each memory on the Memory page." if memory_review?
   end
 
+  # Whether principal may read it. A nightly memory check reads about every memory it checked, so only someone who may see
+  # them all may read it. Every way of reading a run asks this.
+  def readable_by?(principal) = !memory_review? || memory_review.visible_to?(principal)
+
   # Whether somebody or something asked for it, so its story opens with the ask. Nobody asks for the nightly memory check.
   def asked? = !memory_review?
 

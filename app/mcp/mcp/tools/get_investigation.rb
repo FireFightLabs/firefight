@@ -14,8 +14,11 @@ module Mcp
         }
       )
 
-      def self.perform(workspace:, args:)
+      # A nightly memory check reads only for whoever may see every memory it checked, as on the dashboard.
+      def self.perform_with_principal(workspace:, principal:, args:)
         investigation = find!(workspace, args)
+        raise ActiveRecord::RecordNotFound unless investigation.readable_by?(principal)
+
         respond(InvestigationPayloads.full(investigation))
       end
 

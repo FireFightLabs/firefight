@@ -48,6 +48,9 @@ class Chat::Memory < ApplicationRecord
   EXPIRY_CHOICES = [ 30, 60, 90, 180 ].freeze
 
   encrypts :text
+  # Why it stands where it does can quote production or another memory, so it is kept like the text. A row saved before
+  # it was encrypted is still read as it was, until the migration that encrypts them has run.
+  encrypts :state_reason, support_unencrypted_data: true
 
   belongs_to :workspace
   belongs_to :subject, polymorphic: true, optional: true
@@ -324,7 +327,7 @@ class Chat::Memory < ApplicationRecord
     from = [ STATE_UNCONFIRMED, STATE_CONFIRMED ]
     transaction do
       moved = moved_ids(where(subject: subject, state: from), from,
-                        [ "outdated_from = state, state = ?, state_reason = ?, outdated_cause = ?, updated_at = ?", STATE_OUTDATED, reason, cause, Time.current ])
+                        [ "outdated_from = state, state = ?, state_reason = ?, outdated_cause = ?, updated_at = ?", STATE_OUTDATED, stored_reason(reason), cause, Time.current ])
       record_moved!(moved, Chat::MemoryEvent::KIND_OUTDATED, detail: reason)
       moved.size
     end
@@ -350,7 +353,7 @@ class Chat::Memory < ApplicationRecord
     reason = "Nobody confirmed it within #{days} days."
     transaction do
       moved = moved_ids(where(workspace: workspace, state: STATE_UNCONFIRMED).where(updated_at: ...days.days.ago), [ STATE_UNCONFIRMED ],
-                        [ "state = ?, state_reason = ?, updated_at = ?", STATE_EXPIRED, reason, Time.current ])
+                        [ "state = ?, state_reason = ?, updated_at = ?", STATE_EXPIRED, stored_reason(reason), Time.current ])
       record_moved!(moved, Chat::MemoryEvent::KIND_EXPIRED, detail: reason)
       moved.size
     end
@@ -553,6 +556,10 @@ class Chat::Memory < ApplicationRecord
     with_connection { |connection| connection.select_values(sql) }
   end
   private_class_method :moved_ids
+
+  # A reason as the column keeps it, encrypted, for a statement written by hand.
+  def self.stored_reason(reason) = type_for_attribute(:state_reason).serialize(reason)
+  private_class_method :stored_reason
 
   def self.record_moved!(ids, kind, detail: nil)
     where(id: ids).distinct.pluck(:workspace_id).each do |workspace_id|

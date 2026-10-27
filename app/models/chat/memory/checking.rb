@@ -90,11 +90,12 @@ module Chat::Memory::Checking
 
     transaction do
       settled = if confirmed?
-        update_columns(checked_at: Time.current, check_outcome: VERDICT_RIGHT)
+        # Guarded, so a memory someone rejected meanwhile is not marked as shown right.
+        still = self.class.where(id: id, state: Chat::Memory::STATE_CONFIRMED).update_all(checked_at: Time.current, check_outcome: VERDICT_RIGHT) > 0
         # Halon's own confirmation is dated from the check that last showed it right, never a person's.
-        self.class.where(id: id, state: Chat::Memory::STATE_CONFIRMED, confirmed_by_id: nil, decided_by_halon: true).update_all(confirmed_at: Time.current)
+        self.class.where(id: id, state: Chat::Memory::STATE_CONFIRMED, confirmed_by_id: nil, decided_by_halon: true).update_all(confirmed_at: Time.current) if still
         reload
-        true
+        still
       else
         person = confirmed_by_id.present?
         decide!(Chat::Memory::STATE_CONFIRMED, from: [ Chat::Memory::STATE_UNCONFIRMED, Chat::Memory::STATE_OUTDATED, Chat::Memory::STATE_DISPUTED ],
@@ -180,12 +181,13 @@ module Chat::Memory::Checking
   def settle_against!(winner, evidence, review, challenged)
     reason = "Halon checked \"#{winner.text}\" against production and it holds. #{evidence}"
     if person_stands_behind?
-      return nil if state == Chat::Memory::STATE_DISPUTED && !new_evidence?(evidence)
+      fresh = new_evidence?(evidence)
+      return nil if state != Chat::Memory::STATE_DISPUTED && !fresh
 
       disputed = state == Chat::Memory::STATE_DISPUTED ? touch_dispute!(reason, review) : dispute!(reason, checked: VERDICT_WRONG, investigation: review.run)
       return nil unless disputed
 
-      challenged << id
+      challenged << id if fresh
       return "Memory #{id} says otherwise and a person confirmed it, so it is disputed for them to decide."
     end
     return nil unless Chat::Memory::REJECTABLE_FROM.include?(state)
@@ -206,12 +208,17 @@ module Chat::Memory::Checking
 
   # Halon found evidence against what a person decided. It is raised as a dispute, which waits on a person, and only
   # with evidence Halon had not already raised before they decided.
+  # A dispute already waiting on the person takes the newer evidence as its reason, and the person is told again only
+  # when that evidence is new.
   def disputed_for_person!(evidence, review)
-    return held_for_person!(evidence, review) unless new_evidence?(evidence)
+    fresh = new_evidence?(evidence)
+    waiting = state == Chat::Memory::STATE_DISPUTED
+    return held_for_person!(evidence, review) unless fresh || waiting
 
     reason = "Halon checked it against production on #{Date.current.iso8601} and found otherwise. #{evidence}"
-    moved = state == Chat::Memory::STATE_DISPUTED ? touch_dispute!(reason, review) : dispute!(reason, checked: VERDICT_WRONG, investigation: review.run)
+    moved = waiting ? touch_dispute!(reason, review) : dispute!(reason, checked: VERDICT_WRONG, investigation: review.run)
     return Settled.new(outcome: nil, words: "It changed while you checked it. Leave it for tonight.") unless moved
+    return Settled.new(outcome: VERDICT_WRONG, words: "It already waits on the person who confirmed it, and this says nothing new, so they are not told again.") unless fresh
 
     Settled.new(outcome: VERDICT_WRONG, words: "A person confirmed it, so it is not changed. It is disputed with your evidence for them to decide, and they are told.",
                 challenged: [ id ])
@@ -230,15 +237,11 @@ module Chat::Memory::Checking
     Settled.new(outcome: OUTCOME_HELD, words: "A person kept it after seeing this evidence, so it is left as they decided.")
   end
 
-  # A person decided after Halon raised the same evidence, so raising it again would overturn them without anything new.
+  # Whether Halon has already raised this evidence, before the person decided or in a dispute still waiting on them. Read
+  # fresh, since the dispute may have been raised earlier in the same check.
   def new_evidence?(evidence)
-    decided_at = [ confirmed_at, rejected_at ].compact.max
-    return true unless decided_at
-
-    seen = events.select do |event|
-      event.actor == Chat::MemoryEvent::ACTOR_HALON && event.created_at <= decided_at &&
-        [ Chat::MemoryEvent::KIND_DISPUTED, Chat::MemoryEvent::KIND_HELD ].include?(event.kind)
-    end
+    seen = Chat::MemoryEvent.where(memory_id: id, actor: Chat::MemoryEvent::ACTOR_HALON,
+                                   kind: [ Chat::MemoryEvent::KIND_DISPUTED, Chat::MemoryEvent::KIND_HELD ]).to_a
     said = Chat::Memory::Words.stems(evidence, skip: Chat::Memory::Words::FILLER).uniq
     seen.none? { |event| (said - Chat::Memory::Words.stems(event.detail.to_s, skip: Chat::Memory::Words::FILLER)).empty? }
   end

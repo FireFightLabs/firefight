@@ -53,9 +53,10 @@ class MemoryPostService
     person = memory.confirmed_by
     return nil unless memory.state == Chat::Memory::STATE_DISPUTED && person&.platform_user_id.present? && @workspace.platform.present?
     return nil if person.removed? || !Chat::Memory.visible_to(person, @workspace).exists?(id: memory.id)
+    return nil if told_already?(memory)
 
     post = Chat::MemoryPost.create!(workspace: @workspace, kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: person, channel_id: person.platform_user_id,
-                                    memory_ids: [ memory.id ])
+                                    memory_ids: [ memory.id ], evidence: memory.state_reason)
     posted = adapter.post_learned_memories_to_user(user_id: person.platform_user_id, post: shown(post))
     post.posted!(posted[:message_id], channel_id: posted[:channel_id] || post.channel_id)
     post
@@ -115,6 +116,12 @@ class MemoryPostService
   end
 
   private
+
+  # The person was told about this memory with these very words already, so a second job for the same dispute sends nothing.
+  def told_already?(memory)
+    Chat::MemoryPost.where(workspace: @workspace, kind: Chat::MemoryPost::KIND_CHALLENGED).where("? = ANY(memory_ids)", memory.id)
+                    .any? { |post| post.evidence == memory.state_reason }
+  end
 
   def shown_reminder(post, memories)
     taught = memories.count { |memory| post.recipient_id && memory.added_by_id == post.recipient_id }

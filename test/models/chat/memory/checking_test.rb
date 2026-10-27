@@ -228,6 +228,51 @@ class Chat::Memory::CheckingTest < ActiveSupport::TestCase
     assert_equal @alice, memory.reload.confirmed_by
   end
 
+  test "a dispute nobody has decided on yet is not raised with the person again on a later night without new evidence" do
+    memory = remember("web deploys from main", state: Chat::Memory::STATE_CONFIRMED, confirmed_by: @alice, confirmed_at: 5.days.ago)
+    first = memory.found_wrong_by_halon!(evidence: "The deploy settings of web name release.", correction: nil, review: @review)
+    assert_equal [ memory.id ], first.challenged
+
+    travel 1.day
+    later = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.current, removal_cap: 3)
+    again = memory.reload.found_wrong_by_halon!(evidence: "The deploy settings of web name release.", correction: nil, review: later)
+
+    assert_empty again.challenged
+    assert_equal Chat::Memory::STATE_DISPUTED, memory.reload.state
+    assert_match "says nothing new", again.words
+
+    newer = memory.found_wrong_by_halon!(evidence: "The last three deploys of web came from the hotfix branch.", correction: nil, review: later)
+    assert_equal [ memory.id ], newer.challenged
+    assert_match "hotfix branch", memory.reload.state_reason
+  end
+
+  test "why a memory stands where it does is kept encrypted, and a reason saved before encryption is still read" do
+    memory = remember("Checkout retries twice")
+    memory.dispute!("The client sets three retries.")
+    Chat::Memory.flag_outdated!(remember("web runs on Fly", subject: catalog_entries(:auth_service)).subject, "Auth Service was renamed", cause: Chat::Memory::OUTDATED_RENAMED)
+
+    stored = Chat::Memory.connection.select_value(Chat::Memory.sanitize_sql_array([ "SELECT state_reason FROM chat_memories WHERE id = ?", memory.id ]))
+    assert ActiveRecord::Encryption.encryptor.encrypted?(stored)
+    outdated = Chat::Memory.find_by!(workspace: @workspace, state: Chat::Memory::STATE_OUTDATED)
+    raw = Chat::Memory.connection.select_value(Chat::Memory.sanitize_sql_array([ "SELECT state_reason FROM chat_memories WHERE id = ?", outdated.id ]))
+    assert ActiveRecord::Encryption.encryptor.encrypted?(raw)
+    assert_equal "Auth Service was renamed", outdated.state_reason
+
+    Chat::Memory.where(id: memory.id).update_all(Arel.sql("state_reason = 'Saved before it was encrypted'"))
+    assert_equal "Saved before it was encrypted", memory.reload.state_reason
+  end
+
+  test "Halon checking a memory rejected meanwhile does not mark it as shown right" do
+    memory = remember("web deploys from main", state: Chat::Memory::STATE_CONFIRMED, decided_by_halon: true, confirmed_at: 2.days.ago)
+    stale = Chat::Memory.find(memory.id)
+    memory.reject!(by: @alice, reason: "Moved")
+
+    settled = stale.verified_by_halon!(evidence: "The deploy settings of web name main.", review: @review)
+
+    assert_nil settled.outcome
+    assert_equal [ Chat::Memory::STATE_REJECTED, nil ], memory.reload.values_at(:state, :check_outcome)
+  end
+
   test "past tonight's limit a wrong memory is left as it was, marked as held, and checked again another night" do
     @review.update!(removal_cap: 1)
     first = remember("Checkout retries twice")
