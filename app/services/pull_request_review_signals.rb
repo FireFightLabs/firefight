@@ -62,7 +62,10 @@ class PullRequestReviewSignals
     return start!(signal, PullRequestReview::TRIGGER_AUTOMATIC, attempt) if previous.nil? && on_open?(signal)
     return if previous.nil? || signal.head_sha.blank? || previous.head_sha == signal.head_sha
 
-    previous.open_threads.each { |finding| PullRequestReviewRecheckJob.perform_later(finding.id, previous.head_sha, signal.head_sha) } if attempt.zero?
+    if attempt.zero?
+      adopt_unread!(previous)
+      previous.open_threads.each { |finding| PullRequestReviewRecheckJob.perform_later(finding.id, previous.head_sha, signal.head_sha) }
+    end
     start!(signal, previous.trigger, attempt)
   end
 
@@ -92,9 +95,16 @@ class PullRequestReviewSignals
     review = latest(signal)
     return unless review
 
+    adopt_unread!(review)
     review.pull_request_findings.find do |finding|
       Integrations::PullRequestReviews.same_thread?(@row.integration, finding.thread_comments, signal.thread)
     end
+  end
+
+  # Line comments of this pull request's reviews not yet matched to their findings are read back first, so a push or a
+  # reply reaches their threads. A read that fails raises, so the signal is tried again once they can be read.
+  def adopt_unread!(review)
+    PullRequestReview.of_same_pull_request(review).where(comments_unread: true).find_each { |unread| PullRequestReviewPosting.new(unread).adopt! }
   end
 
   def reviewed?(signal)

@@ -27,7 +27,9 @@ module Integrations
     # What Firefight reads to check a fix or answer a reply: what a push changed, and a file at a commit.
     CHANGES = :changes
     FILE = :file
-    READS = [ CHANGES, FILE ].freeze
+    # The line comments a review posted, read back, on a host that posts a review whole.
+    POSTED_COMMENTS = :posted_comments
+    READS = [ CHANGES, FILE, POSTED_COMMENTS ].freeze
     OPERATIONS = [ COMMENT, EDIT, REVIEW, REPLY, RESOLVE, *READS ].freeze
 
     # How a person asks for a review in a comment: Firefight's handle, or Halon's or Firefight's name, then review.
@@ -74,6 +76,9 @@ module Integrations
 
     # A line comment as a review posts it.
     LineComment = Data.define(:path, :line, :body)
+
+    # A line comment a review posted, read back: the host's reference to it, its page and its words.
+    PostedComment = Data.define(:reference, :url, :body)
 
     # What a review posted: the host's reference to the review and its page, and one reference and page per line comment in
     # the order given, nil for a line the host would not place.
@@ -134,6 +139,9 @@ module Integrations
       true
     end
 
+    # Whether the host can read back the line comments a review posted, which only a host that posts a review whole needs.
+    def reads_back?(integration) = pack_of(integration)::REVIEW_TOOLS.key?(POSTED_COMMENTS)
+
     # Whether one review call posts every line comment or none, so a refusal leaves nothing behind.
     def atomic?(integration) = pack_of(integration)::REVIEW_ATOMIC == true
 
@@ -192,6 +200,8 @@ module Integrations
       result = authorize.call(tool, arguments) { NativeExecutor.call(tool: tool, environment_row: environment_row, arguments: arguments) }
       raise Refused, Sentence.ended(answer_text(result).presence || "#{name} failed") if result.is_a?(Hash) && result["isError"]
 
+      facts = result.to_h.dig(Telemetry::STRUCTURED, Telemetry::FACTS).to_h if result.is_a?(Hash)
+      return pack.review_posted(operation, facts.to_h) if operation == POSTED_COMMENTS
       return answer_text(result.is_a?(Hash) ? result : { "content" => [ { "text" => result.to_s } ] }) if READS.include?(operation)
 
       posted = pack.review_posted(operation, result.to_h.dig(Telemetry::STRUCTURED, Telemetry::FACTS).to_h)

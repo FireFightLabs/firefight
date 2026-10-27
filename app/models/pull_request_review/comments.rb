@@ -23,6 +23,9 @@ class PullRequestReview::Comments
 
   def self.sha(value) = value.to_s[0, SHA_SHOWN]
 
+  # The hidden line a finding's comment carries where the host hides it, by which a comment is matched to its finding.
+  def self.mark_of(finding) = "<!-- halon-finding: #{finding.id} -->"
+
   def self.ended(text) = text.to_s.strip.match?(/[.!?]\z/) ? text.to_s.strip : "#{text.to_s.strip}."
 
   # What Halon says on a thread after a push checked its fix: fixed, not fixed, or nil when it could not tell.
@@ -144,7 +147,7 @@ class PullRequestReview::Comments
     @collapses ? "<details><summary>#{title}</summary>\n\n#{body}\n\n</details>" : "**#{title}**\n\n#{body}"
   end
 
-  def mark(finding) = ("<!-- halon-finding: #{finding.id} -->" if @hides)
+  def mark(finding) = (self.class.mark_of(finding) if @hides)
 
   def status_line(review)
     if review.live? then "Reviewing #{sha(review.head_sha)}. Findings appear here as each one is checked."

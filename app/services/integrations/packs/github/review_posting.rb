@@ -6,14 +6,17 @@ module Integrations
       # opened marked resolved. Each is one of the pack's own tools, so a grant, an approval rule and the activity log
       # see it like any other call. Editing goes through PATCH issues/comments/{id} or pulls/comments/{id}, and resolving
       # through GraphQL's resolveReviewThread, since only GraphQL knows a thread (PullRequestReviewThread). Both refuse a
-      # comment or a thread someone else started, which a person changes on GitHub.
+      # comment or a thread someone else started, which a person changes on GitHub. list_review_comments reads a review's
+      # line comments back, for one whose ids GitHub did not give when it was posted.
       module ReviewPosting
         REVIEW_TOOLS = {
           PullRequestReviews::COMMENT => "comment_on_pull_request", PullRequestReviews::EDIT => "edit_pull_request_comment",
           PullRequestReviews::REVIEW => "review_pull_request", PullRequestReviews::REPLY => "reply_to_review_comment",
           PullRequestReviews::RESOLVE => "resolve_review_thread",
-          PullRequestReviews::CHANGES => "compare_commits", PullRequestReviews::FILE => "fetch_file"
+          PullRequestReviews::CHANGES => "compare_commits", PullRequestReviews::FILE => "fetch_file",
+          PullRequestReviews::POSTED_COMMENTS => "list_review_comments"
         }.freeze
+        COMMENTS_SHOWN = 30
         # One review call posts every line comment or none.
         REVIEW_ATOMIC = true
         THREAD_PAGE = 100
@@ -48,6 +51,15 @@ module Integrations
                       "comment_id" => { "type" => "integer", "description" => "The id of the comment that started the thread" }
                     }, %w[repo number comment_id]),
                     read_only: false
+
+          pack.tool :list_review_comments,
+                    summary: "Lists the comments one review left on a pull request's code.",
+                    description: "List every comment one review of a pull request left on lines of its code, with each one's id, place and page",
+                    params_schema: Code.object_schema({
+                      "repo" => Code::REPO, "number" => number,
+                      "review_id" => { "type" => "integer", "description" => "The review's id" }
+                    }, %w[repo number review_id]),
+                    read_only: true
         end
 
         module ClassMethods
@@ -63,6 +75,7 @@ module Integrations
             when PullRequestReviews::RESOLVE then { "repo" => repository, "number" => number, "comment_id" => reference.to_i }
             when PullRequestReviews::CHANGES then { "repo" => repository, "base" => base, "head" => commit }
             when PullRequestReviews::FILE then { "repo" => repository, "path" => path, "ref" => commit, "start_line" => start }.compact
+            when PullRequestReviews::POSTED_COMMENTS then { "repo" => repository, "number" => number, "review_id" => reference.to_i }
             end
             [ REVIEW_TOOLS.fetch(operation), arguments ]
           end
@@ -73,6 +86,8 @@ module Integrations
             when PullRequestReviews::REVIEW
               PullRequestReviews::Posted.new(reference: facts["review_id"]&.to_s, comments: Array(facts["comment_ids"]).map { |id| id&.to_s },
                                              urls: Array(facts["comment_urls"]), unread: facts["comments_unread"] == true)
+            when PullRequestReviews::POSTED_COMMENTS
+              Array(facts["comments"]).map { |comment| PullRequestReviews::PostedComment.new(reference: comment["id"]&.to_s, url: comment["url"], body: comment["body"].to_s) }
             else facts["comment_id"]&.to_s
             end
           end
@@ -82,6 +97,21 @@ module Integrations
 
           # GitHub folds a details block and keeps an HTML comment out of sight.
           def review_markup = { collapses: true, hides: true }
+        end
+
+        # Every line comment a review left, read page by page (pulls/list-comments-for-review). The answer lists the first
+        # few, and its facts carry them all with their words, for a review whose comment ids are matched afterwards.
+        def list_review_comments(environment_row:, arguments:)
+          repo, number, token = pull_target(arguments, environment_row)
+          review = number_argument(arguments, "review_id")
+          asking("list_review_comments", "GitHub has no review #{review} on pull request #{number} in #{repo}") do
+            comments = review_comments_posted(repo, number, review, token)
+            lines = comments.first(COMMENTS_SHOWN).map { |comment| "#{comment['id']} on #{comment['path']}:#{comment['line'] || comment['original_line']}  #{comment['html_url']}" }
+            more = comments.size > COMMENTS_SHOWN ? "\n#{comments.size - COMMENTS_SHOWN} more not listed." : ""
+            linked("Review #{review} on PR ##{number} in #{repo} left #{comments.size} #{'comment'.pluralize(comments.size)} on its code.\n#{lines.join("\n")}#{more}",
+                   "https://github.com/#{repo}/pull/#{number}",
+                   facts: { "comments" => comments.map { |comment| { "id" => comment["id"], "url" => comment["html_url"], "body" => comment["body"].to_s } } })
+          end
         end
 
         # Whether the repository is private (repos/get-a-repository, private).
