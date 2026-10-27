@@ -112,19 +112,53 @@ class PullRequestReviewSignalsTest < ActiveSupport::TestCase
     assert_nothing_raised { @signals.receive!(signal(Integrations::PullRequestReviews::REQUESTED, head_sha: "d" * 40, reviewers: [ "firefight-app[bot]" ])) }
   end
 
-  test "a review a person asked for that cannot start says why on the pull request, once for each request" do
+  test "a review a person asked for that cannot start says why on the pull request, and a request delivered again says nothing more" do
     PullRequestReview::Start.stubs(:call).raises(PullRequestReview::Start::Refused.new("Halon has no access to read GitHub.", reason: PullRequestReview::Refusal::NO_ACCESS))
-    asked = signal(Integrations::PullRequestReviews::REQUESTED, reviewers: [ "firefight-app[bot]" ], reference: "acme/api#7:asked:a")
     commented = signal(Integrations::PullRequestReviews::COMMENTED, comment: "92", body: "@firefight review please", reference: "acme/api#7:comment:92")
+    asked = signal(Integrations::PullRequestReviews::REQUESTED, reviewers: [ "firefight-app[bot]" ], number: 8, reference: "acme/api#8:asked:a")
 
     assert_enqueued_jobs 2, only: PullRequestReviewRefusalPostJob do
-      2.times { @signals.receive!(asked) }
       2.times { @signals.receive!(commented) }
+      2.times { @signals.receive!(asked) }
     end
 
     refusals = PullRequestReview::Refusal.where(workspace: @workspace)
-    assert_equal [ "acme/api#7:asked:a", "acme/api#7:comment:92" ], refusals.order(:reference).pluck(:reference)
-    assert refusals.all? { |refusal| refusal.reason == PullRequestReview::Refusal::NO_ACCESS && refusal.integration_environment == @row && refusal.number == 7 }
+    assert_equal [ "acme/api#7:comment:92", "acme/api#8:asked:a" ], refusals.order(:reference).pluck(:reference)
+    assert refusals.all? { |refusal| refusal.reason == PullRequestReview::Refusal::NO_ACCESS && refusal.integration_environment == @row }
+  end
+
+  test "a host that asks again at each push hears a refusal once per pull request and reason, and again once a review ran since" do
+    no_access = PullRequestReview::Start::Refused.new("Halon has no access to read GitHub.", reason: PullRequestReview::Refusal::NO_ACCESS)
+    not_set_up = PullRequestReview::Start::Refused.new(Investigation::MODEL_NOT_SET_UP, reason: PullRequestReview::Refusal::MODEL_NOT_SET_UP)
+    asked = ->(head) { signal(Integrations::PullRequestReviews::REQUESTED, reviewers: [ "firefight-app[bot]" ], head_sha: head, reference: "acme/api#7:asked:#{head}") }
+
+    PullRequestReview::Start.stubs(:call).raises(no_access)
+    assert_enqueued_jobs 1, only: PullRequestReviewRefusalPostJob do
+      @signals.receive!(asked.call("a" * 40))
+      travel 1.minute
+      @signals.receive!(asked.call("b" * 40))
+    end
+
+    travel 1.minute
+    PullRequestReview::Start.unstub(:call)
+    PullRequestReview::Start.stubs(:call).raises(not_set_up)
+    assert_enqueued_jobs 1, only: PullRequestReviewRefusalPostJob do
+      @signals.receive!(asked.call("c" * 40))
+    end
+
+    travel 1.minute
+    create_review(status: PullRequestReview::STATUS_DONE, head_sha: "d" * 40)
+    travel 1.minute
+    PullRequestReview::Start.unstub(:call)
+    PullRequestReview::Start.stubs(:call).raises(no_access)
+    assert_enqueued_jobs 1, only: PullRequestReviewRefusalPostJob do
+      @signals.receive!(asked.call("e" * 40))
+      travel 1.minute
+      @signals.receive!(asked.call("f" * 40))
+    end
+    assert_enqueued_jobs 1, only: PullRequestReviewRefusalPostJob do
+      @signals.receive!(signal(Integrations::PullRequestReviews::REQUESTED, reviewers: [ "firefight-app[bot]" ], number: 8, reference: "acme/api#8:asked:a"))
+    end
   end
 
   test "a review nobody asked for that cannot start says nothing on the pull request" do
