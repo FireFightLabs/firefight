@@ -14,6 +14,8 @@ module Integrations
           PullRequestReviews::RESOLVE => "resolve_review_thread",
           PullRequestReviews::CHANGES => "compare_commits", PullRequestReviews::FILE => "fetch_file"
         }.freeze
+        # One review call posts every line comment or none.
+        REVIEW_ATOMIC = true
         THREAD_PAGE = 100
         THREAD_PAGES = 20
         THREADS_QUERY = "query($owner: String!, $name: String!, $number: Int!, $after: String) { repository(owner: $owner, name: $name) { " \
@@ -77,6 +79,15 @@ module Integrations
 
           # A reply on GitHub names the comment that started its thread (in_reply_to_id), which is the reference kept.
           def review_thread_of(reference) = reference
+
+          # GitHub folds a details block and keeps an HTML comment out of sight.
+          def review_markup = { collapses: true, hides: true }
+        end
+
+        # Whether the repository is private (repos/get-a-repository, private).
+        def review_visibility(environment_row, repository:)
+          found = GithubApp.get("/repos/#{repository}", token: GithubApp.installation_token(environment_row))
+          found["private"] == true ? PullRequestReviews::VISIBILITY_PRIVATE : PullRequestReviews::VISIBILITY_PUBLIC
         end
 
         # Who Firefight is on GitHub: its App's bot, which a person @-mentions by the App's slug. GitHub's reviewers box

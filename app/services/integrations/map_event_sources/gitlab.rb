@@ -41,6 +41,9 @@ module Integrations
       # A comment in a thread on the code or in a thread started in the conversation. A plain Note is a comment of its own.
       THREAD_NOTES = %w[DiffNote DiscussionNote].freeze
       OPENS = %w[open reopen].freeze
+      UPDATE = "update".freeze
+      MERGE = "merge".freeze
+      CLOSE = "close".freeze
       # What a webhook from before misses when it lacks any of these, so it is registered again.
       FOLLOWED_EVENTS = [ *RUN_EVENTS, *ISSUE_EVENTS, *REVIEW_EVENTS ].freeze
       # The statuses a pipeline or a deployment ends on, as a run that ended reads them.
@@ -191,9 +194,9 @@ module Integrations
           base = { repository: project, number: iid.to_i, head_sha: head, author: payload.dig("user", "username"), draft: request["draft"] == true || request["work_in_progress"] == true }
           signals = []
           signals << PullRequestReviews::Signal.new(kind: PullRequestReviews::OPENED, reference: "#{project}!#{iid}:#{action}:#{head}", **base) if OPENS.include?(action) || readied?(payload)
-          signals << PullRequestReviews::Signal.new(kind: PullRequestReviews::PUSHED, reference: "#{project}!#{iid}:push:#{head}", **base) if action == "update" && request["oldrev"].present?
-          signals << PullRequestReviews::Signal.new(kind: PullRequestReviews::MERGED, reference: "#{project}!#{iid}:merge", **base) if action == "merge"
-          signals << PullRequestReviews::Signal.new(kind: PullRequestReviews::CLOSED, reference: "#{project}!#{iid}:close", **base) if action == "close"
+          signals << PullRequestReviews::Signal.new(kind: PullRequestReviews::PUSHED, reference: "#{project}!#{iid}:push:#{head}", **base) if action == UPDATE && request["oldrev"].present?
+          signals << PullRequestReviews::Signal.new(kind: PullRequestReviews::MERGED, reference: "#{project}!#{iid}:merge", **base) if action == MERGE
+          signals << PullRequestReviews::Signal.new(kind: PullRequestReviews::CLOSED, reference: "#{project}!#{iid}:close", **base) if action == CLOSE
           added = added_reviewers(payload, action)
           if added.any?
             signals << PullRequestReviews::Signal.new(kind: PullRequestReviews::REQUESTED, reference: "#{project}!#{iid}:asked:#{head}:#{added.flatten.join(',')}",

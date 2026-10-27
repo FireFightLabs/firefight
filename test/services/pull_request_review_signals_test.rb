@@ -77,6 +77,16 @@ class PullRequestReviewSignalsTest < ActiveSupport::TestCase
     end
   end
 
+  test "a reply to Halon's own answer, as a host that names the parent comment sends it, is answered too" do
+    review = create_review(status: PullRequestReview::STATUS_DONE)
+    finding = create_finding(review, host_comment_id: "701")
+    finding.said!(comment: "702", author: SystemAgent::HALON, body: "Not fixed yet.", halon: true)
+
+    assert_enqueued_with(job: PullRequestReviewAnswerJob) do
+      @signals.receive!(signal(Integrations::PullRequestReviews::COMMENTED, comment: "703", thread: "702", body: "Now?", author: "ada"))
+    end
+  end
+
   test "a comment asking Halon to review starts one" do
     expect_start(PullRequestReview::TRIGGER_REQUESTED)
 

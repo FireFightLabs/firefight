@@ -14,6 +14,12 @@ module Integrations
           PullRequestReviews::RESOLVE => "resolve_merge_request_thread",
           PullRequestReviews::CHANGES => "compare_commits", PullRequestReviews::FILE => "fetch_file"
         }.freeze
+        # Each line comment is its own thread, so a review is several calls and the app posts them one at a time.
+        REVIEW_ATOMIC = false
+        OPENED = "opened".freeze
+        # A project only its members can see. Public and internal ones are seen by people outside the team.
+        PRIVATE = "private".freeze
+        POSITION_TEXT = "text".freeze
         REVIEW_NEEDS = "Commenting on a merge request needs a token with the api scope and at least the Reporter role in the project, and resolving a thread the Developer role.".freeze
 
         def self.included(pack)
@@ -41,10 +47,10 @@ module Integrations
           pack.tool :review_merge_request,
                     summary: "Comments on lines of a merge request's diff, with a summary in its conversation.",
                     description: "Review a merge request: start a thread on each line given, on the merge request as it stood at commit, " \
-                                 "then add body as a comment in its conversation",
+                                 "then add body as a comment in its conversation when given",
                     params_schema: Code.object_schema({
                       "repo" => repo, "iid" => iid,
-                      "body" => { "type" => "string", "description" => "The review's summary, in GitLab's markdown" },
+                      "body" => { "type" => "string", "description" => "The review's summary, in GitLab's markdown (optional, only the line comments)" },
                       "commit" => { "type" => "string", "description" => "The commit the review is of, one of the merge request's own (optional, its head now)" },
                       "comments" => {
                         "type" => "array", "description" => "Comments on lines of the diff (optional)",
@@ -54,7 +60,7 @@ module Integrations
                           "body" => { "type" => "string", "description" => "The comment" }
                         } }
                       }
-                    }, %w[repo iid body]),
+                    }, %w[repo iid]),
                     read_only: false
 
           pack.tool :reply_to_merge_request_thread,
@@ -99,6 +105,15 @@ module Integrations
 
           # A thread on GitLab is its discussion, which a reply names.
           def review_thread_of(reference) = reference.to_s.split("/", 2).first
+
+          # GitLab folds a details block and keeps an HTML comment out of sight.
+          def review_markup = { collapses: true, hides: true }
+        end
+
+        # Whether the project is one only its members see (doc/api/projects.md, visibility).
+        def review_visibility(environment_row, repository:)
+          project = api(environment_row).get(GitlabApi.project(repository))
+          project["visibility"] == PRIVATE ? PullRequestReviews::VISIBILITY_PRIVATE : PullRequestReviews::VISIBILITY_PUBLIC
         end
 
         # Who Firefight is on GitLab: the user the connection's token acts as, a bot for a group or project access token.
@@ -129,15 +144,16 @@ module Integrations
 
         def review_merge_request(environment_row:, arguments:)
           repo, iid, gitlab = merge_request_target(arguments, environment_row)
-          body = posted_text(arguments, "body")
+          body = arguments["body"].to_s.strip.presence
           comments = line_comments(arguments)
+          fail! "Give body or comments to review with." if body.nil? && comments.empty?
           project = GitlabApi.project(repo)
           request = gitlab.get("#{project}/merge_requests/#{iid}")
-          fail! "Merge request !#{iid} in #{repo} is #{request['state']}, so it takes no review." unless request["state"] == "opened"
+          fail! "Merge request !#{iid} in #{repo} is #{request['state']}, so it takes no review." unless request["state"] == OPENED
 
           refs = version_refs(gitlab, project, iid, arguments["commit"].to_s.strip.presence, request)
           threads = comments.map do |comment|
-            position = { "position_type" => "text", "base_sha" => refs["base_commit_sha"], "start_sha" => refs["start_commit_sha"], "head_sha" => refs["head_commit_sha"],
+            position = { "position_type" => POSITION_TEXT, "base_sha" => refs["base_commit_sha"], "start_sha" => refs["start_commit_sha"], "head_sha" => refs["head_commit_sha"],
                          "new_path" => comment[:path], "old_path" => comment[:path], "new_line" => comment[:line] }
             # A line GitLab will not place is left without a thread rather than stopping the rest, and the caller places it. Any
             # other failure, a refusal for the token's access included, stops the review with why.
@@ -152,14 +168,15 @@ module Integrations
             end
             made && { "thread" => "#{made['id']}/#{Array(made['notes']).first&.dig('id')}", "url" => note_url(request, Array(made["notes"]).first&.dig("id")) }
           end
-          note = posting("comment on merge request !#{iid} in #{repo}") { gitlab.post("#{project}/merge_requests/#{iid}/notes", { "body" => body }) }
+          note = (posting("comment on merge request !#{iid} in #{repo}") { gitlab.post("#{project}/merge_requests/#{iid}/notes", { "body" => body }) } if body).to_h
           urls = threads.map { |thread| thread&.dig("url") }
           threads = threads.map { |thread| thread&.dig("thread") }
           missed = threads.count(&:nil?)
           Telemetry.result("Reviewed merge request !#{iid} #{request['title']} in #{repo} at #{refs['head_commit_sha'].to_s[0, 12]}" \
                            "#{", with #{threads.size - missed} line #{'comment'.pluralize(threads.size - missed)}" if threads.any?}" \
                            "#{", and #{missed} GitLab would not place on its line" if missed.positive?}.",
-                           link: link(note_url(request, note["id"])), facts: { "note_id" => note["id"], "threads" => threads.presence, "thread_urls" => urls.presence })
+                           link: link((note_url(request, note["id"]) if note["id"]) || urls.compact.first || request["web_url"]),
+                           facts: { "note_id" => note["id"], "threads" => threads.presence, "thread_urls" => urls.presence })
         end
 
         def reply_to_merge_request_thread(environment_row:, arguments:)

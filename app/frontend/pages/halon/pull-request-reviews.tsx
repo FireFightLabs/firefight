@@ -15,14 +15,16 @@ import type { PullRequestReviewSettings } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 
 interface ReviewHost {
+  id: string
   name: string
-  handle: string | null
-  pickable: boolean
+  ask: string
+  reviewer: string | null
 }
 
 interface PullRequestReviewsPageProps extends SharedProps {
   settings: PullRequestReviewSettings
   hosts: ReviewHost[]
+  providers: string[]
 }
 
 type OnOpen = (typeof PULL_REQUEST_REVIEWS_ON_OPEN)[keyof typeof PULL_REQUEST_REVIEWS_ON_OPEN]
@@ -39,18 +41,24 @@ function isOnOpen(value: string): value is OnOpen {
   return (ON_OPEN_CHOICES as string[]).includes(value)
 }
 
+// How to ask on one connection, such as "GitHub: comment @firefight-app review."
 function hostLine(host: ReviewHost) {
-  if (host.handle && host.pickable) {
-    return `${host.name}: add ${host.handle} as a reviewer, or comment @${host.handle} review.`
+  if (host.reviewer) {
+    return `${host.name}: add ${host.reviewer} as a reviewer, or comment ${host.ask}.`
   }
-  if (host.handle) {
-    return `${host.name}: comment @${host.handle} review.`
+  return `${host.name}: comment ${host.ask}.`
+}
+
+// The code hosts Halon reviews on, such as "GitHub, GitLab or Bitbucket".
+function oneOf(names: string[]) {
+  if (names.length < 2) {
+    return names.join("")
   }
-  return `${host.name}: comment @firefight review.`
+  return `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}`
 }
 
 export default function PullRequestReviews() {
-  const { settings, hosts } = usePage<PullRequestReviewsPageProps>().props
+  const { settings, hosts, providers } = usePage<PullRequestReviewsPageProps>().props
   const canManage = useCan("workspace")
   const [onOpen, setOnOpen] = useState<OnOpen>(isOnOpen(settings.pullRequestReviewsOnOpen) ? settings.pullRequestReviewsOnOpen : PULL_REQUEST_REVIEWS_ON_OPEN.OFF)
   const [chosen, setChosen] = useState<string[]>(settings.pullRequestReviewRepositories)
@@ -79,7 +87,7 @@ export default function PullRequestReviews() {
       halonPullRequestReviewsPath(),
       {
         pull_request_reviews_on_open: onOpen,
-        pull_request_review_repositories: onOpen === PULL_REQUEST_REVIEWS_ON_OPEN.CHOSEN ? chosen : [],
+        pull_request_review_repositories: chosen,
       },
       { preserveScroll: true, onSuccess: succeed, onError: setErrors, onFinish: finish },
     )
@@ -105,12 +113,12 @@ export default function PullRequestReviews() {
             {hosts.length > 0 ? (
               <ul className="flex flex-col gap-1 text-sm">
                 {hosts.map((host) => (
-                  <li key={host.name}>{hostLine(host)}</li>
+                  <li key={host.id}>{hostLine(host)}</li>
                 ))}
               </ul>
             ) : (
               <p className="text-sm text-muted-foreground">
-                No code host is connected yet. Connect GitHub, GitLab or Bitbucket under{" "}
+                No code host is connected yet. Connect {oneOf(providers)} under{" "}
                 <Link href={integrationsPath()} className="underline underline-offset-4">
                   Integrations
                 </Link>{" "}

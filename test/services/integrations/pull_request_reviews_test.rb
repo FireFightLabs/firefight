@@ -83,20 +83,36 @@ module Integrations
       assert_includes MapEventSources::Bitbucket::EVENTS, "pullrequest:comment_created"
     end
 
-    test "a diff lets a comment sit on every line a hunk shows of the new file" do
-      diff = <<~DIFF
-        diff --git a/app/a.rb b/app/a.rb
-        --- a/app/a.rb
-        +++ b/app/a.rb
-        @@ -10,3 +10,4 @@ class A
-         keep
-        -gone
-        +added
-        +also
-         tail
-      DIFF
+    test "a repository is public unless the host says it is private, and one whose visibility cannot be read counts as public" do
+      Rails.cache.clear
+      Packs::Github.any_instance.stubs(:review_visibility).returns(PullRequestReviews::VISIBILITY_PRIVATE)
+      assert_not PullRequestReviews.public?(@row, "acme/private")
 
-      assert_equal [ 10, 11, 12, 13 ], PullRequestReviews.commentable(diff)["app/a.rb"].to_a
+      Packs::Github.any_instance.stubs(:review_visibility).returns(PullRequestReviews::VISIBILITY_PUBLIC)
+      assert PullRequestReviews.public?(@row, "acme/open")
+
+      Packs::Github.any_instance.stubs(:review_visibility).raises(GithubApp::Error, "GitHub answered 502")
+      assert PullRequestReviews.public?(@row, "acme/unknown")
+    end
+
+    test "each host says how it reads visibility, whether it posts a review whole and what its markdown renders" do
+      GithubApp.stubs(:installation_token).returns("ghs_token")
+      GithubApp.stubs(:get).with("/repos/acme/shop", token: "ghs_token").returns("private" => true)
+      assert_equal PullRequestReviews::VISIBILITY_PRIVATE, Packs::Github.new(@integration).review_visibility(@row, repository: "acme/shop")
+      assert PullRequestReviews.atomic?(@integration)
+      assert_equal({ collapses: true, hides: true }, PullRequestReviews.markup(@integration))
+
+      bitbucket = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: "bitbucket", name: "Bitbucket")
+      assert_not PullRequestReviews.atomic?(bitbucket)
+      assert_equal({ collapses: false, hides: false }, PullRequestReviews.markup(bitbucket))
+    end
+
+    test "only an answer that the line cannot take a comment leaves a line comment out" do
+      placed = GitlabApi::Error.new("GitLab answered 400: line_code can't be blank").tap { |error| error.http_status = 400 }
+      down = GitlabApi::Error.new("GitLab answered 400: but said by a proxy")
+
+      assert PullRequestReviews.unplaceable?(placed)
+      assert_not PullRequestReviews.unplaceable?(down), "the status is read, never the words"
     end
 
     test "a call runs the connection's tool through the authorizer given, and refuses a tool switched off" do

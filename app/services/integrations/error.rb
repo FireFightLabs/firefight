@@ -1,7 +1,10 @@
 module Integrations
   # Callers rescue this, never a kind-specific subclass, so rescue sites do not
   # grow with new kinds.
-  class Error < StandardError; end
+  class Error < StandardError
+    # The HTTP status a provider answered with, when the error is its answer.
+    attr_accessor :http_status
+  end
 
   # One of Firefight's own rules refused the call, never the provider, such as a protected branch, a path Halon may not
   # change or a statement that would write. Its message is the rule's sentence, which says where it is changed when it

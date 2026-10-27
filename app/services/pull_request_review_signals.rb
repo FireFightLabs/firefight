@@ -24,9 +24,24 @@ class PullRequestReviewSignals
 
   # Halon reviews the pull requests it opened too, once they open, as if someone had asked.
   def self.opened_by_halon!(environment_row, repository:, number:)
-    new(environment_row).send(:start!, Integrations::PullRequestReviews::Signal.new(kind: Integrations::PullRequestReviews::REQUESTED, repository: repository,
-                                                                                     number: number, reference: "#{repository}##{number}:halon"),
-                              PullRequestReview::TRIGGER_REQUESTED, 0)
+    new(environment_row).start!(Integrations::PullRequestReviews::Signal.new(kind: Integrations::PullRequestReviews::REQUESTED, repository: repository,
+                                                                              number: number, reference: "#{repository}##{number}:halon"),
+                                PullRequestReview::TRIGGER_REQUESTED, 0)
+  end
+
+  # A review of the pull request's head now, through this connection. A head reviewed already is not reviewed again, and
+  # a pull request whose review of an earlier head is still running is tried again once that one ends.
+  def start!(signal, trigger, attempt)
+    return if reviewed?(signal)
+
+    review = PullRequestReview::Start.call(workspace: @workspace, repository: signal.repository, number: signal.number, trigger: trigger, row: @row)
+    waiting = review.live? && signal.head_sha.present? && review.head_sha != signal.head_sha
+    return unless waiting && attempt < RETRIES
+
+    PullRequestReviewSignalJob.set(wait: RETRY_WAIT).perform_later(@row.id, signal.to_h.transform_keys(&:to_s), attempt + 1)
+  rescue PullRequestReview::Start::Refused, Integrations::Error => error
+    Rails.logger.warn({ event: "pull_request_review.start_failed", integration_environment_id: @row.id, repository: signal.repository,
+                        number: signal.number, error: error.class.name, message: error.message.truncate(300) }.to_json)
   end
 
   private
@@ -69,23 +84,8 @@ class PullRequestReviewSignals
     return unless review
 
     review.pull_request_findings.find do |finding|
-      Integrations::PullRequestReviews.same_thread?(@row.integration, finding.host_comment_id, signal.thread)
+      Integrations::PullRequestReviews.same_thread?(@row.integration, finding.thread_comments, signal.thread)
     end
-  end
-
-  # A review of the pull request's head now, through this connection. A head reviewed already is not reviewed again, and
-  # a pull request whose review of an earlier head is still running is tried again once that one ends.
-  def start!(signal, trigger, attempt)
-    return if reviewed?(signal)
-
-    review = PullRequestReview::Start.call(workspace: @workspace, repository: signal.repository, number: signal.number, trigger: trigger, row: @row)
-    waiting = review.live? && signal.head_sha.present? && review.head_sha != signal.head_sha
-    return unless waiting && attempt < RETRIES
-
-    PullRequestReviewSignalJob.set(wait: RETRY_WAIT).perform_later(@row.id, signal.to_h.transform_keys(&:to_s), attempt + 1)
-  rescue PullRequestReview::Start::Refused, Integrations::Error => error
-    Rails.logger.warn({ event: "pull_request_review.start_failed", integration_environment_id: @row.id, repository: signal.repository,
-                        number: signal.number, error: error.class.name, message: error.message.truncate(300) }.to_json)
   end
 
   def reviewed?(signal)
