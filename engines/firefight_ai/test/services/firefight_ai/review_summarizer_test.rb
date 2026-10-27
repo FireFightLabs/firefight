@@ -47,6 +47,7 @@ class FirefightAi::ReviewSummarizerTest < ActiveSupport::TestCase
                                            .summarize(pull_request: "", files: "", findings: "", reach: "", risks: %w[calm stormy])
 
     assert_nil summary.risk
+    assert_nil summary.risk_reason, "a reason for a risk that was not kept explains nothing"
     assert_equal %w[calm stormy], schemas.sole.new.to_json_schema.dig("properties", "risk", "enum")
   end
 

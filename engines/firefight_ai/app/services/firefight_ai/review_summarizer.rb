@@ -17,7 +17,7 @@ module FirefightAi
 
     # pull_request is its title and description, files every file with how much it changed, findings the findings
     # written as text and reach what the map says depends on it. Each is text the app wrote. risks are the levels the
-    # app keeps, and a risk the model gives outside them is nil, since a guessed level reads as a judgment it never made.
+    # app keeps, and a risk the model gives outside them is nil with its reason, since a guessed level reads as a judgment it never made.
     def summarize(pull_request:, files:, findings:, reach:, risks:)
       response, inference = FirefightAi.generate(@choice, purpose: @purpose, inference: inference_context) do |chat|
         chat.with_instructions(self.class.system_prompt)
@@ -50,7 +50,7 @@ module FirefightAi
     def read(parsed, risks, spent_micros)
       content = parsed.is_a?(Hash) ? parsed.with_indifferent_access : {}
       risk = content[:risk].presence_in(risks)
-      Summary.new(summary: content[:summary].to_s.strip, risk: risk, risk_reason: content[:risk_reason].to_s.strip, spent_micros: spent_micros)
+      Summary.new(summary: content[:summary].to_s.strip, risk: risk, risk_reason: (content[:risk_reason].to_s.strip if risk), spent_micros: spent_micros)
     end
 
     def inference_context
