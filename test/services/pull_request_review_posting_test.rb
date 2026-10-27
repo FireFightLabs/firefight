@@ -106,6 +106,19 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
     assert_nil other.reload.review_posted_at
   end
 
+  test "findings the host placed on none of their lines still go up in the conversation" do
+    @review.update_columns(summary_comment_id: "100")
+    finding = create_finding
+    @review.finish!(status: PullRequestReview::STATUS_DONE)
+    answer(REVIEW => Integrations::PullRequestReviews::Posted.new(reference: "55", comments: [ nil ]), COMMENT => "300", EDIT => "100")
+
+    posting.run!(PullRequestReview::CHANGE_FINISHED)
+
+    comment = @posts.find { |operation, _| operation == COMMENT }
+    assert comment, "the finding's text reaches the pull request"
+    assert_includes comment.last[:body], finding.claim
+  end
+
   test "a failed review says it stopped and never that it found nothing" do
     @review.update_columns(error_summary: PullRequestReview::GAVE_UP, status: PullRequestReview::STATUS_FAILED)
 

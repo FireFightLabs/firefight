@@ -69,9 +69,9 @@ module Integrations
                                            comments: [ { path: "a.rb", line: 3, side: "RIGHT", body: "One" }, { path: "b.rb", line: 8, side: "RIGHT", body: "Two" } ] },
                                          token: "ghs_token")
                    .returns("id" => 55, "html_url" => "https://github.com/acme/checkout/pull/4#pullrequestreview-55")
-          GithubApp.stubs(:get).with("/repos/acme/checkout/pulls/4/reviews/55/comments?per_page=100", token: "ghs_token")
+          GithubApp.stubs(:get).with("/repos/acme/checkout/pulls/4/reviews/55/comments?per_page=100&page=1", token: "ghs_token")
                    .returns([ { "id" => 702, "path" => "b.rb", "line" => 8, "body" => "Two", "html_url" => "https://github.com/acme/checkout/pull/4#discussion_r702" },
-                              { "id" => 701, "path" => "a.rb", "line" => 3, "body" => "One", "html_url" => "https://github.com/acme/checkout/pull/4#discussion_r701" } ])
+                              { "id" => 701, "path" => "a.rb", "line" => 5, "original_line" => 3, "body" => "One", "html_url" => "https://github.com/acme/checkout/pull/4#discussion_r701" } ])
 
           name, arguments = Github.review_call(PullRequestReviews::REVIEW, repository: "acme/checkout", number: 4, body: "Two problems.", commit: "abc1234",
                                                                            comments: [ PullRequestReviews::LineComment.new(path: "a.rb", line: 3, body: "One"),

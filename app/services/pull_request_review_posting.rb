@@ -109,9 +109,9 @@ class PullRequestReviewPosting
   end
 
   # Findings the host would not take on their lines go up together in the conversation, or stay in the review's body when
-  # it already holds them.
+  # it already holds them, which only the review posted with no line comments does.
   def place!(unplaced, posted)
-    _, url = call!(Integrations::PullRequestReviews::COMMENT, body: PullRequestReview::Comments.unplaced(unplaced), with_link: true) if posted.comments.any?
+    _, url = call!(Integrations::PullRequestReviews::COMMENT, body: PullRequestReview::Comments.unplaced(unplaced), with_link: true) unless posted.comments.empty?
     unplaced.each { |finding| finding.posted_at!(url || posted.url) }
   end
 
