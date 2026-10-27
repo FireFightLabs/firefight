@@ -254,6 +254,25 @@ class MemoryPostServiceTest < ActiveSupport::TestCase
     assert_nil lesson.reload.replaced_by_id
   end
 
+  test "a dispute a postmortem raised says so to the approver and the confirmer, each in their own words" do
+    bob = workspace_memberships(:bob_workspace_one)
+    lesson = Chat::Memory.create!(workspace: @workspace, text: "The cause was DNS", state: Chat::Memory::STATE_UNCONFIRMED, source: @incident)
+    assert lesson.approve!(by: @member)
+    lesson.confirm!(by: bob)
+    lesson.dispute!("The #{@incident.identifier} postmortem says otherwise", by: Chat::MemoryEvent::ACTOR_POSTMORTEM)
+    @adapter.expects(:post_learned_memories_to_user).twice.returns(message_id: "9.1", channel_id: "D9")
+
+    MemoryChallengeJob.perform_now(lesson.id, @incident.id)
+
+    service = MemoryPostService.new(@workspace)
+    to_approver = Chat::MemoryPost.find_by!(kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: @member)
+    to_bob = Chat::MemoryPost.find_by!(kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: bob)
+    assert_equal "The #{@incident.identifier} postmortem disagrees with a lesson you approved",
+                 Slack::Messages::LearnedMemories.plain_title(service.shown(to_approver))
+    assert_equal "The #{@incident.identifier} postmortem disagrees with a memory you confirmed", Slack::Messages::LearnedMemories.plain_title(service.shown(to_bob))
+    assert_equal "a direct message", to_bob.place
+  end
+
   private
 
   def context_text(shown)

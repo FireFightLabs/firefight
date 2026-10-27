@@ -139,7 +139,7 @@ class IncidentLearningServiceTest < ActiveSupport::TestCase
     ]))
     postmortem = completed_postmortem(author: workspace_memberships(:alice_workspace_one), completer: workspace_memberships(:bob_workspace_one))
 
-    assert_enqueued_with(job: MemoryChallengeJob, args: [ lesson.id ]) do
+    assert_enqueued_with(job: MemoryChallengeJob, args: [ lesson.id, @incident.id ]) do
       IncidentLearningService.new(@workspace).learn!(@incident, postmortem: postmortem)
     end
 

@@ -56,11 +56,12 @@ class MemoryPostService
   # Halon's nightly check found evidence against a memory a person stands behind, so whoever confirmed it and whoever
   # approved it as a lesson for pull request reviews are each told once by direct message, with Still right, Not right
   # and Edit. Nothing is sent to one without a platform account, or when the platform cannot take it, and the memory
-  # waits on the Memory page either way. Returns the posts sent.
-  def tell_people_behind!(memory)
+  # waits on the Memory page either way. postmortem_of is the incident whose completed postmortem disputed it, when one
+  # did, so the message says the postmortem disagrees rather than Halon. Returns the posts sent.
+  def tell_people_behind!(memory, postmortem_of: nil)
     return [] unless memory.state == Chat::Memory::STATE_DISPUTED && @workspace.platform.present?
 
-    [ memory.confirmed_by, memory.approved_by ].compact.uniq.filter_map { |person| tell_person_behind!(memory, person) }
+    [ memory.confirmed_by, memory.approved_by ].compact.uniq.filter_map { |person| tell_person_behind!(memory, person, postmortem_of) }
   end
 
   # Someone pressing Still right or Not right, or Confirm on a message posted before Halon checked memories itself. reference is the post a button names, or the incident on a message posted
@@ -124,12 +125,12 @@ class MemoryPostService
 
   private
 
-  def tell_person_behind!(memory, person)
+  def tell_person_behind!(memory, person, postmortem_of)
     return nil if person.platform_user_id.blank? || person.removed? || !Chat::Memory.visible_to(person, @workspace).exists?(id: memory.id)
     return nil if told_already?(memory, person)
 
     post = Chat::MemoryPost.create!(workspace: @workspace, kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: person, channel_id: person.platform_user_id,
-                                    memory_ids: [ memory.id ], evidence: memory.state_reason)
+                                    memory_ids: [ memory.id ], evidence: memory.state_reason, incident: postmortem_of)
     posted = adapter.post_learned_memories_to_user(user_id: person.platform_user_id, post: shown(post))
     post.posted!(posted[:message_id], channel_id: posted[:channel_id] || post.channel_id)
     post

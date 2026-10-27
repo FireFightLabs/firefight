@@ -26,6 +26,8 @@ module Slack
       TEAM_SOURCES = "incidents and investigations".freeze
       # A direct message to the person who approved the lesson Halon found evidence against, in place of the confirmer's words.
       APPROVED_LESSON_TITLE = ":grey_question:  *Halon found evidence against a lesson you approved*".freeze
+      # A direct message about a dispute a completed postmortem raised, which names the incident.
+      POSTMORTEM_DISAGREES = ":grey_question:  *The %<incident>s postmortem disagrees with %<what>s*".freeze
       APPROVED_LESSON_FOOTER = "Halon and pull request reviews stopped using it until you decide. Keep it if it is still right, mark it not right, or edit it.".freeze
       # A memory in one of these nobody has decided on, so it carries Not right and Correct.
       WAITING = [ Chat::Memory::STATE_UNCONFIRMED, Chat::Memory::STATE_OUTDATED, Chat::Memory::STATE_DISPUTED, Chat::Memory::STATE_EXPIRED ].freeze
@@ -73,10 +75,13 @@ module Slack
       def self.things(count) = count == 1 ? "1 thing" : "#{count} things"
 
       def self.title(post)
+        return format(POSTMORTEM_DISAGREES, incident: post.incident_identifier, what: post.approved_lesson ? "a lesson you approved" : "a memory you confirmed") if postmortem_dispute?(post)
         return APPROVED_LESSON_TITLE if post.approved_lesson
 
         format(TITLES.fetch(post.kind), incident: post.incident_identifier)
       end
+
+      def self.postmortem_dispute?(post) = post.kind == Chat::MemoryPost::KIND_CHALLENGED && post.incident_identifier.present?
 
       def self.footer(post) = { type: "context", elements: [ { type: "mrkdwn", text: footer_text(post) } ] }
 

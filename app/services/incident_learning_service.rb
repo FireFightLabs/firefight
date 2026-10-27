@@ -147,7 +147,7 @@ class IncidentLearningService
       elsif memory.person_behind?
         disputed = memory.dispute!([ "The #{postmortem.incident.identifier} postmortem says otherwise", ("and gives this instead. #{verdict.correction}" if verdict.correction) ].compact.join(" "),
                                    by: Chat::MemoryEvent::ACTOR_POSTMORTEM)
-        MemoryChallengeJob.perform_later(memory.id) if disputed && memory.approved?
+        MemoryChallengeJob.perform_later(memory.id, postmortem.incident.id) if disputed && memory.approved?
       else
         memory.reject!(by: person, reason: "The #{postmortem.incident.identifier} postmortem says otherwise", correction: verdict.correction, postmortem: postmortem)
       end
