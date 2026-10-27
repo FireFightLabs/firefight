@@ -28,6 +28,18 @@ class Chat::MemoryReview < ApplicationRecord
 
   def picked!(memories) = update!(memory_ids: memories.map(&:id))
 
+  # Whether principal may see every memory tonight's run checked, so its run, which reads about all of them, may open for
+  # them. One about a resource outside their map reach keeps the run closed to them.
+  def visible_to?(principal)
+    Chat::Memory.visible_to(principal, workspace).where(id: memory_ids).count == memory_ids.uniq.size
+  end
+
+  # The runs of these reviews that principal may open, by id.
+  def self.runs_visible_to(principal, run_ids)
+    runs = Investigation.where(id: run_ids, subject_type: name).includes(:subject)
+    runs.select { |run| run.subject.visible_to?(principal) }.map(&:id).to_set
+  end
+
   # The run checking tonight's memories, which each line of history Halon writes links to.
   def run = investigations.order(:created_at).last
 
@@ -75,12 +87,13 @@ class Chat::MemoryReview < ApplicationRecord
     raise
   end
 
-  # The run ended, so what it never settled is marked as tried tonight and kept as it is. Only once.
+  # The run ended, so what it never settled is kept as it is, with a line in its history. Its last check is left alone,
+  # so it keeps its place in the queue for the next night. Only once.
   def finish!
     return false unless self.class.where(id: id, finished_at: nil).update_all(finished_at: Time.current, updated_at: Time.current) > 0
 
     reload
-    memories.reject { |memory| settled?(memory) }.each { |memory| memory.unsettled_by_halon!(note: NOT_REACHED, review: self) }
+    memories.reject { |memory| settled?(memory) }.each { |memory| memory.not_reached_by_halon!(review: self) }
     true
   end
 

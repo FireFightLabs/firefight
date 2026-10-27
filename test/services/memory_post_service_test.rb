@@ -90,6 +90,18 @@ class MemoryPostServiceTest < ActiveSupport::TestCase
     assert_equal [ "Still right", "Not right", "Edit" ], buttons
   end
 
+  test "a passing platform error is raised for the job to try again, and a person who left or can no longer see it is not told" do
+    @memory.confirm!(by: @member)
+    @memory.dispute!("Found otherwise.")
+    @adapter.stubs(:post_learned_memories_to_user).raises(AdapterError::RateLimited.new("slow down"))
+    assert_raises(AdapterError::RateLimited) { MemoryPostService.new(@workspace).tell_confirmer!(@memory.reload) }
+    assert_not Chat::MemoryPost.exists?(kind: Chat::MemoryPost::KIND_CHALLENGED)
+
+    @adapter.expects(:post_learned_memories_to_user).never
+    @member.update_columns(removed_at: Time.current)
+    assert_nil MemoryPostService.new(@workspace).tell_confirmer!(@memory.reload)
+  end
+
   test "nobody is messaged when the memory is no longer disputed, the person has no platform account, or the platform refuses" do
     @adapter.expects(:post_learned_memories_to_user).never
     @memory.confirm!(by: @member)

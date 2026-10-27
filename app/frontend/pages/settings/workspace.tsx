@@ -316,8 +316,8 @@ export default function Workspace() {
                 <p className="mt-1 text-sm text-muted-foreground">
                   On by default. Every night at 02:00 UTC, Halon checks a batch of what it remembers against production
                   with its read tools, and confirms, corrects or rejects each one with the evidence. Each check is a run
-                  that spends from your AI budget. Turn it off and memories stay as they are until someone decides on
-                  them on the Memory page.
+                  that spends from your AI budget. Turn it off and Halon stops these nightly checks. It still learns
+                  from incidents and chats, and anyone can still decide on a memory on the Memory page.
                 </p>
               </div>
               <Switch id="memory-review" checked={memoryReview} onCheckedChange={setMemoryReview} />

@@ -75,7 +75,8 @@ class Investigation::MemoryReviewRunTest < ActiveSupport::TestCase
     Investigation::Delivery.for(@run).answered!(@run.reload.finding)
 
     assert_equal "Checked 1 of 2 memories against production. 1 not reached, kept as not checked.", @run.finding.summary
-    assert_equal Chat::Memory::VERDICT_UNSURE, other.reload.check_outcome
+    assert_nil other.reload.checked_at, "not reached, so it keeps its place for the next night"
+    assert_equal Chat::MemoryReview::NOT_REACHED, other.events.sole.detail
     assert_not @run.finding.search_embeddable?
   end
 
@@ -105,7 +106,7 @@ class Investigation::MemoryReviewRunTest < ActiveSupport::TestCase
 
     assert_includes checker.tool_names, "settle_memory"
     assert_not_includes checker.tool_names, "remember"
-    assert_equal [ Chat::Memory::VERDICT_UNSURE, Chat::Memory::STATE_UNCONFIRMED ], @memory.reload.values_at(:check_outcome, :state)
+    assert_equal [ nil, Chat::Memory::STATE_UNCONFIRMED ], @memory.reload.values_at(:checked_at, :state)
     assert @review.reload.finished_at
   end
 

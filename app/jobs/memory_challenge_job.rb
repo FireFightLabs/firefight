@@ -4,6 +4,7 @@ class MemoryChallengeJob < ApplicationJob
   queue_as :default
 
   discard_on ActiveRecord::RecordNotFound
+  retry_on(*MemoryPostService::PASSING, wait: :polynomially_longer, attempts: 5)
 
   def perform(memory_id)
     memory = Chat::Memory.find(memory_id)

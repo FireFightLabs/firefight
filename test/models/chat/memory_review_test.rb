@@ -63,7 +63,8 @@ class Chat::MemoryReviewTest < ActiveSupport::TestCase
     assert @review.finish!
     assert_not @review.finish!
 
-    assert_equal [ Chat::Memory::VERDICT_UNSURE, Chat::MemoryReview::NOT_REACHED ], [ missed.reload.check_outcome, missed.events.sole.detail ]
+    assert_equal [ nil, nil, Chat::MemoryReview::NOT_REACHED ], [ missed.reload.checked_at, missed.check_outcome, missed.events.sole.detail ]
+    assert_equal missed, Chat::Memory.to_check(@workspace).first, "never checked, so it comes before what was"
     assert_equal "Checked 1 of 2 memories against production. 1 not reached, kept as not checked.", @review.reload.summary
   end
 

@@ -154,9 +154,16 @@ module Chat::Memory::Checking
     Settled.new(outcome: VERDICT_UNSURE, words: "Kept as it is, marked as not checked yet.")
   end
 
-  # The evidence Halon last showed it right with, and when, read from its history.
+  # Tonight's check ended before it got to it. Nothing about it changes, its last check included, so the next night
+  # picks it in the same place.
+  def not_reached_by_halon!(review:)
+    halon_record!(Chat::MemoryEvent::KIND_UNSETTLED, Chat::MemoryReview::NOT_REACHED, review)
+  end
+
+  # The evidence Halon last showed it right with, and when, read from its history. A memory restored after Halon had
+  # rejected it was shown right then too.
   def last_verified
-    events.select { |event| event.kind == Chat::MemoryEvent::KIND_VERIFIED }.max_by(&:created_at)
+    events.select { |event| [ Chat::MemoryEvent::KIND_VERIFIED, Chat::MemoryEvent::KIND_RESTORED ].include?(event.kind) }.max_by(&:created_at)
   end
 
   # The memories this one says otherwise than: the newer one that disputed it, and those it disputed.

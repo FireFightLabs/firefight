@@ -10,6 +10,8 @@ class InvestigationsController < InertiaController
 
   def show
     investigation = current_workspace.investigations.seen.find(params[:id])
+    # A nightly memory check reads about every memory it checked, so it opens only for someone who may see them all.
+    raise ActiveRecord::RecordNotFound if investigation.memory_review? && !investigation.memory_review.visible_to?(current_membership)
     incident = investigation.incident
     return redirect_to incident_path(incident, Investigation::QUERY_PARAM => investigation.id) if incident
 

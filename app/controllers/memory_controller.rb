@@ -19,7 +19,7 @@ class MemoryController < InertiaController
     memories = self.memories.includes(:subject, :source, :added_by, :confirmed_by, :rejected_by, events: { member: :user }).order(updated_at: :desc)
 
     render inertia: "memory/index", props: {
-      memories: ChatMemorySerializer.many(memories),
+      memories: ChatMemorySerializer.many(memories, runs: openable_runs(memories)),
       instructions: ChatInstructionSerializer.many(Chat::Instruction.with_history(current_workspace, principal: current_membership)),
       subjects: MemorySubjectOptionSerializer.many(Chat::Memory.subject_choices(current_workspace, principal: current_membership))
     }
@@ -93,6 +93,11 @@ class MemoryController < InertiaController
   private
 
   def instructions_page = memory_path(TAB_QUERY => TAB_INSTRUCTIONS)
+
+  # The nightly runs a link on this page may open: those whose every checked memory this person may see.
+  def openable_runs(memories)
+    Chat::MemoryReview.runs_visible_to(current_membership, memories.flat_map(&:events).filter_map(&:investigation_id).uniq)
+  end
 
   # A memory about a resource outside the person's map reach is not on their page, and deciding on one finds nothing.
   def memories = Chat::Memory.visible_to(current_membership, current_workspace)

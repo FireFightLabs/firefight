@@ -55,6 +55,8 @@ class MemoryReviewService
   end
 
   def merge_set!(review, set)
+    return if @refused
+
     keeper = Chat::Memory.strongest(set)
     set.each do |memory|
       next if memory.id == keeper.id

@@ -69,12 +69,14 @@ class ChatMemorySerializer < BaseSerializer
   type :string, optional: true
   def verified_at = verified&.created_at&.utc&.iso8601
 
-  # The nightly run that last showed it right, which opens on its own page.
+  # The nightly run that last showed it right, which opens on its own page, when the reader may open it (options[:runs]).
   type :string, optional: true
-  def verified_investigation_id = verified&.investigation_id
+  def verified_investigation_id = verified&.investigation_id&.then { |id| id if options.fetch(:runs, Set.new).include?(id) }
 
   # Everything that happened to it, oldest first.
-  has_many :events, serializer: ChatMemoryEventSerializer
+  has_many :events, serializer: ChatMemoryEventSerializer do
+    memory.events.to_a
+  end
 
   type :string, optional: true
   def confirmed_at = memory.confirmed_at&.utc&.iso8601

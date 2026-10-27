@@ -13,6 +13,8 @@ class MemoryPostService
   ShownReminder = Data.define(:taught, :learned, :direct)
 
   NOT_POSTED = [ AdapterError::IsArchived, AdapterError::NotFound, AdapterError::NotInChannel ].freeze
+  # Errors that pass, so the job sending the message tries again rather than giving up.
+  PASSING = [ AdapterError::RateLimited, AdapterError::ServerError, AdapterError::Unavailable ].freeze
 
   def initialize(workspace)
     @workspace = workspace
@@ -50,12 +52,16 @@ class MemoryPostService
   def tell_confirmer!(memory)
     person = memory.confirmed_by
     return nil unless memory.state == Chat::Memory::STATE_DISPUTED && person&.platform_user_id.present? && @workspace.platform.present?
+    return nil if person.removed? || !Chat::Memory.visible_to(person, @workspace).exists?(id: memory.id)
 
     post = Chat::MemoryPost.create!(workspace: @workspace, kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: person, channel_id: person.platform_user_id,
                                     memory_ids: [ memory.id ])
     posted = adapter.post_learned_memories_to_user(user_id: person.platform_user_id, post: shown(post))
     post.posted!(posted[:message_id], channel_id: posted[:channel_id] || post.channel_id)
     post
+  rescue *PASSING => error
+    post&.destroy!
+    raise error
   rescue AdapterError => error
     post&.destroy!
     Rails.logger.info({ event: "memory_post.confirmer_not_told", memory_id: memory.id, error: error.class.name }.to_json)

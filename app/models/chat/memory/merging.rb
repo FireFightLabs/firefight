@@ -42,6 +42,9 @@ module Chat::Memory::Merging
   # on meanwhile, or one a person stands behind, is left alone. Returns whether it was merged.
   def merge_into!(keeper)
     transaction do
+      # Locked, so the keeper cannot be rejected or merged itself while this one moves into it.
+      next false unless self.class.lock.where(id: keeper.id, state: MERGEABLE_STATES).exists?
+
       moved = decide!(Chat::Memory::STATE_MERGED, from: MERGEABLE_STATES, decided_by_halon: true, halon_only: true, replaced_by_id: keeper.id,
                                                   state_reason: "It says the same as \"#{keeper.text}\".")
       next false unless moved

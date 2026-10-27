@@ -207,6 +207,15 @@ class Chat::Memory::CheckingTest < ActiveSupport::TestCase
     assert_equal Chat::Memory::VERDICT_RIGHT, memory.check_outcome
   end
 
+  test "a memory restored after Halon rejected it shows the evidence of the check that restored it" do
+    old = remember("Checkout retries twice")
+    old.found_wrong_by_halon!(evidence: "The client sets three retries.", correction: nil, review: @review)
+    later = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.tomorrow, removal_cap: 3)
+    old.verified_by_halon!(evidence: "The client sets two retries again.", review: later)
+
+    assert_equal [ Chat::MemoryEvent::KIND_RESTORED, "The client sets two retries again." ], old.reload.last_verified.values_at(:kind, :detail)
+  end
+
   test "two people confirming at once what only Halon confirmed land once" do
     memory = remember("web deploys from main")
     memory.verified_by_halon!(evidence: "The deploy settings of web name main.", review: @review)

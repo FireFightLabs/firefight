@@ -220,7 +220,7 @@ class Chat::Memory < ApplicationRecord
 
     # Learned again, so it is worth another wait for a person, and an unconfirmed one waits from now.
     if known.state == STATE_EXPIRED
-      known.record!(Chat::MemoryEvent::KIND_REVIVED, actor: Chat::MemoryEvent::ACTOR_HALON) if known.revive!
+      transaction { known.record!(Chat::MemoryEvent::KIND_REVIVED, actor: Chat::MemoryEvent::ACTOR_HALON) if known.revive! }
     elsif known.state == STATE_UNCONFIRMED
       known.touch
     end
@@ -322,19 +322,23 @@ class Chat::Memory < ApplicationRecord
   # the flag can be lifted.
   def self.flag_outdated!(subject, reason, cause:)
     from = [ STATE_UNCONFIRMED, STATE_CONFIRMED ]
-    moved = moved_ids(where(subject: subject, state: from), from,
-                      [ "outdated_from = state, state = ?, state_reason = ?, outdated_cause = ?, updated_at = ?", STATE_OUTDATED, reason, cause, Time.current ])
-    record_moved!(moved, Chat::MemoryEvent::KIND_OUTDATED, detail: reason)
-    moved.size
+    transaction do
+      moved = moved_ids(where(subject: subject, state: from), from,
+                        [ "outdated_from = state, state = ?, state_reason = ?, outdated_cause = ?, updated_at = ?", STATE_OUTDATED, reason, cause, Time.current ])
+      record_moved!(moved, Chat::MemoryEvent::KIND_OUTDATED, detail: reason)
+      moved.size
+    end
   end
 
   # The cause is gone, such as a removed resource the map sees again, so a memory still flagged for it goes back to what
   # it was. A memory a person decided on since is no longer outdated, so it is never touched.
   def self.clear_outdated!(subject, cause:)
-    moved = moved_ids(where(subject: subject, state: STATE_OUTDATED, outdated_cause: cause).where.not(outdated_from: nil), [ STATE_OUTDATED ],
-                      [ "state = outdated_from, state_reason = NULL, outdated_from = NULL, outdated_cause = NULL, updated_at = ?", Time.current ])
-    record_moved!(moved, Chat::MemoryEvent::KIND_CURRENT_AGAIN)
-    moved.size
+    transaction do
+      moved = moved_ids(where(subject: subject, state: STATE_OUTDATED, outdated_cause: cause).where.not(outdated_from: nil), [ STATE_OUTDATED ],
+                        [ "state = outdated_from, state_reason = NULL, outdated_from = NULL, outdated_cause = NULL, updated_at = ?", Time.current ])
+      record_moved!(moved, Chat::MemoryEvent::KIND_CURRENT_AGAIN)
+      moved.size
+    end
   end
 
   # An unconfirmed memory nobody confirmed within the workspace's window stops being used, counted from when it was
@@ -344,10 +348,12 @@ class Chat::Memory < ApplicationRecord
     return 0 unless days
 
     reason = "Nobody confirmed it within #{days} days."
-    moved = moved_ids(where(workspace: workspace, state: STATE_UNCONFIRMED).where(updated_at: ...days.days.ago), [ STATE_UNCONFIRMED ],
-                      [ "state = ?, state_reason = ?, updated_at = ?", STATE_EXPIRED, reason, Time.current ])
-    record_moved!(moved, Chat::MemoryEvent::KIND_EXPIRED, detail: reason)
-    moved.size
+    transaction do
+      moved = moved_ids(where(workspace: workspace, state: STATE_UNCONFIRMED).where(updated_at: ...days.days.ago), [ STATE_UNCONFIRMED ],
+                        [ "state = ?, state_reason = ?, updated_at = ?", STATE_EXPIRED, reason, Time.current ])
+      record_moved!(moved, Chat::MemoryEvent::KIND_EXPIRED, detail: reason)
+      moved.size
+    end
   end
 
   def confirmed? = state == STATE_CONFIRMED
@@ -486,26 +492,32 @@ class Chat::Memory < ApplicationRecord
   # A completed postmortem agreeing with what Halon learned, credited to whoever completed it when that was a person.
   def confirm_from_postmortem!(postmortem, by:)
     reason = "The #{postmortem.incident.identifier} postmortem agrees"
-    confirmed = decide!(STATE_CONFIRMED, from: POSTMORTEM_CONFIRMS_FROM, confirmed_by_id: by&.id, confirmed_at: Time.current,
-                                         state_reason: reason, decided_by_postmortem_id: postmortem.id)
-    record!(Chat::MemoryEvent::KIND_CONFIRMED, actor: decision_actor(by, postmortem), member: by, detail: reason) if confirmed
-    confirmed
+    transaction do
+      confirmed = decide!(STATE_CONFIRMED, from: POSTMORTEM_CONFIRMS_FROM, confirmed_by_id: by&.id, confirmed_at: Time.current,
+                                           state_reason: reason, decided_by_postmortem_id: postmortem.id)
+      record!(Chat::MemoryEvent::KIND_CONFIRMED, actor: decision_actor(by, postmortem), member: by, detail: reason) if confirmed
+      confirmed
+    end
   end
 
   # A live result or a postmortem showed it may be wrong. Halon raises it from a chat or a run, and a postmortem when a
   # person had confirmed what it contradicts.
   # investigation is the nightly run that found it, when one did.
   def dispute!(reason, by: Chat::MemoryEvent::ACTOR_HALON, checked: nil, investigation: nil)
-    disputed = decide!(STATE_DISPUTED, from: CONTRADICTABLE_FROM, state_reason: reason, decided_by_halon: decided_by_halon, checked: checked)
-    record!(Chat::MemoryEvent::KIND_DISPUTED, actor: by, detail: reason, investigation: investigation) if disputed
-    disputed
+    transaction do
+      disputed = decide!(STATE_DISPUTED, from: CONTRADICTABLE_FROM, state_reason: reason, decided_by_halon: decided_by_halon, checked: checked)
+      record!(Chat::MemoryEvent::KIND_DISPUTED, actor: by, detail: reason, investigation: investigation) if disputed
+      disputed
+    end
   end
 
   # A newer memory says otherwise, so this one is set aside until Halon settles the two against production, or a person does.
   def contradicted!(challenger, reason:)
-    disputed = decide!(STATE_DISPUTED, from: CONTRADICTABLE_FROM, state_reason: reason, contradicted_by_id: challenger.id, decided_by_halon: decided_by_halon)
-    record!(Chat::MemoryEvent::KIND_DISPUTED, actor: Chat::MemoryEvent::ACTOR_HALON, detail: reason) if disputed
-    disputed
+    transaction do
+      disputed = decide!(STATE_DISPUTED, from: CONTRADICTABLE_FROM, state_reason: reason, contradicted_by_id: challenger.id, decided_by_halon: decided_by_halon)
+      record!(Chat::MemoryEvent::KIND_DISPUTED, actor: Chat::MemoryEvent::ACTOR_HALON, detail: reason) if disputed
+      disputed
+    end
   end
 
   # An expired memory learned again goes back to waiting for a person, with a fresh window.

@@ -83,14 +83,14 @@ function vouchedAt(memory: ChatMemory): string {
 
 // What Halon's nightly check last found, said beside the memory, or null when there is nothing to say.
 export function checkLine(memory: ChatMemory): string | null {
+  if (memory.inUse && memory.checkOutcome === CHAT_MEMORY_CHECK_OUTCOME.HELD && memory.checkedAt) {
+    return `Halon found evidence against it on ${formatDate(memory.checkedAt)}, but left it as it was for now. The history says what it found.`
+  }
   if (memory.verifiedEvidence && memory.verifiedAt) {
     return `Halon checked it against production on ${formatDate(memory.verifiedAt)}. ${memory.verifiedEvidence}`
   }
   if (memory.standing !== CHAT_MEMORY_STANDING.UNCHECKED) {
     return null
-  }
-  if (memory.checkOutcome === CHAT_MEMORY_CHECK_OUTCOME.HELD && memory.checkedAt) {
-    return `Halon found evidence against it on ${formatDate(memory.checkedAt)}, but left it as it was for now. The history says what it found.`
   }
   return memory.checkedAt ? `Halon could not check it yet. Last tried ${formatDate(memory.checkedAt)}.` : "Halon has not checked it yet."
 }

@@ -70,6 +70,25 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_nil run.finding.reload.outcome
   end
 
+  test "the run that checked a memory about something outside a person's map reach neither links nor opens for them" do
+    bob = workspace_memberships(:bob_workspace_one)
+    build_two_environment_map(@workspace)
+    limit_map_to(@workspace, bob, catalog_entries(:production_env))
+    hidden = Chat::Memory.create!(workspace: @workspace, text: "secret-db holds the card tokens", subject: map_resource(@workspace, "secret-db"),
+                                  state: Chat::Memory::STATE_UNCONFIRMED)
+    shown = remember("Deploys freeze on Fridays")
+    review = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.current, removal_cap: 3, memory_ids: [ hidden.id, shown.id ])
+    run = @workspace.investigations.create!(subject: review, trigger_source: Investigation::TRIGGER_MEMORY_REVIEW, max_turns: 4, max_spend_cents: 400)
+    shown.verified_by_halon!(evidence: "The deploy calendar blocks Fridays.", review: review)
+    sign_in(users(:bob), @workspace)
+
+    get memory_path, headers: inertia_headers
+    row = inertia_props["memories"].find { |memory| memory["id"] == shown.id }
+    assert_equal [ nil, nil ], [ row["verifiedInvestigationId"], row["events"].sole["investigationId"] ]
+    get investigation_path(run)
+    assert_response :not_found
+  end
+
   test "a person confirming what only Halon checked makes it theirs, and says so" do
     review = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.current, removal_cap: 3)
     memory = remember("web deploys from main")
