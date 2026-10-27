@@ -238,7 +238,12 @@ class PullRequestReviewPosting
     given = given.merge(comments: given[:comments].map { |comment| Integrations::PullRequestReviews::LineComment.new(**comment.symbolize_keys) }) if given[:comments]
     result = call!(held.operation, approval_id: approval_id, **given)
     @review.release_held!(approval_id)
-    record!(held.purpose, result) if result
+    if result
+      record!(held.purpose, result)
+    elsif held.purpose["record"] == "whole"
+      # The whole review the host refused once approved goes again the usual way, its fallback and retry included.
+      @review.release_review_post!
+    end
     @review.done? ? finished! : summary!
   end
 
@@ -248,7 +253,10 @@ class PullRequestReviewPosting
     when "serious" then finding_of(purpose)&.serious_posted!(result)
     when "line" then (reference = result.comments.first).present? && finding_of(purpose)&.posted_on_line!(reference, url: result.urls.first)
     when "whole" then whole_posted!(result, findings_of(purpose["on_lines"]), findings_of(purpose["elsewhere"]))
-    when "body" then @review.review_posted!(result)
+    when "body"
+      reference, url = result
+      @review.review_posted!(reference)
+      findings_of(purpose["finding_ids"]).each { |finding| finding.posted_at!(url) }
     when "reply"
       finding = finding_of(purpose)
       finding&.said!(comment: result, author: SystemAgent::HALON, body: purpose["body"], halon: true)
