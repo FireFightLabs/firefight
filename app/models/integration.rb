@@ -254,8 +254,11 @@ class Integration < ApplicationRecord
 
   # The connection each tool action key runs through, read in one query.
   def self.connections_for(workspace_id, action_keys)
-    keys = action_keys.map(&:to_s).uniq.select { |key| key.include?(".") }
-    return {} if keys.empty?
+    keys = action_keys.map(&:to_s).uniq
+    read_packs = keys.select { |key| key.start_with?(Ability::Role::READS_KEY_PREFIX) }
+    keys = keys.select { |key| key.include?(".") }
+    by_read_pack = read_pack_connections(workspace_id, read_packs)
+    return by_read_pack if keys.empty?
 
     integrations = where(workspace_id: workspace_id, slug: keys.map { |key| key.split(".", 2).first }.uniq).includes(:tools)
                      .order(Arel.sql("deleted_at IS NOT NULL"), created_at: :desc).to_a
@@ -263,8 +266,17 @@ class Integration < ApplicationRecord
       slug, tool_name = key.split(".", 2)
       integration = integrations.find { |each| each.slug == slug && each.tools.any? { |tool| tool.name == tool_name } }
       found[key] = integration if integration
-    end
+    end.merge(by_read_pack)
   end
+
+  # A read through a connection outside its tools is ledgered under its read pack's key, which names it by id.
+  def self.read_pack_connections(workspace_id, keys)
+    return {} if keys.empty?
+
+    ids = keys.to_h { |key| [ key.delete_prefix(Ability::Role::READS_KEY_PREFIX), key ] }
+    where(workspace_id: workspace_id, id: ids.keys).to_h { |integration| [ ids.fetch(integration.id), integration ] }
+  end
+  private_class_method :read_pack_connections
 
   # This connection's tools that another connection's tool shares a name with as Halon calls it, by tool name, read in
   # one query.

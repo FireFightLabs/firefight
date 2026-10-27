@@ -77,8 +77,10 @@ module Integrations
       rows(workspace).find { |row| PullRequests.holds?(row, repository) }
     end
 
+    # The description is the author's own words, so a credential in it is taken out as from any provider's answer.
     def pull_request(row, repository:, number:)
-      pack(row).pull_request_for_review(row, repository: repository, number: number)
+      pull = pack(row).pull_request_for_review(row, repository: repository, number: number)
+      pull.body.nil? ? pull : pull.with(body: redacted(row, pull.body))
     end
 
     # Every file the pull request changes, as the host lists them. A list the host cuts short is refused.
@@ -102,7 +104,8 @@ module Integrations
     end
 
     # Every changed file as the review reads it. Files the host gave no text for are read from the sandbox in one go,
-    # and one that cannot be read either is left out with why, never dropped without a word.
+    # and one that cannot be read either is left out with why, never dropped without a word. A credential in a file
+    # whose path does not say it holds secrets is taken out of its text.
     def diffs(row, files, checkout:, base_sha:, key:)
       missing = files.select { |file| file.patch.blank? && !file.binary && !secret?(file.path) && !secret?(file.previous_path) }
       read = missing.any? ? sandbox_read(row, checkout, base_sha, key) : {}
@@ -113,7 +116,8 @@ module Integrations
         next FileDiff.new(path: file.path, left_out: LEFT_OUT_UNREAD) unless given
         next FileDiff.new(path: file.path, left_out: LEFT_OUT_BINARY) if given.binary
 
-        FileDiff.new(path: file.path, text: "#{header(file)}#{given.patch.to_s.chomp}#{"\n" if given.patch.present?}")
+        text = "#{header(file)}#{given.patch.to_s.chomp}#{"\n" if given.patch.present?}"
+        FileDiff.new(path: file.path, text: Redactions.diff(text, **Redactions.rules(row.integration.provider)))
       end
     end
 
@@ -161,7 +165,7 @@ module Integrations
     def sandbox_read(row, checkout, base_sha, key)
       sandbox_files(row, checkout, base_sha: base_sha, key: key).index_by(&:path)
     rescue Error => error
-      Rails.logger.warn({ event: "review_host.sandbox_unread", integration_id: row.integration_id, error: error.message }.to_json)
+      Rails.logger.warn({ event: "review_host.sandbox_unread", integration_id: row.integration_id, error: redacted(row, error.message) }.to_json)
       {}
     end
 
@@ -174,6 +178,9 @@ module Integrations
       found = rest.match(%r{\Aa/(.+?) b/(.+)\z})
       found ? [ found[1], found[2] ] : [ rest, rest ]
     end
+
+    # As every other answer a provider gives is (Redactions), with the provider's own credential shapes.
+    def redacted(row, text) = Redactions.message(text, **Redactions.rules(row.integration.provider))
 
     def renamed(lines, prefix) = lines.find { |line| line.start_with?(prefix) }&.delete_prefix(prefix)&.chomp
 

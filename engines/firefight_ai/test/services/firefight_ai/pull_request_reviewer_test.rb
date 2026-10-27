@@ -62,7 +62,7 @@ class FirefightAi::PullRequestReviewerTest < ActiveSupport::TestCase
     reviewer.open(chat, tools: [], overview: { "The pull request" => "acme/api PR #7" })
 
     part = FirefightAi::PullRequestReviewer.parts([ [ "app/a.rb", diff("app/a.rb", 2) ] ]).first
-    chat.expects(:add_message).with(role: :user, content: all_of(includes("## Part 2 of 3"), includes("- app/a.rb"), includes("<tool_result tool=\"pull_request_diff\"")))
+    chat.expects(:add_message).with(role: :user, content: all_of(includes("## Part 2 of 3"), includes("<tool_result tool=\"#{FirefightAi::PullRequestReviewer::FRAME_FILES}\" trust=\"untrusted\">\n- app/a.rb"), includes("<tool_result tool=\"#{FirefightAi::PullRequestReviewer::FRAME_DIFF}\"")))
     answered = -> { true }
     purse = FirefightAi::AgentLoop::Purse.new(5)
     budget = FirefightAi::AgentLoop::Budget.new(max_spend_cents: 400, max_turns: 50, turns_used: 10, spent_micros: 5)

@@ -20,6 +20,15 @@ module Integrations
     # credential shapes taken out.
     def self.message(text, patterns: {}, **) = shaped(Chat::SecretFree.redacted(text.to_s), patterns)
 
+    # A diff with credentials and the provider's own credential shapes taken out, as message does, but a credential that
+    # spans lines, such as a private key, leaves each line break and the +, - or space after it, so the diff keeps its
+    # line count and its hunks still count right.
+    def self.diff(text, patterns: {}, **)
+      [ Chat::SecretFree::SECRET_PATTERNS, patterns ].reduce(text.to_s) do |kept, rules|
+        rules.reduce(kept) { |inner, (name, pattern)| inner.gsub(pattern) { |found| "[REDACTED:#{name}]#{found.scan(/\n[+\- ]?/).join}" } }
+      end
+    end
+
     # What a provider's definition says to redact from its answers.
     def self.rules(provider_key)
       provider = Provider.for(provider_key)

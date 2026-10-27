@@ -67,13 +67,18 @@ class PullRequestReview::Verification
     end
 
     finding, changed = PullRequestReview::Finding.transaction do
+      # The review's row is held until this commits, so two checks writing at once take positions one after the other.
+      PullRequestReview.where(id: review.id).lock.pick(:id)
       written = review.findings.create!(finding_attributes(settled))
       [ written, earlier!(settled.earlier, by: written) ]
     end
     check.settled!(PullRequestReview::Check::VERDICT_KEPT, reason: settled.reason, finding: finding, spent_micros: outcome.spent_micros)
     dropped = " Some evidence was left out: #{@proposal.dropped.join(' ')}" if @proposal.dropped.any?
     [ "Written as finding #{finding.position}#{' with the check\'s corrections' if settled.corrections.any?}.#{dropped}", *changed ].join(" ")
-  rescue ActiveRecord::RecordNotUnique
+  # Only the same problem written meanwhile by another worker is a duplicate. Any other unique index is a fault.
+  rescue ActiveRecord::RecordNotUnique => error
+    raise unless error.message.include?(PullRequestReview::Finding::FINGERPRINT_INDEX)
+
     check.settled!(PullRequestReview::Check::VERDICT_DROPPED, reason: "The same finding was written already.", spent_micros: outcome.spent_micros)
     "Not written again. The same finding was written already."
   end
@@ -101,21 +106,21 @@ class PullRequestReview::Verification
     end
   end
 
-  # What the check showed of each earlier finding it named, applied, said as the reviewer reads it.
+  # What the check showed of each earlier finding it named, applied, said as the reviewer reads it. A finding another
+  # worker withdrew or fixed meanwhile is left as it is and goes unsaid. They are written in the findings' order, so two
+  # checks touching the same findings lock them in the same order and never wait on each other.
   def earlier!(outcomes, by:)
     found = earlier_findings.index_by(&:position)
-    outcomes.filter_map do |outcome|
+    outcomes.sort_by(&:number).filter_map do |outcome|
       finding = found[outcome.number]
       next unless finding
 
       case outcome.outcome
       when PullRequestReview::SettleFinding::CONFIRM
-        finding.confirmed!(outcome.note, by: by)
-        "It confirmed finding #{finding.position}."
+        "It confirmed finding #{finding.position}." if finding.confirmed!(outcome.note, by: by)
       when PullRequestReview::SettleFinding::STRENGTHEN
         changes = outcome.changes.slice(*STRENGTHENABLE).select { |key, value| valid_correction?(key.to_sym, value) || key == "serious" && [ true, false ].include?(value) }
-        finding.strengthened!(outcome.note, by: by, **changes.symbolize_keys)
-        "It strengthened finding #{finding.position}."
+        "It strengthened finding #{finding.position}." if finding.strengthened!(outcome.note, by: by, **changes.symbolize_keys)
       when PullRequestReview::SettleFinding::WITHDRAW
         "It withdrew finding #{finding.position}: #{outcome.note}" if finding.withdraw!(outcome.note, by: by)
       end
