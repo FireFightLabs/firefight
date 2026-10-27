@@ -1,6 +1,6 @@
 # What a code host said about a pull request, acted on for Halon's review of it. Someone adding Firefight as a reviewer or
-# asking in a comment starts a review. A pull request that opens is reviewed when the workspace reviews every pull
-# request when it opens there. A push to one Halon reviewed is reviewed again, and each open thread's fix is checked. A
+# asking in a comment starts a review, and is told on the pull request why one that cannot start did not. A pull request
+# that opens is reviewed when the workspace reviews every pull request when it opens there. A push to one Halon reviewed is reviewed again, and each open thread's fix is checked. A
 # reply from a person on one of Halon's threads gets an answer, and a merge is recorded. A pull request Halon opened that
 # merged or closed is read for a lesson. Nothing here names a host.
 class PullRequestReviewSignals
@@ -15,7 +15,7 @@ class PullRequestReviewSignals
 
   def receive!(signal, attempt: 0)
     case signal.kind
-    when Integrations::PullRequestReviews::REQUESTED then start!(signal, PullRequestReview::TRIGGER_REQUESTED, attempt) if asked?(signal)
+    when Integrations::PullRequestReviews::REQUESTED then start!(signal, PullRequestReview::TRIGGER_REQUESTED, attempt, asked: true) if asked?(signal)
     when Integrations::PullRequestReviews::OPENED then start!(signal, PullRequestReview::TRIGGER_AUTOMATIC, attempt) if on_open?(signal)
     when Integrations::PullRequestReviews::PUSHED then pushed!(signal, attempt)
     when Integrations::PullRequestReviews::MERGED then merged!(signal)
@@ -32,8 +32,9 @@ class PullRequestReviewSignals
   end
 
   # A review of the pull request's head now, through this connection. A head reviewed already is not reviewed again, and
-  # a pull request whose review of an earlier head is still running is tried again once that one ends.
-  def start!(signal, trigger, attempt)
+  # a pull request whose review of an earlier head is still running is tried again once that one ends. asked is a person
+  # asking for it there, who is told on the pull request why one that cannot start did not.
+  def start!(signal, trigger, attempt, asked: false)
     return if reviewed?(signal)
 
     review = PullRequestReview::Start.call(workspace: @workspace, repository: signal.repository, number: signal.number, trigger: trigger, row: @row)
@@ -44,6 +45,7 @@ class PullRequestReviewSignals
   rescue PullRequestReview::Start::Refused, Integrations::Error => error
     Rails.logger.warn({ event: "pull_request_review.start_failed", integration_environment_id: @row.id, repository: signal.repository,
                         number: signal.number, error: error.class.name, message: error.message.truncate(300) }.to_json)
+    PullRequestReviewRefusalPosting.refused!(@row, signal, reason: error.reason) if asked && error.is_a?(PullRequestReview::Start::Refused) && error.reason
   end
 
   private
@@ -84,7 +86,7 @@ class PullRequestReviewSignals
   # A reply on one of Halon's threads is answered. Any other comment that asks Halon to review starts one.
   def commented!(signal, attempt)
     return if Integrations::PullRequestReviews.own?(@row, signal)
-    return start!(signal, PullRequestReview::TRIGGER_REQUESTED, attempt) if asked?(signal)
+    return start!(signal, PullRequestReview::TRIGGER_REQUESTED, attempt, asked: true) if asked?(signal)
     return unless signal.reply? && signal.person
 
     finding = thread_finding(signal)

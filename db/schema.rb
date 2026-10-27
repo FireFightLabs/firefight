@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_27_140100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_27_150100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -2797,12 +2797,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_140100) do
     t.uuid "overridden_by_id"
     t.datetime "overridden_at"
     t.text "override_reason"
+    t.jsonb "unposted_replies", default: [], null: false
     t.index ["lesson_id"], name: "index_pull_request_review_findings_on_lesson_id"
     t.index ["overridden_by_id"], name: "index_pull_request_review_findings_on_overridden_by_id"
     t.index ["pull_request_review_id", "fingerprint"], name: "index_pull_request_review_findings_on_fingerprint", unique: true
     t.index ["pull_request_review_id", "position"], name: "index_pull_request_review_findings_in_order", unique: true
     t.check_constraint "severity::text = ANY (ARRAY['critical'::character varying, 'major'::character varying, 'minor'::character varying, 'trivial'::character varying]::text[])", name: "pull_request_review_findings_severity"
     t.check_constraint "status::text = ANY (ARRAY['open'::character varying, 'fixed'::character varying, 'withdrawn'::character varying]::text[])", name: "pull_request_review_findings_status"
+  end
+
+  create_table "pull_request_review_refusals", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "integration_environment_id"
+    t.string "repository", null: false
+    t.integer "number", null: false
+    t.string "reference", null: false
+    t.string "reason", null: false
+    t.string "comment_id"
+    t.datetime "posted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["integration_environment_id"], name: "index_pull_request_review_refusals_on_environment"
+    t.index ["workspace_id", "reference"], name: "index_pull_request_review_refusals_once", unique: true
   end
 
   create_table "pull_request_reviews", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -4084,6 +4100,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_140100) do
   add_foreign_key "pull_request_review_findings", "chat_memories", column: "lesson_id", on_delete: :nullify
   add_foreign_key "pull_request_review_findings", "pull_request_reviews", on_delete: :cascade
   add_foreign_key "pull_request_review_findings", "workspace_memberships", column: "overridden_by_id", on_delete: :nullify
+  add_foreign_key "pull_request_review_refusals", "integration_environments", on_delete: :nullify
+  add_foreign_key "pull_request_review_refusals", "workspaces", on_delete: :cascade
   add_foreign_key "pull_request_reviews", "integration_environments", on_delete: :nullify
   add_foreign_key "pull_request_reviews", "workspaces"
   add_foreign_key "repository_setups", "integrations"

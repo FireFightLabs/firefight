@@ -4,6 +4,7 @@ import { IconGitPullRequest } from "@tabler/icons-react"
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { formatDateTime } from "@/lib/formatters"
 import { newTabAttributes } from "@/lib/links"
 import { PreventedEvidence } from "@/pages/halon/components/prevented-evidence"
 import type { PullRequestReviewFinding, PullRequestReviewPage } from "@/types/serializers"
@@ -90,6 +91,21 @@ function FindingCard({ finding }: { finding: PullRequestReviewFinding }) {
           <a href={finding.commentUrl} {...newTabAttributes(finding.commentUrl)} className="text-link underline underline-offset-2">
             Open the comment on the pull request
           </a>
+        )}
+        {finding.unpostedReplies.length > 0 && (
+          <div>
+            <p className="font-medium text-fg-primary">Not posted on the pull request</p>
+            <ul className="mt-1 flex flex-col gap-3">
+              {finding.unpostedReplies.map((reply) => (
+                <li key={`${reply.at}-${reply.body}`}>
+                  <p className="whitespace-pre-wrap">{reply.body}</p>
+                  <p className="mt-1 text-xs text-fg-secondary">
+                    {formatDateTime(reply.at)}. {reply.reason}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </CardContent>
     </Card>

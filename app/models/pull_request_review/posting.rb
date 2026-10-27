@@ -19,12 +19,24 @@ module PullRequestReview::Posting
   # Every call that posts or reads for the review on the code host is made as Halon's review agent, which holds exactly
   # the tools a review posts and checks a fix through, never a person's reach. Approval rules still apply, and the
   # activity log names the pull request.
-  # approval_id is the approval a held call was given, which only that same call may use.
-  def authorize_post!(tool, arguments, approval_id: nil, &)
-    AbilityGateway.authorize!(
-      principal: SystemAgent.pull_request_review, action_key: tool.action_key, workspace: workspace, scope: {}, params: arguments,
-      context: { source: AbilityGateway::SOURCE_PULL_REQUEST_REVIEW, triggered_by_label: "PR ##{number} in #{repository}", approval_id: approval_id }.compact, &
-    )
+  # approval_id is the approval a held call was given, which only that same call may use. explained keeps the host's own
+  # words in the activity log for a call it refused, as a reply on a thread that was deleted, where nothing else says why.
+  def authorize_post!(tool, arguments, approval_id: nil, explained: false, &run)
+    return gateway_post!(tool, arguments, approval_id, &run) unless explained
+
+    refused = nil
+    answered = gateway_post!(tool, arguments, approval_id) do |authorization|
+      result = run.call
+      authorization.answer_failed!(Integrations::Capabilities::Answers.text(result)) if result.is_a?(Hash) && result["isError"]
+      result
+    rescue Integrations::Error => error
+      authorization.answer_failed!(error.message)
+      refused = error
+      nil
+    end
+    raise refused if refused
+
+    answered
   end
 
   # The summary comment this pull request already has, from this review or an earlier one.
@@ -70,5 +82,14 @@ module PullRequestReview::Posting
   def open_threads
     PullRequestReview::Finding.where(pull_request_review_id: self.class.of_same_pull_request(self).select(:id))
                               .still_open.where.not(host_comment_id: nil).includes(:review)
+  end
+
+  private
+
+  def gateway_post!(tool, arguments, approval_id, &)
+    AbilityGateway.authorize!(
+      principal: SystemAgent.pull_request_review, action_key: tool.action_key, workspace: workspace, scope: {}, params: arguments,
+      context: { source: AbilityGateway::SOURCE_PULL_REQUEST_REVIEW, triggered_by_label: "PR ##{number} in #{repository}", approval_id: approval_id }.compact, &
+    )
   end
 end

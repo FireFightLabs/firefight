@@ -37,6 +37,7 @@ class PullRequestReview::StartTest < ActiveJob::TestCase
       PullRequestReview::Start.call(workspace: @workspace, repository: "acme/api", number: 7, trigger: PullRequestReview::TRIGGER_REQUESTED)
     end
     assert_equal "Halon has no access to read GitHub, so it cannot review this pull request.", error.message
+    assert_equal PullRequestReview::Refusal::NO_ACCESS, error.reason
     assert_empty @workspace.pull_request_reviews
   end
 
@@ -66,10 +67,18 @@ class PullRequestReview::StartTest < ActiveJob::TestCase
       PullRequestReview::Start.call(workspace: @workspace, repository: "acme/other", number: 1, trigger: PullRequestReview::TRIGGER_REQUESTED)
     end
     assert_equal "No code host connected to this workspace holds acme/other on its resource map, so Halon cannot read it.", error.message
+    assert_equal PullRequestReview::Refusal::NO_CONNECTION, error.reason
 
     Investigation.stubs(:unavailable_reason).returns("AI features are not available.")
-    assert_raises(PullRequestReview::Start::Refused) do
+    error = assert_raises(PullRequestReview::Start::Refused) do
       PullRequestReview::Start.call(workspace: @workspace, repository: "acme/api", number: 7, trigger: PullRequestReview::TRIGGER_REQUESTED)
     end
+    assert_equal PullRequestReview::Refusal::HALON_UNAVAILABLE, error.reason
+
+    Investigation.stubs(:unavailable_reason).returns(Investigation::MODEL_NOT_SET_UP)
+    error = assert_raises(PullRequestReview::Start::Refused) do
+      PullRequestReview::Start.call(workspace: @workspace, repository: "acme/api", number: 7, trigger: PullRequestReview::TRIGGER_REQUESTED)
+    end
+    assert_equal PullRequestReview::Refusal::MODEL_NOT_SET_UP, error.reason
   end
 end
