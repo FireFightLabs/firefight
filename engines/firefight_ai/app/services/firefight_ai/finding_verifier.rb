@@ -63,7 +63,7 @@ module FirefightAi
     def material(finding, earlier, context)
       [
         "## The finding to check\n#{Evidence.frame(FRAME_FINDING, finding)}",
-        "## Findings already written\n#{earlier.presence || '(none yet)'}",
+        "## Findings already written\n#{earlier.present? ? Evidence.frame(PullRequestReviewer::FRAME_FINDINGS, earlier) : '(none yet)'}",
         "## The pull request\n#{context}"
       ].join("\n\n")
     end

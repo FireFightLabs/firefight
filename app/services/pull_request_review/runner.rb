@@ -115,18 +115,19 @@ class PullRequestReview::Runner
       Chat::SavedResult.where(chat_id: chats).find_each.any? { |saved| saved.content.to_s.include?(text) }
   end
 
-  # What a check of a finding on path needs about the pull request.
+  # What a check of a finding on path needs about the pull request. Everything its author wrote, its title, the head's
+  # repository and the file's path among it, is framed.
   def check_context(path)
     diff = @patches[path]
     [
-      "#{review.repository} PR ##{review.number}: #{review.title}",
-      "The head is #{@checkout.ref} in #{@checkout.repository}, and the base is #{review.base_sha}. Read the code with those as the ref.",
+      "#{review.repository} PR ##{review.number}\n#{framed("Title: #{review.title}")}",
+      reading_code,
       if diff
-        "The pull request's diff of #{path}:\n#{FirefightAi::Evidence.frame(FirefightAi::PullRequestReviewer::FRAME_DIFF, diff.truncate(CHECK_DIFF_LIMIT))}"
+        "The pull request's diff of the finding's file:\n#{FirefightAi::Evidence.frame(FirefightAi::PullRequestReviewer::FRAME_DIFF, diff.truncate(CHECK_DIFF_LIMIT))}"
       elsif @changed_paths.include?(path)
-        "The pull request changes #{path}, but its diff is left out of the review."
+        "The pull request changes the finding's file, but its diff is left out of the review."
       else
-        "The pull request does not change #{path}."
+        "The pull request does not change the finding's file."
       end
     ].join("\n\n")
   end
@@ -220,18 +221,31 @@ class PullRequestReview::Runner
     in_part = parts.each_with_index.with_object({}) { |(part, index), found| part.paths.each { |path| found[path] ||= index + 1 } }
     {
       "The pull request" => pull_request_text,
-      "Its files" => files_text(in_part),
-      "Reading its code" => "The head is #{@checkout.ref} in #{@checkout.repository}, and the base is #{review.base_sha}. " \
-                            "Read the code with those as the ref.",
+      "Its files" => FirefightAi::Evidence.frame(FirefightAi::PullRequestReviewer::FRAME_FILES, files_text(in_part)),
+      "Reading its code" => reading_code,
       **context.sections
     }
   end
 
+  # Its title, author, branches, the fork it comes from and its description are all its author's words, so they are
+  # framed together.
   def pull_request_text
-    described = FirefightAi::Evidence.frame(FirefightAi::PullRequestReviewer::FRAME_DESCRIPTION, @pull.body.presence || "(no description)")
-    "#{review.repository} PR ##{review.number}: #{@pull.title}\nBy #{@pull.author || 'someone unknown'}, from #{@pull.head_ref} into #{@pull.base_ref}." \
-      "#{' It is a draft.' if @pull.draft}#{" It comes from the fork #{@pull.head_repository}." if @pull.fork?}\n#{described}"
+    written = [
+      "Title: #{@pull.title}",
+      "By #{@pull.author || 'someone unknown'}, from #{@pull.head_ref} into #{@pull.base_ref}.#{" It comes from the fork #{@pull.head_repository}." if @pull.fork?}",
+      "",
+      @pull.body.presence || "(no description)"
+    ].join("\n")
+    "#{review.repository} PR ##{review.number}#{', a draft' if @pull.draft}\n#{framed(written)}"
   end
+
+  # The head's repository is a fork's name when it comes from one, which its author chose.
+  def reading_code
+    "The head is #{@checkout.ref} and the base is #{review.base_sha}. Read the code with those as the ref, in the repository the head is read from:\n" \
+      "#{framed(@checkout.repository)}"
+  end
+
+  def framed(text) = FirefightAi::Evidence.frame(FirefightAi::PullRequestReviewer::FRAME_PULL_REQUEST, text)
 
   def files_text(in_part = {})
     @files.map do |file|

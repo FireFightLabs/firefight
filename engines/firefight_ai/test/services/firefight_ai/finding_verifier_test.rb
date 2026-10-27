@@ -24,7 +24,7 @@ class FirefightAi::FindingVerifierTest < ActiveSupport::TestCase
     chat.stubs(:with_caching)
     chat.expects(:with_instructions).with(FirefightAi::FindingVerifier.system_prompt, cache_until_here: true)
     chat.expects(:add_message).with(role: :user, content: all_of(
-      includes("<tool_result tool=\"#{FirefightAi::FindingVerifier::FRAME_FINDING}\" trust=\"untrusted\">\nLock the draft"), includes("## Findings already written\n1. Earlier"),
+      includes("<tool_result tool=\"#{FirefightAi::FindingVerifier::FRAME_FINDING}\" trust=\"untrusted\">\nLock the draft"), includes("## Findings already written\n<tool_result tool=\"#{FirefightAi::PullRequestReviewer::FRAME_FINDINGS}\" trust=\"untrusted\">\n1. Earlier"),
       includes("## The pull request\nacme/api PR #7")
     ))
     settled = -> { true }

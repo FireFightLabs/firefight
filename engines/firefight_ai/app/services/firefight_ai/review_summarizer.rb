@@ -23,8 +23,8 @@ module FirefightAi
         chat.with_schema(Schemas::PullRequestSummary)
         chat.ask([
           "## The pull request\n#{Evidence.frame(PullRequestReviewer::FRAME_PULL_REQUEST, pull_request.to_s.truncate(PART_LIMIT))}",
-          "## Its files\n#{files.to_s.truncate(PART_LIMIT)}",
-          "## The findings the review wrote\n#{findings.presence || '(none)'}",
+          "## Its files\n#{Evidence.frame(PullRequestReviewer::FRAME_FILES, files.to_s.truncate(PART_LIMIT))}",
+          "## The findings the review wrote\n#{findings.present? ? Evidence.frame(PullRequestReviewer::FRAME_FINDINGS, findings) : '(none)'}",
           "## What depends on it\n#{reach.presence || '(nothing the map knows)'}"
         ].join("\n\n"))
       end

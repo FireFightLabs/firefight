@@ -82,6 +82,9 @@ module PullRequestReviewTestHelper
     PullRequestReview::Agent.any_instance.stubs(:tools).returns([ [], [] ])
   end
 
+  # What is left of text once every frame is taken out, which the model reads as Firefight's own words.
+  def outside_frames(text) = text.to_s.gsub(%r{<tool_result [^>]*>.*?</tool_result>}m, "")
+
   def review_summary(risk: "high", spent_micros: 0)
     FirefightAi::ReviewSummarizer::Summary.new(summary: "Retries a failed charge.", risk: risk, risk_reason: "It can charge twice.", spent_micros: spent_micros)
   end
