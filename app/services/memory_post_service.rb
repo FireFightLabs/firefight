@@ -95,22 +95,15 @@ class MemoryPostService
     return "That memory is gone. Close this and look on the Memory page." unless memory
     return "Write what is right instead." if correction.blank?
 
-    edit = -> { memory.edit_by!(by: member, words: correction, reason: reason.presence || "Corrected in #{post.place}") }
-    edited = if memory.keeps_approval_through_edit?(member)
-      request = lesson_decision(memory, member)
-      return LESSON_EDIT_HELD if held?(request)
-
-      AbilityGateway.authorize!(**request) { edit.call }
-    else
-      edit.call
-    end
+    edited = memory.edit_without_waiting!(by: member, words: correction, reason: reason.presence || "Corrected in #{post.place}",
+                                          source: AbilityGateway::SOURCE_SLACK)
     return memory.edit_blocked_reason(member) unless edited
 
     redraw(post)
     nil
   rescue AbilityGateway::Denied => denied
     AuthorizedDispatch.denied_message(denied)
-  rescue AbilityGateway::PendingApproval
+  rescue Chat::Memory::Lesson::EditHeld
     LESSON_EDIT_HELD
   rescue ActiveRecord::RecordInvalid => error
     error.record.errors.full_messages.to_sentence
@@ -141,20 +134,6 @@ class MemoryPostService
     post&.destroy!
     Rails.logger.info({ event: "memory_post.person_behind_not_told", memory_id: memory.id, error: error.class.name }.to_json)
     nil
-  end
-
-  # Keeping an approved lesson approved through an edit is a decision on it, asked through the gateway with its approval rules.
-  def lesson_decision(memory, member)
-    { principal: member, action_key: Ability::Action::LESSON_DECIDE, workspace: @workspace, scope: memory.decide_scope,
-      params: { Chat::Memory::Lesson::SCOPE_LESSON => memory.id }, context: { source: AbilityGateway::SOURCE_SLACK } }
-  end
-
-  # Whether an approval rule would hold the decision, checked before anything is asked, since nothing could pick the form
-  # up again once approved.
-  def held?(request)
-    action = Ability::Action.lookup(request[:action_key], @workspace)
-    action.present? && AbilityGateway.approval_requirement(@workspace, action, request[:action_key], request[:scope], request[:context],
-                                                           params: request[:params], principal: request[:principal]).present?
   end
 
   # The person was told about this memory with these very words already, so a second job for the same dispute sends nothing.

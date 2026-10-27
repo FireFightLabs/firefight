@@ -13,6 +13,9 @@ module Chat::Memory::Lesson
   STATUS_APPROVED = "approved".freeze
   STATUS_TURNED_DOWN = "turned_down".freeze
   STATUSES = [ STATUS_WAITING, STATUS_APPROVED, STATUS_TURNED_DOWN ].freeze
+  # An edit from a form that cannot wait for an approval would need one to keep the lesson approved.
+  class EditHeld < StandardError; end
+
   # What an edit came to (edit_by!): corrected, so memory is what stands now, kept as still right, or nothing changed.
   EDIT_CORRECTED = :corrected
   EDIT_KEPT = :kept
@@ -201,6 +204,21 @@ module Chat::Memory::Lesson
 
   def keeps_approval_through_edit?(by) = approved? && edit_lesson_blocked_reason(by).nil?
 
+  # edit_by! from a form that cannot wait for an approval, such as one in Slack. Keeping the lesson approved is a decision
+  # on it, asked through the gateway as lessons.decide from source. One an approval rule would hold raises EditHeld
+  # before anything is asked, since nothing could pick the form up again, and one the gateway refuses raises its Denied.
+  def edit_without_waiting!(by:, words:, reason:, source:)
+    return edit_by!(by: by, words: words, reason: reason) unless keeps_approval_through_edit?(by)
+
+    request = { principal: by, action_key: Ability::Action::LESSON_DECIDE, workspace: workspace, scope: decide_scope,
+                params: { SCOPE_LESSON => id }, context: { source: source } }
+    raise EditHeld if decision_held?(request)
+
+    AbilityGateway.authorize!(**request) { edit_by!(by: by, words: words, reason: reason) }
+  rescue AbilityGateway::PendingApproval
+    raise EditHeld
+  end
+
   # Why the memory itself refused an edit. A refusal from the gateway is said by the caller that asked it.
   def edit_blocked_reason(by)
     reject_blocked_reason || (edit_lesson_blocked_reason(by) if lesson?) || "It changed meanwhile. Look at it again on the Memory page."
@@ -218,6 +236,12 @@ module Chat::Memory::Lesson
   def announce_lesson_change(finding_ids = held_finding_ids) = self.class.announce_findings_changed(finding_ids)
 
   private
+
+  def decision_held?(request)
+    action = Ability::Action.lookup(request[:action_key], workspace)
+    action.present? && AbilityGateway.approval_requirement(workspace, action, request[:action_key], request[:scope], request[:context],
+                                                           params: request[:params], principal: request[:principal]).present?
+  end
 
   def approve_state_blocked_reason
     return TURNED_DOWN_REASON if state == Chat::Memory::STATE_REJECTED
