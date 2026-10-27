@@ -74,12 +74,15 @@ module Chat::Memory::Checking
   # How it stands, or nil when it is not in use and its state says it all.
   def standing
     return nil unless in_use?
-    return STANDING_PERSON if confirmed_by_id
+    return STANDING_PERSON if person_behind?
     return STANDING_POSTMORTEM if confirmed? && decided_by_postmortem_id
     return STANDING_HALON if confirmed? && decided_by_halon
 
     STANDING_UNCHECKED
   end
+
+  # Confirmed by Halon's check alone, with no person or postmortem behind it.
+  def checked_by_halon_alone? = confirmed? && decided_by_halon && confirmed_by_id.nil? && decided_by_postmortem_id.nil?
 
   # Rejected by Halon's own check, never by a person, so Halon may check it again and restore it.
   def rejected_by_halon? = state == Chat::Memory::STATE_REJECTED && decided_by_halon && rejected_by_id.nil?

@@ -111,7 +111,7 @@ module Slack
         by = " by #{Slack::Mrkdwn.escape(memory.decided_by)}" if memory.decided_by
         case memory.state
         when Chat::Memory::STATE_CONFIRMED
-          return ":white_check_mark: Checked by Halon against production" if memory.standing == Chat::Memory::STANDING_HALON
+          return ":white_check_mark: Checked by Halon against production" if memory.checked_by_halon
 
           ":white_check_mark: Confirmed#{by}"
         when Chat::Memory::STATE_REJECTED

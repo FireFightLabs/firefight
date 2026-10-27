@@ -184,6 +184,17 @@ class Chat::MemoryTest < ActiveSupport::TestCase
     assert_nil old.confirm_blocked_reason, "a person can still confirm an expired memory"
   end
 
+  test "a lesson a person approved for pull request reviews never expires, the same as a memory a person confirmed" do
+    @workspace.update!(memory_expiry_days: 30)
+    lesson = Chat::Memory.create!(workspace: @workspace, text: "Checkout retries go up when the payment timeout changes", state: Chat::Memory::STATE_UNCONFIRMED,
+                                  source: incidents(:active_critical_ws1))
+    assert lesson.approve!(by: workspace_memberships(:alice_workspace_one))
+    lesson.update_columns(updated_at: 90.days.ago)
+
+    assert_equal 0, Chat::Memory.expire!(@workspace)
+    assert_equal [ Chat::Memory::STATE_UNCONFIRMED, Chat::Memory::Lesson::STATUS_APPROVED ], [ lesson.reload.state, lesson.lesson_status ]
+  end
+
   test "learning an unconfirmed memory again restarts its wait, so it expires counted from the last time it was learned" do
     @workspace.update!(memory_expiry_days: 30)
     relearned = remember("Deploys happen from main")

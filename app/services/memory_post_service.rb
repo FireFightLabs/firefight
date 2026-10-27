@@ -8,11 +8,13 @@ class MemoryPostService
   Shown = Data.define(:post_id, :kind, :incident_identifier, :memories, :reminder, :approved_lesson) do
     def initialize(post_id:, kind:, incident_identifier:, memories:, reminder: nil, approved_lesson: false) = super
   end
-  ShownMemory = Data.define(:id, :text, :about, :about_removed, :state, :reason, :decided_by, :correction, :standing)
+  # checked_by_halon is set when Halon's check alone confirmed it.
+  ShownMemory = Data.define(:id, :text, :about, :about_removed, :state, :reason, :decided_by, :correction, :checked_by_halon)
   # What an earlier reminder was about: how many of its memories the person it went to taught, how many the team's runs and
   # incidents taught, and whether it went to a person rather than a channel.
   ShownReminder = Data.define(:taught, :learned, :direct)
 
+  CHANGED_MEANWHILE = "It changed meanwhile. Close this and look on the Memory page.".freeze
   NOT_POSTED = [ AdapterError::IsArchived, AdapterError::NotFound, AdapterError::NotInChannel ].freeze
   # Errors that pass, so the job sending the message tries again rather than giving up.
   PASSING = [ AdapterError::RateLimited, AdapterError::ServerError, AdapterError::Unavailable ].freeze
@@ -88,8 +90,13 @@ class MemoryPostService
     return "That memory is gone. Close this and look on the Memory page." unless memory
     return "Write what is right instead." if correction.blank?
 
-    replacement = memory.reject!(by: member, reason: reason.presence || "Corrected in #{post.place}", correction: correction.strip)
-    return memory.reject_blocked_reason unless replacement
+    if lesson_edit?(post, memory, member)
+      replacement = edit_lesson!(memory, member, correction.strip)
+      return memory.edit_lesson_blocked_reason(member) || memory.approve_blocked_reason(member) || CHANGED_MEANWHILE unless replacement
+    else
+      replacement = memory.reject!(by: member, reason: reason.presence || "Corrected in #{post.place}", correction: correction.strip)
+      return memory.reject_blocked_reason unless replacement
+    end
 
     redraw(post)
     nil
@@ -124,6 +131,22 @@ class MemoryPostService
     nil
   end
 
+  # An approved lesson edited in a message about evidence against it, by someone who may decide on lessons, stays
+  # approved with its strictness, as an edit on the Lessons tab does. Anyone else corrects it as any memory.
+  def lesson_edit?(post, memory, member)
+    post.kind == Chat::MemoryPost::KIND_CHALLENGED && memory.approved? && memory.edit_lesson_blocked_reason(member).nil?
+  end
+
+  # Nothing could resume a form after an approval, so the decision is never held.
+  def edit_lesson!(memory, member, words)
+    AbilityGateway.authorize!(principal: member, action_key: Ability::Action::LESSON_DECIDE, workspace: @workspace, scope: memory.decide_scope,
+                              params: { "lesson" => memory.id }, context: { source: AbilityGateway::SOURCE_SLACK }, holdable: false) do
+      memory.edit_lesson!(by: member, text: words, strict: memory.strict)
+    end
+  rescue AbilityGateway::Denied
+    nil
+  end
+
   # The person was told about this memory with these very words already, so a second job for the same dispute sends nothing.
   def told_already?(memory, person)
     Chat::MemoryPost.where(workspace: @workspace, kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: person).where("? = ANY(memory_ids)", memory.id)
@@ -138,7 +161,7 @@ class MemoryPostService
   def shown_memory(memory)
     ShownMemory.new(id: memory.id, text: memory.text, about: memory.about, about_removed: memory.about_removed?, state: memory.state,
                     reason: memory.state_reason, decided_by: (memory.decider if [ Chat::Memory::STATE_CONFIRMED, Chat::Memory::STATE_REJECTED ].include?(memory.state)),
-                    correction: memory.replaced_by&.text, standing: memory.standing)
+                    correction: memory.replaced_by&.text, checked_by_halon: memory.checked_by_halon_alone?)
   end
 
   # A memory about a resource outside the person's map reach answers as one the message does not show.

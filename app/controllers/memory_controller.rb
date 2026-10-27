@@ -24,7 +24,7 @@ class MemoryController < InertiaController
   before_action :require_agent!
 
   def index
-    memories = self.memories.includes(:subject, :source, :added_by, :confirmed_by, :rejected_by, events: { member: :user }).order(updated_at: :desc)
+    memories = self.memories.includes(:subject, :source, :added_by, :confirmed_by, :approved_by, :rejected_by, events: { member: :user }).order(updated_at: :desc)
 
     render inertia: "memory/index", props: {
       memories: ChatMemorySerializer.many(memories, runs: openable_runs(memories)),

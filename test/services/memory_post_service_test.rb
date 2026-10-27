@@ -164,4 +164,54 @@ class MemoryPostServiceTest < ActiveSupport::TestCase
     assert_equal "Halon found evidence against a memory you confirmed", Slack::Messages::LearnedMemories.plain_title(service.shown(to_bob))
     assert_equal "Halon found evidence against a lesson you approved", Slack::Messages::LearnedMemories.plain_title(service.shown(to_approver))
   end
+
+  test "Edit in a message about evidence against an approved lesson keeps it approved, strict as it was, when the editor may decide on lessons" do
+    lesson = challenged_lesson(strict: true)
+    post = Chat::MemoryPost.create!(workspace: @workspace, kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: @member, channel_id: "D9", memory_ids: [ lesson.id ])
+
+    assert_nil MemoryPostService.new(@workspace).correct!(post_id: post.id, memory_id: lesson.id, member: @member,
+                                                          correction: "Checkout retries go up when the payment timeout drops", reason: nil)
+
+    replacement = lesson.reload.replaced_by
+    assert_equal Chat::Memory::STATE_REJECTED, lesson.state
+    assert_equal [ "Checkout retries go up when the payment timeout drops", @member, true, Chat::Memory::Lesson::STATUS_APPROVED ],
+                 [ replacement.text, replacement.approved_by, replacement.strict, replacement.lesson_status ]
+    entry = @workspace.ability_invocations.find_by!(action_key: Ability::Action::LESSON_DECIDE, principal: @member)
+    assert_equal AbilityGateway::SOURCE_SLACK, entry.source
+  end
+
+  test "Edit by someone who may not decide on lessons corrects it as before, without approving the new words" do
+    bob = workspace_memberships(:bob_workspace_one)
+    lesson = challenged_lesson
+    post = Chat::MemoryPost.create!(workspace: @workspace, kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: bob, channel_id: "D8", memory_ids: [ lesson.id ])
+
+    assert_nil MemoryPostService.new(@workspace).correct!(post_id: post.id, memory_id: lesson.id, member: bob,
+                                                          correction: "Checkout retries go up when the payment timeout drops", reason: "It moved")
+
+    replacement = lesson.reload.replaced_by
+    assert_equal [ "It moved", bob, nil ], [ lesson.state_reason, replacement.confirmed_by, replacement.approved_by ]
+    assert_equal Chat::Memory::Lesson::STATUS_WAITING, replacement.lesson_status
+  end
+
+  test "a channel message about an approved lesson Halon confirmed still says Halon checked it" do
+    lesson = challenged_lesson
+    lesson.confirm!(by: @member)
+    lesson.update_columns(confirmed_by_id: nil, decided_by_halon: true)
+    post = Chat::MemoryPost.create!(workspace: @workspace, incident: @incident, kind: Chat::MemoryPost::KIND_INCIDENT, channel_id: @incident.channel_id,
+                                    memory_ids: [ lesson.id ])
+
+    blocks = Slack::Messages::LearnedMemories.build(MemoryPostService.new(@workspace).shown(post))
+
+    assert_includes blocks.flat_map { |block| Array(block[:elements]).map { |element| element[:text] } }.join(" "), ":white_check_mark: Checked by Halon against production"
+  end
+
+  private
+
+  def challenged_lesson(strict: false)
+    lesson = Chat::Memory.create!(workspace: @workspace, text: "Checkout retries go up when the payment timeout changes", state: Chat::Memory::STATE_UNCONFIRMED,
+                                  source: @incident)
+    assert lesson.approve!(by: @member, strict: strict)
+    lesson.dispute!("Halon checked it against production and found otherwise.")
+    lesson
+  end
 end

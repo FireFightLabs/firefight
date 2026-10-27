@@ -44,6 +44,13 @@ class ChatMemorySerializer < BaseSerializer
   type :string, optional: true
   def confirmed_by = memory.confirmed_by&.display_name
 
+  # Who approved it as a lesson for pull request reviews, and when, which stands behind it like a confirmation.
+  type :string, optional: true
+  def approved_by = (memory.approved_by&.display_name if memory.approved?)
+
+  type :string, optional: true
+  def approved_at = memory.approved_at&.utc&.iso8601
+
   # A completed postmortem made the last decision, whoever completed it.
   type :boolean
   def decided_by_postmortem = memory.decided_by_postmortem_id.present?
@@ -52,7 +59,8 @@ class ChatMemorySerializer < BaseSerializer
   type :boolean
   def decided_by_halon = memory.decided_by_halon
 
-  # Who stands behind a memory in use: a person, a postmortem, Halon's check, or nobody yet. Nil when it is not in use.
+  # Who stands behind a memory in use: a person (confirmed, or approved as a lesson), a postmortem, Halon's check, or nobody
+  # yet. Nil when it is not in use.
   type "ChatMemoryStanding", optional: true
   def standing = memory.standing
 

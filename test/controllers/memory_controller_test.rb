@@ -48,6 +48,17 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ checked, tried, yours ].map(&:id).sort, shown.values.map { |memory| memory["id"] }.sort
   end
 
+  test "a lesson a person approved for pull request reviews stands as a person behind it, named with when they approved it" do
+    lesson = taught("Checkout retries go up when the payment timeout changes")
+    assert lesson.approve!(by: @member)
+
+    get memory_path, headers: inertia_headers
+
+    shown = inertia_props["memories"].find { |memory| memory["id"] == lesson.id }
+    assert_equal [ Chat::Memory::STANDING_PERSON, @member.display_name, lesson.reload.approved_at.utc.iso8601, nil ],
+                 shown.values_at("standing", "approvedBy", "approvedAt", "confirmedBy")
+  end
+
   test "Halon's evidence links to the run that checked it, which opens on its own page" do
     review = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.current, removal_cap: 3)
     run = @workspace.investigations.create!(subject: review, trigger_source: Investigation::TRIGGER_MEMORY_REVIEW, max_turns: 4, max_spend_cents: 400)

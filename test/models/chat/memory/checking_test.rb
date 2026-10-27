@@ -371,6 +371,15 @@ class Chat::Memory::CheckingTest < ActiveSupport::TestCase
     assert_equal 0, @review.reload.removals
   end
 
+  test "an approved lesson stands as a person behind it, whatever Halon's check made of it" do
+    lesson = approved_lesson("web deploys from main")
+    assert_equal Chat::Memory::STANDING_PERSON, lesson.standing
+
+    lesson.verified_by_halon!(evidence: "The deploy settings of web name main.", review: @review)
+
+    assert_equal Chat::Memory::STANDING_PERSON, lesson.reload.standing
+  end
+
   test "shown right, an approved lesson keeps its approval and is recorded as one a person stands behind" do
     lesson = approved_lesson("web deploys from main")
 

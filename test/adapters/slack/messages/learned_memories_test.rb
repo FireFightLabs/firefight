@@ -28,7 +28,7 @@ class Slack::Messages::LearnedMemoriesTest < ActiveSupport::TestCase
   end
 
   test "a memory Halon checked says so, and one merged says it lives on in another" do
-    checked = build(Chat::MemoryPost::KIND_INCIDENT, memory(Chat::Memory::STATE_CONFIRMED, decided_by: "Halon", standing: Chat::Memory::STANDING_HALON))
+    checked = build(Chat::MemoryPost::KIND_INCIDENT, memory(Chat::Memory::STATE_CONFIRMED, decided_by: "Halon", checked_by_halon: true))
     merged = build(Chat::MemoryPost::KIND_INCIDENT, memory(Chat::Memory::STATE_MERGED, reason: "It says the same as \"Sessions are in Redis\"."))
 
     assert_includes context_text(checked), ":white_check_mark: Checked by Halon against production"
@@ -83,9 +83,9 @@ class Slack::Messages::LearnedMemoriesTest < ActiveSupport::TestCase
 
   private
 
-  def memory(state, text: "Sessions live in Redis", about: nil, about_removed: false, reason: nil, decided_by: nil, correction: nil, standing: nil)
+  def memory(state, text: "Sessions live in Redis", about: nil, about_removed: false, reason: nil, decided_by: nil, correction: nil, checked_by_halon: false)
     Memory.new(id: "memory-1", text: text, about: about, about_removed: about_removed, state: state, reason: reason, decided_by: decided_by,
-               correction: correction, standing: standing)
+               correction: correction, checked_by_halon: checked_by_halon)
   end
 
   def build(kind, *memories) = Slack::Messages::LearnedMemories.build(Shown.new(post_id: "post-1", kind: kind, incident_identifier: "INC-007", memories: memories))

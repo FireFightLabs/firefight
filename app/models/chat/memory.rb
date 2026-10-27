@@ -346,23 +346,20 @@ class Chat::Memory < ApplicationRecord
   end
 
   # An unconfirmed memory nobody confirmed within the workspace's window stops being used, counted from when it was
-  # last learned, learned again or came back into use. Returns how many expired.
+  # last learned, learned again or came back into use. A lesson a person approved has a person behind it, so it never
+  # expires, the same as one a person confirmed. Returns how many expired.
   def self.expire!(workspace)
     days = workspace.memory_expiry_days
     return 0 unless days
 
     reason = "Nobody confirmed it within #{days} days."
-    expiring = where(workspace: workspace, state: STATE_UNCONFIRMED).where(updated_at: ...days.days.ago)
-    # An approved lesson that expires stops holding its findings, so they are named before and said after.
-    held = held_finding_ids_of(expiring.where.not(approved_at: nil).select(:id))
-    expired = transaction do
+    expiring = where(workspace: workspace, state: STATE_UNCONFIRMED, approved_at: nil).where(updated_at: ...days.days.ago)
+    transaction do
       moved = moved_ids(expiring, [ STATE_UNCONFIRMED ],
                         [ "state = ?, state_reason = ?, updated_at = ?", STATE_EXPIRED, stored_reason(reason), Time.current ])
       record_moved!(moved, Chat::MemoryEvent::KIND_EXPIRED, detail: reason)
       moved.size
     end
-    announce_findings_changed(held)
-    expired
   end
 
   def confirmed? = state == STATE_CONFIRMED
