@@ -30,7 +30,7 @@ class PullRequestReviewThreads
     end
     fixed = (true if found.fixed?) || (false if found.not_fixed?)
     resolving = found.fixed? && @finding.fixed!(head)
-    @posting.reply!(@finding, PullRequestReview::Comments.recheck_reply(fixed, found.words, head), then_resolve: resolving)
+    @posting.reply!(@finding, PullRequestReview::Comments.recheck_reply(fixed, found.words, head), then_resolve: resolving, recheck: true)
   end
 
   # A person's reply on the finding's thread, as the code host sent it.

@@ -27,7 +27,9 @@ module Integrations
     # What Firefight reads to check a fix or answer a reply: what a push changed, and a file at a commit.
     CHANGES = :changes
     FILE = :file
-    READS = [ CHANGES, FILE ].freeze
+    # The line comments a review posted, read back, on a host that posts a review whole.
+    POSTED_COMMENTS = :posted_comments
+    READS = [ CHANGES, FILE, POSTED_COMMENTS ].freeze
     OPERATIONS = [ COMMENT, EDIT, REVIEW, REPLY, RESOLVE, *READS ].freeze
 
     # How a person asks for a review in a comment: Firefight's handle, or Halon's or Firefight's name, then review.
@@ -137,18 +139,8 @@ module Integrations
       true
     end
 
-    # The line comments a review posted, read back from the host, or nil when the read failed or the host cannot read
-    # them back. A host whose review is several calls always says each comment's id as it posts, so only a host that posts
-    # a review whole answers this.
-    def posted_comments(environment_row, repository:, number:, review:)
-      pack = NativePack.fetch!(environment_row.integration)
-      return unless pack.respond_to?(:review_comments_of)
-
-      pack.review_comments_of(environment_row, repository: repository, number: number, review: review)
-    rescue Integrations::Error => error
-      Rails.logger.warn({ event: "pull_request_reviews.comments_unread", integration_environment_id: environment_row.id, error: error.class.name }.to_json)
-      nil
-    end
+    # Whether the host can read back the line comments a review posted, which only a host that posts a review whole needs.
+    def reads_back?(integration) = pack_of(integration)::REVIEW_TOOLS.key?(POSTED_COMMENTS)
 
     # Whether one review call posts every line comment or none, so a refusal leaves nothing behind.
     def atomic?(integration) = pack_of(integration)::REVIEW_ATOMIC == true
@@ -208,6 +200,8 @@ module Integrations
       result = authorize.call(tool, arguments) { NativeExecutor.call(tool: tool, environment_row: environment_row, arguments: arguments) }
       raise Refused, Sentence.ended(answer_text(result).presence || "#{name} failed") if result.is_a?(Hash) && result["isError"]
 
+      facts = result.to_h.dig(Telemetry::STRUCTURED, Telemetry::FACTS).to_h if result.is_a?(Hash)
+      return pack.review_posted(operation, facts.to_h) if operation == POSTED_COMMENTS
       return answer_text(result.is_a?(Hash) ? result : { "content" => [ { "text" => result.to_s } ] }) if READS.include?(operation)
 
       posted = pack.review_posted(operation, result.to_h.dig(Telemetry::STRUCTURED, Telemetry::FACTS).to_h)

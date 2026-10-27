@@ -10,6 +10,7 @@ class PullRequestReviewCatchUpTest < ActiveSupport::TestCase
   REPLY = Integrations::PullRequestReviews::REPLY
   RESOLVE = Integrations::PullRequestReviews::RESOLVE
   CHANGES = Integrations::PullRequestReviews::CHANGES
+  POSTED = Integrations::PullRequestReviews::POSTED_COMMENTS
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -37,7 +38,7 @@ class PullRequestReviewCatchUpTest < ActiveSupport::TestCase
 
     assert_nil posting.reply!(@finding, "Fixed in bbbbbbb.", then_resolve: true)
     assert_empty @calls, "nothing is posted while a post waits on its approval"
-    assert_equal [ { "kind" => "reply", "finding_id" => @finding.id, "body" => "Fixed in bbbbbbb.", "resolve" => true } ], @review.reload.pending_posts
+    assert_equal [ { "kind" => "reply", "finding_id" => @finding.id, "body" => "Fixed in bbbbbbb.", "resolve" => true, "recheck" => false } ], @review.reload.pending_posts
 
     approve!
 
@@ -77,8 +78,9 @@ class PullRequestReviewCatchUpTest < ActiveSupport::TestCase
     assert edit.last[:body].start_with?("Fixed in bbbbbbb.")
   end
 
-  test "a declined approval still lets what waited behind it go up" do
-    PullRequestReviewPosting.any_instance.stubs(:summary!).returns(nil)
+  test "a declined approval lets what waited behind it go up, and never makes the declined call again" do
+    PullRequestReviewPosting.any_instance.expects(:summary!).never
+    PullRequestReviewPosting.any_instance.expects(:finished!).never
     @review.wait!({ "kind" => "resolve", "finding_id" => @finding.id })
     @approval.update_columns(status: Ability::Approval::STATUS_DENIED)
 
@@ -119,10 +121,10 @@ class PullRequestReviewCatchUpTest < ActiveSupport::TestCase
     assert @review.reload.comments_unread?
     assert_nil @finding.reload.host_comment_id
 
-    Integrations::PullRequestReviews.stubs(:posted_comments).returns(nil)
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == POSTED }.raises(Integrations::PullRequestReviews::Refused, "GitHub answered 502")
     assert_raises(PullRequestReviewPosting::NotPosted) { PullRequestReviewPosting.new(@review.reload).run!(PullRequestReviewPosting::ADOPT) }
 
-    Integrations::PullRequestReviews.stubs(:posted_comments)
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, given| called == POSTED && given[:reference] == "56" }
                                     .returns([ Integrations::PullRequestReviews::PostedComment.new(reference: "901", url: "https://example.com/c901",
                                                                                                   body: "Words\n\n#{PullRequestReview::Comments.mark_of(@finding)}") ])
     PullRequestReviewPosting.new(@review.reload).run!(PullRequestReviewPosting::ADOPT)
@@ -136,7 +138,7 @@ class PullRequestReviewCatchUpTest < ActiveSupport::TestCase
     @review.update_columns(comments_unread: true)
     @finding.update_columns(host_comment_id: nil)
     Integrations::GithubApp.stubs(:bot_login).returns("firefight-app[bot]")
-    Integrations::PullRequestReviews.stubs(:posted_comments)
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == POSTED }
                                     .returns([ Integrations::PullRequestReviews::PostedComment.new(reference: "901", url: nil, body: PullRequestReview::Comments.mark_of(@finding)) ])
     PullRequestReview::Start.stubs(:call).returns(PullRequestReview.new(status: PullRequestReview::STATUS_QUEUED, head_sha: "b" * 40))
     pushed = Integrations::PullRequestReviews::Signal.new(kind: Integrations::PullRequestReviews::PUSHED, repository: "acme/api", number: 7, reference: "p",
@@ -145,6 +147,75 @@ class PullRequestReviewCatchUpTest < ActiveSupport::TestCase
     assert_enqueued_with(job: PullRequestReviewRecheckJob, args: [ @finding.id, "a" * 40, "b" * 40 ]) do
       PullRequestReviewSignals.new(@row).receive!(pushed)
     end
+  end
+
+  test "a review whose connection is gone stops waiting to read its comments back, and a push to it is never lost" do
+    @review.release_held!(@approval.id)
+    @review.update_columns(comments_unread: true, integration_environment_id: nil)
+
+    assert_nothing_raised { PullRequestReviewPosting.new(@review.reload).adopt! }
+    assert_not @review.reload.comments_unread?
+  end
+
+  test "a post made just after the hold ended is sent, never left waiting" do
+    @review.release_held!(@approval.id)
+
+    assert_not @review.wait!({ "kind" => "resolve", "finding_id" => @finding.id })
+    assert_empty @review.reload.pending_posts
+
+    posting = PullRequestReviewPosting.new(@review)
+    @review.stubs(:holding?).returns(true)
+    posting.resolve!(@finding)
+
+    assert_equal [ RESOLVE ], @calls.map(&:first)
+  end
+
+  test "a post that waited stays queued until it is sent, so a worker that stops leaves the rest for the next catch up" do
+    @review.wait!({ "kind" => "reply", "finding_id" => @finding.id, "body" => "First", "resolve" => false })
+    @review.wait!({ "kind" => "resolve", "finding_id" => @finding.id })
+    @review.release_held!(@approval.id)
+    Integrations::PullRequestReviews.unstub(:call!)
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == REPLY }.raises(RuntimeError, "worker stopped")
+
+    assert_raises(RuntimeError) { PullRequestReviewPosting.new(@review.reload).run!(PullRequestReviewPosting::CAUGHT_UP) }
+    assert_equal %w[reply resolve], @review.reload.pending_posts.map { |post| post["kind"] }
+
+    Integrations::PullRequestReviews.unstub(:call!)
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **given| (@calls << [ called, given ]) && true }.returns("800")
+    PullRequestReviewPosting.new(@review.reload).run!(PullRequestReviewPosting::CAUGHT_UP)
+
+    assert_equal [ REPLY, RESOLVE ], @calls.map(&:first)
+    assert_empty @review.reload.pending_posts
+  end
+
+  test "only the newest check of a push waits per thread, a person's answers all wait, and the queue is capped" do
+    3.times { |push| @review.wait!({ "kind" => "reply", "finding_id" => @finding.id, "body" => "Push #{push}", "resolve" => false, "recheck" => true }) }
+    2.times { |answer| @review.wait!({ "kind" => "reply", "finding_id" => @finding.id, "body" => "Answer #{answer}", "resolve" => false, "recheck" => false }) }
+
+    assert_equal [ "Push 2", "Answer 0", "Answer 1" ], @review.reload.pending_posts.map { |post| post["body"] }
+
+    PullRequestReview::PENDING_KEPT.times { |each| @review.wait!({ "kind" => "reply", "finding_id" => @finding.id, "body" => "More #{each}" }) }
+    assert_equal PullRequestReview::PENDING_KEPT, @review.reload.pending_posts.size
+    assert_equal "More #{PullRequestReview::PENDING_KEPT - 1}", @review.pending_posts.last["body"]
+  end
+
+  test "reading line comments back is the posting agent's read through the gateway, in the activity log under the review" do
+    @review.release_held!(@approval.id)
+    @review.update_columns(comments_unread: true)
+    @finding.update_columns(host_comment_id: nil)
+    Integrations::PullRequestReviews.unstub(:call!)
+    PullRequestReviewPosting.any_instance.unstub(:authorizer)
+    tool = @row.integration.tools.create!(name: "list_review_comments", description: "Lists.", enabled: true, read_only: true)
+    Ability::Grant.grant!(workspace: @workspace, principal: SystemAgent.pull_request_review, target: { action: tool.ability_action || tool.sync_ability_action! })
+    Integrations::NativeExecutor.expects(:call).with { |tool:, arguments:, **| tool.name == "list_review_comments" && arguments == { "repo" => "acme/api", "number" => 7, "review_id" => 55 } }
+                                .returns(Integrations::Telemetry.result("Listed.", link: nil, facts: { "comments" => [ { "id" => 901, "url" => "https://example.com/c901",
+                                                                                                                            "body" => PullRequestReview::Comments.mark_of(@finding) } ] }))
+
+    PullRequestReviewPosting.new(@review.reload).adopt!
+
+    assert_equal "901", @finding.reload.host_comment_id
+    invocation = Ability::Invocation.find_by!(workspace: @workspace, action_key: tool.action_key)
+    assert_equal [ SystemAgent.pull_request_review.id, AbilityGateway::SOURCE_PULL_REQUEST_REVIEW ], [ invocation.principal_id, invocation.source ]
   end
 
   private

@@ -36,7 +36,8 @@ class PullRequestReviewPosting
     else
       review.release_held!(approval.id)
       Rails.logger.info({ event: "pull_request_review.post_declined", pull_request_review_id: review.id, approval_id: approval.id }.to_json)
-      PullRequestReviewPostJob.perform_later(review.id, nil, CAUGHT_UP)
+      # Only what waited goes up, never the declined call again.
+      PullRequestReviewPostJob.perform_later(review.id, nil, CAUGHT_UP) if review.pending_posts.present?
     end
   end
 
@@ -50,7 +51,7 @@ class PullRequestReviewPosting
     post_pending! unless [ RESUMED, CAUGHT_UP ].include?(change) || @review.pending_posts.blank? || @review.holding?
     case change
     when RESUMED then resume!(approval_id)
-    when CAUGHT_UP then catch_up!
+    when CAUGHT_UP then post_pending!
     when ADOPT then adopt!
     when PullRequestReview::CHANGE_STARTED, PullRequestReview::CHANGE_FAILED then summary!
     when PullRequestReview::CHANGE_FINDING_ADDED then finding_added!(finding)
@@ -97,11 +98,12 @@ class PullRequestReviewPosting
   # Replies on a finding's thread and keeps what was said there. then_resolve resolves the thread once the reply went up,
   # which a held reply carries to its approval.
   # A reply held or waiting behind a held post goes up once the approval is decided, its resolve after it, and answers
-  # nil now.
-  def reply!(finding, body, then_resolve: false)
+  # nil now. recheck marks what a push's check said, of which only the newest waits.
+  def reply!(finding, body, then_resolve: false, recheck: false)
+    waiting = { "kind" => PullRequestReview::PENDING_REPLY, "finding_id" => finding.id, "body" => body, "resolve" => then_resolve, "recheck" => recheck }
     posted = call!(Integrations::PullRequestReviews::REPLY, reference: finding.host_comment_id, body: body,
                                                             purpose: { "record" => "reply", "finding_id" => finding.id, "body" => body, "resolve" => then_resolve },
-                                                            later: { "kind" => PullRequestReview::PENDING_REPLY, "finding_id" => finding.id, "body" => body, "resolve" => then_resolve })
+                                                            later: waiting)
     return unless posted
 
     finding.said!(comment: posted, author: SystemAgent::HALON, body: body, halon: true)
@@ -115,14 +117,15 @@ class PullRequestReviewPosting
   end
 
   # Line comments a whole review posted that the host would not say the ids of, matched now to their findings by the id
-  # each comment carries, so their threads are followed after a push and their replies answered. A read that fails is
-  # tried again by the job.
+  # each comment carries, so their threads are followed after a push and their replies answered. The read is one of the
+  # connection's tools, made as Halon's review agent through the gateway. A read that fails is tried again by the job, and
+  # a review whose connection is gone, or whose host cannot read them back, stops waiting for it.
   def adopt!
     return unless @review.comments_unread?
+    return @review.update_columns(comments_unread: false, updated_at: Time.current) unless postable? && Integrations::PullRequestReviews.reads_back?(@review.integration)
 
     waiting = @review.findings.select { |finding| on_line?(finding) && finding.host_comment_id.blank? }
-    comments = Integrations::PullRequestReviews.posted_comments(@review.integration_environment, repository: @review.repository, number: @review.number,
-                                                                                                 review: @review.review_comment_id)
+    comments = call!(Integrations::PullRequestReviews::POSTED_COMMENTS, reference: @review.review_comment_id)
     raise NotPosted, "The line comments of PR ##{@review.number} in #{@review.repository} could not be read back." if comments.nil?
 
     waiting.each do |finding|
@@ -262,9 +265,7 @@ class PullRequestReviewPosting
   def call!(operation, quiet: false, purpose: nil, approval_id: nil, later: nil, **given)
     if approval_id.nil? && !Integrations::PullRequestReviews::READS.include?(operation) && @review.holding?
       raise Held unless later
-
-      @review.wait!(later)
-      return
+      return if @review.wait!(later)
     end
 
     Integrations::PullRequestReviews.call!(@review.integration_environment, operation, authorize: authorizer(approval_id), repository: @review.repository,
@@ -289,34 +290,36 @@ class PullRequestReviewPosting
     given = held.given
     given = given.merge(comments: given[:comments].map { |comment| Integrations::PullRequestReviews::LineComment.new(**comment.symbolize_keys) }) if given[:comments]
     result = call!(held.operation, approval_id: approval_id, **given)
-    @review.release_held!(approval_id)
     if result
       record!(held.purpose, result)
     elsif held.purpose["record"] == "whole"
       # The whole review the host refused once approved goes again the usual way, its fallback and retry included.
       @review.release_review_post!
     end
-    catch_up!
-  end
-
-  # Every post that waited behind a held one, oldest first, then the review as it stands. One held again waits again,
-  # with every post after it.
-  def catch_up!
-    post_pending!
+    post_pending!(@review.release_with_pending!(approval_id))
     @review.done? ? finished! : summary!
   end
 
-  # What waited behind a held post, such as one whose approval lapsed, goes up with the review's next change.
-  def post_pending!
-    @review.take_pending!.each do |post|
-      finding = PullRequestReview::Finding.find_by(id: post["finding_id"])
-      next unless finding
+  # What waited behind a held post, oldest first: after its approval is decided, or with the review's next change once
+  # an approval lapsed. Each is taken off the queue once sent. One held again is replayed by its own approval, and every
+  # post after it waits on.
+  def post_pending!(posts = @review.release_with_pending!)
+    posts.each do |post|
+      break if @review.holding?
 
-      case post["kind"]
-      when PullRequestReview::PENDING_REPLY then reply!(finding, post["body"], then_resolve: post["resolve"] == true)
-      when PullRequestReview::PENDING_RESOLVE then resolve!(finding)
-      when PullRequestReview::PENDING_EDIT then edit_finding!(finding)
-      end
+      post_waiting!(post)
+      @review.sent_pending!(post)
+    end
+  end
+
+  def post_waiting!(post)
+    finding = PullRequestReview::Finding.find_by(id: post["finding_id"])
+    return unless finding
+
+    case post["kind"]
+    when PullRequestReview::PENDING_REPLY then reply!(finding, post["body"], then_resolve: post["resolve"] == true, recheck: post["recheck"] == true)
+    when PullRequestReview::PENDING_RESOLVE then resolve!(finding)
+    when PullRequestReview::PENDING_EDIT then edit_finding!(finding)
     end
   end
 
