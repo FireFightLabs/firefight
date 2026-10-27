@@ -102,6 +102,34 @@ module Integrations
       assert_equal ReviewHost::LEFT_OUT_UNREAD, diffs.last.left_out
     end
 
+    test "a credential in a diff, in the pull request's description or in a sandbox error never leaves the host unredacted" do
+      token = "ghp_#{'a' * 36}"
+      files = [
+        ReviewHost::ChangedFile.new(path: "app/a.rb", status: ReviewHost::STATUS_MODIFIED, patch: "@@ -1 +1 @@\n-a\n+TOKEN = \"#{token}\"\n"),
+        ReviewHost::ChangedFile.new(path: "app/b.rb", status: ReviewHost::STATUS_MODIFIED)
+      ]
+      ReviewHost.stubs(:sandbox_files).returns([ ReviewHost::ChangedFile.new(path: "app/b.rb", status: ReviewHost::STATUS_MODIFIED, patch: "@@ -1 +1 @@\n+#{token}\n") ])
+
+      diffs = ReviewHost.diffs(@row, files, checkout: @checkout, base_sha: "b" * 40, key: "k")
+
+      diffs.each { |diff| assert_not_includes diff.text, token }
+      assert_includes diffs.first.text, "[REDACTED:github_token]"
+
+      pack = mock("pack")
+      pack.stubs(:pull_request_for_review).returns(ReviewHost::PullRequest.new(
+        repository: "acme/api", number: 7, title: "Retry", body: "Use #{token} to test", url: "u", state: ReviewHost::STATE_OPEN,
+        base_ref: "main", base_sha: "b" * 40, head_ref: "retry", head_sha: "h" * 40
+      ))
+      NativePack.stubs(:fetch!).returns(pack)
+      assert_equal "Use [REDACTED:github_token] to test", ReviewHost.pull_request(@row, repository: "acme/api", number: 7).body
+
+      ReviewHost.stubs(:sandbox_files).raises(Integrations::Error, "fetch failed with #{token}")
+      logged = []
+      Rails.logger.stubs(:warn).with { |line| logged << line }
+      ReviewHost.diffs(@row, [ files.last ], checkout: @checkout, base_sha: "b" * 40, key: "k")
+      assert_not_includes logged.join, token
+    end
+
     test "a connection reviews when its pack reads pull requests, and the one that holds a repository on the map is the one used" do
       assert ReviewHost.reviews?(@integration)
       assert_not ReviewHost.reviews?(Integration.new(provider: "linear"))
