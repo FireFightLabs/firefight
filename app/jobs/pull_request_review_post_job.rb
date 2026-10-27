@@ -13,9 +13,9 @@ class PullRequestReviewPostJob < ApplicationJob
     review ? "pull_request_review:#{review.workspace_id}:#{review.repository.downcase}:#{review.number}" : "pull_request_review:#{review_id}"
   end
 
-  def perform(review_id, finding_id, change)
+  def perform(review_id, finding_id, change, approval_id = nil)
     review = PullRequestReview.find(review_id)
     finding = review.findings.find_by(id: finding_id) if finding_id
-    PullRequestReviewPosting.new(review).run!(change, finding: finding)
+    PullRequestReviewPosting.new(review).run!(change, finding: finding, approval_id: approval_id)
   end
 end

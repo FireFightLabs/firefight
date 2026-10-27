@@ -37,6 +37,8 @@ module Integrations
         COMMENTS_SHOWN = 30
         FILES_SHOWN = 30
         MAX_FILES = 300
+        # A review's line comments are read back this many pages of 100 at most.
+        REVIEW_COMMENT_PAGES = 30
         PATCH_LINES = 400
         DEPENDABOT = "dependabot[bot]".freeze
         # How Dependabot names what it bumps: "Bump rack from 2.2.3 to 2.2.8" in the title, and "Updates `rack` from" for
@@ -754,12 +756,28 @@ module Integrations
         def review_comment_facts(repo, number, review_id, comments, token)
           return {} unless comments.any? && review_id
 
-          posted = Array(GithubApp.get("/repos/#{repo}/pulls/#{number}/reviews/#{review_id}/comments?per_page=100", token: token))
+          posted = begin
+            review_comments_posted(repo, number, review_id, token)
+          rescue GithubApp::Error
+            # The review went up, so a failed read back never makes it look refused.
+            return { "comments_unread" => true }
+          end
           found = comments.map do |comment|
-            match = posted.find { |each| each["path"] == comment[:path] && (each["line"] || each["original_line"]) == comment[:line] && each["body"].to_s.strip == comment[:body].to_s.strip }
+            match = posted.find do |each|
+              each["path"] == comment[:path] && [ each["line"], each["original_line"] ].include?(comment[:line]) && each["body"].to_s.strip == comment[:body].to_s.strip
+            end
             posted.delete(match)
           end
           { "comment_ids" => found.map { |each| each&.dig("id") }, "comment_urls" => found.map { |each| each&.dig("html_url") } }
+        end
+
+        # Every comment a review posted, 100 to a page.
+        def review_comments_posted(repo, number, review_id, token)
+          (1..REVIEW_COMMENT_PAGES).each_with_object([]) do |page, posted|
+            listed = Array(GithubApp.get("/repos/#{repo}/pulls/#{number}/reviews/#{review_id}/comments?per_page=100&page=#{page}", token: token))
+            posted.concat(listed)
+            break posted if listed.size < 100
+          end
         end
 
         def sha_argument(arguments, key)

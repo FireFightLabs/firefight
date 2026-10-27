@@ -237,7 +237,7 @@ module Integrations
     def header_paths(line)
       rest = line.to_s.chomp.delete_prefix("diff --git ")
       size = (rest.size - 5) / 2
-      return [ rest[2, size], rest[(size + 5)..] ] if size.positive? && rest[size, 3] == " b/"
+      return [ rest[2, size], rest[(size + 5)..] ] if size.positive? && rest[size + 2, 3] == " b/" && rest[2, size] == rest[(size + 5)..]
 
       found = rest.match(%r{\Aa/(.+?) b/(.+)\z})
       found ? [ found[1], found[2] ] : [ rest, rest ]

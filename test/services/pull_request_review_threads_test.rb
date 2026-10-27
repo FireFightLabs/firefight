@@ -14,8 +14,12 @@ class PullRequestReviewThreadsTest < ActiveSupport::TestCase
     @said = []
     PullRequestReviewPosting.any_instance.stubs(:changes).returns("diff --git a/app/jobs/retry_job.rb b/app/jobs/retry_job.rb\n+ wait: backoff")
     PullRequestReviewPosting.any_instance.stubs(:file).returns("12  RetryJob.set(wait: backoff).perform_later")
-    PullRequestReviewPosting.any_instance.stubs(:reply!).with { |_finding, body| @said << [ :reply, body ] }
-    PullRequestReviewPosting.any_instance.stubs(:resolve!).with { |_finding| @said << [ :resolve ] }
+    PullRequestReviewPosting.any_instance.stubs(:public?).returns(false)
+    PullRequestReviewPosting.any_instance.stubs(:reply!).with do |_finding, body, options = {}|
+      @said << [ :reply, body ]
+      @said << [ :resolve ] if options[:then_resolve]
+      true
+    end
   end
 
   test "a push that fixed a finding says so on its thread, resolves it and marks it fixed in that commit, once" do
@@ -64,6 +68,29 @@ class PullRequestReviewThreadsTest < ActiveSupport::TestCase
 
     assert_raises(FirefightAi::TransientError) { threads.answer!(reply) }
     assert_empty @finding.reload.answered_comment_ids
+  end
+
+  test "a reply is answered with the thread so far, which keeps what the person said" do
+    @finding.said!(comment: "702", author: SystemAgent::HALON, body: "Not fixed yet in bbbbbbb.", halon: true)
+    asked = nil
+    FirefightAi::ReviewThread.any_instance.stubs(:answer).with { |**given| asked = given }
+                         .returns(FirefightAi::ReviewThread::Answer.new(answer: "It still queues with no wait.", withdraw: false, reason: ""))
+    reply = Integrations::PullRequestReviews::Signal.new(kind: Integrations::PullRequestReviews::COMMENTED, repository: "acme/api", number: 7, reference: "r",
+                                                         comment: "703", thread: "702", body: "Still?", author: "ada")
+
+    threads.answer!(reply)
+
+    assert_equal "Halon: Not fixed yet in bbbbbbb.", asked[:thread]
+    assert_equal %w[701 702 703], @finding.reload.thread_comments
+  end
+
+  test "on a public repository the model is told so" do
+    PullRequestReviewPosting.any_instance.unstub(:public?)
+    PullRequestReviewPosting.any_instance.stubs(:public?).returns(true)
+    FirefightAi::ReviewThread.expects(:new).with(@workspace, inferable: @review, public: true)
+                         .returns(stub(recheck: FirefightAi::ReviewThread::Recheck.new(outcome: "unclear", words: "")))
+
+    threads.recheck!("a" * 40, "b" * 40)
   end
 
   test "a push that did not touch the finding's file says nothing" do

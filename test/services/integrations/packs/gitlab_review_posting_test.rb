@@ -35,7 +35,7 @@ module Integrations
       end
 
       test "a line GitLab will not place is left without a thread, and the rest still go up" do
-        GitlabApi.any_instance.stubs(:post).with("#{PROJECT}/merge_requests/7/discussions", anything).raises(GitlabApi::Error, "GitLab answered 400: line_code can't be blank")
+        GitlabApi.any_instance.stubs(:post).with("#{PROJECT}/merge_requests/7/discussions", anything).raises(GitlabApi::Error.new("GitLab answered 400: line_code can't be blank").tap { |error| error.http_status = 400 })
         GitlabApi.any_instance.expects(:post).with("#{PROJECT}/merge_requests/7/notes", { "body" => "Summary" }).returns("id" => 600)
 
         name, arguments = Gitlab.review_call(PullRequestReviews::REVIEW, repository: "acme/web", number: 7, body: "Summary",
@@ -53,6 +53,26 @@ module Integrations
         name, arguments = Gitlab.review_call(PullRequestReviews::REVIEW, repository: "acme/web", number: 7, body: "Summary",
                                                                          comments: [ PullRequestReviews::LineComment.new(path: "a.rb", line: 3, body: "One") ])
         assert_raises(GitlabApi::Error) { @pack.public_send(name, environment_row: @row, arguments: arguments) }
+      end
+
+      test "a review with only a line comment posts no summary, and one with neither is refused" do
+        GitlabApi.any_instance.expects(:post).with("#{PROJECT}/merge_requests/7/discussions", anything).returns("id" => "6a9c1d3e5f7b", "notes" => [ { "id" => 501 } ])
+        GitlabApi.any_instance.expects(:post).with("#{PROJECT}/merge_requests/7/notes", anything).never
+
+        name, arguments = Gitlab.review_call(PullRequestReviews::REVIEW, repository: "acme/web", number: 7,
+                                                                         comments: [ PullRequestReviews::LineComment.new(path: "a.rb", line: 3, body: "One") ])
+        posted = Gitlab.review_posted(PullRequestReviews::REVIEW, @pack.public_send(name, environment_row: @row, arguments: arguments).dig(Telemetry::STRUCTURED, Telemetry::FACTS))
+        assert_equal [ nil, [ "6a9c1d3e5f7b/501" ] ], [ posted.reference, posted.comments ]
+
+        assert_raises(NativePack::Error) { @pack.review_merge_request(environment_row: @row, arguments: { "repo" => "acme/web", "iid" => 7 }) }
+      end
+
+      test "a private project reads as private, and an internal or public one as public" do
+        GitlabApi.any_instance.stubs(:get).with(PROJECT).returns("visibility" => "private")
+        assert_equal PullRequestReviews::VISIBILITY_PRIVATE, @pack.review_visibility(@row, repository: "acme/web")
+
+        GitlabApi.any_instance.stubs(:get).with(PROJECT).returns("visibility" => "internal")
+        assert_equal PullRequestReviews::VISIBILITY_PUBLIC, @pack.review_visibility(@row, repository: "acme/web")
       end
 
       test "a line comment's thread is replied to and resolved by its discussion, and its note edited by its own id" do

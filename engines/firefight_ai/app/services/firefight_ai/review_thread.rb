@@ -44,8 +44,14 @@ module FirefightAi
     PROMPT
 
     # choice is the workspace's review model unless one is given.
-    def initialize(workspace, inferable: nil, choice: nil)
+    # Said on a public repository, where anyone reads it.
+    PUBLIC_RULE = "The repository is public, so anyone can read what you write. Never name an incident, a postmortem, a service, " \
+                  "a metric, a customer or anything read from a live system. Say it in terms of the code.".freeze
+
+    # public is true for a repository anyone can read.
+    def initialize(workspace, inferable: nil, choice: nil, public: true)
       @workspace = workspace
+      @public = public
       @choice = choice || FirefightAi.model_for(AiPurpose::CODE_REVIEW, workspace: workspace)
       @inferable = inferable
     end
@@ -75,8 +81,9 @@ module FirefightAi
     private
 
     def ask(prompt, schema, parts)
+      instructions = @public ? "#{prompt}- #{PUBLIC_RULE}\n" : prompt
       response, = FirefightAi.generate(@choice, purpose: AiPurpose::CODE_REVIEW, inference: inference_context(prompt)) do |chat|
-        chat.with_instructions(prompt)
+        chat.with_instructions(instructions)
         chat.with_schema(schema)
         chat.ask(parts.join("\n\n"))
       end

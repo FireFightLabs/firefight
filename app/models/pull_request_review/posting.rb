@@ -19,10 +19,11 @@ module PullRequestReview::Posting
   # Every call that posts or reads for the review on the code host is made as Halon's review agent, which holds exactly
   # the tools a review posts and checks a fix through, never a person's reach. Approval rules still apply, and the
   # activity log names the pull request.
-  def authorize_post!(tool, arguments, &)
+  # approval_id is the approval a held call was given, which only that same call may use.
+  def authorize_post!(tool, arguments, approval_id: nil, &)
     AbilityGateway.authorize!(
       principal: SystemAgent.pull_request_review, action_key: tool.action_key, workspace: workspace, scope: {}, params: arguments,
-      context: { source: AbilityGateway::SOURCE_PULL_REQUEST_REVIEW, triggered_by_label: "PR ##{number} in #{repository}" }, &
+      context: { source: AbilityGateway::SOURCE_PULL_REQUEST_REVIEW, triggered_by_label: "PR ##{number} in #{repository}", approval_id: approval_id }.compact, &
     )
   end
 

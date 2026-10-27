@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_26_190400) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_27_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -2757,6 +2757,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_190400) do
     t.string "serious_comment_id"
     t.jsonb "answered_comment_ids", default: [], null: false
     t.string "rechecked_sha"
+    t.jsonb "thread_said", default: [], null: false
+    t.text "public_why"
+    t.jsonb "public_failure_chain"
     t.uuid "overridden_by_id"
     t.datetime "overridden_at"
     t.text "override_reason"
@@ -2806,6 +2809,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_190400) do
     t.datetime "updated_at", null: false
     t.datetime "review_posted_at"
     t.string "review_comment_id"
+    t.uuid "held_approval_id"
     t.string "commit_status"
     t.string "commit_status_sha"
     t.string "commit_status_error"

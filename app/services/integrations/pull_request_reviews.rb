@@ -2,9 +2,11 @@ module Integrations
   # The write side of the review host contract, and what a code host says about the pull requests Halon reviews, in one
   # shape whichever host that is. A code host's event source answers review_signals(payload, headers:) with Signals, from
   # the deliveries its webhook already sends. Its pack answers review_identity(environment_row) with who Firefight is on
-  # that host, and on its class side REVIEW_TOOLS, review_call(operation, **) and review_posted(operation, facts), so the
-  # app posts through the connection's own tools, each authorized by the gateway and in the activity log like any other
-  # call. Nothing here names a host.
+  # that host and review_visibility(environment_row, repository:) with whether a repository is public, and on its class
+  # side REVIEW_TOOLS, REVIEW_ATOMIC (whether one review call posts every line comment or none), review_markup (what its
+  # markdown renders), review_call(operation, **) and review_posted(operation, facts), so the app posts through the
+  # connection's own tools, each authorized by the gateway and in the activity log like any other call. Nothing here
+  # names a host.
   module PullRequestReviews
     # What a delivery says happened to a pull request.
     REQUESTED = "requested".freeze
@@ -31,6 +33,14 @@ module Integrations
     # How a person asks for a review in a comment: Firefight's handle, or Halon's or Firefight's name, then review.
     ASK = "review".freeze
     NAMES = %w[firefight halon].freeze
+
+    # Whether a repository anyone can read holds the pull request. Unknown is read as public.
+    VISIBILITY_PUBLIC = "public".freeze
+    VISIBILITY_PRIVATE = "private".freeze
+    VISIBILITY_KEPT = 10.minutes
+
+    # A host's answer that a comment cannot sit on the line given, as a line the diff does not show gets.
+    UNPLACEABLE = [ 400, 422 ].freeze
 
     # One thing a delivery said. reviewers is who was asked to review it, by every name the host gives them, for
     # REQUESTED. author is who did it and person false for a bot. For COMMENTED, comment is the host's id of the new
@@ -67,8 +77,9 @@ module Integrations
 
     # What a review posted: the host's reference to the review and its page, and one reference and page per line comment in
     # the order given, nil for a line the host would not place.
-    Posted = Data.define(:reference, :comments, :urls, :url) do
-      def initialize(urls: [], url: nil, **) = super
+    # unread is true when the line comments went up but the host would not say which is which, so none can be followed.
+    Posted = Data.define(:reference, :comments, :urls, :url, :unread) do
+      def initialize(urls: [], url: nil, unread: false, **) = super
     end
 
     class Refused < Integrations::Error; end
@@ -91,8 +102,13 @@ module Integrations
       pack.respond_to?(:review_call) ? pack::REVIEW_TOOLS.values.uniq : []
     end
 
-    # The workspace's code host connections Halon reviews through, each with the handle a person mentions to ask it, nil
-    # when the host would not say who the connection acts as.
+    # The providers a review can be asked for on, by name, for a workspace that has connected none yet.
+    def provider_names
+      IntegrationProvider.all.select { |entry| Provider.for(entry.key).pack.respond_to?(:review_call) && source_of(entry.key).respond_to?(:review_signals) }.map(&:name)
+    end
+
+    # The workspace's code host connections Halon reviews through, each with what a person writes in a comment to ask it,
+    # the handle they pick as a reviewer where the host allows one, and the connection's id.
     def host_names(workspace)
       workspace.integrations.active.includes(:integration_environments).select { |integration| integration.holds_code? && hosts?(integration) }.map do |integration|
         row = integration.integration_environments.select(&:enabled).min_by(&:created_at)
@@ -101,9 +117,28 @@ module Integrations
         rescue Integrations::Error
           nil
         end
-        { name: integration.display_name, handle: found&.handles&.last, pickable: found&.pickable || false }
+        handle = found&.handles&.last
+        { id: integration.id, name: integration.display_name, ask: "@#{handle || NAMES.first} #{ASK}", reviewer: (handle if found&.pickable) }
       end
     end
+
+    # Whether a repository is public, read once in a while. A host that cannot say, or a read that fails, counts as public,
+    # since posting less is the safe side.
+    def public?(environment_row, repository)
+      visibility = Rails.cache.fetch([ "pull_request_reviews.visibility", environment_row.id, repository.to_s.downcase ], expires_in: VISIBILITY_KEPT) do
+        NativePack.fetch!(environment_row.integration).review_visibility(environment_row, repository: repository) || VISIBILITY_PUBLIC
+      end
+      visibility != VISIBILITY_PRIVATE
+    rescue StandardError => error
+      Rails.logger.warn({ event: "pull_request_reviews.visibility_unread", integration_environment_id: environment_row.id, error: error.class.name }.to_json)
+      true
+    end
+
+    # Whether one review call posts every line comment or none, so a refusal leaves nothing behind.
+    def atomic?(integration) = pack_of(integration)::REVIEW_ATOMIC == true
+
+    # What the host's markdown renders: a collapsed block and an HTML comment kept out of sight.
+    def markup(integration) = pack_of(integration).review_markup
 
     # What a delivery to a connection says about pull requests, through its provider's event source, or none.
     def signals(provider_key, payload, headers:)
@@ -135,9 +170,10 @@ module Integrations
     # Whether Firefight itself wrote what a signal is about, so it never answers its own words.
     def own?(environment_row, signal) = identity(environment_row).named?([ signal.author ])
 
-    # Whether a thread a reply names is the one a comment Firefight posted opened.
-    def same_thread?(integration, reference, thread)
-      reference.present? && thread.present? && pack_of(integration).review_thread_of(reference.to_s) == thread.to_s
+    # Whether a thread a reply names is one of the comments in a finding's thread, the first Firefight posted or one said
+    # on it since.
+    def same_thread?(integration, references, thread)
+      thread.present? && Array(references).compact_blank.any? { |reference| pack_of(integration).review_thread_of(reference.to_s) == thread.to_s }
     end
 
     # The tool and its arguments for one operation, and the call made through it. authorize runs the call through the
@@ -169,31 +205,9 @@ module Integrations
       line&.split(": ")&.last&.strip.presence
     end
 
-    # A host's answer that a comment cannot sit on the line given, as a line outside the diff gets, which leaves that one
-    # line comment out. Any other failure, such as a rate limit or the host being down, stops the review so it is retried.
-    def unplaceable?(error) = error.message.to_s.match?(/answered (400|422):/)
-
-    # The lines a diff lets a comment sit on, by path: every line of the new file a hunk shows, added or unchanged.
-    def commentable(diff)
-      lines = Hash.new { |hash, key| hash[key] = Set.new }
-      path = nil
-      line = nil
-      diff.to_s.each_line do |text|
-        if text.start_with?("+++ ")
-          path = text.chomp.delete_prefix("+++ ").delete_prefix("b/")
-          path = nil if path == "/dev/null"
-        elsif (hunk = text.match(/\A@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/))
-          line = hunk[1].to_i
-        elsif path && line
-          case text[0]
-          when "+", " " then (lines[path] << line) && (line += 1)
-          when "-", "\\" then nil
-          else line = nil
-          end
-        end
-      end
-      lines
-    end
+    # The host said a comment cannot sit on the line given, which leaves that one line comment out. Any other failure,
+    # such as a rate limit or the host being down, stops the review so it is retried.
+    def unplaceable?(error) = UNPLACEABLE.include?(error.try(:http_status))
 
     def answer_text(result) = Array(result.to_h["content"]).filter_map { |part| part["text"] }.join("\n").strip
     private_class_method :answer_text

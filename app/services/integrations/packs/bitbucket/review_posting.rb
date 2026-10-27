@@ -14,6 +14,9 @@ module Integrations
           PullRequestReviews::RESOLVE => "resolve_pull_request_comment",
           PullRequestReviews::CHANGES => "compare_commits", PullRequestReviews::FILE => "fetch_file"
         }.freeze
+        # Each line comment is its own comment, so a review is several calls and the app posts them one at a time.
+        REVIEW_ATOMIC = false
+        OPEN = "OPEN".freeze
         REVIEW_NEEDS = "Commenting on a pull request needs a token with the write:pullrequest:bitbucket scope.".freeze
 
         def self.included(pack)
@@ -40,10 +43,10 @@ module Integrations
 
           pack.tool :review_pull_request,
                     summary: "Comments on lines of a pull request's diff, with a summary in its conversation.",
-                    description: "Review a pull request: comment on each line given, then add body as a comment in its conversation",
+                    description: "Review a pull request: comment on each line given, then add body as a comment in its conversation when given",
                     params_schema: Code.object_schema({
                       "repo" => repo, "number" => number,
-                      "body" => { "type" => "string", "description" => "The review's summary, in Bitbucket's markdown" },
+                      "body" => { "type" => "string", "description" => "The review's summary, in Bitbucket's markdown (optional, only the line comments)" },
                       "comments" => {
                         "type" => "array", "description" => "Comments on lines of the diff (optional)",
                         "items" => { "type" => "object", "required" => %w[path line body], "properties" => {
@@ -52,7 +55,7 @@ module Integrations
                           "body" => { "type" => "string", "description" => "The comment" }
                         } }
                       }
-                    }, %w[repo number body]),
+                    }, %w[repo number]),
                     read_only: false
 
           pack.tool :reply_to_pull_request_comment,
@@ -96,6 +99,15 @@ module Integrations
 
           # A reply on Bitbucket names the comment it answers as its parent.
           def review_thread_of(reference) = reference
+
+          # Bitbucket's markdown shows a details block and an HTML comment as text, so neither is written.
+          def review_markup = { collapses: false, hides: false }
+        end
+
+        # Whether the repository is private (the repository's is_private).
+        def review_visibility(environment_row, repository:)
+          found = api(environment_row).get(BitbucketApi.repository(repository))
+          found["is_private"] == true ? PullRequestReviews::VISIBILITY_PRIVATE : PullRequestReviews::VISIBILITY_PUBLIC
         end
 
         # Who Firefight is on Bitbucket: the account the connection's token acts as. A workspace access token has no account
@@ -127,10 +139,11 @@ module Integrations
 
         def review_pull_request(environment_row:, arguments:)
           repo, number, bitbucket = comment_target(arguments, environment_row)
-          body = comment_text(arguments, "body")
+          body = arguments["body"].to_s.strip.presence
           lines = inline_comments(arguments)
+          fail! "Give body or comments to review with." if body.nil? && lines.empty?
           pull = bitbucket.get("#{BitbucketApi.repository(repo)}/pullrequests/#{number}")
-          fail! "PR ##{number} in #{repo} is #{pull['state'].to_s.downcase}, so it takes no review." unless pull["state"] == "OPEN"
+          fail! "PR ##{number} in #{repo} is #{pull['state'].to_s.downcase}, so it takes no review." unless pull["state"] == OPEN
 
           # A line Bitbucket will not place is left without a comment rather than stopping the rest, and the caller places it.
           # Any other failure, a refusal for the token's access included, stops the review with why.
@@ -145,13 +158,13 @@ module Integrations
               nil
             end
           end
-          summary = posting("comment on PR ##{number} in #{repo}") { bitbucket.post(comments_path(repo, number), { "content" => { "raw" => body } }) }
+          summary = (posting("comment on PR ##{number} in #{repo}") { bitbucket.post(comments_path(repo, number), { "content" => { "raw" => body } }) } if body).to_h
           urls = ids.map { |made| made&.dig("links", "html", "href") }
           ids = ids.map { |made| made&.dig("id") }
           missed = ids.count(&:nil?)
           Telemetry.result("Reviewed PR ##{number} #{pull['title']} in #{repo}#{", with #{ids.size - missed} line #{'comment'.pluralize(ids.size - missed)}" if ids.any?}" \
                            "#{", and #{missed} Bitbucket would not place on its line" if missed.positive?}.",
-                           link: link(summary.dig("links", "html", "href") || pull.dig("links", "html", "href")),
+                           link: link(summary.dig("links", "html", "href") || urls.compact.first || pull.dig("links", "html", "href")),
                            facts: { "comment_id" => summary["id"], "comment_ids" => ids.presence, "comment_urls" => urls.presence })
         end
 

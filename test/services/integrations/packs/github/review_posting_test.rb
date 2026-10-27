@@ -69,9 +69,9 @@ module Integrations
                                            comments: [ { path: "a.rb", line: 3, side: "RIGHT", body: "One" }, { path: "b.rb", line: 8, side: "RIGHT", body: "Two" } ] },
                                          token: "ghs_token")
                    .returns("id" => 55, "html_url" => "https://github.com/acme/checkout/pull/4#pullrequestreview-55")
-          GithubApp.stubs(:get).with("/repos/acme/checkout/pulls/4/reviews/55/comments?per_page=100", token: "ghs_token")
+          GithubApp.stubs(:get).with("/repos/acme/checkout/pulls/4/reviews/55/comments?per_page=100&page=1", token: "ghs_token")
                    .returns([ { "id" => 702, "path" => "b.rb", "line" => 8, "body" => "Two", "html_url" => "https://github.com/acme/checkout/pull/4#discussion_r702" },
-                              { "id" => 701, "path" => "a.rb", "line" => 3, "body" => "One", "html_url" => "https://github.com/acme/checkout/pull/4#discussion_r701" } ])
+                              { "id" => 701, "path" => "a.rb", "line" => 5, "original_line" => 3, "body" => "One", "html_url" => "https://github.com/acme/checkout/pull/4#discussion_r701" } ])
 
           name, arguments = Github.review_call(PullRequestReviews::REVIEW, repository: "acme/checkout", number: 4, body: "Two problems.", commit: "abc1234",
                                                                            comments: [ PullRequestReviews::LineComment.new(path: "a.rb", line: 3, body: "One"),
@@ -82,6 +82,19 @@ module Integrations
           assert_equal "55", posted.reference
           assert_equal %w[701 702], posted.comments
           assert_equal %w[https://github.com/acme/checkout/pull/4#discussion_r701 https://github.com/acme/checkout/pull/4#discussion_r702], posted.urls
+        end
+
+        test "a review GitHub took is never made to look refused when its comments cannot be read back" do
+          GithubApp.stubs(:get).with("/repos/acme/checkout/pulls/4", token: "ghs_token")
+                   .returns("number" => 4, "title" => "Retries", "state" => "open", "head" => { "sha" => "f" * 40 }, "html_url" => "https://github.com/acme/checkout/pull/4")
+          GithubApp.stubs(:write).returns("id" => 56, "html_url" => "https://github.com/acme/checkout/pull/4#pullrequestreview-56")
+          GithubApp.stubs(:get).with("/repos/acme/checkout/pulls/4/reviews/56/comments?per_page=100&page=1", token: "ghs_token").raises(GithubApp::Error, "GitHub answered 502")
+
+          name, arguments = Github.review_call(PullRequestReviews::REVIEW, repository: "acme/checkout", number: 4, body: "One problem.",
+                                                                           comments: [ PullRequestReviews::LineComment.new(path: "a.rb", line: 3, body: "One") ])
+          posted = Github.review_posted(PullRequestReviews::REVIEW, @pack.public_send(name, environment_row: @row, arguments: arguments).dig(Telemetry::STRUCTURED, Telemetry::FACTS))
+
+          assert_equal [ "56", true, [] ], [ posted.reference, posted.unread, posted.comments ]
         end
 
         test "Firefight is known by its App's bot and its slug" do
