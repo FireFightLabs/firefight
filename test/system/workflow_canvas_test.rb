@@ -192,9 +192,11 @@ class WorkflowCanvasTest < ApplicationSystemTestCase
     assert_field "How long", with: "5"
 
     click_button "Close"
+    record_toasts
     click_button "Add a step"
     within("[role=dialog]") { click_button "Wait for event" }
-    assert_toast "Wait for event was added."
+    # The connect save's toast can land on this one before it is seen, stacking it behind with its words hidden.
+    assert_toast_drawn "Wait for event was added."
     # The new step is then connected below the last one. Left in flight, that save's toast surfaced in whichever test
     # this worker ran next.
     assert_toast "Wait a bit now leads to Wait for event."
