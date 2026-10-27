@@ -1,8 +1,10 @@
 # What the shared tools ask of whoever they run for, for one chat of a pull request review: the review's own, or one
 # check's. A review reads as Halon, the investigator agent, with its own grants, since the person who asked on the code
 # host is not someone Firefight knows. It only reads, never waits for a person and keeps nothing to run later. Every
-# call goes through the gateway and is in the activity log under the review, and every part and check of one review
-# reads in the same sandbox.
+# tool call goes through the gateway and is in the activity log under the review, and every part and check of one
+# review reads in the same sandbox. The review's own reads of the pull request, its files and its head, which no tool
+# makes, are one read of the connection when the review starts and when a worker takes it (PullRequestReview::Reading),
+# allowed by the connection's read pack and logged under the review the same way.
 class PullRequestReview::Agent
   # Firefight's own tools that help review code: what happened before, what fired, where things run and what depends
   # on them, and what the team wrote down. Permissions, access and setup are about the workspace, never the change.
@@ -57,8 +59,7 @@ class PullRequestReview::Agent
 
   private
 
-  # How the activity log names what the review was for.
-  def label = "Review of PR ##{review.number} in #{review.repository}"
+  def label = PullRequestReview.activity_label(review.repository, review.number)
 
   def kept?(name) = !self.class.firefight_names.include?(name) || FIREFIGHT_GROUPS.include?(Chat::Tools::Groups.of_firefight_tool(name))
 

@@ -29,6 +29,25 @@ class PullRequestReview::StartTest < ActiveJob::TestCase
     assert_equal 1, @workspace.pull_request_reviews.count
   end
 
+  test "a connection Halon may no longer read refuses the review with why, and reads nothing" do
+    revoke_review_reads(@row)
+    Integrations::ReviewHost.expects(:pull_request).never
+
+    error = assert_raises(PullRequestReview::Start::Refused) do
+      PullRequestReview::Start.call(workspace: @workspace, repository: "acme/api", number: 7, trigger: PullRequestReview::TRIGGER_REQUESTED)
+    end
+    assert_equal "Halon has no access to read GitHub, so it cannot review this pull request.", error.message
+    assert_empty @workspace.pull_request_reviews
+  end
+
+  test "reading the pull request at the start is in the activity log under the review" do
+    PullRequestReview::Start.call(workspace: @workspace, repository: "acme/api", number: 7, trigger: PullRequestReview::TRIGGER_REQUESTED)
+
+    read = Ability::Invocation.find_by!(workspace: @workspace, action_key: Ability::Role.reads_key(@row.integration_id))
+    assert_equal [ AbilityGateway::SOURCE_PULL_REQUEST_REVIEW, "Review of PR #7 in acme/api", Ability::Invocation::OUTCOME_SUCCESS ],
+                 [ read.source, read.triggered_by_label, read.outcome ]
+  end
+
   test "a repository no connection holds, or a workspace without Halon, is refused with why" do
     error = assert_raises(PullRequestReview::Start::Refused) do
       PullRequestReview::Start.call(workspace: @workspace, repository: "acme/other", number: 1, trigger: PullRequestReview::TRIGGER_REQUESTED)

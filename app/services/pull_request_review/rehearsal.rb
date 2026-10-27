@@ -13,7 +13,9 @@ class PullRequestReview::Rehearsal
     row = Integrations::ReviewHost.row_for(workspace, repository)
     raise PullRequestReview::Start::Refused, format(PullRequestReview::Start::NOT_HELD, repository: repository) unless row
 
-    pull = Integrations::ReviewHost.pull_request(row, repository: repository, number: number)
+    pull = PullRequestReview.reading!(row, repository: repository, number: number) do
+      Integrations::ReviewHost.pull_request(row, repository: repository, number: number)
+    end
     review = PullRequestReview.create!(
       workspace: workspace, integration_environment: row, repository: repository, number: number, head_sha: head_sha.presence || pull.head_sha,
       base_sha: base_sha.presence, trigger: PullRequestReview::TRIGGER_REQUESTED, rehearsal: true, max_spend_cents: max_spend_cents,

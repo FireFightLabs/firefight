@@ -36,7 +36,8 @@ class PullRequestReview::Runner
     return Result.new(status: PullRequestReview::STATUS_FAILED, error_summary: PullRequestReview::NO_CONNECTION) unless row
 
     @row = row
-    read_pull_request!
+    return Result.new(status: PullRequestReview::STATUS_FAILED, error_summary: PullRequestReview::NOT_ALLOWED) unless read_pull_request!
+
     review_parts!
     conclude!
     Result.new(status: PullRequestReview::STATUS_DONE, error_summary: nil)
@@ -134,7 +135,15 @@ class PullRequestReview::Runner
 
   private
 
+  # False when Halon may no longer read the connection, before anything is read.
   def read_pull_request!
+    PullRequestReview.reading!(@row, repository: review.repository, number: review.number) { read_from_host! }
+    true
+  rescue PullRequestReview::Reading::NotAllowed
+    false
+  end
+
+  def read_from_host!
     pull = Integrations::ReviewHost.pull_request(@row, repository: review.repository, number: review.number)
     base_sha = review.base_sha.presence || pull.base_sha
     at_head = pull.with(head_sha: review.head_sha)

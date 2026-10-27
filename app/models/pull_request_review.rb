@@ -5,6 +5,7 @@
 class PullRequestReview < ApplicationRecord
   include PullRequestReview::Announcing
   include PullRequestReview::Requesting
+  include PullRequestReview::Reading
 
   STATUS_QUEUED = "queued"
   STATUS_RUNNING = "running"
@@ -31,6 +32,7 @@ class PullRequestReview < ApplicationRecord
   # The plain sentences a review stops with. Anything else in error_summary is a technical cause for whoever debugs it.
   COULD_NOT_READ = "Could not read the pull request from the code host".freeze
   NO_CONNECTION = "The code host connection it read through is gone".freeze
+  NOT_ALLOWED = "Halon has no access to read the code host connection it reads through".freeze
   GAVE_UP = "Something went wrong on Halon's side".freeze
   OUT_OF_CREDIT = "No AI account could pay for the review".freeze
   TOO_MANY_ATTEMPTS = "Its worker kept stopping before it finished".freeze

@@ -56,6 +56,13 @@ module PullRequestReviewTestHelper
     integration.integration_environments.create!(base_config: { "installation_id" => "12345" })
   end
 
+  # Takes the connection's read pack away from Halon, as an admin does on the Permissions screen.
+  def revoke_review_reads(row)
+    workspace = row.integration.workspace
+    pack = workspace.ability_roles.find_by!(integration_id: row.integration_id, pack: Ability::Role::PACK_READ)
+    workspace.ability_grants.find_by!(principal: SystemAgent.investigator, role: pack).destroy!
+  end
+
   def review_pull(head_sha: REVIEW_HEAD, base_sha: REVIEW_BASE)
     Integrations::ReviewHost::PullRequest.new(
       repository: "acme/api", number: 7, title: "Retry checkout", body: "Retries a failed charge.", author: "ada", url: "https://github.com/acme/api/pull/7",

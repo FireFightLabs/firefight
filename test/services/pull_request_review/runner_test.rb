@@ -269,6 +269,17 @@ class PullRequestReview::RunnerTest < ActiveSupport::TestCase
     assert_equal "f" * 40, @review.reload.base_sha
   end
 
+  test "a review whose connection Halon may no longer read fails with why before it reads anything, and its read is in the activity log" do
+    revoke_review_reads(@row)
+    Integrations::ReviewHost.expects(:pull_request).never
+
+    result = PullRequestReview::Runner.new(@review, by: "job-1").run
+
+    assert_equal [ PullRequestReview::STATUS_FAILED, PullRequestReview::NOT_ALLOWED ], [ result.status, result.error_summary ]
+    denied = Ability::Invocation.find_by!(workspace: @workspace, action_key: Ability::Role.reads_key(@row.integration_id))
+    assert_equal [ Ability::Invocation::DECISION_DENY, AbilityGateway::SOURCE_PULL_REQUEST_REVIEW ], [ denied.decision, denied.source ]
+  end
+
   test "a review whose connection is gone fails with why" do
     @review.update!(integration_environment: nil)
 
