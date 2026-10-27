@@ -129,16 +129,21 @@ class PullRequestReview::Finding < ApplicationRecord
 
   private
 
-  # The check is appended in SQL, so one written meanwhile by another worker, such as a withdrawal, is kept. changes are
+  # The check is appended in SQL, so one written meanwhile by another worker, such as a withdrawal, is kept. Only an open
+  # finding moves, so one another worker withdrew or fixed meanwhile stays as it is and the answer is false. changes are
   # validated before they are written.
   def cross_checked!(outcome, note, by, **changes)
     assign_attributes(changes)
     validate!
-    self.class.transaction do
-      self.class.where(id: id).update_all([ "cross_checks = cross_checks || ?::jsonb", [ cross_check(outcome, note, by) ].to_json ])
-      self.class.where(id: id).update_all(changes.merge(updated_at: Time.current))
+    moved = self.class.transaction do
+      still_open = self.class.where(id: id, status: STATUS_OPEN)
+      next false unless still_open.update_all([ "cross_checks = cross_checks || ?::jsonb", [ cross_check(outcome, note, by) ].to_json ]) > 0
+
+      still_open.update_all(changes.merge(updated_at: Time.current)) > 0
     end
     reload
+    return false unless moved
+
     review.announce!(PullRequestReview::CHANGE_FINDING_CHANGED, finding: self)
     true
   end

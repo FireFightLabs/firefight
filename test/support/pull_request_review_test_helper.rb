@@ -29,17 +29,20 @@ module PullRequestReviewTestHelper
     end
   end
 
-  # Plays the check: settles each finding with the next settlement the test lists.
+  # Plays the check: settles each finding with the next settlement the test lists. meanwhile runs with the number of the
+  # check before it settles, as another worker would.
   class ScriptedVerifier
     attr_reader :asked
 
-    def initialize(settlements)
+    def initialize(settlements, meanwhile: nil)
       @settlements = settlements
+      @meanwhile = meanwhile
       @asked = []
     end
 
     def run(tools:, finding:, earlier:, context:, settled:, **)
       @asked << { finding: finding, earlier: earlier, context: context }
+      @meanwhile&.call(@asked.size)
       settlement = @settlements.shift
       tools.find { |tool| tool.name == PullRequestReview::SettleFinding::NAME }.call(**settlement) if settlement
       yield FirefightAi::AgentLoop::Turn.new(turns_used: 2, spent_micros: 5_000) if block_given?

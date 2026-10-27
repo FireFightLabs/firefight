@@ -72,6 +72,25 @@ class PullRequestReview::RunnerTest < ActiveSupport::TestCase
     assert_includes verifier.asked.second[:earlier], "1. Stability & Availability | Major | Quick win, app/jobs/charge_job.rb:3"
   end
 
+  test "a check that confirms an earlier finding another worker withdrew meanwhile says nothing of it" do
+    answers = []
+    script = lambda do |_number, tools, _part|
+      answers << tools.fetch("report_finding").call(**reported.symbolize_keys)
+      answers << tools.fetch("report_finding").call(**reported(path: "db/migrate/1_add_index.rb", line: 1, claim: "Add the index concurrently").symbolize_keys)
+    end
+    verifier = ScriptedVerifier.new([
+      { verdict: "keep", reason: "It retries at once." },
+      { verdict: "keep", reason: "orders is large.", earlier: [ { "finding" => 1, "outcome" => "confirm", "note" => "It retries at once." } ] }
+    ], meanwhile: ->(check) { @review.findings.find_by!(position: 1).withdraw!("It does not hold.") if check == 2 })
+    stub_review_model(ScriptedReviewer.new(script, []), verifier)
+
+    PullRequestReview::Runner.new(@review, by: "job-1").run
+
+    assert_equal "Written as finding 2.", answers.second
+    first = @review.findings.find_by!(position: 1)
+    assert_equal [ PullRequestReview::Finding::CROSS_CHECK_WITHDRAWN ], first.cross_checks.map { |check| check["outcome"] }
+  end
+
   test "a report of a finding already withdrawn is not checked again, and the reviewer is told why it was withdrawn" do
     answers = []
     script = lambda do |_number, tools, _part|

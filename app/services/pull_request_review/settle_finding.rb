@@ -73,7 +73,7 @@ class PullRequestReview::SettleFinding < RubyLLM::Tool
   def settled? = !@settled.nil?
 
   # The arguments match the schema above, not an execute signature, so skip the base check. A settlement naming an
-  # earlier finding that is not listed, or one that withdraws without a note, is refused with why.
+  # earlier finding that is not listed, one that withdraws without a note, or the same finding twice is refused with why.
   def call(tool_call: nil, **arguments)
     given = arguments.deep_stringify_keys
     verdict = given["verdict"].to_s
@@ -84,7 +84,8 @@ class PullRequestReview::SettleFinding < RubyLLM::Tool
       Earlier.new(number: each["finding"].to_i, outcome: each["outcome"].to_s, note: each["note"].to_s.squish, changes: each["changes"].is_a?(Hash) ? each["changes"] : {})
     end
     problems = earlier.reject { |each| @numbers.include?(each.number) }.map { |each| "There is no earlier finding #{each.number}." } +
-               earlier.reject { |each| OUTCOMES.include?(each.outcome) && each.note.present? }.map { |each| "Finding #{each.number} needs an outcome and a note." }
+               earlier.reject { |each| OUTCOMES.include?(each.outcome) && each.note.present? }.map { |each| "Finding #{each.number} needs an outcome and a note." } +
+               earlier.map(&:number).tally.select { |_number, count| count > 1 }.keys.map { |number| "Finding #{number} is named more than once. Say one outcome for it." }
     return "Not settled. #{problems.uniq.join(' ')}" if problems.any?
 
     @settled = Settled.new(verdict: verdict, reason: reason, corrections: given["corrections"].is_a?(Hash) ? given["corrections"] : {}, earlier: earlier)

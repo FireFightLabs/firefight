@@ -101,7 +101,8 @@ class PullRequestReview::Verification
     end
   end
 
-  # What the check showed of each earlier finding it named, applied, said as the reviewer reads it.
+  # What the check showed of each earlier finding it named, applied, said as the reviewer reads it. A finding another
+  # worker withdrew or fixed meanwhile is left as it is and goes unsaid.
   def earlier!(outcomes, by:)
     found = earlier_findings.index_by(&:position)
     outcomes.filter_map do |outcome|
@@ -110,12 +111,10 @@ class PullRequestReview::Verification
 
       case outcome.outcome
       when PullRequestReview::SettleFinding::CONFIRM
-        finding.confirmed!(outcome.note, by: by)
-        "It confirmed finding #{finding.position}."
+        "It confirmed finding #{finding.position}." if finding.confirmed!(outcome.note, by: by)
       when PullRequestReview::SettleFinding::STRENGTHEN
         changes = outcome.changes.slice(*STRENGTHENABLE).select { |key, value| valid_correction?(key.to_sym, value) || key == "serious" && [ true, false ].include?(value) }
-        finding.strengthened!(outcome.note, by: by, **changes.symbolize_keys)
-        "It strengthened finding #{finding.position}."
+        "It strengthened finding #{finding.position}." if finding.strengthened!(outcome.note, by: by, **changes.symbolize_keys)
       when PullRequestReview::SettleFinding::WITHDRAW
         "It withdrew finding #{finding.position}: #{outcome.note}" if finding.withdraw!(outcome.note, by: by)
       end
