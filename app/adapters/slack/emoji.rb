@@ -28,6 +28,7 @@ module Slack
     POSTMORTEM = ":clipboard:".freeze
     HALON = ":sparkles:".freeze
     WARNING = ":warning:".freeze
+    HIGH_RISK_CHANGE = ":octagonal_sign:".freeze
 
     # Reactions take the name alone. Halon puts the first on a message it is answering and swaps it for the second once
     # the answer is in.

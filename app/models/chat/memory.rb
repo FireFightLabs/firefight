@@ -5,6 +5,7 @@
 # treats every memory as a hunch to check, never as proof.
 class Chat::Memory < ApplicationRecord
   include Chat::SecretFree
+  include Chat::Memory::Lesson
 
   self.table_name = "chat_memories"
 
@@ -351,12 +352,17 @@ class Chat::Memory < ApplicationRecord
     return 0 unless days
 
     reason = "Nobody confirmed it within #{days} days."
-    transaction do
-      moved = moved_ids(where(workspace: workspace, state: STATE_UNCONFIRMED).where(updated_at: ...days.days.ago), [ STATE_UNCONFIRMED ],
+    expiring = where(workspace: workspace, state: STATE_UNCONFIRMED).where(updated_at: ...days.days.ago)
+    # An approved lesson that expires stops holding its findings, so they are named before and said after.
+    held = held_finding_ids_of(expiring.where.not(approved_at: nil).select(:id))
+    expired = transaction do
+      moved = moved_ids(expiring, [ STATE_UNCONFIRMED ],
                         [ "state = ?, state_reason = ?, updated_at = ?", STATE_EXPIRED, stored_reason(reason), Time.current ])
       record_moved!(moved, Chat::MemoryEvent::KIND_EXPIRED, detail: reason)
       moved.size
     end
+    announce_findings_changed(held)
+    expired
   end
 
   def confirmed? = state == STATE_CONFIRMED
@@ -392,6 +398,7 @@ class Chat::Memory < ApplicationRecord
     when Conversation then source.started_by == viewer ? "your chat" : "a chat with #{source.started_by.try(:actor_display_name) || 'someone'}"
     when Investigation then source.incident ? "the #{source.incident.identifier} investigation" : "an investigation"
     when Incident then source.identifier
+    when CodeAgentSession then "#{source.lesson_origin} in #{source.repository}"
     when WorkspaceMembership then source == viewer ? "what you wrote on the Memory page" : "what #{source.display_name} wrote on the Memory page"
     else "an earlier chat or incident"
     end
@@ -589,6 +596,7 @@ class Chat::Memory < ApplicationRecord
     guarded = guarded.where(confirmed_by_id: nil) if halon_only
     moved = guarded.update_all(columns.merge(state: state, outdated_from: nil, outdated_cause: nil, decided_by_halon: decided_by_halon, updated_at: now)) > 0
     reload
+    announce_lesson_change if moved && approved?
     moved
   end
 end

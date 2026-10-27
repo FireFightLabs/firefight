@@ -525,6 +525,58 @@ module Integrations
         fail! error.message
       end
 
+      # Bitbucket's states for a pull request that ended, and the account type a person has.
+      OUTCOME_STATES = { "MERGED" => ReviewHost::STATE_MERGED, "DECLINED" => ReviewHost::STATE_CLOSED, "SUPERSEDED" => ReviewHost::STATE_CLOSED }.freeze
+      PERSON_ACCOUNT = "user".freeze
+
+      # How a pull request ended (Integrations::ReviewHost.outcome): who merged or declined it and the reason Bitbucket
+      # keeps for declining, every commit on it, oldest first, and the latest comments in its conversation.
+      def pull_request_outcome(environment_row, repository:, number:)
+        client = api(environment_row)
+        path = "#{BitbucketApi.repository(repository)}/pullrequests/#{number}"
+        pull = client.get(path)
+        ender = pull["closed_by"]
+        commits, = client.list("#{path}/commits", {}, pages: 3)
+        comments, = client.list("#{path}/comments", {}, pages: 2)
+        ReviewHost::Outcome.new(
+          state: OUTCOME_STATES.fetch(pull["state"].to_s, ReviewHost::STATE_OPEN), ended_by: ender&.dig("nickname") || ender&.dig("display_name"),
+          ended_by_person: ender.is_a?(Hash) && ender["type"] == PERSON_ACCOUNT, reason: pull["reason"].to_s.strip.presence,
+          commits: commits.reverse.map do |commit|
+            raw = commit.dig("author", "raw").to_s
+            ReviewHost::OutcomeCommit.new(sha: commit["hash"], author: commit.dig("author", "user", "nickname") || raw.sub(/\s*<[^>]*>\z/, ""),
+                                          email: raw[/<([^>]+)>/, 1], message: commit["message"].to_s, merge: Array(commit["parents"]).size > 1)
+          end,
+          comments: comments.reject { |comment| comment["deleted"] || comment["inline"] }.last(ReviewHost::OUTCOME_COMMENTS).map do |comment|
+            ReviewHost::OutcomeComment.new(author: comment.dig("user", "nickname"), person: comment.dig("user", "type") == PERSON_ACCOUNT, body: comment.dig("content", "raw").to_s)
+          end
+        )
+      rescue BitbucketApi::Error => error
+        fail! "Bitbucket could not read how pull request ##{number} in #{repository} ended: #{error.message}"
+      end
+
+      # What the commits between two changed (Integrations::ReviewHost.changes_between). Bitbucket's spec names the newer
+      # commit first.
+      def pull_request_changes_between(environment_row, repository:, from:, to:)
+        api(environment_row).text("#{BitbucketApi.repository(repository)}/diff/#{Http.segment(to)}..#{Http.segment(from)}")
+      rescue BitbucketApi::Error => error
+        fail! "Bitbucket could not compare #{from} with #{to} in #{repository}: #{error.message}"
+      end
+
+      # The review's check on a commit, as a build status (Integrations::ReviewHost.set_check!). Bitbucket needs a url on
+      # every status, so one without falls back to the commit's own page.
+      def set_review_check(environment_row, repository:, sha:, check:)
+        client = api(environment_row)
+        body = { "key" => Integrations::ReviewHost::CHECK_KEY, "state" => check.passing? ? "SUCCESSFUL" : "FAILED", "name" => Integrations::ReviewHost::CHECK_NAME,
+                 "description" => check.short_description, "url" => check.url.presence || [ @site, repository, "commits", sha ].join("/") }
+        client.post("#{BitbucketApi.repository(repository)}/commit/#{Http.segment(sha)}/statuses/build", body)
+        nil
+      rescue BitbucketApi::Error => error
+        # A limit, a slow host or the host's own failure is raised as it came, so the check is tried again.
+        raise if ReviewHost.retryable?(error)
+
+        fail! error.message
+      end
+
       # Bitbucket's pull request states as the review reads them. A superseded one was closed for another.
       REVIEW_STATES = {
         "OPEN" => ReviewHost::STATE_OPEN, MERGED => ReviewHost::STATE_MERGED, "DECLINED" => ReviewHost::STATE_CLOSED, "SUPERSEDED" => ReviewHost::STATE_CLOSED

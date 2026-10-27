@@ -1,8 +1,9 @@
 import {
   CHAT_MEMORY_CHECK_OUTCOME, CHAT_MEMORY_EVENT_KIND, CHAT_MEMORY_STANDING, CHAT_MEMORY_STATE, type ChatMemoryEventKind, type ChatMemoryState,
+  LESSON_STATUS, type LessonStatus,
 } from "@/lib/generated/constants"
 import { formatDate } from "@/lib/formatters"
-import type { ChatMemory, ChatMemoryEvent } from "@/types/serializers"
+import type { ChatLesson, ChatMemory, ChatMemoryEvent } from "@/types/serializers"
 import { MEMORY_FILTERS, type MemoryFilter } from "@/pages/memory/types"
 
 export const FILTER_LABELS: Record<MemoryFilter, string> = {
@@ -139,4 +140,29 @@ const EVENT_ACTS: Record<ChatMemoryEventKind, string> = {
 // One line of history, such as "Ada confirmed it", or "Expired" when nobody did it.
 export function eventHeadline(event: ChatMemoryEvent): string {
   return event.by ? `${event.by} ${EVENT_ACTS[event.kind]}` : EVENT_LABELS[event.kind]
+}
+
+export const LESSON_STATUS_LABELS: Record<LessonStatus, string> = {
+  waiting: "Waiting for approval",
+  approved: "Approved",
+  turned_down: "Turned down",
+}
+
+export const LESSON_STATUS_TONES: Record<LessonStatus, string> = {
+  waiting: "border-warning/35 bg-warning-tint text-warning",
+  approved: "border-stage-closed-border bg-success-tint text-success",
+  turned_down: "border-border-strong bg-stage-canceled-tint text-fg-muted",
+}
+
+// What pull request reviews do with it, in words, such as "Approved by Ada. Reviews comment on a pull request that goes
+// against it."
+export function lessonStanding(lesson: ChatLesson): string {
+  if (lesson.status === LESSON_STATUS.TURNED_DOWN) {
+    return lesson.turnedDownBy ? `Turned down by ${lesson.turnedDownBy}. Reviews never check it.` : "Turned down. Reviews never check it."
+  }
+  if (lesson.status === LESSON_STATUS.WAITING) {
+    return "Reviews check it once it is approved."
+  }
+  const checks = lesson.strict ? "Reviews fail a check on a pull request that goes against it." : "Reviews comment on a pull request that goes against it."
+  return lesson.approvedBy ? `Approved by ${lesson.approvedBy}. ${checks}` : checks
 }

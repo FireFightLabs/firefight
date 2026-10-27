@@ -743,6 +743,13 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # A pull request Halon reviewed as high risk, posted in the channel of the service that owns its repository. alert is a
+  # PullRequestReviewAlertService::Shown.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_high_risk_pull_request(channel_id:, alert:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Tells an incident's channel about memories Halon learned or disputed, each with the actions its state allows, in a
   # thread when given. post is a MemoryPostService::Shown.
   # @return [Hash] { message_id:, channel_id: }

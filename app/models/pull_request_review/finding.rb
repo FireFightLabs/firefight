@@ -4,6 +4,7 @@
 # strengthen or withdraw it, and a push can fix it.
 class PullRequestReview::Finding < ApplicationRecord
   include PullRequestReview::Finding::Threading
+  include PullRequestReview::Finding::LessonCheck
 
   CATEGORY_CORRECTNESS = "correctness"
   CATEGORY_STABILITY = "stability"
@@ -50,6 +51,9 @@ class PullRequestReview::Finding < ApplicationRecord
   CROSS_CHECK_STRENGTHENED = "strengthened"
   CROSS_CHECK_WITHDRAWN = "withdrawn"
   CROSS_CHECKS = [ CROSS_CHECK_CONFIRMED, CROSS_CHECK_STRENGTHENED, CROSS_CHECK_WITHDRAWN ].freeze
+
+  # The unique index that makes one problem one finding per review (fingerprint_for).
+  FINGERPRINT_INDEX = "index_pull_request_review_findings_on_fingerprint".freeze
 
   # One piece of evidence: what it is, its title as people read it and where to open it.
   Evidence = Data.define(:kind, :title, :url) do
@@ -131,16 +135,21 @@ class PullRequestReview::Finding < ApplicationRecord
 
   private
 
-  # The check is appended in SQL, so one written meanwhile by another worker, such as a withdrawal, is kept. changes are
+  # The check is appended in SQL, so one written meanwhile by another worker, such as a withdrawal, is kept. Only an open
+  # finding moves, so one another worker withdrew or fixed meanwhile stays as it is and the answer is false. changes are
   # validated before they are written.
   def cross_checked!(outcome, note, by, **changes)
     assign_attributes(changes)
     validate!
-    self.class.transaction do
-      self.class.where(id: id).update_all([ "cross_checks = cross_checks || ?::jsonb", [ cross_check(outcome, note, by) ].to_json ])
-      self.class.where(id: id).update_all(changes.merge(updated_at: Time.current))
+    moved = self.class.transaction do
+      still_open = self.class.where(id: id, status: STATUS_OPEN)
+      next false unless still_open.update_all([ "cross_checks = cross_checks || ?::jsonb", [ cross_check(outcome, note, by) ].to_json ]) > 0
+
+      still_open.update_all(changes.merge(updated_at: Time.current)) > 0
     end
     reload
+    return false unless moved
+
     review.announce!(PullRequestReview::CHANGE_FINDING_CHANGED, finding: self)
     true
   end

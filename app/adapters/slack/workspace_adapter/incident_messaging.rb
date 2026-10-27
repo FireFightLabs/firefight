@@ -662,6 +662,14 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     end
   end
 
+  def post_high_risk_pull_request(channel_id:, alert:)
+    translate_errors do
+      result = Slack::Client.post_message(workspace: @workspace, channel: channel_id, text: Slack::Messages::HighRiskPullRequest.fallback(alert),
+                                          blocks: Slack::Messages::HighRiskPullRequest.build(alert))
+      { message_id: result[:ts], channel_id: result[:channel] || channel_id }
+    end
+  end
+
   def post_learned_memories_to_user(user_id:, post:)
     post_message(channel_id: user_id, text: Slack::Messages::LearnedMemories.fallback(post), blocks: Slack::Messages::LearnedMemories.build(post))
   end

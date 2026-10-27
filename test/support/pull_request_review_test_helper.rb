@@ -29,17 +29,20 @@ module PullRequestReviewTestHelper
     end
   end
 
-  # Plays the check: settles each finding with the next settlement the test lists.
+  # Plays the check: settles each finding with the next settlement the test lists. meanwhile runs with the number of the
+  # check before it settles, as another worker would.
   class ScriptedVerifier
     attr_reader :asked
 
-    def initialize(settlements)
+    def initialize(settlements, meanwhile: nil)
       @settlements = settlements
+      @meanwhile = meanwhile
       @asked = []
     end
 
     def run(tools:, finding:, earlier:, context:, settled:, **)
       @asked << { finding: finding, earlier: earlier, context: context }
+      @meanwhile&.call(@asked.size)
       settlement = @settlements.shift
       tools.find { |tool| tool.name == PullRequestReview::SettleFinding::NAME }.call(**settlement) if settlement
       yield FirefightAi::AgentLoop::Turn.new(turns_used: 2, spent_micros: 5_000) if block_given?
@@ -51,6 +54,13 @@ module PullRequestReviewTestHelper
   def review_connection(workspace)
     integration = Integration.create!(workspace: workspace, kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub")
     integration.integration_environments.create!(base_config: { "installation_id" => "12345" })
+  end
+
+  # Takes the connection's read pack away from Halon, as an admin does on the Permissions screen.
+  def revoke_review_reads(row)
+    workspace = row.integration.workspace
+    pack = workspace.ability_roles.find_by!(integration_id: row.integration_id, pack: Ability::Role::PACK_READ)
+    workspace.ability_grants.find_by!(principal: SystemAgent.investigator, role: pack).destroy!
   end
 
   def review_pull(head_sha: REVIEW_HEAD, base_sha: REVIEW_BASE)
@@ -71,12 +81,19 @@ module PullRequestReviewTestHelper
     Integrations::ReviewHost.stubs(:changed_files).with(row, anything).returns(files)
   end
 
-  def stub_review_model(reviewer, verifier, summary: FirefightAi::ReviewSummarizer::Summary.new(summary: "Retries a failed charge.", risk: "high", risk_reason: "It can charge twice."))
+  def stub_review_model(reviewer, verifier, summary: review_summary)
     FirefightAi.stubs(:model_for).returns(FirefightAi::ModelChoice.new(model: "claude-sonnet-4-5", provider: "anthropic"))
     FirefightAi::PullRequestReviewer.stubs(:new).returns(reviewer)
     FirefightAi::FindingVerifier.stubs(:new).returns(verifier)
     FirefightAi::ReviewSummarizer.any_instance.stubs(:summarize).returns(summary)
     PullRequestReview::Agent.any_instance.stubs(:tools).returns([ [], [] ])
+  end
+
+  # What is left of text once every frame is taken out, which the model reads as Firefight's own words.
+  def outside_frames(text) = text.to_s.gsub(%r{<tool_result [^>]*>.*?</tool_result>}m, "")
+
+  def review_summary(risk: "high", spent_micros: 0)
+    FirefightAi::ReviewSummarizer::Summary.new(summary: "Retries a failed charge.", risk: risk, risk_reason: "It can charge twice.", spent_micros: spent_micros)
   end
 
   def reported(path: "app/jobs/charge_job.rb", line: 3, claim: "Queue the retry for its backoff delay", evidence: nil, **overrides)

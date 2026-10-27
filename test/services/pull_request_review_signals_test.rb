@@ -61,6 +61,15 @@ class PullRequestReviewSignalsTest < ActiveSupport::TestCase
     assert review.reload.merged_at
   end
 
+  test "a pull request Halon opened that merged or closed is read for a lesson, and anyone else's is not" do
+    session = CodeAgentSession.create!(workspace: @workspace, provider: "anthropic", model: "m", repository: "acme/api", budget_micros: 1,
+                                       expires_at: 1.hour.from_now, token_digest: SecureRandom.hex, pull_request_number: 7)
+
+    assert_enqueued_with(job: PullRequestLessonJob, args: [ session.id ]) { @signals.receive!(signal(Integrations::PullRequestReviews::MERGED)) }
+    assert_enqueued_with(job: PullRequestLessonJob, args: [ session.id ]) { @signals.receive!(signal(Integrations::PullRequestReviews::CLOSED)) }
+    assert_no_enqueued_jobs(only: PullRequestLessonJob) { @signals.receive!(signal(Integrations::PullRequestReviews::CLOSED, number: 8)) }
+  end
+
   test "a person's reply on one of Halon's threads is answered, and Halon's own and a bot's are not" do
     review = create_review(status: PullRequestReview::STATUS_DONE)
     finding = create_finding(review, host_comment_id: "701")

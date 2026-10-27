@@ -536,6 +536,7 @@ Rails.application.routes.draw do
     delete "/catalogue/types/:id", to: "catalogue#destroy_type"
     post "/catalogue/:type_slug/entries", to: "catalogue#create_entry"
     patch "/catalogue/entries/:id", to: "catalogue#update_entry"
+    patch "/catalogue/entries/:id/review_alerts", to: "catalogue#update_review_alerts", as: :catalogue_entry_review_alerts
     delete "/catalogue/entries/:id", to: "catalogue#destroy_entry"
     get "/catalogue/search/members", to: "catalogue#search_members", as: :catalogue_search_members
     get "/catalogue/search/channels", to: "catalogue#search_channels", as: :catalogue_search_channels
@@ -546,6 +547,10 @@ Rails.application.routes.draw do
     post "/memory/memories/:id/correct", to: "memory#correct_memory", as: :correct_memory
     post "/memory/memories/:id/reject", to: "memory#reject_memory", as: :reject_memory
     delete "/memory/memories/:id", to: "memory#destroy_memory", as: :destroy_memory
+    post "/memory/lessons/:id/approve", to: "memory#approve_lesson", as: :approve_lesson
+    patch "/memory/lessons/:id", to: "memory#edit_lesson", as: :edit_lesson
+    post "/memory/lessons/:id/turn_down", to: "memory#turn_down_lesson", as: :turn_down_lesson
+    post "/memory/findings/:id/override", to: "memory#override_finding", as: :override_finding
     post "/memory/instructions", to: "memory#create_instruction", as: :memory_instructions
     patch "/memory/instructions/:id", to: "memory#update_instruction", as: :memory_instruction
     delete "/memory/instructions/:id", to: "memory#destroy_instruction"

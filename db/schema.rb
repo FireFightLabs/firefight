@@ -376,6 +376,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_130000) do
     t.string "source"
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
+    t.boolean "review_alerts", default: true, null: false
     t.index ["catalog_type_id", "slug"], name: "index_catalog_entries_on_type_and_slug_active", unique: true, where: "(deleted_at IS NULL)"
     t.index ["catalog_type_id"], name: "index_catalog_entries_on_catalog_type_id"
     t.index ["workspace_id", "catalog_type_id"], name: "index_catalog_entries_on_workspace_id_and_catalog_type_id"
@@ -739,7 +740,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_130000) do
     t.datetime "checked_at"
     t.string "check_outcome"
     t.boolean "decided_by_halon", default: false, null: false
+    t.uuid "approved_by_id"
+    t.datetime "approved_at"
+    t.boolean "strict", default: false, null: false
     t.index ["added_by_id"], name: "index_chat_memories_on_added_by_id"
+    t.index ["approved_by_id"], name: "index_chat_memories_on_approved_by_id"
     t.index ["confirmed_by_id"], name: "index_chat_memories_on_confirmed_by_id"
     t.index ["contradicted_by_id"], name: "index_chat_memories_on_contradicted_by_id"
     t.index ["decided_by_postmortem_id"], name: "index_chat_memories_on_decided_by_postmortem_id"
@@ -749,6 +754,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_130000) do
     t.index ["subject_type", "subject_id"], name: "index_chat_memories_on_subject"
     t.index ["workspace_id", "checked_at"], name: "index_chat_memories_on_workspace_id_and_checked_at"
     t.index ["workspace_id", "state"], name: "index_chat_memories_on_workspace_id_and_state"
+    t.index ["workspace_id"], name: "index_chat_memories_approved_lessons", where: "(approved_at IS NOT NULL)"
   end
 
   create_table "chat_memory_events", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1375,6 +1381,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_130000) do
     t.integer "questions_asked", default: 0, null: false
     t.string "push_commit"
     t.jsonb "tool_result_clearing", default: {}, null: false
+    t.jsonb "pull_request_outcome"
+    t.datetime "pull_request_lesson_read_at"
     t.index ["integration_environment_id"], name: "index_code_agent_sessions_following", where: "((pull_request_state)::text = 'open'::text)"
     t.index ["push_token_digest"], name: "index_code_agent_sessions_on_push_token_digest", unique: true, where: "(push_token_digest IS NOT NULL)"
     t.index ["token_digest"], name: "index_code_agent_sessions_on_token_digest", unique: true
@@ -2786,7 +2794,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_130000) do
     t.jsonb "thread_said", default: [], null: false
     t.text "public_why"
     t.jsonb "public_failure_chain"
+    t.uuid "overridden_by_id"
+    t.datetime "overridden_at"
+    t.text "override_reason"
     t.index ["lesson_id"], name: "index_pull_request_review_findings_on_lesson_id"
+    t.index ["overridden_by_id"], name: "index_pull_request_review_findings_on_overridden_by_id"
     t.index ["pull_request_review_id", "fingerprint"], name: "index_pull_request_review_findings_on_fingerprint", unique: true
     t.index ["pull_request_review_id", "position"], name: "index_pull_request_review_findings_in_order", unique: true
     t.check_constraint "severity::text = ANY (ARRAY['critical'::character varying, 'major'::character varying, 'minor'::character varying, 'trivial'::character varying]::text[])", name: "pull_request_review_findings_severity"
@@ -2832,9 +2844,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_130000) do
     t.datetime "review_posted_at"
     t.string "review_comment_id"
     t.uuid "held_approval_id"
+    t.string "commit_status"
+    t.string "commit_status_sha"
+    t.string "commit_status_error"
+    t.datetime "high_risk_posted_at"
+    t.jsonb "high_risk_posted_channels", default: [], null: false
     t.index ["integration_environment_id"], name: "index_pull_request_reviews_on_integration_environment_id"
     t.index ["workspace_id", "repository", "number"], name: "index_pull_request_reviews_on_pull_request"
     t.index ["workspace_id", "repository", "number"], name: "index_pull_request_reviews_one_live", unique: true, where: "(((status)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying])::text[])) AND (rehearsal = false))"
+    t.check_constraint "commit_status IS NULL OR (commit_status::text = ANY (ARRAY['passing'::character varying, 'failing'::character varying]::text[]))", name: "pull_request_reviews_commit_status"
     t.check_constraint "risk IS NULL OR (risk::text = ANY (ARRAY['low'::character varying, 'medium'::character varying, 'high'::character varying]::text[]))", name: "pull_request_reviews_risk"
     t.check_constraint "status::text = ANY (ARRAY['queued'::character varying, 'running'::character varying, 'done'::character varying, 'failed'::character varying]::text[])", name: "pull_request_reviews_status"
     t.check_constraint "trigger::text = ANY (ARRAY['requested'::character varying, 'automatic'::character varying]::text[])", name: "pull_request_reviews_trigger"
@@ -3855,6 +3873,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_130000) do
   add_foreign_key "chat_memories", "chat_memories", column: "replaced_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "postmortems", column: "decided_by_postmortem_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspace_memberships", column: "added_by_id", on_delete: :nullify
+  add_foreign_key "chat_memories", "workspace_memberships", column: "approved_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspace_memberships", column: "confirmed_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspace_memberships", column: "rejected_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspaces"
@@ -4060,7 +4079,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_130000) do
   add_foreign_key "provider_doc_pages", "provider_doc_sources", on_delete: :cascade
   add_foreign_key "pull_request_review_checks", "pull_request_review_findings", column: "finding_id", on_delete: :nullify
   add_foreign_key "pull_request_review_checks", "pull_request_reviews", on_delete: :cascade
+  add_foreign_key "pull_request_review_findings", "chat_memories", column: "lesson_id", on_delete: :nullify
   add_foreign_key "pull_request_review_findings", "pull_request_reviews", on_delete: :cascade
+  add_foreign_key "pull_request_review_findings", "workspace_memberships", column: "overridden_by_id", on_delete: :nullify
   add_foreign_key "pull_request_reviews", "integration_environments", on_delete: :nullify
   add_foreign_key "pull_request_reviews", "workspaces"
   add_foreign_key "repository_setups", "integrations"

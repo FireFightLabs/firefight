@@ -5,7 +5,8 @@ module FirefightAi
     FEATURE = "pull_request_review_summary".freeze
     PART_LIMIT = 12_000
 
-    Summary = Data.define(:summary, :risk, :risk_reason)
+    # spent_micros is what the call was billed, so the review counts it with the rest of what it spent.
+    Summary = Data.define(:summary, :risk, :risk_reason, :spent_micros)
 
     def initialize(workspace, inferable:, choice:, purpose: AiPurpose::CODE_REVIEW)
       @workspace = workspace
@@ -15,19 +16,20 @@ module FirefightAi
     end
 
     # pull_request is its title and description, files every file with how much it changed, findings the findings
-    # written as text and reach what the map says depends on it. Each is text the app wrote.
-    def summarize(pull_request:, files:, findings:, reach:)
-      response, = FirefightAi.generate(@choice, purpose: @purpose, inference: inference_context) do |chat|
+    # written as text and reach what the map says depends on it. Each is text the app wrote. risks are the levels the
+    # app keeps, and a risk the model gives outside them is nil with its reason, since a guessed level reads as a judgment it never made.
+    def summarize(pull_request:, files:, findings:, reach:, risks:)
+      response, inference = FirefightAi.generate(@choice, purpose: @purpose, inference: inference_context) do |chat|
         chat.with_instructions(self.class.system_prompt)
-        chat.with_schema(Schemas::PullRequestSummary)
+        chat.with_schema(Schemas::PullRequestSummary.for(risks))
         chat.ask([
-          "## The pull request\n#{Evidence.frame('pull_request', pull_request.to_s.truncate(PART_LIMIT))}",
-          "## Its files\n#{files.to_s.truncate(PART_LIMIT)}",
-          "## The findings the review wrote\n#{findings.presence || '(none)'}",
+          "## The pull request\n#{Evidence.frame(PullRequestReviewer::FRAME_PULL_REQUEST, pull_request.to_s.truncate(PART_LIMIT))}",
+          "## Its files\n#{Evidence.frame(PullRequestReviewer::FRAME_FILES, files.to_s.truncate(PART_LIMIT))}",
+          "## The findings the review wrote\n#{findings.present? ? Evidence.frame(PullRequestReviewer::FRAME_FINDINGS, findings) : '(none)'}",
           "## What depends on it\n#{reach.presence || '(nothing the map knows)'}"
         ].join("\n\n"))
       end
-      read(response.parsed)
+      read(response.parsed, risks, inference.cost_micros.to_i)
     end
 
     def self.prompt_version = Prompt.version(system_prompt)
@@ -45,10 +47,10 @@ module FirefightAi
 
     private
 
-    def read(parsed)
+    def read(parsed, risks, spent_micros)
       content = parsed.is_a?(Hash) ? parsed.with_indifferent_access : {}
-      risk = content[:risk].presence_in(Schemas::PullRequestSummary::RISKS) || Schemas::PullRequestSummary::MEDIUM
-      Summary.new(summary: content[:summary].to_s.strip, risk: risk, risk_reason: content[:risk_reason].to_s.strip)
+      risk = content[:risk].presence_in(risks)
+      Summary.new(summary: content[:summary].to_s.strip, risk: risk, risk_reason: (content[:risk_reason].to_s.strip if risk), spent_micros: spent_micros)
     end
 
     def inference_context

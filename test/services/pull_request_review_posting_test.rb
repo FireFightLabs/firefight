@@ -282,6 +282,22 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
     assert_includes edits.first[:body], "0 open, 1 fixed."
   end
 
+  test "a finding from a strict lesson that is overridden edits its line comment and its own comment while still open" do
+    @review.update_columns(summary_comment_id: "100")
+    lesson = Chat::Memory.create!(workspace: @workspace, text: "Retries need a backoff", source: incidents(:active_critical_ws1), state: Chat::Memory::STATE_UNCONFIRMED)
+    lesson.approve!(by: workspace_memberships(:alice_workspace_one), strict: true)
+    finding = create_finding(serious: true, lesson: lesson)
+    finding.update_columns(host_comment_id: "701", serious_comment_id: "200")
+    finding.override!(by: workspace_memberships(:alice_workspace_one), reason: "Behind a flag")
+    answer(EDIT => "x")
+
+    posting.run!(PullRequestReview::CHANGE_FINDING_CHANGED, finding: finding.reload)
+
+    edits = @posts.map(&:last)
+    assert_equal [ "100", "701", "200" ], edits.map { |given| given[:reference] }
+    assert edits.drop(1).all? { |given| given[:body].include?("Lesson from INC-001") && !given[:body].include?("check fails") }
+  end
+
   test "a rehearsal posts nothing" do
     @review.update_columns(rehearsal: true)
     Integrations::PullRequestReviews.expects(:call!).never
