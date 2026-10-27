@@ -89,6 +89,10 @@ module Integrations
 
     class Refused < Integrations::Error; end
 
+    # The connection's tool for a post is gone or switched off under Integrations, which is Firefight's own setting, never
+    # the host's answer.
+    class ToolOff < Refused; end
+
     module_function
 
     def source_of(provider_key) = MapEvents.source_of(provider_key)
@@ -194,8 +198,8 @@ module Integrations
       pack = pack_of(integration)
       name, arguments = pack.review_call(operation, **given)
       tool = integration.tools.available.find_by(name: name)
-      raise Refused, "#{integration.display_name}'s #{name} is not available, so Halon cannot review there." unless tool
-      raise Refused, "#{integration.display_name}'s #{name} is switched off under Integrations, so Halon cannot review there." unless tool.enabled?
+      raise ToolOff, "#{integration.display_name}'s #{name} is not available, so Halon cannot review there." unless tool
+      raise ToolOff, "#{integration.display_name}'s #{name} is switched off under Integrations, so Halon cannot review there." unless tool.enabled?
 
       result = authorize.call(tool, arguments) { NativeExecutor.call(tool: tool, environment_row: environment_row, arguments: arguments) }
       raise Refused, Sentence.ended(answer_text(result).presence || "#{name} failed") if result.is_a?(Hash) && result["isError"]
@@ -218,6 +222,14 @@ module Integrations
     # The host said a comment cannot sit on the line given, which leaves that one line comment out. Any other failure,
     # such as a rate limit or the host being down, stops the review so it is retried.
     def unplaceable?(error) = UNPLACEABLE.include?(error.try(:http_status))
+
+    # The host refused a post and will refuse it again however often it is asked, as a reply to a comment that was deleted
+    # or on a conversation that was locked. A rate limit, a host that did not answer in time or failed on its side is not
+    # (ReviewHost.retryable?), and neither is one of Firefight's own rules, a tool switched off or something this install
+    # cannot do right now.
+    def refused_for_good?(error)
+      error.is_a?(Integrations::Error) && [ PolicyRefusal, ToolOff, Unavailable ].none? { |kind| error.is_a?(kind) } && !ReviewHost.retryable?(error)
+    end
 
     def answer_text(result) = Array(result.to_h["content"]).filter_map { |part| part["text"] }.join("\n").strip
     private_class_method :answer_text

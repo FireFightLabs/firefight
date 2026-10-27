@@ -1,7 +1,7 @@
 # What a finding keeps of its thread on the pull request: its line comment and the page it opens at, the comment of its
-# own a serious finding gets, what was said on the thread, the replies Halon answered and the push it last checked a fix
-# against. Each is taken in one guarded update, so a reply delivered twice or two pushes checked at once never say
-# anything twice.
+# own a serious finding gets, what was said on the thread, the replies Halon could not post anywhere, the replies Halon
+# answered and the push it last checked a fix against. Each is taken in one guarded update, so a reply delivered twice or
+# two pushes checked at once never say anything twice.
 module PullRequestReview::Finding::Threading
   extend ActiveSupport::Concern
 
@@ -49,6 +49,13 @@ module PullRequestReview::Finding::Threading
   def said!(comment:, author:, body:, halon: false)
     entry = { "comment" => comment&.to_s, "author" => author.to_s, "body" => body.to_s.truncate(4_000), "halon" => halon }
     self.class.where(id: id).update_all([ "thread_said = thread_said || ?::jsonb, updated_at = ?", [ entry ].to_json, Time.current ])
+  end
+
+  # A reply Halon could not post on the thread or in the pull request's conversation, kept with why so the review's page
+  # still shows it. Appended in SQL, like what was said.
+  def unposted_reply!(body:, reason:)
+    entry = { "body" => body.to_s.truncate(4_000), "reason" => reason.to_s, "at" => Time.current.utc.iso8601 }
+    self.class.where(id: id).update_all([ "unposted_replies = unposted_replies || ?::jsonb, updated_at = ?", [ entry ].to_json, Time.current ])
   end
 
   # Every comment on the thread a reply could answer: the one that started it and each said on it since.

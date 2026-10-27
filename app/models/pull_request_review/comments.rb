@@ -41,6 +41,25 @@ class PullRequestReview::Comments
   # What Halon says when it withdraws a finding after a person's reply.
   def self.withdrawn_reply(answer, reason) = [ answer.presence, "My finding was wrong, and I withdraw it. #{ended(reason)}" ].compact.join("\n\n")
 
+  # What Halon says on a pull request where a person asked for a review that could not start, by the reason it could not
+  # (PullRequestReview::Refusal::REASONS). Nothing past the sentence, since anyone may read a public repository. nil where
+  # there is nowhere to say it, as a pull request no connection holds.
+  REFUSED = {
+    PullRequestReview::Refusal::NO_ACCESS => "I can't read this repository, so I can't review it. An admin can give me access under Permissions.",
+    PullRequestReview::Refusal::MODEL_NOT_SET_UP => "I can't review this yet, because the AI model I run on is not set up. An admin can finish setting it up in Firefight.",
+    PullRequestReview::Refusal::HALON_UNAVAILABLE => "I can't review pull requests in this workspace right now. An admin can see why in Firefight."
+  }.freeze
+
+  def self.refused(reason) = REFUSED[reason]
+
+  # A reply the finding's thread would not take, posted in the pull request's conversation instead, led by the finding it
+  # is about and linked to its comment where it has one.
+  def self.elsewhere_reply(finding, body)
+    named = finding.host_comment_url.present? ? "[#{finding.claim}](#{finding.host_comment_url})" : "**#{finding.claim}**"
+    where = " on `#{finding.path}`#{" line #{finding.line}" if finding.line}" if finding.path.present?
+    "About my finding#{where}, #{named}\n\n#{body}"
+  end
+
   # collapses is whether the host folds a details block, hides whether it keeps an HTML comment out of sight, and
   # evidence_page the review's page in Firefight a public repository links to.
   def initialize(collapses: true, hides: true, evidence_page: nil)

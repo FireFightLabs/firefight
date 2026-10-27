@@ -6,7 +6,9 @@
 # terms with a link to its evidence in Firefight. Every call is one of the connection's own tools, made as Halon's review
 # agent through the gateway, and one an approval rule holds parks the review's posting until it is decided. A reply, a
 # thread resolved or a finding's comments edited while a post is held waits with the review and goes up once the
-# approval is decided, so what a thread or a push already settled is never lost.
+# approval is decided, so what a thread or a push already settled is never lost. A reply the host refuses for good, as on
+# a thread whose comment was deleted, goes up as a comment in the pull request's conversation naming its finding, and one
+# refused there too is kept on the review's page with why.
 class PullRequestReviewPosting
   # Raised so the job tries again later.
   class NotPosted < StandardError; end
@@ -99,16 +101,30 @@ class PullRequestReviewPosting
   # Replies on a finding's thread and keeps what was said there. then_resolve resolves the thread once the reply went up,
   # which a held reply carries to its approval.
   # A reply held or waiting behind a held post goes up once the approval is decided, its resolve after it, and answers
-  # nil now. recheck marks what a push's check said, of which only the newest waits.
+  # nil now. recheck marks what a push's check said, of which only the newest waits. A reply the host refuses for good
+  # goes up in the conversation instead (reply_elsewhere!), and its thread is left as it is.
   def reply!(finding, body, then_resolve: false, recheck: false)
     waiting = { "kind" => PullRequestReview::PENDING_REPLY, "finding_id" => finding.id, "body" => body, "resolve" => then_resolve, "recheck" => recheck }
     posted = call!(Integrations::PullRequestReviews::REPLY, reference: finding.host_comment_id, body: body,
                                                             purpose: { "record" => "reply", "finding_id" => finding.id, "body" => body, "resolve" => then_resolve },
-                                                            later: waiting)
+                                                            later: waiting, explained: true, refused: thread_refused(finding, body, recheck))
     return unless posted
 
     finding.said!(comment: posted, author: SystemAgent::HALON, body: body, halon: true)
     resolve!(finding) if then_resolve
+    posted
+  end
+
+  # A reply the finding's thread refused for good, posted as a comment in the pull request's conversation that names the
+  # finding and links to its comment. Kept as said on the thread without a comment of its own, so a later answer reads it
+  # but no reply is matched to it. One refused there too, for any reason, is kept on the review's page with both reasons.
+  # One that waits behind a held post goes up once the approval is decided, as a reply does.
+  def reply_elsewhere!(finding, body, refused, recheck: false)
+    waiting = { "kind" => PullRequestReview::PENDING_REPLY, "finding_id" => finding.id, "body" => body, "resolve" => false, "recheck" => recheck, "refused" => refused }
+    posted = call!(Integrations::PullRequestReviews::COMMENT, body: PullRequestReview::Comments.elsewhere_reply(finding, body),
+                                                              purpose: { "record" => "reply_elsewhere", "finding_id" => finding.id, "body" => body, "refused" => refused },
+                                                              later: waiting, explained: true, refused: conversation_refused(finding, body, refused))
+    finding.said!(comment: nil, author: SystemAgent::HALON, body: body, halon: true) if posted
     posted
   end
 
@@ -259,18 +275,19 @@ class PullRequestReviewPosting
   end
 
   # One call through the connection's tool, as Halon's review agent. A refusal is logged and answers nil, so one comment
-  # the host turns down never stops the rest. quiet leaves a refusal unlogged for a call that is tried again another way.
+  # the host turns down never stops the rest. quiet leaves a refusal unlogged for a call that is tried again another way,
+  # refused is handed the refusal once it is logged, and explained keeps the host's words for it in the activity log.
   # A call an approval rule holds parks the posting with what to record once it runs, and nothing is posted while it waits,
   # so one review never holds two approvals. A post given later waits with the review then, and answers nil, where any
   # other raises Held to stop what it was part of. A read is never held.
-  def call!(operation, quiet: false, purpose: nil, approval_id: nil, later: nil, **given)
+  def call!(operation, quiet: false, purpose: nil, approval_id: nil, later: nil, explained: false, refused: nil, **given)
     if approval_id.nil? && !Integrations::PullRequestReviews::READS.include?(operation) && @review.holding?
       raise Held unless later
       return if @review.wait!(later)
     end
 
-    Integrations::PullRequestReviews.call!(@review.integration_environment, operation, authorize: authorizer(approval_id), repository: @review.repository,
-                                                                                         number: @review.number, **given)
+    Integrations::PullRequestReviews.call!(@review.integration_environment, operation, authorize: authorizer(approval_id, explained: explained),
+                                                                                         repository: @review.repository, number: @review.number, **given)
   rescue AbilityGateway::PendingApproval => pending
     @review.hold!(pending.approval, operation: operation, given: given, purpose: purpose)
     raise Held unless later
@@ -279,7 +296,30 @@ class PullRequestReviewPosting
       Rails.logger.warn({ event: "pull_request_review.post_failed", pull_request_review_id: @review.id, operation: operation,
                           error: error.class.name, message: error.message.truncate(300) }.to_json)
     end
+    refused&.call(error)
     nil
+  end
+
+  # What follows a refused reply on a finding's thread. The same words go in the conversation, only when the host refused it
+  # for good. A rate limit or a slow host, a tool switched off or a call the gateway denied leaves it as it was.
+  def thread_refused(finding, body, recheck)
+    ->(error) { reply_elsewhere!(finding, body, refusal_words(error), recheck: recheck) if Integrations::PullRequestReviews.refused_for_good?(error) }
+  end
+
+  # A reply the conversation refused too, whatever the reason, kept on the review's page with both reasons.
+  def conversation_refused(finding, body, thread_words)
+    lambda do |error|
+      reason = [ "It could not go on the finding's thread. #{thread_words}", "It could not go in the pull request's conversation either. #{refusal_words(error)}" ].join(" ")
+      finding.unposted_reply!(body: body, reason: reason)
+      Rails.logger.warn({ event: "pull_request_review.reply_unposted", pull_request_review_finding_id: finding.id }.to_json)
+    end
+  end
+
+  # A refusal in words a workspace member reads, the host's own or what the gateway refused.
+  def refusal_words(error)
+    return "Halon's pull request review is not allowed to post there." if error.is_a?(AbilityGateway::Denied)
+
+    Integrations::Sentence.of(error.message) || "The code host refused it."
   end
 
   # The held call made once its approval was given, with exactly what was held, recorded as it would have been, then
@@ -290,7 +330,7 @@ class PullRequestReviewPosting
 
     given = held.given
     given = given.merge(comments: given[:comments].map { |comment| Integrations::PullRequestReviews::LineComment.new(**comment.symbolize_keys) }) if given[:comments]
-    result = call!(held.operation, approval_id: approval_id, **given)
+    result = call!(held.operation, approval_id: approval_id, **held_refusal(held.purpose), **given)
     if result
       record!(held.purpose, result)
     elsif held.purpose["record"] == "whole"
@@ -313,12 +353,26 @@ class PullRequestReviewPosting
     end
   end
 
+  # A held reply or its comment in the conversation, refused once approved, goes the same way it would have unheld.
+  def held_refusal(purpose)
+    finding = (finding_of(purpose) if %w[reply reply_elsewhere].include?(purpose["record"]))
+    return {} unless finding
+
+    refused = purpose["record"] == "reply" ? thread_refused(finding, purpose["body"], false) : conversation_refused(finding, purpose["body"], purpose["refused"])
+    { explained: true, refused: refused }
+  end
+
   def post_waiting!(post)
     finding = PullRequestReview::Finding.find_by(id: post["finding_id"])
     return unless finding
 
     case post["kind"]
-    when PullRequestReview::PENDING_REPLY then reply!(finding, post["body"], then_resolve: post["resolve"] == true, recheck: post["recheck"] == true)
+    when PullRequestReview::PENDING_REPLY
+      if post["refused"].present?
+        reply_elsewhere!(finding, post["body"], post["refused"], recheck: post["recheck"] == true)
+      else
+        reply!(finding, post["body"], then_resolve: post["resolve"] == true, recheck: post["recheck"] == true)
+      end
     when PullRequestReview::PENDING_RESOLVE then resolve!(finding)
     when PullRequestReview::PENDING_EDIT then edit_finding!(finding)
     end
@@ -338,6 +392,7 @@ class PullRequestReviewPosting
       finding = finding_of(purpose)
       finding&.said!(comment: result, author: SystemAgent::HALON, body: purpose["body"], halon: true)
       resolve!(finding) if finding && purpose["resolve"]
+    when "reply_elsewhere" then finding_of(purpose)&.said!(comment: nil, author: SystemAgent::HALON, body: purpose["body"], halon: true)
     end
   end
 
@@ -345,8 +400,8 @@ class PullRequestReviewPosting
 
   def findings_of(ids) = PullRequestReview::Finding.where(id: Array(ids)).index_by(&:id).values_at(*Array(ids)).compact
 
-  def authorizer(approval_id)
+  def authorizer(approval_id, explained: false)
     review = @review
-    ->(tool, arguments, &run) { review.authorize_post!(tool, arguments, approval_id: approval_id, &run) }
+    ->(tool, arguments, &run) { review.authorize_post!(tool, arguments, approval_id: approval_id, explained: explained, &run) }
   end
 end

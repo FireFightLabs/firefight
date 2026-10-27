@@ -34,6 +34,17 @@ class HalonPullRequestReviewPagesControllerTest < ActionDispatch::IntegrationTes
     assert_equal %w[INC-012 acme/api], finding["evidence"].map { |item| item["title"] }
   end
 
+  test "a reply Halon could not post on the pull request is kept on the page with why" do
+    sign_in(users(:bob), @workspace)
+    @finding.unposted_reply!(body: "Fixed in bbbbbbb.", reason: "The conversation is locked.")
+
+    get halon_pull_request_review_url(@review), headers: inertia_headers
+
+    kept = inertia_props["findings"].sole["unpostedReplies"].sole
+    assert_equal [ "Fixed in bbbbbbb.", "The conversation is locked." ], kept.values_at("body", "reason")
+    assert kept["at"].present?
+  end
+
   test "a resource on the map the viewer cannot reach is left out of what they see" do
     sign_in(users(:bob), @workspace)
     ResourceMap::Resource.stubs(:visible_to).returns(ResourceMap::Resource.none)

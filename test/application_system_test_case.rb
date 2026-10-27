@@ -29,4 +29,29 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
   def assert_toast(text, **options)
     assert_selector "[data-sonner-toast]", text: text, wait: 15, **options
   end
+
+  # Notes the words of every toast as it is drawn, so one that has already gone, or sits hidden behind a newer one, can
+  # still be checked. The first toast after a quiet spell arrives inside a new list, so the list's children count too.
+  def record_toasts
+    page.execute_script(<<~JS)
+      document.body.dataset.toastsDrawn = ""
+      const recorded = new WeakSet()
+      new MutationObserver((mutations) => {
+        mutations.flatMap((mutation) => [ ...mutation.addedNodes ]).forEach((node) => {
+          if (!(node instanceof Element)) {
+            return
+          }
+          const toasts = node.matches("[data-sonner-toast]") ? [ node ] : [ ...node.querySelectorAll("[data-sonner-toast]") ]
+          toasts.filter((toast) => !recorded.has(toast)).forEach((toast) => {
+            recorded.add(toast)
+            document.body.dataset.toastsDrawn += `${toast.textContent}|`
+          })
+        })
+      }).observe(document.body, { childList: true, subtree: true })
+    JS
+  end
+
+  def assert_toast_drawn(text)
+    assert_selector "body[data-toasts-drawn*='#{text}']", wait: 15
+  end
 end
