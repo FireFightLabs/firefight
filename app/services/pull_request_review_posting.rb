@@ -16,6 +16,9 @@ class PullRequestReviewPosting
   # A call an approval rule holds, or one waiting behind it. The posting picks up once the approval is decided.
   class Held < StandardError; end
 
+  # What a reply kept on the review's page for want of access says after the host's words.
+  ACCESS_HINT = "Firefight's access to the code host may need fixing under Integrations.".freeze
+
   RESUMED = "resumed".freeze
   # What a decided approval queues when it was declined: the posts that waited behind it.
   CAUGHT_UP = "caught_up".freeze
@@ -303,14 +306,17 @@ class PullRequestReviewPosting
     nil
   end
 
-  # What follows a refused reply on a finding's thread. Only when the host refused it for good, the thread's refusal is
-  # kept on the finding and the same words go in the conversation, once. A reply another worker already found refused
+  # What follows a refused reply on a finding's thread. One refused for Firefight's own access to the code host, its
+  # credential, a permission or the repository, says nothing about the thread, so it is kept on the review's page with a
+  # hint and the thread is asked again next time. Only when the host refused it for good, the thread's refusal is kept on
+  # the finding and the same words go in the conversation, once. A reply another worker already found refused
   # meanwhile is kept on the review's page. A rate limit or a slow host, a tool switched off or a call the gateway denied
   # leaves it as it was.
   def thread_refused(finding, body, recheck)
     lambda do |error|
+      next keep_on_page!(finding, body, "#{refusal_words(error)} #{ACCESS_HINT}") if Integrations::PullRequestReviews.not_authorized?(error)
       next unless Integrations::PullRequestReviews.refused_for_good?(error)
-      next if Integrations::PullRequestReviews.not_found?(error) && !pull_request_readable?
+      next keep_on_page!(finding, body, "#{refusal_words(error)} #{ACCESS_HINT}") if Integrations::PullRequestReviews.not_found?(error) && !pull_request_readable?
 
       words = refusal_words(error)
       if finding.thread_refused!(words)

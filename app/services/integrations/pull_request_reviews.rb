@@ -259,12 +259,18 @@ module Integrations
       ReviewHost.causes(error).any? { |each| each.is_a?(Integrations::NotFound) || each.try(:http_status).to_i == Http::NOT_FOUND }
     end
 
+    # The provider refused Firefight's own credential or a permission it lacks (NotAuthorized, or a 401), by the error or
+    # by one it was raised from.
+    def not_authorized?(error)
+      ReviewHost.causes(error).any? { |each| each.is_a?(NotAuthorized) || each.try(:http_status).to_i == 401 }
+    end
+
     def refused_for_good?(error)
       return false unless error.is_a?(Integrations::Error)
       return false if [ PolicyRefusal, ToolOff, Stopped, Unavailable ].any? { |kind| error.is_a?(kind) } || ReviewHost.retryable?(error)
 
       chain = ReviewHost.causes(error)
-      return false if chain.any? { |each| each.is_a?(NotAuthorized) || NOT_THE_THING.include?(each.try(:http_status).to_i) }
+      return false if not_authorized?(error) || chain.any? { |each| NOT_THE_THING.include?(each.try(:http_status).to_i) }
 
       chain.any? { |each| each.is_a?(Integrations::NotFound) || each.try(:http_status).to_i.between?(400, 499) }
     end

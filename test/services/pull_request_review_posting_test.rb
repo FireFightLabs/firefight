@@ -359,7 +359,7 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
     assert kept.all? { |reply| reply["reason"].include?("GitHub has no review comment 701.") }
   end
 
-  test "a reply refused as not found while the pull request cannot be read either is the connection's access, so the thread is left as it was" do
+  test "a reply refused as not found while the pull request cannot be read either is the connection's access, kept on the review page and never in the conversation" do
     finding = create_finding
     finding.update_columns(host_comment_id: "701")
     Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == REPLY }.raises(answered(404, "GitHub has no review comment 701."))
@@ -370,7 +370,30 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
     assert_nil posting.reply!(finding, "Fixed.")
 
     assert_nil finding.reload.thread_refusal
-    assert_empty finding.unposted_replies
+    kept = finding.unposted_replies.sole
+    assert_equal "Fixed.", kept["body"]
+    assert_equal "GitHub has no review comment 701. #{PullRequestReviewPosting::ACCESS_HINT}", kept["reason"]
+  end
+
+  test "a reply refused for Firefight's own credential or permission is kept on the review page with why, never in the conversation, and the thread is asked again next time" do
+    finding = create_finding
+    finding.update_columns(host_comment_id: "701")
+    refusals = [
+      Integrations::GithubApp::NotPermitted.new("GitHub refused this: Resource not accessible by integration.").tap { |error| error.http_status = 403 },
+      Integrations::GitlabApi::Refused.new("GitLab answered 403: You cannot reply to a locked discussion.").tap { |error| error.http_status = 403 },
+      answered(401, "Bitbucket answered 401: Token expired.")
+    ]
+    replies = 0
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == REPLY && (replies += 1) }.raises(refusals[0]).then.raises(refusals[1]).then.raises(refusals[2])
+    Integrations::PullRequestReviews.expects(:call!).with { |_row, called, **| called == COMMENT }.never
+
+    3.times { |index| assert_nil posting.reply!(finding.reload, "Reply #{index}.") }
+
+    assert_equal 3, replies, "an access refusal says nothing about the thread, so it is asked again"
+    assert_nil finding.reload.thread_refusal
+    assert_equal [ "Reply 0.", "Reply 1.", "Reply 2." ], finding.unposted_replies.map { |reply| reply["body"] }
+    assert_equal "GitLab answered 403: You cannot reply to a locked discussion. #{PullRequestReviewPosting::ACCESS_HINT}", finding.unposted_replies.second["reason"]
+    assert_no_match(/[—;]/, PullRequestReviewPosting::ACCESS_HINT)
   end
 
   test "the review page keeps the newest replies that could not be posted, at most twenty" do
