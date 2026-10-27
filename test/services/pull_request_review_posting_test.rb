@@ -151,6 +151,35 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
     assert_equal [ "100", nil ], [ @review.reload.summary_comment_id, @review.held_approval_id ]
   end
 
+  test "a held body is recorded with its id and page once approved, and a held whole review the host refuses goes again the usual way" do
+    approval = Ability::Approval.create!(workspace: @workspace, principal_type: SystemAgent.polymorphic_name, principal_id: SystemAgent.pull_request_review.id,
+                                         principal_label: "Halon pull request review", action_key: "gitlab.comment_on_merge_request", request_digest: "d", scope: {}, params: {},
+                                         status: Ability::Approval::STATUS_APPROVED, required_role: WorkspaceMembership.roles[:admin])
+    github_row = @row
+    gitlab_review!
+    elsewhere = create_finding(outside_diff: true)
+    @review.update_columns(summary_comment_id: "100", status: PullRequestReview::STATUS_DONE)
+    @review.hold!(approval, operation: COMMENT, given: { body: "The review", with_link: true }, purpose: { "record" => "body", "finding_ids" => [ elsewhere.id ] })
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **given| called == COMMENT && given[:with_link] }.returns([ "900", "https://example.com/r900" ])
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == EDIT }.returns("100")
+
+    posting.run!(PullRequestReviewPosting::RESUMED, approval_id: approval.id)
+
+    assert_equal [ "900", "https://example.com/r900" ], [ @review.reload.review_comment_id, elsewhere.reload.host_comment_url ]
+
+    whole = Ability::Approval.create!(workspace: @workspace, principal_type: SystemAgent.polymorphic_name, principal_id: SystemAgent.pull_request_review.id,
+                                      principal_label: "Halon pull request review", action_key: "github.review_pull_request", request_digest: "e", scope: {}, params: {},
+                                      status: Ability::Approval::STATUS_APPROVED, required_role: WorkspaceMembership.roles[:admin])
+    @review.update_columns(review_comment_id: nil, review_posted_at: Time.current, integration_environment_id: github_row.id)
+    elsewhere.update_columns(host_comment_url: nil)
+    @review.hold!(whole, operation: REVIEW, given: { body: "All", comments: [] }, purpose: { "record" => "whole", "on_lines" => [], "elsewhere" => [ elsewhere.id ] })
+    Integrations::PullRequestReviews.unstub(:call!)
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == REVIEW }.raises(Integrations::PullRequestReviews::Refused, "No")
+
+    assert_raises(PullRequestReviewPosting::NotPosted) { PullRequestReviewPosting.new(@review.reload).run!(PullRequestReviewPosting::RESUMED, approval_id: whole.id) }
+    assert_nil @review.reload.review_posted_at, "the claim is handed back so the job's retry posts the review"
+  end
+
   test "an approval decided either way stops the hold, and an approved one queues the held post" do
     approval = Ability::Approval.create!(workspace: @workspace, principal_type: SystemAgent.polymorphic_name, principal_id: SystemAgent.pull_request_review.id,
                                          principal_label: "Halon pull request review", action_key: "github.comment_on_pull_request", request_digest: "d", scope: {}, params: {},
