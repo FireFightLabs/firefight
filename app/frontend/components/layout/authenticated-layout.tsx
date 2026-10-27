@@ -20,6 +20,8 @@ interface AuthenticatedLayoutProps {
   sidebarCollapsed?: boolean;
   // A page that answers Cmd or Ctrl K with a search of its own keeps it, and the search stays a click away in the header.
   ownsSearchShortcut?: boolean;
+  // The page the navigation marks, for a page reached from somewhere its own address does not say.
+  activeUrl?: string;
 }
 
 // Module scope because every page mounts its own layout, null after a full load.
@@ -51,6 +53,7 @@ export function AuthenticatedLayout({
   actions,
   sidebarCollapsed = false,
   ownsSearchShortcut = false,
+  activeUrl,
 }: AuthenticatedLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useSidebarOpen(sidebarCollapsed);
   const [searching, setSearching] = useState(false);
@@ -69,7 +72,7 @@ export function AuthenticatedLayout({
           } as CSSProperties
         }
       >
-        <AppSidebar />
+        <AppSidebar activeUrl={activeUrl} />
         <SidebarInset>
           <SiteHeader title={title} actions={actions} onSearch={openSearch} searchShortcut={!ownsSearchShortcut} />
           <DisconnectedBanner />

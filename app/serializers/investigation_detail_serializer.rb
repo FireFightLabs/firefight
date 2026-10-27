@@ -27,6 +27,18 @@ class InvestigationDetailSerializer < BaseSerializer
     investigation.incident&.name
   end
 
+  # Why its answer cannot be rated, or nil while it can.
+  type :string, optional: true
+  def rating_blocked_reason = investigation.rating_blocked_reason
+
+  # Whether its story opens with who asked.
+  type :boolean
+  def asked = investigation.asked?
+
+  # A nightly memory check is reached from the Memory page, so the navigation marks that page.
+  type :boolean
+  def memory_check = investigation.memory_review?
+
   # What whoever asked said was wrong, the run's own question. Asked in the chat platform, it reads as the platform shows
   # it, from the platform_texts handed in. The nightly memory check was asked nothing, so it is named for what it is.
   type :string, optional: true

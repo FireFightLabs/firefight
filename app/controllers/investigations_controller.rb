@@ -43,6 +43,7 @@ class InvestigationsController < InertiaController
     finding = investigation.finding
     outcome = params[:outcome].to_s
     raise ActiveRecord::RecordNotFound unless finding && Investigation::Finding::OUTCOMES.include?(outcome)
+    return redirect_back_or_to(investigation_path(investigation), alert: investigation.rating_blocked_reason) if investigation.rating_blocked_reason
 
     finding.record_verdict!(outcome, by: current_membership)
     redirect_back_or_to investigation_path(investigation), notice: Investigation::Finding.verdict_recorded(outcome)

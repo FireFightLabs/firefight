@@ -46,7 +46,7 @@ class AgentMemoryQuestionCardTest < ApplicationSystemTestCase
     assert_text "Which is right?"
     watch_page
 
-    click_on "Correct"
+    click_on "Edit"
     fill_in "What is true", with: "web deploys from the release branch on weekdays and from main on Sundays"
     click_on "Save"
 

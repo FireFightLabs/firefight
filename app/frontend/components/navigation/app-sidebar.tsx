@@ -156,7 +156,7 @@ function badgedItem(item: SidebarNavItem, counts: Record<BadgeKey, number | unde
   return item.badgeKey ? { ...item, badge: counts[item.badgeKey] } : item
 }
 
-export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
+export function AppSidebar({ activeUrl, ...props }: ComponentProps<typeof Sidebar> & { activeUrl?: string }) {
   const navScroll = useRememberedScroll<HTMLDivElement>("app-sidebar")
   const {
     currentUser,
@@ -241,7 +241,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent ref={navScroll} className="pt-8 px-2">
-        <NavMain sections={sections} />
+        <NavMain sections={sections} activeUrl={activeUrl} />
       </SidebarContent>
       <SidebarFooter>
         {currentUser && (

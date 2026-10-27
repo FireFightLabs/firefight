@@ -57,6 +57,10 @@ class MemoryPageTest < ApplicationSystemTestCase
     within(:xpath, "//tr[.//p[text()='web deploys from main']]") { first(:link, "See the check").click }
     assert_text "Nightly memory check"
     assert_text "Checked 1 of 1 memory against production."
+    assert_no_text "Someone"
+    assert_no_text "Was it right?"
+    assert_selector "[data-sidebar=menu-button][data-active=true]", text: "Memory"
+    assert_no_selector "[data-sidebar=menu-button][data-active=true]", text: "Incidents"
     page.save_screenshot(Rails.root.join("tmp/screenshots/memory-check-run.png"))
     visit memory_path
 

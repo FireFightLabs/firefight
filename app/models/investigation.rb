@@ -184,6 +184,15 @@ class Investigation < ApplicationRecord
   # A night's check of the workspace's memories, which settles each it was handed and says nothing anywhere.
   def memory_review? = subject_type == Chat::MemoryReview.name
 
+  # Why its answer cannot be rated, or nil. The nightly memory check's answer is a count of what it settled, and each
+  # verdict is on the Memory page, where a person decides on it.
+  def rating_blocked_reason
+    "The nightly memory check has no answer to rate. Decide on each memory on the Memory page." if memory_review?
+  end
+
+  # Whether somebody or something asked for it, so its story opens with the ask. Nobody asks for the nightly memory check.
+  def asked? = !memory_review?
+
   def memory_review
     subject if subject.is_a?(Chat::MemoryReview)
   end

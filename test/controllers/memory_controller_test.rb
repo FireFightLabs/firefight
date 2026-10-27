@@ -61,7 +61,13 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
 
     get investigation_path(run), headers: inertia_headers
     assert_response :success
-    assert_equal "Nightly memory check", inertia_props["investigation"]["question"]
+    shown_run = inertia_props["investigation"]
+    assert_equal [ "Nightly memory check", false, true ], shown_run.values_at("question", "asked", "memoryCheck")
+    assert shown_run["ratingBlockedReason"]
+
+    post investigation_rating_path(run), params: { outcome: Investigation::Finding::OUTCOME_CONFIRMED }
+    assert_equal run.rating_blocked_reason, flash[:alert]
+    assert_nil run.finding.reload.outcome
   end
 
   test "a person confirming what only Halon checked makes it theirs, and says so" do
