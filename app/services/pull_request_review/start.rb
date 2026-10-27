@@ -7,6 +7,7 @@ class PullRequestReview::Start
   class Refused < StandardError; end
 
   NOT_HELD = "No code host connected to this workspace holds %<repository>s on its resource map, so Halon cannot read it.".freeze
+  NOT_ALLOWED = "Halon has no access to read %<connection>s, so it cannot review this pull request.".freeze
 
   def self.call(workspace:, repository:, number:, trigger:, row: nil)
     new(workspace: workspace, repository: repository, number: number, trigger: trigger, row: row).call
@@ -27,8 +28,19 @@ class PullRequestReview::Start
     row = @row || Integrations::ReviewHost.row_for(@workspace, @repository)
     raise Refused, format(NOT_HELD, repository: @repository) unless row
 
-    pull = Integrations::ReviewHost.pull_request(row, repository: @repository, number: @number)
+    pull = head(row)
     PullRequestReview.request!(row, repository: @repository, number: @number, head_sha: pull.head_sha, trigger: @trigger, title: pull.title, url: pull.url,
                                     base_ref: pull.base_ref, base_sha: pull.base_sha, head_ref: pull.head_ref)
+  end
+
+  private
+
+  # The pull request as its host shows it now, read as Halon, which needs the connection's read pack.
+  def head(row)
+    PullRequestReview.reading!(row, repository: @repository, number: @number) do
+      Integrations::ReviewHost.pull_request(row, repository: @repository, number: @number)
+    end
+  rescue PullRequestReview::Reading::NotAllowed
+    raise Refused, format(NOT_ALLOWED, connection: row.integration.display_name)
   end
 end

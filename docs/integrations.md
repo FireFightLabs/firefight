@@ -21,6 +21,8 @@ Three verdicts: returns normally, raises `Denied`, or raises `PendingApproval`. 
 
 Block form wraps execution. Handle form returns an `Authorization` the caller finalizes later (the API layer does this from an `around_action`).
 
+An agent's read of a connection that no tool makes, such as a pull request review reading the pull request and its diff, goes through `AbilityGateway.authorize_connection_read!(principal:, integration:, params:, context:) { read }`. It needs a grant of the connection's read pack (`Ability::Role.reads_key`), has no approval step since a read never waits, and is ledgered under the pack's key, which the activity log names by its connection. It is for agents and keys, which hold nothing without a grant.
+
 ## Actions
 
 | Kind | Scope | Origin |
@@ -268,7 +270,7 @@ A provider's code lives only in its own files, and the rest of the platform reac
 
 **Applying a change.** `IssueChangeJob` applies an event as the agent through `IncidentActionService#apply_issue_change`, which never sends it back. Each field keeps the time of its last change from either side (`issue_title_synced_at`, `issue_status_synced_at`, `issue_assignee_synced_at`), and a change is applied in one guarded `update_all` only when it is newer, so an echo or a delivery out of order changes nothing. Renaming, reopening and letting go of an item (`rename_action`, `reopen_action`, `unassign_action`, from the dashboard, Slack, the API and MCP) reach the issue like any other change. A deleted or archived issue moves the item to `gone` and it stops being kept in step. Only items whose `issue_integration` is the chosen connection are kept in step, and an issue Halon opens is linked to the connection it came through.
 
-**The review host contract.** Halon's pull request review reads through `Integrations::ReviewHost`, which a code host's pack answers with `pull_request_for_review` (a `ReviewHost::PullRequest`), `pull_request_files_for_review` (every changed file as a `ReviewHost::ChangedFile`, refused when the host cuts the list short) and `pull_request_file_link`. The sandbox half, `pull_request_checkout` (the head and every path at it) and `pull_request_sandbox_files` (the diff against where the branch left the base), is `CodeHost::Code`'s for every host, and a host whose pull request refs do not hold a fork's head says where to read it (`review_head_repository`, Bitbucket's). GitHub, GitLab and Bitbucket answer it today (`ReviewHost::READ_HOOKS`).
+**The review host contract.** Halon's pull request review reads through `Integrations::ReviewHost`, which a code host's pack answers with `pull_request_for_review` (a `ReviewHost::PullRequest`), `pull_request_files_for_review` (every changed file as a `ReviewHost::ChangedFile`, refused when the host cuts the list short) and `pull_request_file_link`. The sandbox half, `pull_request_checkout` (the head and every path at it) and `pull_request_sandbox_files` (the diff against where the branch left the base), is `CodeHost::Code`'s for every host, and a host whose pull request refs do not hold a fork's head says where to read it (`review_head_repository`, Bitbucket's). GitHub, GitLab and Bitbucket answer it today (`ReviewHost::READ_HOOKS`). The description, every diff and a sandbox error are redacted with the provider's rules (`Integrations::Redactions`) before anything else reads them.
 
 ## Paging through an on-call tool
 

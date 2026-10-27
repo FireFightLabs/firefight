@@ -45,4 +45,13 @@ class PullRequestReview::RehearsalTest < ActiveSupport::TestCase
 
     assert_equal [ PullRequestReview::STATUS_FAILED, PullRequestReview::COULD_NOT_READ ], [ review.status, review.error_summary ]
   end
+
+  test "a rehearsal on a connection Halon may no longer read is refused with why, like a review" do
+    revoke_review_reads(@row)
+
+    error = assert_raises(PullRequestReview::Start::Refused) do
+      PullRequestReview::Rehearsal.run!(workspace: @workspace, repository: "acme/api", number: 7, max_spend_cents: 100)
+    end
+    assert_equal "Halon has no access to read GitHub, so it cannot review this pull request.", error.message
+  end
 end
