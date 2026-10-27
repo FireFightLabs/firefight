@@ -24,7 +24,7 @@ class MemoryController < InertiaController
   before_action :require_agent!
 
   def index
-    memories = self.memories.includes(:subject, :source, :added_by, :confirmed_by, :approved_by, :rejected_by, events: { member: :user }).order(updated_at: :desc)
+    memories = self.memories.includes(:subject, :source, :added_by, :confirmed_by, :rejected_by, approved_by: :user, events: { member: :user }).order(updated_at: :desc)
 
     render inertia: "memory/index", props: {
       memories: ChatMemorySerializer.many(memories, runs: openable_runs(memories)),
@@ -54,10 +54,14 @@ class MemoryController < InertiaController
 
   def correct_memory
     memory = memories.find(params[:id])
-    standing = memory.edit_by!(by: current_membership, words: params[:text], reason: params[:reason].to_s.strip, source: AbilityGateway::SOURCE_WEB)
-    return redirect_back_or_to(memory_path, alert: memory.edit_blocked_reason(current_membership)) unless standing
+    # Keeping a lesson approved is a decision on it, asked like one on the Lessons tab, approval rules included.
+    return if memory.keeps_approval_through_edit?(current_membership) &&
+              !authorize_web!(Ability::Action::RESOURCE_LESSONS, Ability::Action::ACTION_DECIDE, scope: memory.decide_scope)
 
-    redirect_back_or_to memory_path, notice: corrected_notice(memory, standing)
+    edited = memory.edit_by!(by: current_membership, words: params[:text], reason: params[:reason].to_s.strip)
+    return redirect_back_or_to(memory_path, alert: memory.edit_blocked_reason(current_membership)) unless edited
+
+    redirect_back_or_to memory_path, notice: corrected_notice(memory, edited)
   rescue ActiveRecord::RecordInvalid => error
     redirect_back_or_to memory_path, alert: error.record.errors.full_messages.to_sentence
   end
@@ -169,11 +173,14 @@ class MemoryController < InertiaController
     authorize_web!(Ability::Action::RESOURCE_LESSONS, Ability::Action::ACTION_DECIDE, scope: lesson.decide_scope)
   end
 
-  def corrected_notice(memory, standing)
-    return "Kept as still right. It is in use again and stays approved for pull request reviews." if standing == memory && standing.confirmed?
-
-    kept = " The new wording stays approved for pull request reviews." if standing != memory && standing.approved?
-    "Corrected. Halon keeps the old wording as rejected so it does not learn it again.#{kept}"
+  def corrected_notice(memory, edited)
+    case edited.outcome
+    when Chat::Memory::EDIT_KEPT then "Kept as still right. It is in use again and stays approved for pull request reviews."
+    when Chat::Memory::EDIT_UNCHANGED then "Nothing changed. The words are the same as before."
+    else
+      kept = " The new wording stays approved for pull request reviews." if edited.memory.id != memory.id && edited.memory.approved?
+      "Corrected. Halon keeps the old wording as rejected so it does not learn it again.#{kept}"
+    end
   end
 
   # What an incident taught, apart from wordings an edit or a correction replaced, which the Memories tab keeps.

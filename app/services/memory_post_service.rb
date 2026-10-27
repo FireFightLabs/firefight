@@ -15,6 +15,10 @@ class MemoryPostService
   # incidents taught, and whether it went to a person rather than a channel.
   ShownReminder = Data.define(:taught, :learned, :direct)
 
+  # A form in Slack cannot wait for an approval, so an edit that keeps a lesson approved where an approval rule covers
+  # deciding on lessons is made on the Lessons tab, which waits for it.
+  LESSON_EDIT_HELD = "Deciding on lessons needs an approval in this workspace, so edit it on the Lessons tab of the Memory page, " \
+                     "where the edit waits for that approval.".freeze
   NOT_POSTED = [ AdapterError::IsArchived, AdapterError::NotFound, AdapterError::NotInChannel ].freeze
   # Errors that pass, so the job sending the message tries again rather than giving up.
   PASSING = [ AdapterError::RateLimited, AdapterError::ServerError, AdapterError::Unavailable ].freeze
@@ -90,11 +94,23 @@ class MemoryPostService
     return "That memory is gone. Close this and look on the Memory page." unless memory
     return "Write what is right instead." if correction.blank?
 
-    replacement = memory.edit_by!(by: member, words: correction, reason: reason.presence || "Corrected in #{post.place}", source: AbilityGateway::SOURCE_SLACK)
-    return memory.edit_blocked_reason(member) unless replacement
+    edit = -> { memory.edit_by!(by: member, words: correction, reason: reason.presence || "Corrected in #{post.place}") }
+    edited = if memory.keeps_approval_through_edit?(member)
+      request = lesson_decision(memory, member)
+      return LESSON_EDIT_HELD if held?(request)
+
+      AbilityGateway.authorize!(**request) { edit.call }
+    else
+      edit.call
+    end
+    return memory.edit_blocked_reason(member) unless edited
 
     redraw(post)
     nil
+  rescue AbilityGateway::Denied => denied
+    AuthorizedDispatch.denied_message(denied)
+  rescue AbilityGateway::PendingApproval
+    LESSON_EDIT_HELD
   rescue ActiveRecord::RecordInvalid => error
     error.record.errors.full_messages.to_sentence
   end
@@ -124,6 +140,20 @@ class MemoryPostService
     post&.destroy!
     Rails.logger.info({ event: "memory_post.person_behind_not_told", memory_id: memory.id, error: error.class.name }.to_json)
     nil
+  end
+
+  # Keeping an approved lesson approved through an edit is a decision on it, asked through the gateway with its approval rules.
+  def lesson_decision(memory, member)
+    { principal: member, action_key: Ability::Action::LESSON_DECIDE, workspace: @workspace, scope: memory.decide_scope,
+      params: { Chat::Memory::Lesson::SCOPE_LESSON => memory.id }, context: { source: AbilityGateway::SOURCE_SLACK } }
+  end
+
+  # Whether an approval rule would hold the decision, checked before anything is asked, since nothing could pick the form
+  # up again once approved.
+  def held?(request)
+    action = Ability::Action.lookup(request[:action_key], @workspace)
+    action.present? && AbilityGateway.approval_requirement(@workspace, action, request[:action_key], request[:scope], request[:context],
+                                                           params: request[:params], principal: request[:principal]).present?
   end
 
   # The person was told about this memory with these very words already, so a second job for the same dispute sends nothing.

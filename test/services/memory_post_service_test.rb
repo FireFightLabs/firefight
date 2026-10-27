@@ -232,6 +232,28 @@ class MemoryPostServiceTest < ActiveSupport::TestCase
                  [ lesson.reload.state, lesson.confirmed_by, lesson.replaced_by_id, lesson.lesson_status ]
   end
 
+  test "Edit in Slack on an approved lesson that an approval rule holds says to edit it on the Lessons tab, and a refusal says the gateway's reason" do
+    lesson = challenged_lesson
+    post = Chat::MemoryPost.create!(workspace: @workspace, kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: @member, channel_id: "D9", memory_ids: [ lesson.id ])
+    AbilityGateway.stubs(:approval_requirement).returns(nil)
+    AbilityGateway.stubs(:approval_requirement).with { |_workspace, _action, key, *| key == Ability::Action::LESSON_DECIDE }
+                  .returns(AbilityGateway::PERSON_REQUIREMENT)
+    service = MemoryPostService.new(@workspace)
+
+    refusal = service.correct!(post_id: post.id, memory_id: lesson.id, member: @member, correction: "Checkout retries go up when the timeout drops", reason: nil)
+
+    assert_equal MemoryPostService::LESSON_EDIT_HELD, refusal
+    assert_not @workspace.ability_approvals.exists?, "nothing is asked that a form could never pick up again"
+    assert_equal [ Chat::Memory::STATE_DISPUTED, nil ], lesson.reload.values_at(:state, :replaced_by_id)
+
+    AbilityGateway.unstub(:approval_requirement)
+    AbilityGateway.stubs(:authorize!).raises(AbilityGateway::Denied.new(Ability::Action::LESSON_DECIDE))
+    refused = service.correct!(post_id: post.id, memory_id: lesson.id, member: @member, correction: "Checkout retries go up when the timeout drops", reason: nil)
+
+    assert_equal AuthorizedDispatch.denied_message(AbilityGateway::Denied.new(Ability::Action::LESSON_DECIDE)), refused
+    assert_nil lesson.reload.replaced_by_id
+  end
+
   private
 
   def context_text(shown)

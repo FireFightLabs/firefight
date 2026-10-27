@@ -210,6 +210,33 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Kept as still right. It is in use again and stays approved for pull request reviews.", flash[:notice]
   end
 
+  test "Edit on an approved lesson waits for an approval rule on deciding lessons, as on the Lessons tab, and changes nothing until then" do
+    lesson = taught("Checkout retries go up when the payment timeout changes")
+    assert lesson.approve!(by: @member)
+    AbilityGateway.stubs(:approval_requirement).returns(nil)
+    AbilityGateway.stubs(:approval_requirement).with { |_workspace, _action, key, *| key == Ability::Action::LESSON_DECIDE }
+                  .returns(AbilityGateway::PERSON_REQUIREMENT)
+
+    post correct_memory_path(lesson), params: { text: "Checkout retries go up when the payment timeout drops", reason: "" }
+
+    approval = @workspace.ability_approvals.find_by!(action_key: Ability::Action::LESSON_DECIDE)
+    assert_equal WebAuthorization.pending_message(approval), flash[:notice]
+    assert_equal [ Chat::Memory::STATE_UNCONFIRMED, nil ], lesson.reload.values_at(:state, :replaced_by_id)
+  end
+
+  test "Edit on an approved lesson keeps the reason typed, and the same words on one in use change nothing and say so" do
+    lesson = taught("Checkout retries go up when the payment timeout changes")
+    assert lesson.approve!(by: @member)
+
+    post correct_memory_path(lesson), params: { text: lesson.text, reason: "" }
+    assert_equal "Nothing changed. The words are the same as before.", flash[:notice]
+    assert_equal [ Chat::Memory::STATE_UNCONFIRMED, nil ], lesson.reload.values_at(:state, :replaced_by_id)
+
+    post correct_memory_path(lesson), params: { text: "Checkout retries go up when the payment timeout drops", reason: "The timeout moved in March" }
+    assert_equal [ Chat::Memory::STATE_REJECTED, "The timeout moved in March" ], lesson.reload.values_at(:state, :state_reason)
+    assert lesson.replaced_by.approved?
+  end
+
   test "a decision the memory no longer allows says why, and the page ships the same reasons" do
     confirmed = remember("Auth Service runs on web")
     confirmed.confirm!(by: @member)

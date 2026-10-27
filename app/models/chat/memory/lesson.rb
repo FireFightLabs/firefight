@@ -13,6 +13,11 @@ module Chat::Memory::Lesson
   STATUS_APPROVED = "approved".freeze
   STATUS_TURNED_DOWN = "turned_down".freeze
   STATUSES = [ STATUS_WAITING, STATUS_APPROVED, STATUS_TURNED_DOWN ].freeze
+  # What an edit came to (edit_by!): corrected, so memory is what stands now, kept as still right, or nothing changed.
+  EDIT_CORRECTED = :corrected
+  EDIT_KEPT = :kept
+  EDIT_UNCHANGED = :unchanged
+  Edited = Data.define(:outcome, :memory)
   # How many approved lessons one review reads, those about what the change touches first.
   REVIEW_LIMIT = 40
 
@@ -152,7 +157,7 @@ module Chat::Memory::Lesson
 
   # The lead or an admin rewording it. New words replace it as a lesson approved by them, and the old wording is kept as
   # rejected so it is not learned again. The same words only change whether it is strict. Returns the lesson that stands.
-  def edit_lesson!(by:, text:, strict:)
+  def edit_lesson!(by:, text:, strict:, reason: nil)
     return nil if edit_lesson_blocked_reason(by)
 
     words = text.to_s.strip
@@ -167,7 +172,7 @@ module Chat::Memory::Lesson
     end
 
     transaction do
-      replacement = reject!(by: by, reason: "Edited by #{by.display_name}", correction: words)
+      replacement = reject!(by: by, reason: reason.presence || "Edited by #{by.display_name}", correction: words)
       replacement&.approve!(by: by, strict: strict)
       replacement
     end
@@ -175,20 +180,31 @@ module Chat::Memory::Lesson
 
   # A person writing what is right instead, wherever they edit it: an incident's channel, a direct message, a chat card or
   # the Memory page. An approved lesson edited by someone who may decide on lessons goes through edit_lesson!, as on the
-  # Lessons tab, so it stays approved. The same words on an approved lesson disputed since keep it as still right,
-  # whoever writes them. Anything else is corrected as any memory. source names where, for the gateway. Returns the
-  # memory that stands, or nil when it was refused (edit_blocked_reason).
-  def edit_by!(by:, words:, reason:, source:)
+  # Lessons tab, so it stays approved, and the caller authorizes lessons.decide through the gateway first, approval rules
+  # included. The same words on an approved lesson say it is still right when it was disputed, and change nothing when it
+  # is in use, whoever writes them. Anything else is corrected as any memory. Returns an Edited, or nil when it was
+  # refused (edit_blocked_reason).
+  def edit_by!(by:, words:, reason:)
     words = words.to_s.strip
-    return edited_as_lesson!(by, words, source) if keeps_approval_through_edit?(by)
-    return (confirm!(by: by) ? self : nil) if approved? && state == Chat::Memory::STATE_DISPUTED && words == text.strip
+    if approved? && words == text.strip
+      return (confirm!(by: by) ? Edited.new(outcome: EDIT_KEPT, memory: self) : nil) if state == Chat::Memory::STATE_DISPUTED
+      return Edited.new(outcome: EDIT_UNCHANGED, memory: self) if in_use?
+    end
 
-    reject!(by: by, reason: reason, correction: words)
+    standing = if keeps_approval_through_edit?(by)
+      edit_lesson!(by: by, text: words, strict: strict, reason: reason)
+    else
+      reject!(by: by, reason: reason, correction: words)
+    end
+    standing && Edited.new(outcome: EDIT_CORRECTED, memory: standing)
   end
 
   def keeps_approval_through_edit?(by) = approved? && edit_lesson_blocked_reason(by).nil?
 
-  def edit_blocked_reason(by) = reject_blocked_reason || "It changed meanwhile. Look at it again on the Memory page."
+  # Why the memory itself refused an edit. A refusal from the gateway is said by the caller that asked it.
+  def edit_blocked_reason(by)
+    reject_blocked_reason || (edit_lesson_blocked_reason(by) if lesson?) || "It changed meanwhile. Look at it again on the Memory page."
+  end
 
   # Turned down by the lead or an admin: rejected, so neither reviews nor Halon use it, and it is not learned again.
   def turn_down!(by:, reason: nil)
@@ -202,16 +218,6 @@ module Chat::Memory::Lesson
   def announce_lesson_change(finding_ids = held_finding_ids) = self.class.announce_findings_changed(finding_ids)
 
   private
-
-  # A form submitted once cannot resume after an approval, so the decision is never held.
-  def edited_as_lesson!(by, words, source)
-    AbilityGateway.authorize!(principal: by, action_key: Ability::Action::LESSON_DECIDE, workspace: workspace, scope: decide_scope,
-                              params: { SCOPE_LESSON => id }, context: { source: source }, holdable: false) do
-      edit_lesson!(by: by, text: words, strict: strict)
-    end
-  rescue AbilityGateway::Denied
-    nil
-  end
 
   def approve_state_blocked_reason
     return TURNED_DOWN_REASON if state == Chat::Memory::STATE_REJECTED

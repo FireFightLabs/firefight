@@ -195,6 +195,32 @@ class Chat::MemoryTest < ActiveSupport::TestCase
     assert_equal [ Chat::Memory::STATE_UNCONFIRMED, Chat::Memory::Lesson::STATUS_APPROVED ], [ lesson.reload.state, lesson.lesson_status ]
   end
 
+  test "a lesson approved after the expiry picked it is never expired, since the update checks again" do
+    @workspace.update!(memory_expiry_days: 30)
+    lesson = Chat::Memory.create!(workspace: @workspace, text: "Checkout retries go up when the payment timeout changes", state: Chat::Memory::STATE_UNCONFIRMED,
+                                  source: incidents(:active_critical_ws1))
+    lesson.update_columns(updated_at: 90.days.ago)
+    picked = Chat::Memory.where(id: lesson.id)
+    Chat::Memory.stubs(:expiring).returns(picked)
+    lesson.update_columns(approved_at: 1.minute.ago, approved_by_id: workspace_memberships(:alice_workspace_one).id)
+
+    assert_equal 0, Chat::Memory.expire!(@workspace)
+    assert_equal Chat::Memory::STATE_UNCONFIRMED, lesson.reload.state
+  end
+
+  test "an approved lesson names who approved it to a viewer, and is handed to Halon with confirmed memories first" do
+    alice = workspace_memberships(:alice_workspace_one)
+    bob = workspace_memberships(:bob_workspace_one)
+    lesson = Chat::Memory.create!(workspace: @workspace, text: "Checkout retries go up when the payment timeout changes", state: Chat::Memory::STATE_UNCONFIRMED,
+                                  source: incidents(:active_critical_ws1), created_at: 2.days.ago)
+    assert lesson.approve!(by: alice)
+    newer = remember("Deploys happen from main")
+
+    assert_equal "approved by you for pull request reviews", lesson.trust_for(alice)
+    assert_equal "approved by #{alice.display_name} for pull request reviews", lesson.trust_for(bob)
+    assert_equal [ lesson, newer ], Chat::Memory.where(id: [ lesson.id, newer.id ]).most_trusted_first.to_a
+  end
+
   test "learning an unconfirmed memory again restarts its wait, so it expires counted from the last time it was learned" do
     @workspace.update!(memory_expiry_days: 30)
     relearned = remember("Deploys happen from main")

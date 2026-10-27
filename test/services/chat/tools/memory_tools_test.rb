@@ -121,6 +121,18 @@ class Chat::Tools::MemoryToolsTest < ActiveSupport::TestCase
     assert_equal 4, @workspace.ability_invocations.where(action_key: %w[memory.create memory.update]).count
   end
 
+  test "Halon never corrects a lesson a person approved, and points the person to the Memory page, where editing keeps it approved" do
+    lesson = Chat::Memory.create!(workspace: @workspace, text: "Checkout uses MySQL", state: Chat::Memory::STATE_UNCONFIRMED, source: incidents(:active_critical_ws1))
+    assert lesson.approve!(by: @member)
+
+    answer = Chat::Tools::CorrectMemory.new(@turn).call("memory" => lesson.id, "reason" => "It is Postgres", "correction" => "Checkout uses Postgres")
+
+    assert_includes answer, "#{@member.display_name} approved it for pull request reviews"
+    assert_includes answer, AppUrl.absolute(Rails.application.routes.url_helpers.memory_path(Chat::Memory::QUERY_PARAM => lesson.id))
+    assert_equal [ Chat::Memory::STATE_UNCONFIRMED, nil ], lesson.reload.values_at(:state, :replaced_by_id)
+    assert_not @workspace.ability_invocations.exists?(action_key: "memory.update")
+  end
+
   test "a chat whose asker the gateway refuses changes no memory and is told why" do
     memory = Chat::Memory.create!(workspace: @workspace, text: "Checkout uses MySQL", state: Chat::Memory::STATE_UNCONFIRMED)
     AbilityGateway.stubs(:authorize!).raises(AbilityGateway::Denied.new("memory.update"))

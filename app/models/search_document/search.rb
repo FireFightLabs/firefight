@@ -213,7 +213,7 @@ class SearchDocument::Search
       CatalogEntry.for_search_documents.where(id: ids).each { |entry| loaded[[ TYPE_CATALOG_ENTRY, entry.id ]] = entry }
     end
     if (ids = by_type[TYPE_MEMORY])
-      Chat::Memory.includes(:subject, :confirmed_by, :approved_by).where(id: ids).each { |memory| loaded[[ TYPE_MEMORY, memory.id ]] = memory }
+      Chat::Memory.includes(:subject, :confirmed_by, approved_by: :user).where(id: ids).each { |memory| loaded[[ TYPE_MEMORY, memory.id ]] = memory }
     end
     loaded
   end
