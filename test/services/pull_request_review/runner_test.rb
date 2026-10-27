@@ -37,11 +37,11 @@ class PullRequestReview::RunnerTest < ActiveSupport::TestCase
     assert_equal [ "A charge fails", "The retry runs at once and fails again" ], finding.failure_chain
     check = @review.checks.sole
     assert_equal [ PullRequestReview::Check::VERDICT_KEPT, finding, "Line 3 retries at once." ], [ check.verdict, check.finding, check.reason ]
-    assert_includes verifier.asked.sole[:context], "The pull request's diff of app/jobs/charge_job.rb"
+    assert_includes verifier.asked.sole[:context], "The pull request's diff of app/jobs/charge_job.rb:\n<tool_result tool=\"#{FirefightAi::PullRequestReviewer::FRAME_DIFF}\""
     assert_operator @review.spent_micros, :>=, 15_000, "what the check spent counts against the review too"
 
     overview = reviewer.opened
-    assert_includes overview["The pull request"], "<tool_result tool=\"pull_request_description\" trust=\"untrusted\">\nRetries a failed charge."
+    assert_includes overview["The pull request"], "<tool_result tool=\"#{FirefightAi::PullRequestReviewer::FRAME_DESCRIPTION}\" trust=\"untrusted\">\nRetries a failed charge."
     assert_includes overview["Its files"], "- db/migrate/1_add_index.rb (modified, +1 -0) part 1"
     assert_includes overview["Reading its code"], "The head is #{REVIEW_HEAD} in acme/api, and the base is #{REVIEW_BASE}"
     assert_equal "The resource map does not hold acme/api, so where it runs is not known.", overview["Where this repository runs"]

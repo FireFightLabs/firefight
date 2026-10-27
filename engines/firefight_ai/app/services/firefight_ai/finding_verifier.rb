@@ -8,6 +8,8 @@ module FirefightAi
     FEATURE = "pull_request_review_check".freeze
     # Enough to read the lines a finding names, what calls and guards them, and one or two things it cites.
     MAX_TURNS = 14
+    # What the frame of the finding to check is named (Evidence.frame).
+    FRAME_FINDING = "reported_finding".freeze
 
     def initialize(workspace, inferable:, choice:, purpose: AiPurpose::CODE_REVIEW)
       @workspace = workspace
@@ -60,7 +62,7 @@ module FirefightAi
 
     def material(finding, earlier, context)
       [
-        "## The finding to check\n#{Evidence.frame('reported_finding', finding)}",
+        "## The finding to check\n#{Evidence.frame(FRAME_FINDING, finding)}",
         "## Findings already written\n#{earlier.presence || '(none yet)'}",
         "## The pull request\n#{context}"
       ].join("\n\n")

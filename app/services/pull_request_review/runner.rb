@@ -122,7 +122,7 @@ class PullRequestReview::Runner
       "#{review.repository} PR ##{review.number}: #{review.title}",
       "The head is #{@checkout.ref} in #{@checkout.repository}, and the base is #{review.base_sha}. Read the code with those as the ref.",
       if diff
-        "The pull request's diff of #{path}:\n#{FirefightAi::Evidence.frame('pull_request_diff', diff.truncate(CHECK_DIFF_LIMIT))}"
+        "The pull request's diff of #{path}:\n#{FirefightAi::Evidence.frame(FirefightAi::PullRequestReviewer::FRAME_DIFF, diff.truncate(CHECK_DIFF_LIMIT))}"
       elsif @changed_paths.include?(path)
         "The pull request changes #{path}, but its diff is left out of the review."
       else
@@ -228,7 +228,7 @@ class PullRequestReview::Runner
   end
 
   def pull_request_text
-    described = FirefightAi::Evidence.frame("pull_request_description", @pull.body.presence || "(no description)")
+    described = FirefightAi::Evidence.frame(FirefightAi::PullRequestReviewer::FRAME_DESCRIPTION, @pull.body.presence || "(no description)")
     "#{review.repository} PR ##{review.number}: #{@pull.title}\nBy #{@pull.author || 'someone unknown'}, from #{@pull.head_ref} into #{@pull.base_ref}." \
       "#{' It is a draft.' if @pull.draft}#{" It comes from the fork #{@pull.head_repository}." if @pull.fork?}\n#{described}"
   end

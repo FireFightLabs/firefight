@@ -11,6 +11,10 @@ module FirefightAi
     PART_LIMIT = 40_000
     # Enough to read around every change of a part several ways and prove what it finds, never a runaway.
     TURNS_PER_PART = 40
+    # What each frame of a pull request's own text is named, wherever a review hands it to a model (Evidence.frame).
+    FRAME_PULL_REQUEST = "pull_request".freeze
+    FRAME_DESCRIPTION = "pull_request_description".freeze
+    FRAME_DIFF = "pull_request_diff".freeze
 
     # One file's diff, or a piece of one too large for a part, with where the piece sits in the file.
     Piece = Data.define(:path, :text, :index, :count) do
@@ -156,7 +160,7 @@ module FirefightAi
       [
         "## Part #{number} of #{total}",
         "Review these files. Every other file has a part of its own.\n#{listed}",
-        Evidence.frame("pull_request_diff", part.text)
+        Evidence.frame(FRAME_DIFF, part.text)
       ].join("\n\n")
     end
 

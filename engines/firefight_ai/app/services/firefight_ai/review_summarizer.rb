@@ -22,7 +22,7 @@ module FirefightAi
         chat.with_instructions(self.class.system_prompt)
         chat.with_schema(Schemas::PullRequestSummary)
         chat.ask([
-          "## The pull request\n#{Evidence.frame('pull_request', pull_request.to_s.truncate(PART_LIMIT))}",
+          "## The pull request\n#{Evidence.frame(PullRequestReviewer::FRAME_PULL_REQUEST, pull_request.to_s.truncate(PART_LIMIT))}",
           "## Its files\n#{files.to_s.truncate(PART_LIMIT)}",
           "## The findings the review wrote\n#{findings.presence || '(none)'}",
           "## What depends on it\n#{reach.presence || '(nothing the map knows)'}"
