@@ -13,8 +13,12 @@ class PullRequestReview::Rehearsal
     row = Integrations::ReviewHost.row_for(workspace, repository)
     raise PullRequestReview::Start::Refused, format(PullRequestReview::Start::NOT_HELD, repository: repository) unless row
 
-    pull = PullRequestReview.reading!(row, repository: repository, number: number) do
-      Integrations::ReviewHost.pull_request(row, repository: repository, number: number)
+    pull = begin
+      PullRequestReview.reading!(row, repository: repository, number: number) do
+        Integrations::ReviewHost.pull_request(row, repository: repository, number: number)
+      end
+    rescue PullRequestReview::Reading::NotAllowed
+      raise PullRequestReview::Start::Refused, format(PullRequestReview::Start::NOT_ALLOWED, connection: row.integration.display_name)
     end
     review = PullRequestReview.create!(
       workspace: workspace, integration_environment: row, repository: repository, number: number, head_sha: head_sha.presence || pull.head_sha,
