@@ -12,11 +12,11 @@ module Slack
         Chat::MemoryPost::KIND_DISPUTED => ":grey_question:  *Halon disputed a memory*",
         Chat::MemoryPost::KIND_REMINDER => ":bell:  *Memories nobody confirmed yet*"
       }.freeze
-      LESSONS = "Halon already uses these and checks each one against production every night. If one is wrong, mark it not right or correct it.".freeze
+      LESSONS = "Halon already uses these and reviews them against production in its nightly check. If one is wrong, mark it not right or correct it.".freeze
       FOOTERS = {
         Chat::MemoryPost::KIND_INCIDENT => LESSONS,
         Chat::MemoryPost::KIND_POSTMORTEM => LESSONS,
-        Chat::MemoryPost::KIND_LEARNED => "Halon already uses this and checks it against production every night. If it is wrong, mark it not right or correct it.",
+        Chat::MemoryPost::KIND_LEARNED => "Halon already uses this and reviews it against production in its nightly check. If it is wrong, mark it not right or correct it.",
         Chat::MemoryPost::KIND_DISPUTED => "Something Halon read contradicted this, so it stopped using it until its nightly check against production settles it.",
         Chat::MemoryPost::KIND_REMINDER => "Everything waiting is on the Memory page."
       }.freeze

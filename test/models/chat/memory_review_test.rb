@@ -21,6 +21,16 @@ class Chat::MemoryReviewTest < ActiveSupport::TestCase
     assert_equal 2, @review.reload.removals
   end
 
+  test "a removal given back can be taken again, and never goes below none" do
+    @review.update!(removal_cap: 1)
+    @review.give_back_removal!
+    assert_equal 0, @review.removals
+
+    assert @review.take_removal!
+    @review.give_back_removal!
+    assert @review.take_removal!
+  end
+
   test "each picked memory is settled once, and one not picked is refused" do
     picked = remember("web deploys from main")
     @review.picked!([ picked ])

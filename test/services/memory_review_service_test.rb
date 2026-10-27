@@ -49,15 +49,28 @@ class MemoryReviewServiceTest < ActiveSupport::TestCase
     assert_equal 3, Chat::Memory.where(workspace: @workspace, state: Chat::Memory::STATE_MERGED).count
   end
 
-  test "once an admin revokes the investigator's memory grant, nothing is merged and the refusal is in Activity" do
+  test "once an admin revokes the investigator's memory grant, nothing is merged in any set, no removal is spent, and the refusal is in Activity once" do
     @workspace.ability_grants.where(principal: SystemAgent.investigator, action: Ability::Action.where(key: "memory.update")).destroy_all
     duplicate = remember("Web deploys from main.")
     remember("web deploys from main")
+    remember("Backups run nightly.", subject: catalog_entries(:auth_service))
+    remember("backups run nightly", subject: catalog_entries(:auth_service))
 
-    MemoryReviewService.new(@workspace).start!
+    review = MemoryReviewService.new(@workspace).start!
 
     assert_not_equal Chat::Memory::STATE_MERGED, duplicate.reload.state
-    assert @workspace.ability_invocations.exists?(action_key: "memory.update", principal: SystemAgent.investigator, decision: Ability::Invocation::DECISION_DENY)
+    assert_equal [ 0, 0 ], review.values_at(:merged, :removals)
+    assert_equal 1, @workspace.ability_invocations.where(action_key: "memory.update", principal: SystemAgent.investigator, decision: Ability::Invocation::DECISION_DENY).count
+  end
+
+  test "a merge that does not happen, such as one a person decided on meanwhile, gives its removal back" do
+    remember("web deploys from main")
+    remember("Web deploys from main.")
+    Chat::Memory.any_instance.stubs(:merge_into!).returns(false)
+
+    review = MemoryReviewService.new(@workspace).start!
+
+    assert_equal [ 0, 0 ], review.values_at(:merged, :removals)
   end
 
   test "a workspace Halon cannot run in gets no review, and one with nothing to check starts no run" do

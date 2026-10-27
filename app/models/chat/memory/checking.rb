@@ -1,4 +1,4 @@
-# Halon checking a memory against production, every night, as the investigator. What it shows right counts as confirmed
+# Halon checking a memory against production, in its nightly check, as the investigator. What it shows right counts as confirmed
 # by Halon, with the evidence and the date kept. What it shows wrong is corrected or rejected with the evidence, and what
 # it cannot tell either way is kept, with when it was last tried. A person's own decision always outranks Halon's. What a
 # person confirmed is never rejected or corrected by Halon, only disputed for them when Halon found something they had

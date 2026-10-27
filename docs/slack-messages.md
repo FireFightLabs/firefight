@@ -507,9 +507,9 @@ short note in each Slack thread the change was refused in. See docs/integrations
 ## Telling a channel about memories
 
 `LearnedMemories` is every message that tells an incident's channel about memories: what an incident or its postmortem
-taught, and what a chat or run learned or disputed. Nobody is asked to confirm anything, since Halon checks every memory
-against production each night (docs/ai.md, Halon checks what it remembers). Each memory nobody has decided on carries
-Not right and Correct, for anyone who knows better, and the footer says Halon checks them every night. A memory Halon
+taught, and what a chat or run learned or disputed. Nobody is asked to confirm anything, since Halon reviews memories
+against production in a nightly check, a batch at a time (docs/ai.md, Halon checks what it remembers). Each memory nobody has decided on carries
+Not right and Correct, for anyone who knows better, and the footer says Halon reviews them in its nightly check. A memory Halon
 checked reads "Checked by Halon against production", and a merged one says it lives on in another. No reminder is
 posted any more. A weekly reminder (`:bell:`) or a message with Confirm or Still right posted before then is redrawn
 without those buttons when someone decides on it there, and an old Confirm still works.

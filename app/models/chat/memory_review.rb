@@ -30,6 +30,12 @@ class Chat::MemoryReview < ApplicationRecord
 
   def settled?(memory) = settled_ids.include?(memory.id)
 
+  # A removal taken for a change that did not happen, such as a merge refused or decided on meanwhile, is given back.
+  def give_back_removal!
+    self.class.where(id: id).where("removals > 0").update_all("removals = removals - 1")
+    reload
+  end
+
   # The run's answer, in counts only, so no memory's words are kept outside the memory.
   def summary
     left = memory_ids.size - settled_ids.size

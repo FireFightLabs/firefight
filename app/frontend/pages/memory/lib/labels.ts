@@ -1,4 +1,6 @@
-import { CHAT_MEMORY_STANDING, CHAT_MEMORY_STATE, type ChatMemoryEventKind, type ChatMemoryState } from "@/lib/generated/constants"
+import {
+  CHAT_MEMORY_CHECK_OUTCOME, CHAT_MEMORY_EVENT_KIND, CHAT_MEMORY_STANDING, CHAT_MEMORY_STATE, type ChatMemoryEventKind, type ChatMemoryState,
+} from "@/lib/generated/constants"
 import { formatDate } from "@/lib/formatters"
 import type { ChatMemory, ChatMemoryEvent } from "@/types/serializers"
 import { MEMORY_FILTERS, type MemoryFilter } from "@/pages/memory/types"
@@ -63,11 +65,20 @@ function decidedBy(memory: ChatMemory): string {
   return memory.decidedByHalon ? " by Halon" : ""
 }
 
+// The events that set a memory aside, by the state they leave it in, so a rejected or merged memory is dated by that
+// decision rather than an earlier confirmation.
+const SET_ASIDE_BY: Partial<Record<ChatMemoryState, ChatMemoryEventKind[]>> = {
+  [CHAT_MEMORY_STATE.REJECTED]: [ CHAT_MEMORY_EVENT_KIND.REJECTED, CHAT_MEMORY_EVENT_KIND.CORRECTED ],
+  [CHAT_MEMORY_STATE.MERGED]: [ CHAT_MEMORY_EVENT_KIND.MERGED ],
+}
+
 function vouchedAt(memory: ChatMemory): string {
   if (memory.standing === CHAT_MEMORY_STANDING.HALON && memory.verifiedAt) {
     return memory.verifiedAt
   }
-  return memory.confirmedAt ?? memory.createdAt
+  const setAsideBy = SET_ASIDE_BY[memory.state]
+  const setAside = setAsideBy && [ ...memory.events ].reverse().find((event) => setAsideBy.includes(event.kind))
+  return setAside ? setAside.at : (memory.confirmedAt ?? memory.createdAt)
 }
 
 // What Halon's nightly check last found, said beside the memory, or null when there is nothing to say.
@@ -75,10 +86,13 @@ export function checkLine(memory: ChatMemory): string | null {
   if (memory.verifiedEvidence && memory.verifiedAt) {
     return `Halon checked it against production on ${formatDate(memory.verifiedAt)}. ${memory.verifiedEvidence}`
   }
-  if (memory.standing === CHAT_MEMORY_STANDING.UNCHECKED) {
-    return memory.checkedAt ? `Halon could not check it yet. Last tried ${formatDate(memory.checkedAt)}.` : "Halon has not checked it yet."
+  if (memory.standing !== CHAT_MEMORY_STANDING.UNCHECKED) {
+    return null
   }
-  return null
+  if (memory.checkOutcome === CHAT_MEMORY_CHECK_OUTCOME.HELD && memory.checkedAt) {
+    return `Halon found evidence against it on ${formatDate(memory.checkedAt)}, but left it as it was for now. The history says what it found.`
+  }
+  return memory.checkedAt ? `Halon could not check it yet. Last tried ${formatDate(memory.checkedAt)}.` : "Halon has not checked it yet."
 }
 
 export const EVENT_LABELS: Record<ChatMemoryEventKind, string> = {

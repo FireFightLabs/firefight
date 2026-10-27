@@ -81,7 +81,7 @@ export function MemoriesTab({ memories, subjects, canCurate, focusedId }: Memori
       <CardHeader>
         <CardTitle>What Halon remembers</CardTitle>
         <CardDescription className="mt-1">
-          Facts Halon learned from incidents and chats or was told. Halon checks them against production every night and says so when it relies on one nobody confirmed. You can confirm, correct, reject or delete any of them.
+          Facts Halon learned from incidents and chats or was told. Halon reviews them against production in a nightly check, a batch at a time, and says so when it relies on one nobody confirmed. You can confirm, correct, reject or delete any of them.
         </CardDescription>
         {canCurate && (
           <CardAction>

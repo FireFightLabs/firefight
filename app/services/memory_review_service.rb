@@ -14,7 +14,7 @@ class MemoryReviewService
     review = Chat::MemoryReview.open!(@workspace, on: on)
     return nil unless review
 
-    picks = Chat::Memory.to_check(@workspace).includes(:events).to_a
+    picks = Chat::Memory.to_check(@workspace).to_a
     merge!(review, picks)
     # A pick merged away lives on in the one it was merged into.
     still = Chat::Memory.where(id: picks.map(&:id), state: Chat::Memory::CHECKED_STATES).pluck(:id).to_set
@@ -36,6 +36,7 @@ class MemoryReviewService
     picked = picks.map(&:id).to_set
     Chat::Memory.mergeable_by_subject(@workspace).each_value do |peers|
       next if peers.size < 2
+      break if @refused
 
       pairs = peers.select { |memory| picked.include?(memory.id) }.flat_map { |memory| judged_same(judge, memory, peers) }
       Chat::Memory.duplicate_sets(peers, same_pairs: pairs).each { |set| merge_set!(review, set) }
@@ -61,10 +62,16 @@ class MemoryReviewService
       merged = Chat::Memory.changed_by_halon(@workspace, Ability::Action::ACTION_UPDATE, params: { "memory" => memory.id, "merged_into" => keeper.id }) do
         memory.merge_into!(keeper)
       end
-      # The investigator may no longer change memory, so nothing else is merged tonight.
-      break if merged.nil?
+      if merged
+        review.class.where(id: review.id).update_all("merged = merged + 1")
+        next
+      end
 
-      review.class.where(id: review.id).update_all("merged = merged + 1") if merged
+      # Nothing was merged, so the removal goes back. A refusal means the investigator may no longer change memory, so
+      # nothing else is merged tonight.
+      review.give_back_removal!
+      @refused = merged.nil?
+      break if @refused
     end
     review.reload
   end

@@ -9,7 +9,7 @@ module Chat::Memory::Merging
   class_methods do
     # The workspace's memories that may be merged, grouped by what they are about.
     def mergeable_by_subject(workspace)
-      where(workspace: workspace, state: MERGEABLE_STATES).includes(:events).order(:created_at).to_a.group_by { |memory| [ memory.subject_type, memory.subject_id ] }
+      where(workspace: workspace, state: MERGEABLE_STATES).order(:created_at).to_a.group_by { |memory| [ memory.subject_type, memory.subject_id ] }
     end
 
     # Each set of memories about one subject that say the same thing: the same wording (Words.signature), or a pair the

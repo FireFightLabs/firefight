@@ -40,6 +40,8 @@ class MemoryPageTest < ApplicationSystemTestCase
     tried.contradicted!(Chat::Memory.create!(workspace: @workspace, text: "Checkout runs in Dublin", state: Chat::Memory::STATE_UNCONFIRMED),
                         reason: "A chat showed \"Checkout runs in Dublin\".")
     tried.unsettled_by_halon!(note: "Nothing Halon reads says where Checkout runs.")
+    held = Chat::Memory.create!(workspace: @workspace, text: "Checkout retries twice", state: Chat::Memory::STATE_UNCONFIRMED)
+    held.update_columns(checked_at: Time.current, check_outcome: Chat::Memory::OUTCOME_HELD)
 
     visit memory_path
     assert_text "Checked by Halon"
@@ -50,6 +52,8 @@ class MemoryPageTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/memory-checked-by-halon.png"))
 
     find("[role=tab]", text: "Memories").assert_text("1")
+    assert_text "Halon reviews them against production in a nightly check, a batch at a time"
+    assert_text "Halon found evidence against it on #{Time.current.strftime('%b %-d, %Y')}, but left it as it was for now."
     click_button "Disputed"
     assert_text "Halon could not settle this against production, so it waits on a person."
     page.save_screenshot(Rails.root.join("tmp/screenshots/memory-waits-on-a-person.png"))
