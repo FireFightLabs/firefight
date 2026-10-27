@@ -61,7 +61,18 @@ class MemoryPostService
   def tell_people_behind!(memory, postmortem_of: nil)
     return [] unless memory.state == Chat::Memory::STATE_DISPUTED && @workspace.platform.present?
 
-    [ memory.confirmed_by, memory.approved_by ].compact.uniq.filter_map { |person| tell_person_behind!(memory, person, postmortem_of) }
+    # Each person is tried on their own, so a send that fails for a while never keeps the other from being told. The
+    # first such failure is raised after, and the job tries again, finding whoever was told already.
+    failed = nil
+    told = [ memory.confirmed_by, memory.approved_by ].compact.uniq.filter_map do |person|
+      tell_person_behind!(memory, person, postmortem_of)
+    rescue *PASSING => error
+      failed ||= error
+      nil
+    end
+    raise failed if failed
+
+    told
   end
 
   # Someone pressing Still right or Not right, or Confirm on a message posted before Halon checked memories itself. reference is the post a button names, or the incident on a message posted

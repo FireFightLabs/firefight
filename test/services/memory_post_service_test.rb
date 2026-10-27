@@ -273,6 +273,21 @@ class MemoryPostServiceTest < ActiveSupport::TestCase
     assert_equal "a direct message", to_bob.place
   end
 
+  test "a send that fails for a while never keeps the other person from being told, and the job tries the failed one again" do
+    bob = workspace_memberships(:bob_workspace_one)
+    lesson = Chat::Memory.create!(workspace: @workspace, text: "The cause was DNS", state: Chat::Memory::STATE_UNCONFIRMED, source: @incident)
+    assert lesson.approve!(by: @member)
+    lesson.confirm!(by: bob)
+    lesson.dispute!("Halon checked it against production and found otherwise.")
+    @adapter.stubs(:post_learned_memories_to_user).with { |user_id:, **| user_id == bob.platform_user_id }.raises(AdapterError::RateLimited.new("slow down"))
+    @adapter.stubs(:post_learned_memories_to_user).with { |user_id:, **| user_id == @member.platform_user_id }.returns(message_id: "9.1", channel_id: "D9")
+
+    assert_raises(AdapterError::RateLimited) { MemoryPostService.new(@workspace).tell_people_behind!(lesson.reload) }
+
+    assert Chat::MemoryPost.exists?(kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: @member), "the approver is told although the confirmer's send failed"
+    assert_not Chat::MemoryPost.exists?(kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: bob)
+  end
+
   private
 
   def context_text(shown)
