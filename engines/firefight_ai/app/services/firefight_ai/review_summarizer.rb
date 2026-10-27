@@ -5,7 +5,8 @@ module FirefightAi
     FEATURE = "pull_request_review_summary".freeze
     PART_LIMIT = 12_000
 
-    Summary = Data.define(:summary, :risk, :risk_reason)
+    # spent_micros is what the call was billed, so the review counts it with the rest of what it spent.
+    Summary = Data.define(:summary, :risk, :risk_reason, :spent_micros)
 
     def initialize(workspace, inferable:, choice:, purpose: AiPurpose::CODE_REVIEW)
       @workspace = workspace
@@ -17,7 +18,7 @@ module FirefightAi
     # pull_request is its title and description, files every file with how much it changed, findings the findings
     # written as text and reach what the map says depends on it. Each is text the app wrote.
     def summarize(pull_request:, files:, findings:, reach:)
-      response, = FirefightAi.generate(@choice, purpose: @purpose, inference: inference_context) do |chat|
+      response, inference = FirefightAi.generate(@choice, purpose: @purpose, inference: inference_context) do |chat|
         chat.with_instructions(self.class.system_prompt)
         chat.with_schema(Schemas::PullRequestSummary)
         chat.ask([
@@ -27,7 +28,7 @@ module FirefightAi
           "## What depends on it\n#{reach.presence || '(nothing the map knows)'}"
         ].join("\n\n"))
       end
-      read(response.parsed)
+      read(response.parsed, inference.cost_micros.to_i)
     end
 
     def self.prompt_version = Prompt.version(system_prompt)
@@ -45,10 +46,10 @@ module FirefightAi
 
     private
 
-    def read(parsed)
+    def read(parsed, spent_micros)
       content = parsed.is_a?(Hash) ? parsed.with_indifferent_access : {}
       risk = content[:risk].presence_in(Schemas::PullRequestSummary::RISKS) || Schemas::PullRequestSummary::MEDIUM
-      Summary.new(summary: content[:summary].to_s.strip, risk: risk, risk_reason: content[:risk_reason].to_s.strip)
+      Summary.new(summary: content[:summary].to_s.strip, risk: risk, risk_reason: content[:risk_reason].to_s.strip, spent_micros: spent_micros)
     end
 
     def inference_context

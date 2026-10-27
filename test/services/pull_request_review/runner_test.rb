@@ -154,6 +154,16 @@ class PullRequestReview::RunnerTest < ActiveSupport::TestCase
     assert_equal 3 + FirefightAi::PullRequestReviewer::TURNS_PER_PART, reviewer.parts_seen.second[2]
   end
 
+  test "the summary is written even once the spending limit has run out, and what it cost counts against the review" do
+    reviewer = ScriptedReviewer.new(->(*) { }, [ FirefightAi::AgentLoop::STATUS_OUT_OF_BUDGET ])
+    stub_review_model(reviewer, ScriptedVerifier.new([]), summary: review_summary(spent_micros: 7_000))
+
+    PullRequestReview::Runner.new(@review, by: "job-1").run
+
+    assert_equal "Retries a failed charge.", @review.reload.summary
+    assert_equal 17_000, @review.spent_micros, "the part's 10,000 and the summary's 7,000"
+  end
+
   test "a retried review carries on from the parts it already reviewed" do
     @review.update!(reviewed_paths: @files.map(&:path))
     reviewer = ScriptedReviewer.new(->(*) { }, [])

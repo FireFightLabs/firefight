@@ -71,12 +71,16 @@ module PullRequestReviewTestHelper
     Integrations::ReviewHost.stubs(:changed_files).with(row, anything).returns(files)
   end
 
-  def stub_review_model(reviewer, verifier, summary: FirefightAi::ReviewSummarizer::Summary.new(summary: "Retries a failed charge.", risk: "high", risk_reason: "It can charge twice."))
+  def stub_review_model(reviewer, verifier, summary: review_summary)
     FirefightAi.stubs(:model_for).returns(FirefightAi::ModelChoice.new(model: "claude-sonnet-4-5", provider: "anthropic"))
     FirefightAi::PullRequestReviewer.stubs(:new).returns(reviewer)
     FirefightAi::FindingVerifier.stubs(:new).returns(verifier)
     FirefightAi::ReviewSummarizer.any_instance.stubs(:summarize).returns(summary)
     PullRequestReview::Agent.any_instance.stubs(:tools).returns([ [], [] ])
+  end
+
+  def review_summary(risk: "high", spent_micros: 0)
+    FirefightAi::ReviewSummarizer::Summary.new(summary: "Retries a failed charge.", risk: risk, risk_reason: "It can charge twice.", spent_micros: spent_micros)
   end
 
   def reported(path: "app/jobs/charge_job.rb", line: 3, claim: "Queue the retry for its backoff delay", evidence: nil, **overrides)

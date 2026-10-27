@@ -25,6 +25,16 @@ class FirefightAi::ReviewSummarizerTest < ActiveSupport::TestCase
     assert Inference.exists?(workspace: @workspace, feature: FirefightAi::ReviewSummarizer::FEATURE)
   end
 
+  test "it says what the summary cost, as the ledger billed it, so the review counts it" do
+    stub_model(summary: "x", risk: "low", risk_reason: "y")
+
+    summary = FirefightAi::ReviewSummarizer.new(@workspace, inferable: nil, choice: @choice).summarize(pull_request: "", files: "", findings: "", reach: "")
+
+    billed = Inference.where(workspace: @workspace, feature: FirefightAi::ReviewSummarizer::FEATURE).sole.cost_micros
+    assert_operator billed, :>, 0
+    assert_equal billed, summary.spent_micros
+  end
+
   test "a risk it does not recognise reads as medium" do
     stub_model(summary: "x", risk: "extreme", risk_reason: "y")
 

@@ -191,12 +191,16 @@ class PullRequestReview::Runner
     review.update!(left_out: review.left_out + paths.map { |path| { "path" => path, "reason" => reason } })
   end
 
+  # Written even once the spending limit ran out, since a review without its summary says nothing, and what it cost
+  # still counts against the review.
   def conclude!
     standing = review.findings.reload.standing.to_a
     summary = FirefightAi::ReviewSummarizer.new(review.workspace, inferable: review, choice: choice).summarize(
       pull_request: "#{@pull.title}\n\n#{@pull.body}", files: files_text, reach: context.reach,
       findings: standing.map { |finding| "- #{finding.header}#{' | serious' if finding.serious}: #{finding.claim} (#{finding.path})" }.join("\n")
     )
+    purse.add(summary.spent_micros)
+    review.spent!(turns_used: review.turns_used, spent_micros: purse.spent)
     review.concluded!(summary: summary.summary, risk: summary.risk, risk_reason: summary.risk_reason)
   end
 
