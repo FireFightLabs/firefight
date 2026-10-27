@@ -146,6 +146,28 @@ class PullRequestReview::RunnerTest < ActiveSupport::TestCase
     assert_not @review.checks.exists?(reason: "The same finding was written already.")
   end
 
+  test "a check touches the earlier findings in their order whatever order it named them in, so two checks never wait on each other" do
+    script = lambda do |_number, tools, _part|
+      tools.fetch("report_finding").call(**reported.symbolize_keys)
+      tools.fetch("report_finding").call(**reported(path: "db/migrate/1_add_index.rb", line: 1, claim: "Add the index concurrently").symbolize_keys)
+      tools.fetch("report_finding").call(**reported(path: "README.md", line: 1, claim: "Fix the typo").symbolize_keys)
+    end
+    named = [ { "finding" => 2, "outcome" => "confirm", "note" => "Holds." }, { "finding" => 1, "outcome" => "confirm", "note" => "Holds." } ]
+    verifier = ScriptedVerifier.new([ { verdict: "keep", reason: "Holds." }, { verdict: "keep", reason: "Holds." }, { verdict: "drop", reason: "No.", earlier: named } ])
+    stub_review_model(ScriptedReviewer.new(script, []), verifier)
+    updated = []
+    record = lambda do |*, payload|
+      next unless payload[:sql].match?(/\AUPDATE "pull_request_review_findings" SET cross_checks/)
+
+      updated << payload[:type_casted_binds].find { |bind| bind.is_a?(String) && bind.match?(/\A\h{8}-/) }
+    end
+
+    ActiveSupport::Notifications.subscribed(record, "sql.active_record") { PullRequestReview::Runner.new(@review, by: "job-1").run }
+
+    positions = @review.findings.reload.to_h { |finding| [ finding.id, finding.position ] }
+    assert_equal [ 1, 2 ], updated.map { |id| positions[id] }
+  end
+
   test "a report of a finding already withdrawn is not checked again, and the reviewer is told why it was withdrawn" do
     answers = []
     script = lambda do |_number, tools, _part|

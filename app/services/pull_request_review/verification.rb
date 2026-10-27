@@ -107,10 +107,11 @@ class PullRequestReview::Verification
   end
 
   # What the check showed of each earlier finding it named, applied, said as the reviewer reads it. A finding another
-  # worker withdrew or fixed meanwhile is left as it is and goes unsaid.
+  # worker withdrew or fixed meanwhile is left as it is and goes unsaid. They are written in the findings' order, so two
+  # checks touching the same findings lock them in the same order and never wait on each other.
   def earlier!(outcomes, by:)
     found = earlier_findings.index_by(&:position)
-    outcomes.filter_map do |outcome|
+    outcomes.sort_by(&:number).filter_map do |outcome|
       finding = found[outcome.number]
       next unless finding
 
