@@ -255,6 +255,30 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ @member, "Behind a flag that stays off" ], [ finding.reload.overridden_by, finding.override_reason ]
   end
 
+  test "a member who owns none of the pull request's services and holds no grant is refused, with who can as the tooltip and the alert" do
+    lesson = taught("Checkout retries go up when the payment timeout changes").tap { |each| each.approve!(by: @member, strict: true) }
+    review = PullRequestReview.create!(workspace: @workspace, repository: "acme/api", number: 7, head_sha: "a" * 40,
+                                       trigger: PullRequestReview::TRIGGER_AUTOMATIC, max_spend_cents: 400)
+    finding = review.findings.create!(position: 1, fingerprint: "f" * 32, category: PullRequestReview::Finding::CATEGORY_STABILITY,
+                                      severity: PullRequestReview::Finding::SEVERITY_MAJOR, effort: PullRequestReview::Finding::EFFORT_QUICK_WIN,
+                                      claim: "Raises the payment timeout", why: "Retries go up.", lesson: lesson)
+    refused = "Only a workspace admin, an owner of a service acme/api belongs to, or someone granted Override strict lessons can override it."
+    sign_in(users(:bob), @workspace)
+
+    get memory_path, headers: inertia_headers
+    assert_equal refused, inertia_props["heldPullRequests"].sole["overrideBlockedReason"]
+
+    post override_finding_path(finding), params: { reason: "Ship it" }
+    assert_equal refused, flash[:alert]
+    assert_nil finding.reload.overridden_at
+
+    Ability::Grant.grant!(workspace: @workspace, principal: workspace_memberships(:bob_workspace_one),
+                          target: { action: Ability::Action.lookup(Ability::Action::LESSON_OVERRIDE, @workspace) })
+    post override_finding_path(finding), params: { reason: "Ship it" }
+    assert_equal "Overrode the INC-001 lesson on #7 in acme/api. Its check passes once nothing else holds it.", flash[:notice]
+    assert_equal workspace_memberships(:bob_workspace_one), finding.reload.overridden_by
+  end
+
   private
 
   def remember(text, subject: nil) = Chat::Memory.create!(workspace: @workspace, text: text, subject: subject, state: Chat::Memory::STATE_UNCONFIRMED)

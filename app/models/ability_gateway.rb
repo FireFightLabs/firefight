@@ -189,6 +189,7 @@ class AbilityGateway
     return true if Ability::Action.open?(action_key)
     return true if principal.implicitly_allowed?(action, resolved)
     return true if Ability::Approval.decides_by_name?(principal, action_key, scope, workspace, loaded: approval)
+    return true if PullRequestReview::Finding.overrides_as_owner?(principal, action_key, scope, workspace)
 
     resolved ||= Ability::Resolver.resolve(principal, workspace)
     return !resolved.reach(action_key).nil? if Ability::Action.filtered?(action_key) && scope.blank?

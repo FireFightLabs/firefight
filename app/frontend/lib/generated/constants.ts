@@ -843,6 +843,7 @@ export const ABILITY_RESOURCES = [
   "skills",
   "workflows",
   "http_requests",
+  "lessons",
   "integrations",
   "api_keys",
   "permissions",
@@ -876,7 +877,8 @@ export const ABILITY_GRANTABLE_RESOURCES = [
   "channel_posts",
   "skills",
   "workflows",
-  "http_requests"
+  "http_requests",
+  "lessons"
 ] as const
 export type AbilityGrantableResource = (typeof ABILITY_GRANTABLE_RESOURCES)[number]
 
@@ -905,6 +907,7 @@ export const ABILITY_RESOURCE_LABELS = {
   "http_requests": "HTTP Requests",
   "skills": "Skills",
   "workflows": "Workflows",
+  "lessons": "Lessons",
   "webhooks": "Webhooks",
   "integrations": "Integrations",
   "api_keys": "API Keys",
@@ -1060,6 +1063,9 @@ export const ABILITY_RESOURCE_ACTIONS = {
   "http_requests": [
     "read",
     "create"
+  ],
+  "lessons": [
+    "override"
   ]
 } as const
 

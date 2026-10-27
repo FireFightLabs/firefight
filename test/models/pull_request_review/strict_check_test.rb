@@ -48,8 +48,36 @@ class PullRequestReview::StrictCheckTest < ActiveSupport::TestCase
     assert_not held.override!(by: @admin, reason: "Again")
 
     assert_equal [ @admin, "Behind a flag that stays off" ], [ held.overridden_by, held.override_reason ]
-    assert_equal "#{@admin.display_name} overrode it already.", held.override_blocked_reason
+    assert_equal "#{@admin.display_name} overrode it already.", held.override_blocked_reason(@admin)
     assert_equal PullRequestReview::COMMIT_STATUS_PASSING, @review.commit_status_due
+  end
+
+  test "overriding is its own permission: admins and the owners of the pull request's services hold it, anyone else needs a grant" do
+    held = finding(lesson: @strict)
+    bob = workspace_memberships(:bob_workspace_one)
+    refused = "Only a workspace admin, an owner of a service acme/api belongs to, or someone granted Override strict lessons can override it."
+
+    assert_nil held.override_blocked_reason(@admin)
+    assert_equal refused, held.override_blocked_reason(bob)
+
+    catalog_types(:service_ws1).catalog_attribute_definitions.create!(name: "Code", slug: "code", attribute_type: CatalogAttributeDefinition::TYPE_TEXT,
+                                                                      role: CatalogAttributeDefinition::ROLE_REPOSITORY, position: 9)
+    service = catalog_entries(:auth_service)
+    service.update!(attributes: service.entry_attributes.merge("code" => "acme/api"))
+    team = catalog_entries(:platform_team)
+    team.update!(attributes: team.entry_attributes.merge("members" => [ bob.id ]))
+    assert_nil PullRequestReview.find(@review.id).findings.first.override_blocked_reason(bob), "an owner of the owning team's service may override"
+    assert_not PullRequestReview::Finding.overrides_as_owner?(bob, Ability::Action::LESSON_OVERRIDE, {}, @workspace), "never without the finding named"
+
+    team.update!(attributes: team.entry_attributes.merge("members" => []))
+    Ability::Grant.grant!(workspace: @workspace, principal: bob, target: { action: Ability::Action.lookup(Ability::Action::LESSON_OVERRIDE, @workspace) })
+    assert_nil PullRequestReview.find(@review.id).findings.first.override_blocked_reason(bob), "a grant lets anyone override"
+  end
+
+  test "overriding a strict lesson can be granted on the Permissions screen, and is never a create, read, update or delete column" do
+    assert_includes Ability::Action.grantable_keys, Ability::Action::LESSON_OVERRIDE
+    assert_equal "Override strict lessons", Ability::Action.described(Ability::Action::LESSON_OVERRIDE)[:title]
+    assert_not Ability::Action::ACTIONS.include?(Ability::Action::ACTION_OVERRIDE)
   end
 
   test "a lesson made a comment since stops holding the check it failed" do
@@ -59,7 +87,7 @@ class PullRequestReview::StrictCheckTest < ActiveSupport::TestCase
     @strict.edit_lesson!(by: @admin, text: @strict.text, strict: false)
     assert_not held.reload.holding?
     assert_equal PullRequestReview::COMMIT_STATUS_PASSING, @review.commit_status_due
-    assert_equal "Only a finding from a strict lesson holds a check.", held.override_blocked_reason
+    assert_equal "Only a finding from a strict lesson holds a check.", held.override_blocked_reason(@admin)
   end
 
   test "a finding on an earlier head holds the newest head's check, the same problem found again counts once, and its override carries over" do

@@ -3,8 +3,10 @@ class MemoryController < InertiaController
   authorizes Ability::Action::RESOURCE_MEMORY,
     read: %i[index],
     create: %i[create_memory],
-    update: %i[confirm_memory correct_memory reject_memory destroy_memory approve_lesson edit_lesson turn_down_lesson override_finding]
+    update: %i[confirm_memory correct_memory reject_memory destroy_memory approve_lesson edit_lesson turn_down_lesson]
   authorizes Ability::Action::RESOURCE_CATALOG, update: %i[create_instruction update_instruction destroy_instruction]
+  # override_finding is authorized in the action, as lessons.override on the one finding, since owning the pull request's
+  # services is what lets most people do it.
 
   TAB_QUERY = "tab"
   TAB_MEMORIES = "memories"
@@ -25,7 +27,7 @@ class MemoryController < InertiaController
     render inertia: "memory/index", props: {
       memories: ChatMemorySerializer.many(memories),
       lessons: ChatLessonSerializer.many(lessons, member: current_membership),
-      heldPullRequests: HeldPullRequestFindingSerializer.many(held_pull_requests),
+      heldPullRequests: HeldPullRequestFindingSerializer.many(held_pull_requests, member: current_membership),
       instructions: ChatInstructionSerializer.many(Chat::Instruction.with_history(current_workspace, principal: current_membership)),
       subjects: MemorySubjectOptionSerializer.many(Chat::Memory.subject_choices(current_workspace, principal: current_membership))
     }
@@ -102,9 +104,13 @@ class MemoryController < InertiaController
   # else holds it.
   def override_finding
     finding = PullRequestReview::Finding.from_strict_lessons(current_workspace, memories).find(params[:id])
+    refused = finding.override_blocked_reason(current_membership)
+    return redirect_to(lessons_page, alert: refused) if refused
+    return unless authorize_web!(Ability::Action::RESOURCE_LESSONS, Ability::Action::ACTION_OVERRIDE, scope: finding.override_scope)
+
     reason = params[:reason].to_s.strip
     unless finding.override!(by: current_membership, reason: reason)
-      return redirect_to(lessons_page, alert: finding.override_blocked_reason || PullRequestReview::Finding::OVERRIDE_NEEDS_REASON)
+      return redirect_to(lessons_page, alert: finding.override_state_blocked_reason || PullRequestReview::Finding::OVERRIDE_NEEDS_REASON)
     end
 
     review = finding.review

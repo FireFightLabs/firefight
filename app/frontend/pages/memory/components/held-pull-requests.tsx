@@ -23,14 +23,14 @@ import type { HeldPullRequestFinding } from "@/types/serializers"
 
 interface HeldPullRequestsProps {
   findings: HeldPullRequestFinding[]
-  canCurate: boolean
   // The review a pull request's check linked to, whose rows are marked.
   focusedReviewId: string | null
 }
 
 // Pull requests a strict lesson holds with a failing check, and those someone let through, each with the lesson that
 // found it. Shown only while there is one, since most workspaces have none.
-export function HeldPullRequests({ findings, canCurate, focusedReviewId }: HeldPullRequestsProps) {
+// Override stays on every row. Whoever may not override sees it inert, with who can as its tooltip.
+export function HeldPullRequests({ findings, focusedReviewId }: HeldPullRequestsProps) {
   const [ overriding, setOverriding ] = useState<HeldPullRequestFinding | null>(null)
 
   function closeOverride() {
@@ -56,12 +56,12 @@ export function HeldPullRequests({ findings, canCurate, focusedReviewId }: HeldP
               <TableHead className="pl-6">Pull request</TableHead>
               <TableHead>Finding</TableHead>
               <TableHead>Check</TableHead>
-              {canCurate && <TableHead className="pr-6 text-right">Decide</TableHead>}
+              <TableHead className="pr-6 text-right">Decide</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {findings.map((finding) => (
-              <HeldRow key={finding.id} finding={finding} canCurate={canCurate} focused={finding.reviewId === focusedReviewId} onOverride={setOverriding} />
+              <HeldRow key={finding.id} finding={finding} focused={finding.reviewId === focusedReviewId} onOverride={setOverriding} />
             ))}
           </TableBody>
         </Table>
@@ -73,12 +73,11 @@ export function HeldPullRequests({ findings, canCurate, focusedReviewId }: HeldP
 
 interface HeldRowProps {
   finding: HeldPullRequestFinding
-  canCurate: boolean
   focused: boolean
   onOverride: (finding: HeldPullRequestFinding) => void
 }
 
-function HeldRow({ finding, canCurate, focused, onOverride }: HeldRowProps) {
+function HeldRow({ finding, focused, onOverride }: HeldRowProps) {
   const row = useRef<HTMLTableRowElement>(null)
   const blocked = finding.overrideBlockedReason ?? undefined
   const name = `#${finding.number}${finding.title ? ` ${finding.title}` : ""}`
@@ -127,17 +126,15 @@ function HeldRow({ finding, canCurate, focused, onOverride }: HeldRowProps) {
           )}
         </div>
       </TableCell>
-      {canCurate && (
-        <TableCell className="pr-6 text-right">
-          <div className="py-0.5">
-            <Blocked reason={blocked}>
-              <Button type="button" size="sm" variant="outline" disabled={Boolean(blocked)} onClick={override}>
-                Override
-              </Button>
-            </Blocked>
-          </div>
-        </TableCell>
-      )}
+      <TableCell className="pr-6 text-right">
+        <div className="py-0.5">
+          <Blocked reason={blocked}>
+            <Button type="button" size="sm" variant="outline" disabled={Boolean(blocked)} onClick={override}>
+              Override
+            </Button>
+          </Blocked>
+        </div>
+      </TableCell>
     </TableRow>
   )
 }

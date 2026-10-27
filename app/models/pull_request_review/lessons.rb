@@ -7,6 +7,16 @@ module PullRequestReview::Lessons
   # The services whose repository this is, as the catalog says.
   def owning_services = @owning_services ||= CatalogEntry.owning_repository(workspace, repository)
 
+  # The members who own the services the repository belongs to: each service's own members and manager, and those of
+  # the teams that own it, as the catalog names them.
+  def service_owner_ids
+    @service_owner_ids ||= owning_services.flat_map { |service| [ service, *service.owning_teams ] }.uniq.flat_map do |entry|
+      [ *Array(entry.role_value(CatalogAttributeDefinition::ROLE_MEMBERS)), entry.role_value(CatalogAttributeDefinition::ROLE_MANAGER) ]
+    end.compact_blank.map(&:to_s).uniq
+  end
+
+  def owned_by?(member) = member.is_a?(WorkspaceMembership) && service_owner_ids.include?(member.id.to_s)
+
   # What the change touches: the owning services, the resources they run on, and the repository on the map.
   def touched_subjects
     services = owning_services

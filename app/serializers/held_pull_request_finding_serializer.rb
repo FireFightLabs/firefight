@@ -43,5 +43,5 @@ class HeldPullRequestFindingSerializer < BaseSerializer
   def override_reason = finding.override_reason
 
   type :string, optional: true
-  def override_blocked_reason = finding.override_blocked_reason
+  def override_blocked_reason = finding.override_blocked_reason(options[:member])
 end

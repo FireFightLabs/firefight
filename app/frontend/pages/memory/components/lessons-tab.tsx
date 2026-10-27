@@ -46,7 +46,7 @@ export function LessonsTab({ lessons, heldPullRequests, canCurate, focusedReview
 
   return (
     <div className="flex flex-col gap-6">
-      <HeldPullRequests findings={heldPullRequests} canCurate={canCurate} focusedReviewId={focusedReviewId} />
+      <HeldPullRequests findings={heldPullRequests} focusedReviewId={focusedReviewId} />
       <Card>
         <CardHeader>
           <CardTitle>Lessons</CardTitle>

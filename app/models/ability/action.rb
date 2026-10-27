@@ -56,6 +56,9 @@ module Ability
     RESOURCE_WORKFLOWS = "workflows"
     # A workflow's HTTP request step calling an address, reading with GET or HEAD and changing with any other method.
     RESOURCE_HTTP_REQUESTS = "http_requests"
+    # Lessons from incidents and Halon's own pull requests, whose only action is letting a pull request through although a
+    # strict lesson's finding stands.
+    RESOURCE_LESSONS = "lessons"
 
     # Nobody can be granted these, so a member or an agent can never mint keys
     # or rewrite who has what.
@@ -69,7 +72,7 @@ module Ability
       RESOURCE_RUNBOOKS, RESOURCE_APPROVALS, RESOURCE_INCIDENT_ROLES, RESOURCE_WEBHOOKS,
       RESOURCE_INCIDENT_TRANSCRIPTS, RESOURCE_INVESTIGATIONS, RESOURCE_CHATS, RESOURCE_MEMORY, RESOURCE_MAP,
       RESOURCE_MONITORING, RESOURCE_HANDBOOK, RESOURCE_BROWSER, RESOURCE_CHANNEL_POSTS, RESOURCE_SKILLS,
-      RESOURCE_WORKFLOWS, RESOURCE_HTTP_REQUESTS
+      RESOURCE_WORKFLOWS, RESOURCE_HTTP_REQUESTS, RESOURCE_LESSONS
     ].freeze
 
     RESOURCES = (GRANTABLE_RESOURCES + ADMIN_ONLY_RESOURCES).freeze
@@ -106,6 +109,7 @@ module Ability
       RESOURCE_HTTP_REQUESTS => "HTTP Requests",
       RESOURCE_SKILLS => "Skills",
       RESOURCE_WORKFLOWS => "Workflows",
+      RESOURCE_LESSONS => "Lessons",
       RESOURCE_WEBHOOKS => "Webhooks",
       RESOURCE_INTEGRATIONS => "Integrations",
       RESOURCE_API_KEYS => "API Keys",
@@ -120,11 +124,13 @@ module Ability
     ACTION_DELETE = "delete"
 
     ACTIONS = [ ACTION_READ, ACTION_CREATE, ACTION_UPDATE, ACTION_DELETE ].freeze
+    # Not one of the four, so it never shows in a create, read, update and delete matrix, only where actions are listed.
+    ACTION_OVERRIDE = "override"
     # A resource that only offers some of the actions. Everything else offers all four.
     # The browser's read is open (BROWSER_READ), so only sending is offered.
     RESOURCE_ACTIONS = {
       RESOURCE_MAP => [ ACTION_READ ].freeze, RESOURCE_BROWSER => [ ACTION_UPDATE ].freeze, RESOURCE_CHANNEL_POSTS => [ ACTION_CREATE ].freeze,
-      RESOURCE_HTTP_REQUESTS => [ ACTION_READ, ACTION_CREATE ].freeze
+      RESOURCE_HTTP_REQUESTS => [ ACTION_READ, ACTION_CREATE ].freeze, RESOURCE_LESSONS => [ ACTION_OVERRIDE ].freeze
     }.freeze
 
     MAP_READ = "#{RESOURCE_MAP}.#{ACTION_READ}".freeze
@@ -143,6 +149,9 @@ module Ability
     # A workflow's HTTP request reading an address, and sending one that changes something.
     HTTP_READ = "#{RESOURCE_HTTP_REQUESTS}.#{ACTION_READ}".freeze
     HTTP_SEND = "#{RESOURCE_HTTP_REQUESTS}.#{ACTION_CREATE}".freeze
+    # Letting a pull request through although a strict lesson's finding stands, which clears its failing check. Admins and
+    # the owners of the services the pull request belongs to hold it without a grant (PullRequestReview::Finding.overrides_as_owner?).
+    LESSON_OVERRIDE = "#{RESOURCE_LESSONS}.#{ACTION_OVERRIDE}".freeze
     # Writes that cannot be taken back once people have read them, like a connected tool's change. A chat asks the person
     # before each one (Conversation::Turn#confirms?) unless they allowed it for the rest of the chat.
     IRREVERSIBLE_KEYS = [ CHANNEL_POST ].freeze
@@ -180,6 +189,12 @@ module Ability
         title: "Send HTTP requests that change something",
         description: "Let a workflow's HTTP request step send POST, PUT, PATCH or DELETE to an address, through the same guard. " \
                      "Approval rules can hold it, and every request is in the activity log."
+      }.freeze,
+      LESSON_OVERRIDE => {
+        title: "Override strict lessons",
+        description: "Let a pull request through although a finding from a strict lesson stands, which clears its failing Halon review " \
+                     "check. Admins and the owners of the services a pull request belongs to, as the catalog names them, hold it for " \
+                     "that pull request without a grant. A grant lets anyone else override on any pull request."
       }.freeze,
       INVESTIGATIONS_CREATE => {
         title: "Ask Halon and start investigations",
