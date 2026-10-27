@@ -58,6 +58,8 @@ export type { default as HalonLibraryWorkflowUse } from './HalonLibraryWorkflowU
 export type { default as HalonMistake } from './HalonMistake'
 export type { default as HalonPerformance } from './HalonPerformance'
 export type { default as HalonPerformanceWeek } from './HalonPerformanceWeek'
+export type { default as HalonPreventedEvidence } from './HalonPreventedEvidence'
+export type { default as HalonPreventedProblem } from './HalonPreventedProblem'
 export type { default as HalonSkillProposal } from './HalonSkillProposal'
 export type { default as HalonSkill } from './HalonSkill'
 export type { default as HalonSkillToolChoice } from './HalonSkillToolChoice'

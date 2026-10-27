@@ -72,6 +72,21 @@ class PullRequestReview::RunnerTest < ActiveSupport::TestCase
     assert_includes verifier.asked.second[:earlier], "1. Stability & Availability | Major | Quick win, app/jobs/charge_job.rb:3"
   end
 
+  test "a report of a finding already withdrawn is not checked again, and the reviewer is told why it was withdrawn" do
+    answers = []
+    script = lambda do |_number, tools, _part|
+      answers << tools.fetch("report_finding").call(**reported.symbolize_keys)
+      @review.findings.sole.withdraw!("The job already waits in its retry_on.")
+      answers << tools.fetch("report_finding").call(**reported.symbolize_keys)
+    end
+    stub_review_model(ScriptedReviewer.new(script, []), ScriptedVerifier.new([ { verdict: "keep", reason: "Holds." } ]))
+
+    PullRequestReview::Runner.new(@review, by: "job-1").run
+
+    assert_equal "Not written again. It is finding 1, which was withdrawn: The job already waits in its retry_on.", answers.second
+    assert_equal 1, @review.checks.count
+  end
+
   test "a report whose evidence points at nothing Firefight can open is refused with why, and the reviewer can fix it" do
     answers = []
     script = lambda do |_number, tools, _part|
@@ -128,6 +143,21 @@ class PullRequestReview::RunnerTest < ActiveSupport::TestCase
     assert_equal [ lesson, "Lesson from INC-001" ], [ from_lesson.lesson, from_lesson.lesson_label ]
     assert_nil without.lesson
     assert_match "is not one of the approved lessons listed, so the finding names none", answers.second
+  end
+
+  test "a file that may hold secrets is left out, and a finding on it reaches its check without its diff" do
+    secret = review_file("config/credentials.yml", "@@ -1 +1 @@\n-token: old\n+token: sk_live_123\n")
+    stub_review_host(@row, @files + [ secret ])
+    script = ->(_number, tools, _part) { tools.fetch("report_finding").call(**reported(path: "config/credentials.yml", line: 1, evidence: [ { "kind" => "code", "reference" => "app/jobs/charge_job.rb:3", "title" => "x" } ]).symbolize_keys) }
+    verifier = ScriptedVerifier.new([ { verdict: "drop", reason: "No." } ])
+    stub_review_model(ScriptedReviewer.new(script, []), verifier)
+
+    PullRequestReview::Runner.new(@review, by: "job-1").run
+
+    assert_includes @review.reload.left_out, { "path" => "config/credentials.yml", "reason" => Integrations::ReviewHost::LEFT_OUT_SECRETS }
+    context = verifier.asked.sole[:context]
+    assert_includes context, "The pull request changes config/credentials.yml, but its diff is left out of the review."
+    assert_not_includes context, "sk_live_123"
   end
 
   test "a review whose spending limit runs out leaves the files it did not reach out with why, and still concludes" do

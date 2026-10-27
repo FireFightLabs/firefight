@@ -2753,10 +2753,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_190300) do
     t.uuid "lesson_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "host_comment_url"
     t.string "serious_comment_id"
     t.jsonb "answered_comment_ids", default: [], null: false
     t.string "rechecked_sha"
-    t.string "host_comment_url"
     t.uuid "overridden_by_id"
     t.datetime "overridden_at"
     t.text "override_reason"

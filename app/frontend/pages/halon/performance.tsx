@@ -9,13 +9,16 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { percent } from "@/lib/formatters"
 import { halonPerformancePath } from "@/lib/routes"
 import type { SharedProps } from "@/types"
-import type { HalonPerformance } from "@/types/serializers"
+import type { HalonPerformance, HalonPreventedProblem } from "@/types/serializers"
 import { Stat } from "@/pages/halon/components/stat"
 import { Mistake } from "@/pages/halon/components/mistake"
+import { PreventedProblems } from "@/pages/halon/components/prevented-problems"
 
 interface PerformanceProps extends SharedProps {
   performance: HalonPerformance
   windows: number[]
+  preventedCount: number
+  prevented: HalonPreventedProblem[]
 }
 
 const CHART: ChartConfig = {
@@ -53,7 +56,7 @@ function chooseWindow(value: string) {
 }
 
 export default function HalonPerformancePage() {
-  const { performance, windows } = usePage<PerformanceProps>().props
+  const { performance, windows, preventedCount, prevented } = usePage<PerformanceProps>().props
   const answeredNote = performance.ended > 0 ? `${performance.answered} of ${performance.ended} finished runs` : "no finished runs yet"
 
   return (
@@ -62,8 +65,8 @@ export default function HalonPerformancePage() {
       <div className="flex flex-col gap-6 px-4 py-4 md:py-6 lg:px-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <p className="max-w-prose text-sm text-fg-secondary">
-            How Halon has done for your team, from what your team said about its answers and what came of its fixes.
-            Nothing here is estimated.
+            How Halon has done for your team, from what your team said about its answers, what came of its fixes and
+            what its pull request reviews caught. Nothing here is estimated.
           </p>
           <ToggleGroup type="single" variant="outline" size="sm" value={String(performance.days)} onValueChange={chooseWindow} aria-label="Time window">
             {windows.map((days) => (
@@ -73,6 +76,8 @@ export default function HalonPerformancePage() {
             ))}
           </ToggleGroup>
         </div>
+
+        <PreventedProblems problems={prevented} count={preventedCount} days={performance.days} />
 
         {performance.runs === 0 ? (
           <Card className="px-5 py-10 text-center text-sm text-fg-secondary">
