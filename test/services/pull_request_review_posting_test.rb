@@ -322,7 +322,7 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
   test "a reply the host refuses for good goes up as a comment on the pull request that names its finding, once" do
     finding = create_finding
     finding.update_columns(host_comment_id: "701", host_comment_url: "https://example.com/pull/7#discussion_r701")
-    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == REPLY }.raises(Integrations::Error, "GitHub has no review comment 701 on pull request 7 in acme/api.")
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == REPLY }.raises(answered(404, "GitHub has no review comment 701 on pull request 7 in acme/api."))
     answer(COMMENT => "300")
 
     posting.reply!(finding, "Fixed in bbbbbbb. The job now waits.", then_resolve: true)
@@ -338,11 +338,30 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
     assert_empty finding.unposted_replies
   end
 
+  test "a thread that refused a reply for good is never tried again, and later replies stay on the review page, never another comment" do
+    finding = create_finding
+    finding.update_columns(host_comment_id: "701")
+    replies = 0
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == REPLY && (replies += 1) }.raises(answered(404, "GitHub has no review comment 701."))
+    answer(COMMENT => "300")
+
+    posting.reply!(finding, "Not fixed yet in bbbbbbb.", recheck: true)
+    posting.reply!(finding.reload, "Fixed in ccccccc.", then_resolve: true, recheck: true)
+    posting.reply!(finding.reload, "Still fixed.")
+
+    assert_equal 1, replies, "a thread refused for good is not asked again"
+    assert_equal [ COMMENT ], @posts.map(&:first), "only the first refused reply goes in the conversation"
+    assert_equal "GitHub has no review comment 701.", finding.reload.thread_refusal
+    kept = finding.unposted_replies
+    assert_equal [ "Fixed in ccccccc.", "Still fixed." ], kept.map { |reply| reply["body"] }
+    assert kept.all? { |reply| reply["reason"].include?("GitHub has no review comment 701.") }
+  end
+
   test "a reply refused for good whose comment is refused too stays on the review page with why" do
     finding = create_finding
     finding.update_columns(host_comment_id: "701")
-    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == REPLY }.raises(Integrations::Error, "GitHub answered 422: The conversation is locked.")
-    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == COMMENT }.raises(Integrations::Error, "GitHub answered 403: Resource not accessible.")
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == REPLY }.raises(answered(422, "GitHub answered 422: The conversation is locked."))
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == COMMENT }.raises(answered(403, "GitHub answered 403: Resource not accessible."))
 
     posting.reply!(finding, "Not fixed yet in bbbbbbb.")
 
@@ -357,7 +376,7 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
   test "a finding with no page of its own is named by its claim in the comment" do
     finding = create_finding
     finding.update_columns(host_comment_id: "701")
-    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == REPLY }.raises(Integrations::Error, "Gone.")
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == REPLY }.raises(answered(404, "Gone."))
     answer(COMMENT => "300")
 
     posting.reply!(finding, "Still open.")
@@ -389,7 +408,7 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
                                          status: Ability::Approval::STATUS_APPROVED, required_role: WorkspaceMembership.roles[:admin])
     @review.update_columns(summary_comment_id: "100")
     @review.hold!(approval, operation: REPLY, given: { reference: "701", body: "Fixed." }, purpose: { "record" => "reply", "finding_id" => finding.id, "body" => "Fixed.", "resolve" => true })
-    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == REPLY }.raises(Integrations::Error, "GitHub has no review comment 701.")
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == REPLY }.raises(answered(404, "GitHub has no review comment 701."))
     answer(COMMENT => "300", EDIT => "100")
 
     posting.run!(PullRequestReviewPosting::RESUMED, approval_id: approval.id)
@@ -398,6 +417,44 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
     assert_includes elsewhere.last[:body], "Fixed."
     assert_includes elsewhere.last[:body], "Queue the retry for its backoff delay"
     assert_nil @review.reload.held_approval_id
+  end
+
+  test "a held comment for a refused reply is posted once approved and kept as said, and one refused once approved stays on the review page" do
+    finding = create_finding
+    finding.update_columns(host_comment_id: "701", thread_refusal: "GitHub has no review comment 701.", thread_refused_at: Time.current)
+    @review.update_columns(summary_comment_id: "100")
+    purpose = { "record" => "reply_elsewhere", "finding_id" => finding.id, "body" => "Fixed.", "refused" => "GitHub has no review comment 701." }
+    approved = approved_approval("github.comment_on_pull_request")
+    @review.hold!(approved, operation: COMMENT, given: { body: "About my finding, Fixed." }, purpose: purpose)
+    answer(COMMENT => "300", EDIT => "100")
+
+    posting.run!(PullRequestReviewPosting::RESUMED, approval_id: approved.id)
+
+    assert_equal [ nil, true, "Fixed." ], finding.reload.thread_said.sole.values_at("comment", "halon", "body")
+    assert_empty finding.unposted_replies
+
+    again = approved_approval("github.comment_on_pull_request")
+    @review.reload.hold!(again, operation: COMMENT, given: { body: "About my finding, Still fixed." }, purpose: purpose.merge("body" => "Still fixed."))
+    Integrations::PullRequestReviews.unstub(:call!)
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == COMMENT }.raises(answered(403, "GitHub answered 403: Resource not accessible."))
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == EDIT }.returns("100")
+
+    PullRequestReviewPosting.new(@review.reload).run!(PullRequestReviewPosting::RESUMED, approval_id: again.id)
+
+    kept = finding.reload.unposted_replies.sole
+    assert_equal "Still fixed.", kept["body"]
+    assert_includes kept["reason"], "GitHub has no review comment 701."
+    assert_includes kept["reason"], "Resource not accessible."
+  end
+
+  test "a claim, a path and a link are written as text in the comment, so nothing in them breaks its markdown" do
+    finding = create_finding(claim: "Wrap `retry` in **[brackets]** (see #12)\nnow", path: "app/jobs/`odd`_job.rb")
+    finding.update_columns(host_comment_url: "https://example.com/pull/7 (x)")
+
+    lead = PullRequestReview::Comments.elsewhere_reply(finding.reload, "Body.").lines.first.chomp
+
+    assert_equal "About my finding on ``app/jobs/`odd`_job.rb`` line 12, " \
+                 "[Wrap \\`retry\\` in \\*\\*\\[brackets\\]\\*\\* \\(see \\#12\\) now](https://example.com/pull/7%20%28x%29)", lead
   end
 
   test "a comment for a refused reply that waited behind a held post goes up as a comment once caught up" do
@@ -419,7 +476,7 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
     Ability::Grant.grant!(workspace: @workspace, principal: SystemAgent.pull_request_review, target: { action: tool.ability_action || tool.sync_ability_action! })
     finding = create_finding
     finding.update_columns(host_comment_id: "701")
-    Integrations::NativeExecutor.stubs(:call).raises(Integrations::Error, "GitHub has no review comment 701 on pull request 7 in acme/api.")
+    Integrations::NativeExecutor.stubs(:call).raises(answered(404, "GitHub has no review comment 701 on pull request 7 in acme/api."))
 
     posting.reply!(finding, "Fixed.")
 
@@ -430,6 +487,14 @@ class PullRequestReviewPostingTest < ActiveSupport::TestCase
   private
 
   def posting = PullRequestReviewPosting.new(@review.reload)
+
+  def approved_approval(action_key)
+    Ability::Approval.create!(workspace: @workspace, principal_type: SystemAgent.polymorphic_name, principal_id: SystemAgent.pull_request_review.id,
+                              principal_label: "Halon pull request review", action_key: action_key, request_digest: SecureRandom.hex(4), scope: {}, params: {},
+                              status: Ability::Approval::STATUS_APPROVED, required_role: WorkspaceMembership.roles[:admin])
+  end
+
+  def answered(status, message) = Integrations::Error.new(message).tap { |error| error.http_status = status }
 
   def answer(replies)
     replies.each do |operation, value|

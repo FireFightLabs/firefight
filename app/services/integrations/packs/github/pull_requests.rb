@@ -780,6 +780,15 @@ module Integrations
           end
         end
 
+        def conversation_comments(repo, number, since, token)
+          query = { "since" => since, "per_page" => 100 }.compact
+          (1..REVIEW_COMMENT_PAGES).each_with_object([]) do |page, listed|
+            found = Array(GithubApp.get("/repos/#{repo}/issues/#{number}/comments?#{query.merge('page' => page).to_query}", token: token))
+            listed.concat(found)
+            break listed if found.size < 100
+          end
+        end
+
         def sha_argument(arguments, key)
           value = arguments[key].to_s.strip
           return if value.empty?

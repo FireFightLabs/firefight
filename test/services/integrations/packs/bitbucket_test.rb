@@ -512,6 +512,23 @@ module Integrations
         assert_match "more files than Bitbucket lists", error.message
       end
 
+      test "the newest comments in the conversation are read back oldest first, leaving out comments on lines, deleted and older ones" do
+        BitbucketApi.any_instance.stubs(:get).with("#{REPO}/pullrequests/42").returns("links" => { "html" => { "href" => "https://bitbucket.org/acme/web/pull-requests/42" } })
+        BitbucketApi.any_instance.stubs(:get).with("#{REPO}/pullrequests/42/comments", { "sort" => "-created_on", "pagelen" => 100 }).returns("values" => [
+          { "id" => 9, "content" => { "raw" => "I can't read this repository." }, "user" => { "account_id" => "5f1", "uuid" => "{u}", "nickname" => "firefight" },
+            "created_on" => "2026-10-27T10:00:05Z", "links" => { "html" => { "href" => "https://bitbucket.org/acme/web/pull-requests/42#comment-9" } } },
+          { "id" => 8, "inline" => { "path" => "a.rb" }, "content" => { "raw" => "On a line" }, "user" => {}, "created_on" => "2026-10-27T10:00:04Z" },
+          { "id" => 7, "deleted" => true, "content" => { "raw" => "" }, "user" => {}, "created_on" => "2026-10-27T10:00:03Z" },
+          { "id" => 6, "content" => { "raw" => "Older" }, "user" => {}, "created_on" => "2026-10-27T09:00:00Z" }
+        ])
+
+        result = @pack.list_pull_request_comments(environment_row: @row, arguments: { "repo" => "acme/web", "number" => 42, "since" => "2026-10-27T10:00:00Z" })
+
+        comment = Bitbucket.review_posted(Integrations::PullRequestReviews::CONVERSATION, result.dig(Integrations::Telemetry::STRUCTURED, Integrations::Telemetry::FACTS)).sole
+        assert_equal [ "9", [ "5f1", "{u}", "firefight" ] ], [ comment.reference, comment.authors ]
+        assert Bitbucket.tool_definitions.find { |tool| tool.name == "list_pull_request_comments" }.read_only
+      end
+
       test "a flag is a comment on the pull request" do
         BitbucketApi.any_instance.expects(:post).with("#{REPO}/pullrequests/42/comments", { "content" => { "raw" => "Look here." } }).returns("id" => 1)
 

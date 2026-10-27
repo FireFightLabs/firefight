@@ -148,6 +148,21 @@ module Integrations
           assert_not_includes text, "Commented on"
         end
 
+        test "the conversation is read back with each comment's author and time, from the moment given, and read through the contract" do
+          GithubApp.expects(:get).with("/repos/acme/checkout/issues/412/comments?page=1&per_page=100&since=2026-10-27T10%3A00%3A00Z", token: "ghs_token")
+                   .returns([ { "id" => 300, "html_url" => "https://github.com/acme/checkout/pull/412#issuecomment-300", "body" => "I can't read this repository.",
+                                "user" => { "login" => "firefight-app[bot]" }, "created_at" => "2026-10-27T10:00:05Z" } ])
+
+          result = @pack.list_pull_request_comments(environment_row: @row, arguments: { "repo" => "acme/checkout", "number" => 412, "since" => "2026-10-27T10:00:00Z" })
+
+          assert Github.tool_definitions.find { |tool| tool.name == "list_pull_request_comments" }.read_only
+          comment = Github.review_posted(PullRequestReviews::CONVERSATION, result.dig(Telemetry::STRUCTURED, Telemetry::FACTS)).sole
+          assert_equal [ "300", "I can't read this repository.", [ "firefight-app[bot]" ], Time.utc(2026, 10, 27, 10, 0, 5) ],
+                       [ comment.reference, comment.body, comment.authors, comment.at ]
+          assert_equal [ "list_pull_request_comments", { "repo" => "acme/checkout", "number" => 412, "since" => "2026-10-27T10:00:00Z" } ],
+                       Github.review_call(PullRequestReviews::CONVERSATION, repository: "acme/checkout", number: 412, since: Time.utc(2026, 10, 27, 10))
+        end
+
         test "a reply goes in the review comment's thread" do
           GithubApp.expects(:write).with(:post, "/repos/acme/checkout/pulls/412/comments/77/replies", { body: "Fixed in the next commit" }, token: "ghs_token")
                    .returns("path" => "app/models/payment.rb", "html_url" => "https://github.com/acme/checkout/pull/412#discussion_r78")

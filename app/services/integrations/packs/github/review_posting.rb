@@ -14,7 +14,7 @@ module Integrations
           PullRequestReviews::REVIEW => "review_pull_request", PullRequestReviews::REPLY => "reply_to_review_comment",
           PullRequestReviews::RESOLVE => "resolve_review_thread",
           PullRequestReviews::CHANGES => "compare_commits", PullRequestReviews::FILE => "fetch_file",
-          PullRequestReviews::POSTED_COMMENTS => "list_review_comments"
+          PullRequestReviews::POSTED_COMMENTS => "list_review_comments", PullRequestReviews::CONVERSATION => "list_pull_request_comments"
         }.freeze
         COMMENTS_SHOWN = 30
         # One review call posts every line comment or none.
@@ -60,11 +60,21 @@ module Integrations
                       "review_id" => { "type" => "integer", "description" => "The review's id" }
                     }, %w[repo number review_id]),
                     read_only: true
+
+          pack.tool :list_pull_request_comments,
+                    summary: "Lists the comments in a pull request's conversation.",
+                    description: "List the comments in a pull request's conversation, newest last, with each one's id, author, time and page",
+                    params_schema: Code.object_schema({
+                      "repo" => Code::REPO, "number" => number,
+                      "since" => { "type" => "string", "description" => "Only comments written or changed from this time, in ISO 8601 (optional)" }
+                    }, %w[repo number]),
+                    read_only: true
         end
 
         module ClassMethods
           # The tool and its arguments for one operation of the review host contract.
-          def review_call(operation, repository:, number: nil, body: nil, reference: nil, line: false, commit: nil, comments: [], base: nil, path: nil, start: nil)
+          def review_call(operation, repository:, number: nil, body: nil, reference: nil, line: false, commit: nil, comments: [], base: nil, path: nil, start: nil,
+                          since: nil)
             arguments = case operation
             when PullRequestReviews::COMMENT then { "repo" => repository, "number" => number, "body" => body }
             when PullRequestReviews::EDIT then { "repo" => repository, "comment_id" => reference.to_i, "body" => body, "review" => line }
@@ -76,6 +86,7 @@ module Integrations
             when PullRequestReviews::CHANGES then { "repo" => repository, "base" => base, "head" => commit }
             when PullRequestReviews::FILE then { "repo" => repository, "path" => path, "ref" => commit, "start_line" => start }.compact
             when PullRequestReviews::POSTED_COMMENTS then { "repo" => repository, "number" => number, "review_id" => reference.to_i }
+            when PullRequestReviews::CONVERSATION then { "repo" => repository, "number" => number, "since" => since&.utc&.iso8601 }.compact
             end
             [ REVIEW_TOOLS.fetch(operation), arguments ]
           end
@@ -88,6 +99,7 @@ module Integrations
                                              urls: Array(facts["comment_urls"]), unread: facts["comments_unread"] == true)
             when PullRequestReviews::POSTED_COMMENTS
               Array(facts["comments"]).map { |comment| PullRequestReviews::PostedComment.new(reference: comment["id"]&.to_s, url: comment["url"], body: comment["body"].to_s) }
+            when PullRequestReviews::CONVERSATION then PullRequestReviews.conversation_of(facts)
             else facts["comment_id"]&.to_s
             end
           end
@@ -111,6 +123,22 @@ module Integrations
             linked("Review #{review} on PR ##{number} in #{repo} left #{comments.size} #{'comment'.pluralize(comments.size)} on its code.\n#{lines.join("\n")}#{more}",
                    "https://github.com/#{repo}/pull/#{number}",
                    facts: { "comments" => comments.map { |comment| { "id" => comment["id"], "url" => comment["html_url"], "body" => comment["body"].to_s } } })
+          end
+        end
+
+        # The comments in a pull request's conversation (issues/list-comments, by since and page), oldest first. The answer
+        # lists the newest few, and its facts carry them all with their words, authors and times.
+        def list_pull_request_comments(environment_row:, arguments:)
+          repo, number, token = pull_target(arguments, environment_row)
+          since = arguments["since"].to_s.strip.presence
+          asking("list_pull_request_comments", "GitHub has no pull request #{number} in #{repo}") do
+            comments = conversation_comments(repo, number, since, token)
+            lines = comments.last(COMMENTS_SHOWN).map { |comment| "#{comment['id']} by #{comment.dig('user', 'login')} at #{comment['created_at']}  #{comment['html_url']}" }
+            linked("PR ##{number} in #{repo} has #{comments.size} #{'comment'.pluralize(comments.size)} in its conversation#{" since #{since}" if since}.\n#{lines.join("\n")}".strip,
+                   "https://github.com/#{repo}/pull/#{number}",
+                   facts: { "comments" => comments.map do |comment|
+                     { "id" => comment["id"], "url" => comment["html_url"], "body" => comment["body"].to_s, "authors" => [ comment.dig("user", "login") ], "at" => comment["created_at"] }
+                   end })
           end
         end
 

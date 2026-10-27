@@ -51,6 +51,13 @@ module PullRequestReview::Finding::Threading
     self.class.where(id: id).update_all([ "thread_said = thread_said || ?::jsonb, updated_at = ?", [ entry ].to_json, Time.current ])
   end
 
+  # The thread refused a reply for good, as one whose comment was deleted. Kept once, so only the first refused reply goes
+  # in the conversation. False when another worker kept it first.
+  def thread_refused!(why)
+    self.class.where(id: id, thread_refused_at: nil).update_all(thread_refusal: why.to_s.truncate(1_000), thread_refused_at: Time.current, updated_at: Time.current)
+        .positive?.tap { |won| reload if won }
+  end
+
   # A reply Halon could not post on the thread or in the pull request's conversation, kept with why so the review's page
   # still shows it. Appended in SQL, like what was said.
   def unposted_reply!(body:, reason:)

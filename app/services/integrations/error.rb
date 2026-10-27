@@ -27,4 +27,8 @@ module Integrations
   # A provider's host did not answer in time. Every client's error for it is one of these as well as its own, so a caller
   # tells a slow provider from a refusal without naming the provider.
   module TimedOut; end
+
+  # A provider's host could not be reached at all, as a connection refused or dropped, a name that did not resolve or a
+  # handshake that failed. Nothing was answered, so a caller tries again rather than reading it as the host's refusal.
+  module Unreachable; end
 end

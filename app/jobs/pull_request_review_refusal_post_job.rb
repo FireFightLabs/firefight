@@ -5,7 +5,11 @@ class PullRequestReviewRefusalPostJob < ApplicationJob
 
   limits_concurrency key: ->(refusal_id, *) { "pull_request_review_refusal:#{refusal_id}" }, duration: 5.minutes
 
-  retry_on PullRequestReviewRefusalPosting::Retry, wait: :polynomially_longer, attempts: 5
+  # A comment that could not go up after every try is dropped, so it no longer counts as said.
+  retry_on PullRequestReviewRefusalPosting::Retry, wait: :polynomially_longer, attempts: 5 do |job, error|
+    refusal_id, = job.arguments
+    PullRequestReview::Refusal.find_by(id: refusal_id)&.dropped!("Gave up after #{job.executions} tries. #{error.message}")
+  end
   discard_on ActiveRecord::RecordNotFound
 
   def perform(refusal_id, approval_id = nil)

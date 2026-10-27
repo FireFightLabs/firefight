@@ -371,22 +371,24 @@ module Integrations
         response.code.to_i == 429 || (response.code.to_i == 403 && (response["x-ratelimit-remaining"] == "0" || response["retry-after"].present?))
       end
 
+      # Each refusal keeps the status GitHub answered, so a caller tells GitHub failing on its side from a refusal.
       def parse_response(response)
+        code = response.code.to_i
         body = JSON.parse(response.body.to_s)
-        unless response.code.to_i.between?(200, 299)
+        unless code.between?(200, 299)
           message = "GitHub: #{body['message'] || "HTTP #{response.code}"}"
-          raise RateLimited, message if rate_limited?(response)
-          raise NotFound, message if response.code.to_i == NOT_FOUND
-          raise Unauthorized, message if response.code.to_i == UNAUTHORIZED
-          raise NotPermitted, message if response.code.to_i == 403 && message.match?(NOT_PERMITTED)
-          raise PlanLimited, message if response.code.to_i == 403 && message.match?(PLAN_LIMITED)
+          raise Http.answered(RateLimited.new(message), code) if rate_limited?(response)
+          raise Http.answered(NotFound.new(message), code) if code == NOT_FOUND
+          raise Http.answered(Unauthorized.new(message), code) if code == UNAUTHORIZED
+          raise Http.answered(NotPermitted.new(message), code) if code == 403 && message.match?(NOT_PERMITTED)
+          raise Http.answered(PlanLimited.new(message), code) if code == 403 && message.match?(PLAN_LIMITED)
 
-          raise Error, message
+          raise Http.answered(Error.new(message), code)
         end
 
         body
       rescue JSON::ParserError
-        raise Error, "GitHub returned invalid JSON (HTTP #{response.code})"
+        raise Http.answered(Error.new("GitHub returned invalid JSON (HTTP #{response.code})"), code)
       end
     end
   end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_27_150100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_28_090100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -2798,6 +2798,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_150100) do
     t.datetime "overridden_at"
     t.text "override_reason"
     t.jsonb "unposted_replies", default: [], null: false
+    t.text "thread_refusal"
+    t.datetime "thread_refused_at"
     t.index ["lesson_id"], name: "index_pull_request_review_findings_on_lesson_id"
     t.index ["overridden_by_id"], name: "index_pull_request_review_findings_on_overridden_by_id"
     t.index ["pull_request_review_id", "fingerprint"], name: "index_pull_request_review_findings_on_fingerprint", unique: true
@@ -2817,8 +2819,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_150100) do
     t.datetime "posted_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "status", default: "pending", null: false
+    t.text "dropped_reason"
+    t.datetime "attempted_at"
+    t.uuid "held_approval_id"
     t.index ["integration_environment_id"], name: "index_pull_request_review_refusals_on_environment"
     t.index ["workspace_id", "reference"], name: "index_pull_request_review_refusals_once", unique: true
+    t.index ["workspace_id", "repository", "number"], name: "index_pull_request_review_refusals_on_pull_request"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'held'::character varying, 'posted'::character varying, 'dropped'::character varying]::text[])", name: "pull_request_review_refusals_status"
   end
 
   create_table "pull_request_reviews", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

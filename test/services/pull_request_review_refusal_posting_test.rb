@@ -4,12 +4,16 @@ class PullRequestReviewRefusalPostingTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
   COMMENT = Integrations::PullRequestReviews::COMMENT
+  CONVERSATION = Integrations::PullRequestReviews::CONVERSATION
   Refusal = PullRequestReview::Refusal
+  Signal = Integrations::PullRequestReviews::Signal
+  SENTENCE = "I can't read this repository, so I can't review it. An admin can give me access under Permissions.".freeze
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
     github = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub")
     @row = github.integration_environments.create!(base_config: { "installation_id" => "12345" })
+    Integrations::GithubApp.stubs(:bot_login).returns("firefight-app[bot]")
     @posts = []
   end
 
@@ -19,9 +23,8 @@ class PullRequestReviewRefusalPostingTest < ActiveSupport::TestCase
 
     PullRequestReviewRefusalPosting.new(refusal).post!
 
-    assert_equal [ { repository: "acme/api", number: 7, body: "I can't read this repository, so I can't review it. An admin can give me access under Permissions." } ],
-                 @posts.map { |given| given.except(:authorize) }
-    assert_equal "300", refusal.reload.comment_id
+    assert_equal [ { repository: "acme/api", number: 7, body: SENTENCE } ], @posts.map { |given| given.except(:authorize) }
+    assert_equal [ "300", Refusal::STATUS_POSTED ], refusal.reload.values_at(:comment_id, :status)
     assert refusal.posted_at
 
     PullRequestReviewRefusalPosting.new(refusal).post!
@@ -37,54 +40,190 @@ class PullRequestReviewRefusalPostingTest < ActiveSupport::TestCase
     sentences.values.compact.each { |sentence| assert_no_match(/[—;]/, sentence) }
   end
 
-  test "a host that refuses for good is logged and never tried again, and one that turned it down for now is tried again" do
+  test "a host that refuses for good drops the comment with why, and one that is temporary is tried again" do
     refusal = create_refusal(Refusal::NO_ACCESS)
-    Integrations::PullRequestReviews.stubs(:call!).raises(Integrations::Error, "GitHub answered 403: Resource not accessible.")
+    Integrations::PullRequestReviews.stubs(:call!).raises(answered(403, "GitHub answered 403: Resource not accessible."))
 
     assert_nothing_raised { PullRequestReviewRefusalPosting.new(refusal).post! }
-    assert_nil refusal.reload.posted_at
+    assert_equal [ Refusal::STATUS_DROPPED, "GitHub answered 403: Resource not accessible." ], refusal.reload.values_at(:status, :dropped_reason)
 
-    Integrations::PullRequestReviews.unstub(:call!)
-    Integrations::PullRequestReviews.stubs(:call!).raises(Integrations::Error.new("GitHub answered 429: slow down").extend(Integrations::RateLimited))
-    assert_raises(PullRequestReviewRefusalPosting::Retry) { PullRequestReviewRefusalPosting.new(create_refusal(Refusal::NO_ACCESS, reference: "r2")).post! }
+    [ Integrations::Error.new("GitHub answered 429: slow down").extend(Integrations::RateLimited),
+      Integrations::Error.new("could not reach api.github.com (Errno::ECONNRESET)").extend(Integrations::Unreachable),
+      answered(502, "GitHub answered 502 with something that is not JSON") ].each_with_index do |error, index|
+      Integrations::PullRequestReviews.unstub(:call!)
+      Integrations::PullRequestReviews.stubs(:call!).raises(error)
+      temporary = create_refusal(Refusal::NO_ACCESS, reference: "r#{index}")
+
+      assert_raises(PullRequestReviewRefusalPosting::Retry) { PullRequestReviewRefusalPosting.new(temporary).post! }
+      assert_equal Refusal::STATUS_PENDING, temporary.reload.status
+    end
   end
 
-  test "a comment an approval rule holds is posted once approved, and nothing is posted once declined" do
+  test "an installation Firefight's app cannot act through drops the comment and is never tried again" do
     refusal = create_refusal(Refusal::NO_ACCESS)
-    approval = Ability::Approval.create!(workspace: @workspace, principal_type: SystemAgent.polymorphic_name, principal_id: SystemAgent.pull_request_review.id,
-                                         principal_label: "Halon pull request review", action_key: "github.comment_on_pull_request", request_digest: "d", scope: {}, params: {},
-                                         required_role: WorkspaceMembership.roles[:admin])
+    Integrations::PullRequestReviews.stubs(:call!).raises(Integrations::PullRequestReviews::Stopped, "comment_on_pull_request was not run. The app is suspended.")
+
+    assert_nothing_raised { PullRequestReviewRefusalPosting.new(refusal).post! }
+    assert_equal Refusal::STATUS_DROPPED, refusal.reload.status
+  end
+
+  test "a try that may have posted reads the conversation first, keeps a comment found there and never posts twice" do
+    refusal = create_refusal(Refusal::NO_ACCESS)
+    timed_out = Integrations::Error.new("could not reach api.github.com (Net::ReadTimeout)").extend(Integrations::TimedOut)
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == COMMENT && (@posts << called) }.raises(timed_out)
+
+    assert_raises(PullRequestReviewRefusalPosting::Retry) { PullRequestReviewRefusalPosting.new(refusal).post! }
+    assert refusal.reload.attempted_at
+
+    travel 2.minutes
+    found = Integrations::PullRequestReviews::PostedComment.new(reference: "300", url: "https://github.com/acme/api/pull/7#issuecomment-300", body: SENTENCE,
+                                                                authors: [ "firefight-app[bot]" ], at: 1.minute.ago)
+    someone = Integrations::PullRequestReviews::PostedComment.new(reference: "299", url: nil, body: SENTENCE, authors: [ "ada" ], at: 1.minute.ago)
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **given| called == CONVERSATION && given[:since] <= refusal.attempted_at }.returns([ someone, found ])
+
+    PullRequestReviewRefusalPosting.new(refusal.reload).post!
+
+    assert_equal 1, @posts.size, "the comment the host took is not posted again"
+    assert_equal [ Refusal::STATUS_POSTED, "300" ], refusal.reload.values_at(:status, :comment_id)
+  end
+
+  test "a try that may have posted and is not in the conversation is posted, and a conversation that cannot be read is tried again" do
+    refusal = create_refusal(Refusal::NO_ACCESS)
+    refusal.attempted!
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == CONVERSATION }.raises(answered(502, "GitHub answered 502"))
+    Integrations::PullRequestReviews.expects(:call!).with { |_row, called, **| called == COMMENT }.never
+
+    assert_raises(PullRequestReviewRefusalPosting::Retry) { PullRequestReviewRefusalPosting.new(refusal).post! }
+
+    Integrations::PullRequestReviews.unstub(:call!)
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == CONVERSATION }.returns([])
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, **| called == COMMENT }.returns("301")
+    PullRequestReviewRefusalPosting.new(refusal.reload).post!
+    assert_equal "301", refusal.reload.comment_id
+  end
+
+  test "a comment posted late, after an approval or a retry, is skipped once a review of the pull request started since" do
+    refusal = create_refusal(Refusal::NO_ACCESS)
+    travel 1.minute
+    PullRequestReview.create!(workspace: @workspace, integration_environment: @row, repository: "acme/api", number: 7, head_sha: "a" * 40,
+                              trigger: PullRequestReview::TRIGGER_REQUESTED, max_spend_cents: 400)
+    Integrations::PullRequestReviews.expects(:call!).never
+
+    PullRequestReviewRefusalPosting.new(refusal).post!(approval_id: SecureRandom.uuid)
+
+    assert_equal [ Refusal::STATUS_DROPPED, "A review of the pull request started since." ], refusal.reload.values_at(:status, :dropped_reason)
+  end
+
+  test "a comment an approval rule holds is posted once approved, and once declined it is dropped and no longer counts as said" do
+    refusal = create_refusal(Refusal::NO_ACCESS)
+    approval = pending_approval
     Integrations::PullRequestReviews.stubs(:call!).raises(AbilityGateway::PendingApproval.new(approval))
 
     PullRequestReviewRefusalPosting.new(refusal).post!
 
     assert_equal({ "kind" => ApprovalResumption::KIND_PULL_REQUEST_REVIEW_REFUSAL, "refusal_id" => refusal.id }, approval.reload.resume_payload)
-    assert_nil refusal.reload.posted_at
+    assert_equal [ Refusal::STATUS_HELD, approval.id ], refusal.reload.values_at(:status, :held_approval_id)
+    assert_equal ApprovalResumption::RUNS_NOW, ApprovalResumption.approved_words(approval)
 
     approval.update_columns(status: Ability::Approval::STATUS_APPROVED)
     assert_enqueued_with(job: PullRequestReviewRefusalPostJob, args: [ refusal.id, approval.id ]) { ApprovalResumption.resume!(approval) }
 
     approval.update_columns(status: Ability::Approval::STATUS_DENIED)
     assert_no_enqueued_jobs(only: PullRequestReviewRefusalPostJob) { ApprovalResumption.decline!(approval) }
+    assert_equal Refusal::STATUS_DROPPED, refusal.reload.status
   end
 
-  test "the comment is one of the connection's tools, made as Halon's review agent through the gateway and in the activity log" do
-    tool = @row.integration.tools.create!(name: "comment_on_pull_request", description: "Comments.", enabled: true, read_only: false)
-    Ability::Grant.grant!(workspace: @workspace, principal: SystemAgent.pull_request_review, target: { action: tool.ability_action || tool.sync_ability_action! })
-    Integrations::NativeExecutor.expects(:call).returns(Integrations::Telemetry.result("Commented.", link: nil, facts: { "comment_id" => 300 }))
+  test "a held comment approved later is posted with that approval" do
     refusal = create_refusal(Refusal::NO_ACCESS)
+    approval = pending_approval
+    refusal.held!(approval)
+    approval.update_columns(status: Ability::Approval::STATUS_APPROVED)
+    Integrations::PullRequestReviews.stubs(:call!).with { |_row, called, authorize:, **| called == COMMENT && (@posts << authorize) }.returns("302")
+    PullRequestReviewRefusalPosting.any_instance.expects(:authorizer).with(approval.id).returns(->(*) { nil })
 
-    PullRequestReviewRefusalPosting.new(refusal).post!
+    perform_enqueued_jobs { PullRequestReviewRefusalPostJob.perform_later(refusal.id, approval.id) }
 
-    invocation = Ability::Invocation.find_by!(workspace: @workspace, action_key: tool.action_key)
-    assert_equal [ SystemAgent.pull_request_review.id, AbilityGateway::SOURCE_PULL_REQUEST_REVIEW, Ability::Invocation::OUTCOME_SUCCESS, "PR #7 in acme/api" ],
-                 [ invocation.principal_id, invocation.source, invocation.outcome, invocation.triggered_by_label ]
-    assert_equal "300", refusal.reload.comment_id
+    assert_equal [ Refusal::STATUS_POSTED, "302" ], refusal.reload.values_at(:status, :comment_id)
+  end
+
+  test "the job tries a temporary failure again and drops the comment once the tries run out" do
+    refusal = create_refusal(Refusal::NO_ACCESS)
+    Integrations::PullRequestReviews.stubs(:call!).raises(Integrations::Error.new("could not reach api.github.com (Errno::ECONNRESET)").extend(Integrations::Unreachable))
+
+    perform_enqueued_jobs { PullRequestReviewRefusalPostJob.perform_later(refusal.id) }
+
+    assert_equal Refusal::STATUS_DROPPED, refusal.reload.status
+    assert_match "Gave up after 5 tries.", refusal.dropped_reason
+  end
+
+  test "a connection that cannot post a review, or a reason with nowhere to be told, says nothing and claims nothing" do
+    Integrations::PullRequestReviews.stubs(:hosts?).returns(false)
+    assert_no_enqueued_jobs(only: PullRequestReviewRefusalPostJob) { PullRequestReviewRefusalPosting.refused!(@row, signal("r1"), reason: Refusal::NO_ACCESS) }
+
+    Integrations::PullRequestReviews.unstub(:hosts?)
+    assert_no_enqueued_jobs(only: PullRequestReviewRefusalPostJob) { PullRequestReviewRefusalPosting.refused!(@row, signal("r2"), reason: Refusal::NO_CONNECTION) }
+    assert_not Refusal.exists?(workspace: @workspace)
+  end
+
+  test "a refusal that was dropped does not silence the next request, and a held one waiting on its approval is reused" do
+    first = Refusal.claim!(@row, signal("r1"), reason: Refusal::NO_ACCESS)
+    assert_nil Refusal.claim!(@row, signal("r2"), reason: Refusal::NO_ACCESS)
+
+    first.dropped!("The approval was declined.")
+    second = Refusal.claim!(@row, signal("r3"), reason: Refusal::NO_ACCESS)
+    assert second
+
+    second.held!(pending_approval)
+    assert_nil Refusal.claim!(@row, signal("r4", comment: "92"), reason: Refusal::NO_ACCESS), "a comment waits on the approval already asked"
+  end
+
+  test "comments asking again with the same reason are answered at most once every ten minutes" do
+    assert Refusal.claim!(@row, signal("c1", comment: "91"), reason: Refusal::NO_ACCESS)
+    assert_nil Refusal.claim!(@row, signal("c2", comment: "92"), reason: Refusal::NO_ACCESS)
+    assert Refusal.claim!(@row, signal("c3", comment: "93"), reason: Refusal::MODEL_NOT_SET_UP), "a new reason is said"
+
+    travel 11.minutes
+    assert Refusal.claim!(@row, signal("c4", comment: "94"), reason: Refusal::NO_ACCESS)
   end
 
   private
 
   def create_refusal(reason, reference: "acme/api#7:asked:a")
-    PullRequestReview::Refusal.create!(workspace: @workspace, integration_environment: @row, repository: "acme/api", number: 7, reference: reference, reason: reason)
+    Refusal.create!(workspace: @workspace, integration_environment: @row, repository: "acme/api", number: 7, reference: reference, reason: reason)
+  end
+
+  def signal(reference, comment: nil)
+    Signal.new(kind: Integrations::PullRequestReviews::REQUESTED, repository: "acme/api", number: 7, reference: reference, comment: comment)
+  end
+
+  def answered(status, message) = Integrations::Error.new(message).tap { |error| error.http_status = status }
+
+  def pending_approval
+    Ability::Approval.create!(workspace: @workspace, principal_type: SystemAgent.polymorphic_name, principal_id: SystemAgent.pull_request_review.id,
+                              principal_label: "Halon pull request review", action_key: "github.comment_on_pull_request", request_digest: SecureRandom.hex(4), scope: {},
+                              params: {}, required_role: WorkspaceMembership.roles[:admin])
+  end
+end
+
+# Requests that arrive together each take the lock on their own connection, so this runs outside a test's transaction.
+class PullRequestReviewRefusalClaimTest < ActiveSupport::TestCase
+  self.use_transactional_tests = false
+
+  test "requests at once for the same pull request and reason claim one refusal" do
+    workspace = workspaces(:slack_workspace_one)
+    integration = workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub claims")
+    row = integration.integration_environments.create!(base_config: { "installation_id" => "54321" })
+    signals = Array.new(4) do |index|
+      Integrations::PullRequestReviews::Signal.new(kind: Integrations::PullRequestReviews::REQUESTED, repository: "acme/claims", number: 7, reference: "claim-#{index}")
+    end
+
+    claimed = signals.map do |signal|
+      Thread.new { PullRequestReview::Refusal.connection_pool.with_connection { PullRequestReview::Refusal.claim!(row, signal, reason: PullRequestReview::Refusal::NO_ACCESS) } }
+    end.map(&:value)
+
+    assert_equal 1, claimed.compact.size
+  ensure
+    PullRequestReview::Refusal.where(repository: "acme/claims").delete_all
+    integration&.destroy!
   end
 end

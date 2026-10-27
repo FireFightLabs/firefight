@@ -562,6 +562,21 @@ module Integrations
         assert_match "more files than GitLab lists", error.message
       end
 
+      test "the newest comments are read back oldest first with every name of their author, leaving out GitLab's own and older ones" do
+        GitlabApi.any_instance.stubs(:get).with("#{PROJECT}/merge_requests/42").returns("web_url" => "https://gitlab.com/acme/platform/web/-/merge_requests/42")
+        GitlabApi.any_instance.stubs(:get).with("#{PROJECT}/merge_requests/42/notes", { "sort" => "desc", "order_by" => "created_at", "per_page" => 100 }).returns([
+          { "id" => 3, "body" => "I can't read this repository.", "author" => { "username" => "project_7_bot_1", "id" => 77 }, "created_at" => "2026-10-27T10:00:05Z" },
+          { "id" => 2, "system" => true, "body" => "added 1 commit", "author" => { "username" => "lea", "id" => 5 }, "created_at" => "2026-10-27T10:00:04Z" },
+          { "id" => 1, "body" => "Older", "author" => { "username" => "lea", "id" => 5 }, "created_at" => "2026-10-27T09:00:00Z" }
+        ])
+
+        result = @pack.list_merge_request_comments(environment_row: @row, arguments: { "repo" => "acme/platform/web", "iid" => 42, "since" => "2026-10-27T10:00:00Z" })
+
+        comment = Gitlab.review_posted(Integrations::PullRequestReviews::CONVERSATION, result.dig(Integrations::Telemetry::STRUCTURED, Integrations::Telemetry::FACTS)).sole
+        assert_equal [ "3", "https://gitlab.com/acme/platform/web/-/merge_requests/42#note_3", [ "project_7_bot_1", "77" ] ], [ comment.reference, comment.url, comment.authors ]
+        assert Gitlab.tool_definitions.find { |tool| tool.name == "list_merge_request_comments" }.read_only
+      end
+
       test "a flag is a note on the merge request" do
         GitlabApi.any_instance.expects(:post).with("#{PROJECT}/merge_requests/42/notes", { "body" => "Look here." }).returns("id" => 1)
 

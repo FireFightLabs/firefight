@@ -12,8 +12,11 @@ module Integrations
           PullRequestReviews::COMMENT => "comment_on_merge_request", PullRequestReviews::EDIT => "edit_merge_request_comment",
           PullRequestReviews::REVIEW => "review_merge_request", PullRequestReviews::REPLY => "reply_to_merge_request_thread",
           PullRequestReviews::RESOLVE => "resolve_merge_request_thread",
-          PullRequestReviews::CHANGES => "compare_commits", PullRequestReviews::FILE => "fetch_file"
+          PullRequestReviews::CHANGES => "compare_commits", PullRequestReviews::FILE => "fetch_file",
+          PullRequestReviews::CONVERSATION => "list_merge_request_comments"
         }.freeze
+        # The newest comments read back at once, which holds any a call made a moment ago.
+        CONVERSATION_PAGE = 100
         # Each line comment is its own thread, so a review is several calls and the app posts them one at a time.
         REVIEW_ATOMIC = false
         OPENED = "opened".freeze
@@ -75,10 +78,17 @@ module Integrations
                                  "else started is refused, and a person resolves it on GitLab",
                     params_schema: Code.object_schema({ "repo" => repo, "iid" => iid, "discussion_id" => discussion }, %w[repo iid discussion_id]),
                     read_only: false
+
+          pack.tool :list_merge_request_comments,
+                    summary: "Lists the newest comments on a merge request.",
+                    description: "List the newest comments people and bots wrote on a merge request, oldest first, with each one's id, author, time and page",
+                    params_schema: Code.object_schema({ "repo" => repo, "iid" => iid, "since" => { "type" => "string", "description" => "Only comments written from this time, in ISO 8601 (optional)" } }, %w[repo iid]),
+                    read_only: true
         end
 
         module ClassMethods
-          def review_call(operation, repository:, number: nil, body: nil, reference: nil, line: false, commit: nil, comments: [], base: nil, path: nil, start: nil)
+          def review_call(operation, repository:, number: nil, body: nil, reference: nil, line: false, commit: nil, comments: [], base: nil, path: nil, start: nil,
+                          since: nil)
             discussion, note = reference.to_s.split("/", 2)
             arguments = case operation
             when PullRequestReviews::COMMENT then { "repo" => repository, "iid" => number, "body" => body }
@@ -90,6 +100,7 @@ module Integrations
             when PullRequestReviews::RESOLVE then { "repo" => repository, "iid" => number, "discussion_id" => discussion }
             when PullRequestReviews::CHANGES then { "repo" => repository, "base" => base, "head" => commit }
             when PullRequestReviews::FILE then { "repo" => repository, "path" => path, "ref" => commit, "start_line" => start }.compact
+            when PullRequestReviews::CONVERSATION then { "repo" => repository, "iid" => number, "since" => since&.utc&.iso8601 }.compact
             end
             [ REVIEW_TOOLS.fetch(operation), arguments ]
           end
@@ -99,6 +110,7 @@ module Integrations
             when PullRequestReviews::REVIEW
               PullRequestReviews::Posted.new(reference: facts["note_id"]&.to_s, comments: Array(facts["threads"]).map { |thread| thread&.to_s },
                                              urls: Array(facts["thread_urls"]))
+            when PullRequestReviews::CONVERSATION then PullRequestReviews.conversation_of(facts)
             else facts["note_id"]&.to_s
             end
           end
@@ -129,6 +141,23 @@ module Integrations
           note = posting("comment on merge request !#{iid} in #{repo}") { gitlab.post("#{GitlabApi.project(repo)}/merge_requests/#{iid}/notes", { "body" => body }) }
           Telemetry.result("Commented on merge request !#{iid} #{request['title']} in #{repo} as note #{note['id']}.", link: link(note_url(request, note["id"])),
                            facts: { "note_id" => note["id"] })
+        end
+
+        # The newest comments on a merge request (notes, newest first, one page), leaving out the notes GitLab writes itself,
+        # read oldest first. Each keeps every name GitLab gives its author.
+        def list_merge_request_comments(environment_row:, arguments:)
+          repo, iid, gitlab = merge_request_target(arguments, environment_row)
+          since = arguments["since"].to_s.strip.presence&.then { |value| Time.zone.parse(value) || fail!("since must be a time in ISO 8601") }
+          request = gitlab.get("#{GitlabApi.project(repo)}/merge_requests/#{iid}")
+          notes = Array(gitlab.get("#{GitlabApi.project(repo)}/merge_requests/#{iid}/notes", { "sort" => "desc", "order_by" => "created_at", "per_page" => CONVERSATION_PAGE }))
+          notes = notes.reject { |note| note["system"] }.select { |note| since.nil? || Time.zone.parse(note["created_at"].to_s).to_i >= since.to_i }.reverse
+          lines = notes.map { |note| "#{note['id']} by #{note.dig('author', 'username')} at #{note['created_at']}" }
+          Telemetry.result("Merge request !#{iid} in #{repo} has #{notes.size} #{'comment'.pluralize(notes.size)}#{" since #{since.iso8601}" if since}.\n#{lines.join("\n")}".strip,
+                           link: link(request["web_url"]),
+                           facts: { "comments" => notes.map do |note|
+                             { "id" => note["id"], "url" => note_url(request, note["id"]), "body" => note["body"].to_s,
+                               "authors" => [ note.dig("author", "username"), note.dig("author", "id")&.to_s ], "at" => note["created_at"] }
+                           end })
         end
 
         def edit_merge_request_comment(environment_row:, arguments:)
