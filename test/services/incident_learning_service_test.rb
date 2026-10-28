@@ -111,7 +111,7 @@ class IncidentLearningServiceTest < ActiveSupport::TestCase
     assert_includes right.line, "confirmed by a postmortem"
   end
 
-  test "a postmortem never overrules a person: what a person confirmed is disputed with the reason, and a disputed one is never confirmed" do
+  test "a postmortem never overrules a person: what a person confirmed is disputed with the reason, the person who confirmed it is told, and a disputed one is never confirmed" do
     vouched = Chat::Memory.create!(workspace: @workspace, text: "The cause was DNS", state: Chat::Memory::STATE_CONFIRMED, source: @incident,
                                    confirmed_by: workspace_memberships(:alice_workspace_one))
     disputed = Chat::Memory.create!(workspace: @workspace, text: "Sessions live in Redis", state: Chat::Memory::STATE_DISPUTED, source: @incident)
@@ -121,7 +121,9 @@ class IncidentLearningServiceTest < ActiveSupport::TestCase
     ]))
     postmortem = completed_postmortem(author: workspace_memberships(:alice_workspace_one), completer: workspace_memberships(:bob_workspace_one))
 
-    IncidentLearningService.new(@workspace).learn!(@incident, postmortem: postmortem)
+    assert_enqueued_with(job: MemoryChallengeJob, args: [ vouched.id, @incident.id ]) do
+      IncidentLearningService.new(@workspace).learn!(@incident, postmortem: postmortem)
+    end
 
     assert_equal Chat::Memory::STATE_DISPUTED, vouched.reload.state
     assert_equal "The #{@incident.identifier} postmortem says otherwise and gives this instead. The cause was the connection pool", vouched.state_reason

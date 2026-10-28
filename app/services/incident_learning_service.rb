@@ -135,7 +135,7 @@ class IncidentLearningService
   # A completed postmortem confirms what Halon learned and it agrees with, credited to whoever completed it when that was
   # a person. What it contradicts is rejected and replaced when only Halon or a postmortem stood behind it, and marked
   # disputed with the correction when a person confirmed it or approved it as a lesson, for a person to decide. Whoever
-  # approved a lesson is told by direct message, as when Halon's check finds evidence against it.
+  # confirmed it and whoever approved it are told by direct message, as when Halon's check finds evidence against it.
   def apply_verdicts(verdicts, known, postmortem)
     completer = postmortem.completed_by
     person = completer if completer.is_a?(WorkspaceMembership)
@@ -147,7 +147,7 @@ class IncidentLearningService
       elsif memory.person_behind?
         disputed = memory.dispute!([ "The #{postmortem.incident.identifier} postmortem says otherwise", ("and gives this instead. #{verdict.correction}" if verdict.correction) ].compact.join(" "),
                                    by: Chat::MemoryEvent::ACTOR_POSTMORTEM)
-        MemoryChallengeJob.perform_later(memory.id, postmortem.incident.id) if disputed && memory.approved?
+        MemoryChallengeJob.perform_later(memory.id, postmortem.incident.id) if disputed
       else
         memory.reject!(by: person, reason: "The #{postmortem.incident.identifier} postmortem says otherwise", correction: verdict.correction, postmortem: postmortem)
       end
