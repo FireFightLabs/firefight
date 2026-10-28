@@ -48,6 +48,17 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ checked, tried, yours ].map(&:id).sort, shown.values.map { |memory| memory["id"] }.sort
   end
 
+  test "a lesson a person approved for pull request reviews stands as a person behind it, named with when they approved it" do
+    lesson = taught("Checkout retries go up when the payment timeout changes")
+    assert lesson.approve!(by: @member)
+
+    get memory_path, headers: inertia_headers
+
+    shown = inertia_props["memories"].find { |memory| memory["id"] == lesson.id }
+    assert_equal [ Chat::Memory::STANDING_PERSON, @member.display_name, lesson.reload.approved_at.utc.iso8601, nil ],
+                 shown.values_at("standing", "approvedBy", "approvedAt", "confirmedBy")
+  end
+
   test "Halon's evidence links to the run that checked it, which opens on its own page" do
     review = Chat::MemoryReview.create!(workspace: @workspace, reviewed_on: Date.current, removal_cap: 3)
     run = @workspace.investigations.create!(subject: review, trigger_source: Investigation::TRIGGER_MEMORY_REVIEW, max_turns: 4, max_spend_cents: 400)
@@ -178,6 +189,52 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     post reject_memory_path(rejected), params: { reason: "One off" }
     assert_equal [ Chat::Memory::STATE_REJECTED, "One off" ], [ rejected.reload.state, rejected.state_reason ]
     assert_equal "Rejected. Halon stops using it and does not learn it again.", flash[:notice]
+  end
+
+  test "Edit on an approved lesson by someone who may decide keeps the new words approved, and the same words on a disputed one keep it" do
+    lesson = taught("Checkout retries go up when the payment timeout changes")
+    assert lesson.approve!(by: @member, strict: true)
+
+    post correct_memory_path(lesson), params: { text: "Checkout retries go up when the payment timeout drops", reason: "" }
+
+    replacement = lesson.reload.replaced_by
+    assert_equal [ @member, true, Chat::Memory::Lesson::STATUS_APPROVED ], [ replacement.approved_by, replacement.strict, replacement.lesson_status ]
+    assert_equal "Corrected. Halon keeps the old wording as rejected so it does not learn it again. The new wording stays approved for pull request reviews.",
+                 flash[:notice]
+
+    replacement.dispute!("Halon checked it against production and found otherwise.")
+    post correct_memory_path(replacement), params: { text: replacement.text, reason: "" }
+
+    assert_equal [ Chat::Memory::STATE_CONFIRMED, @member, nil, Chat::Memory::Lesson::STATUS_APPROVED ],
+                 [ replacement.reload.state, replacement.confirmed_by, replacement.replaced_by_id, replacement.lesson_status ]
+    assert_equal "Kept as still right. It is in use again and stays approved for pull request reviews.", flash[:notice]
+  end
+
+  test "Edit on an approved lesson waits for an approval rule on deciding lessons, as on the Lessons tab, and changes nothing until then" do
+    lesson = taught("Checkout retries go up when the payment timeout changes")
+    assert lesson.approve!(by: @member)
+    AbilityGateway.stubs(:approval_requirement).returns(nil)
+    AbilityGateway.stubs(:approval_requirement).with { |_workspace, _action, key, *| key == Ability::Action::LESSON_DECIDE }
+                  .returns(AbilityGateway::PERSON_REQUIREMENT)
+
+    post correct_memory_path(lesson), params: { text: "Checkout retries go up when the payment timeout drops", reason: "" }
+
+    approval = @workspace.ability_approvals.find_by!(action_key: Ability::Action::LESSON_DECIDE)
+    assert_equal WebAuthorization.pending_message(approval), flash[:notice]
+    assert_equal [ Chat::Memory::STATE_UNCONFIRMED, nil ], lesson.reload.values_at(:state, :replaced_by_id)
+  end
+
+  test "Edit on an approved lesson keeps the reason typed, and the same words on one in use change nothing and say so" do
+    lesson = taught("Checkout retries go up when the payment timeout changes")
+    assert lesson.approve!(by: @member)
+
+    post correct_memory_path(lesson), params: { text: lesson.text, reason: "" }
+    assert_equal "Nothing changed. The words are the same as before.", flash[:notice]
+    assert_equal [ Chat::Memory::STATE_UNCONFIRMED, nil ], lesson.reload.values_at(:state, :replaced_by_id)
+
+    post correct_memory_path(lesson), params: { text: "Checkout retries go up when the payment timeout drops", reason: "The timeout moved in March" }
+    assert_equal [ Chat::Memory::STATE_REJECTED, "The timeout moved in March" ], lesson.reload.values_at(:state, :state_reason)
+    assert lesson.replaced_by.approved?
   end
 
   test "a decision the memory no longer allows says why, and the page ships the same reasons" do

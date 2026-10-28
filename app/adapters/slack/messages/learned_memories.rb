@@ -24,6 +24,11 @@ module Slack
       }.freeze
       # Where the team's memories in a reminder came from, as its opening line names them.
       TEAM_SOURCES = "incidents and investigations".freeze
+      # A direct message to the person who approved the lesson Halon found evidence against, in place of the confirmer's words.
+      APPROVED_LESSON_TITLE = ":grey_question:  *Halon found evidence against a lesson you approved*".freeze
+      # A direct message about a dispute a completed postmortem raised, which names the incident.
+      POSTMORTEM_DISAGREES = ":grey_question:  *The %<incident>s postmortem disagrees with %<what>s*".freeze
+      APPROVED_LESSON_FOOTER = "Halon and pull request reviews stopped using it until you decide. Keep it if it is still right, mark it not right, or edit it.".freeze
       # A memory in one of these nobody has decided on, so it carries Not right and Correct.
       WAITING = [ Chat::Memory::STATE_UNCONFIRMED, Chat::Memory::STATE_OUTDATED, Chat::Memory::STATE_DISPUTED, Chat::Memory::STATE_EXPIRED ].freeze
 
@@ -69,14 +74,24 @@ module Slack
 
       def self.things(count) = count == 1 ? "1 thing" : "#{count} things"
 
-      def self.title(post) = format(TITLES.fetch(post.kind), incident: post.incident_identifier)
+      def self.title(post)
+        return format(POSTMORTEM_DISAGREES, incident: post.incident_identifier, what: post.approved_lesson ? "a lesson you approved" : "a memory you confirmed") if postmortem_dispute?(post)
+        return APPROVED_LESSON_TITLE if post.approved_lesson
+
+        format(TITLES.fetch(post.kind), incident: post.incident_identifier)
+      end
+
+      def self.postmortem_dispute?(post) = post.kind == Chat::MemoryPost::KIND_CHALLENGED && post.incident_identifier.present?
 
       def self.footer(post) = { type: "context", elements: [ { type: "mrkdwn", text: footer_text(post) } ] }
 
       # A reminder links the Memory page when the dashboard's address is known.
       def self.footer_text(post)
         url = Slack::DashboardUrl.memory if post.reminder
-        url ? "Everything waiting is on the <#{url}|Memory page>." : FOOTERS.fetch(post.kind)
+        return "Everything waiting is on the <#{url}|Memory page>." if url
+        return APPROVED_LESSON_FOOTER if post.approved_lesson
+
+        FOOTERS.fetch(post.kind)
       end
 
       def self.gone = { type: "context", elements: [ { type: "mrkdwn", text: "Someone deleted these on the Memory page." } ] }
@@ -96,12 +111,16 @@ module Slack
         "About #{Slack::Mrkdwn.escape(memory.about)}#{', which is no longer on the map' if memory.about_removed}"
       end
 
-      # Where the memory stands, said in words, so a disputed or outdated one never reads as if it were live.
+      # Where the memory stands, said in words, so a disputed or outdated one never reads as if it were live. An approved
+      # lesson in use names who approved it, as a confirmed memory names who confirmed it.
       def self.standing(memory)
         by = " by #{Slack::Mrkdwn.escape(memory.decided_by)}" if memory.decided_by
+        approved = ":white_check_mark: Approved by #{Slack::Mrkdwn.escape(memory.approved_by)} for pull request reviews" if memory.approved_by
         case memory.state
+        when Chat::Memory::STATE_UNCONFIRMED then approved
         when Chat::Memory::STATE_CONFIRMED
-          return ":white_check_mark: Checked by Halon against production" if memory.standing == Chat::Memory::STANDING_HALON
+          return approved if approved
+          return ":white_check_mark: Checked by Halon against production" if memory.checked_by_halon
 
           ":white_check_mark: Confirmed#{by}"
         when Chat::Memory::STATE_REJECTED

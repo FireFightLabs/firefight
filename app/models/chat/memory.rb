@@ -110,14 +110,18 @@ class Chat::Memory < ApplicationRecord
       .or(where(workspace: workspace, subject_type: ResourceMap::Resource.name,
                 subject_id: ResourceMap::Resource.visible_to(principal, workspace).select(:id)))
   }
-  scope :most_trusted_first, -> { order(Arel.sql(sanitize_sql_array([ "CASE state WHEN ? THEN 0 ELSE 1 END", STATE_CONFIRMED ])), created_at: :desc) }
+  # Confirmed first, and a lesson a person approved ranks with them.
+  scope :most_trusted_first, -> {
+    order(Arel.sql(sanitize_sql_array([ "CASE WHEN chat_memories.state = ? OR (chat_memories.state = ? AND chat_memories.approved_at IS NOT NULL) THEN 0 ELSE 1 END",
+                                        STATE_CONFIRMED, STATE_UNCONFIRMED ])), created_at: :desc)
+  }
 
   # The memories a chat or a run starts with: those about what it touches, then the workspace wide ones.
   def self.starting_with(workspace, subjects, principal:)
     about = subjects.compact.group_by { |subject| subject.class.name }.map { |type, found| where(subject_type: type, subject_id: found.map(&:id)) }
     scope = visible_to(principal, workspace).in_use
     relevant = about.inject(scope.where(subject_id: nil)) { |union, part| union.or(scope.merge(part)) }
-    relevant.includes(:subject, :confirmed_by).most_trusted_first.limit(STARTING_LIMIT).to_a
+    relevant.includes(:subject, :confirmed_by, approved_by: :user).most_trusted_first.limit(STARTING_LIMIT).to_a
   end
 
   # Memories a chat or run was handed at its start count as used, once for each chat or run however many turns it takes.
@@ -266,7 +270,7 @@ class Chat::Memory < ApplicationRecord
   # The workspace's memories in use about a subject, or matching the words asked. The best come first, ranked by how many
   # of the words they hold and how rare each is with a boost for the whole phrase, then confirmed first, then newest.
   def self.recall(workspace, principal:, subject: nil, query: nil)
-    found = visible_to(principal, workspace).in_use.includes(:subject, :confirmed_by)
+    found = visible_to(principal, workspace).in_use.includes(:subject, :confirmed_by, approved_by: :user)
     found = found.where(subject: subject) if subject
     found = found.to_a
     ranked = if Chat::Memory::Words.stems(query).empty?
@@ -346,24 +350,26 @@ class Chat::Memory < ApplicationRecord
   end
 
   # An unconfirmed memory nobody confirmed within the workspace's window stops being used, counted from when it was
-  # last learned, learned again or came back into use. Returns how many expired.
+  # last learned, learned again or came back into use. A lesson a person approved has a person behind it, so it never
+  # expires, the same as one a person confirmed. Returns how many expired.
   def self.expire!(workspace)
     days = workspace.memory_expiry_days
     return 0 unless days
 
     reason = "Nobody confirmed it within #{days} days."
-    expiring = where(workspace: workspace, state: STATE_UNCONFIRMED).where(updated_at: ...days.days.ago)
-    # An approved lesson that expires stops holding its findings, so they are named before and said after.
-    held = held_finding_ids_of(expiring.where.not(approved_at: nil).select(:id))
-    expired = transaction do
-      moved = moved_ids(expiring, [ STATE_UNCONFIRMED ],
-                        [ "state = ?, state_reason = ?, updated_at = ?", STATE_EXPIRED, stored_reason(reason), Time.current ])
+    cutoff = days.days.ago
+    transaction do
+      # Checked again on each row, so a lesson approved or a memory learned again since it was picked is left alone.
+      moved = moved_ids(expiring(workspace, cutoff), [ STATE_UNCONFIRMED ],
+                        [ "state = ?, state_reason = ?, updated_at = ?", STATE_EXPIRED, stored_reason(reason), Time.current ],
+                        also: [ "chat_memories.approved_at IS NULL AND chat_memories.updated_at < ?", cutoff ])
       record_moved!(moved, Chat::MemoryEvent::KIND_EXPIRED, detail: reason)
       moved.size
     end
-    announce_findings_changed(held)
-    expired
   end
+
+  # What expiry picks: unconfirmed, nobody approved it as a lesson, and unchanged since cutoff.
+  def self.expiring(workspace, cutoff) = where(workspace: workspace, state: STATE_UNCONFIRMED, approved_at: nil).where(updated_at: ...cutoff)
 
   def confirmed? = state == STATE_CONFIRMED
 
@@ -382,8 +388,10 @@ class Chat::Memory < ApplicationRecord
     "#{id} (#{[ about, trust ].compact.join(', ')}): #{text}"
   end
 
-  # Who stands behind it, in words. Only a person is ever named, and a postmortem nobody signed off is never one.
+  # Who stands behind it, in words. Only a person is ever named, and a postmortem nobody signed off is never one. A lesson
+  # a person approved reads as theirs, as a confirmation does.
   def trust
+    return "approved by #{approved_by.display_name} for pull request reviews" if approved_by && confirmed_by_id.nil? && [ STATE_UNCONFIRMED, STATE_CONFIRMED ].include?(state)
     return state unless confirmed?
     return "confirmed by #{confirmed_by.display_name}" if confirmed_by
     return "confirmed by a postmortem" if decided_by_postmortem_id
@@ -409,6 +417,8 @@ class Chat::Memory < ApplicationRecord
   def trust_for(viewer)
     return "confirmed by you" if confirmed_by && confirmed_by == viewer
     return "confirmed by #{confirmed_by.display_name}" if confirmed_by
+    return "approved by you for pull request reviews" if approved_by && approved_by == viewer
+    return "approved by #{approved_by.display_name} for pull request reviews" if approved_by
     return "confirmed by a postmortem" if confirmed_at && decided_by_postmortem_id
     return "checked by Halon against production" if confirmed_at && decided_by_halon
 
@@ -553,11 +563,13 @@ class Chat::Memory < ApplicationRecord
   end
 
   # The ids a guarded bulk move took, so each gets its history. from repeats the states scope may leave, checked again
-  # as each row is updated, so a memory decided on meanwhile is never moved.
-  def self.moved_ids(scope, from, assignments)
+  # as each row is updated, so a memory decided on meanwhile is never moved. also adds any other condition the row must
+  # still meet then, as a sanitizable array.
+  def self.moved_ids(scope, from, assignments, also: nil)
     set, *values = assignments
+    guard = also ? " AND (#{sanitize_sql_array(also)})" : ""
     sql = sanitize_sql_array([
-      "UPDATE chat_memories SET #{set} WHERE chat_memories.id IN (#{scope.select(:id).to_sql}) AND chat_memories.state IN (?) RETURNING chat_memories.id",
+      "UPDATE chat_memories SET #{set} WHERE chat_memories.id IN (#{scope.select(:id).to_sql}) AND chat_memories.state IN (?)#{guard} RETURNING chat_memories.id",
       *values, from
     ])
     with_connection { |connection| connection.select_values(sql) }
@@ -587,13 +599,14 @@ class Chat::Memory < ApplicationRecord
   # Guarded, so two people deciding on the same memory at once cannot both land. A decision ends any outdated flag, and
   # one by a person or a postmortem is no longer Halon's. checked is what Halon's check came to when the check made the
   # decision, kept with the same time as the change so the memory never reads as changed since it was checked.
-  # halon_only moves it only while no person stands behind it, checked in the same statement, so a person confirming it
-  # while Halon's check runs is never overturned. only adds other columns the row must still hold.
+  # halon_only moves it only while no person stands behind it (without_person_behind), checked in the same statement, so
+  # a person confirming or approving it while Halon's check runs is never overturned. only adds other columns the row
+  # must still hold.
   def decide!(state, from:, decided_by_halon: false, checked: nil, halon_only: false, only: {}, **columns)
     now = Time.current
     columns = columns.merge(checked_at: now, check_outcome: checked) if checked
     guarded = self.class.where(id: id, state: from).where(only)
-    guarded = guarded.where(confirmed_by_id: nil) if halon_only
+    guarded = guarded.without_person_behind if halon_only
     moved = guarded.update_all(columns.merge(state: state, outdated_from: nil, outdated_cause: nil, decided_by_halon: decided_by_halon, updated_at: now)) > 0
     reload
     announce_lesson_change if moved && approved?

@@ -130,6 +130,23 @@ class IncidentLearningServiceTest < ActiveSupport::TestCase
     assert_equal Chat::Memory::STATE_DISPUTED, disputed.state
   end
 
+  test "a postmortem never overrules an approved lesson: it is disputed with the reason, and the person who approved it is told" do
+    lesson = Chat::Memory.create!(workspace: @workspace, text: "The cause was DNS", state: Chat::Memory::STATE_UNCONFIRMED, source: @incident)
+    assert lesson.approve!(by: workspace_memberships(:alice_workspace_one))
+    verdict = FirefightAi::LessonExtractor::Verdict
+    FirefightAi::LessonExtractor.any_instance.stubs(:extract).returns(FirefightAi::LessonExtractor::Result.new(lessons: [], verdicts: [
+      verdict.new(memory_id: lesson.id, verdict: FirefightAi::Schemas::Lessons::CONTRADICTS, correction: "The cause was the connection pool")
+    ]))
+    postmortem = completed_postmortem(author: workspace_memberships(:alice_workspace_one), completer: workspace_memberships(:bob_workspace_one))
+
+    assert_enqueued_with(job: MemoryChallengeJob, args: [ lesson.id, @incident.id ]) do
+      IncidentLearningService.new(@workspace).learn!(@incident, postmortem: postmortem)
+    end
+
+    assert_equal [ Chat::Memory::STATE_DISPUTED, nil ], lesson.reload.values_at(:state, :replaced_by_id)
+    assert lesson.approved?
+  end
+
   test "new lessons from a postmortem are posted in the channel under their own title" do
     stub_lessons([ lesson("The pool is shared by checkout and billing") ])
     @adapter.expects(:post_learned_memories).with { |post:, **| post.kind == Chat::MemoryPost::KIND_POSTMORTEM }.returns(message_id: "1.2", channel_id: @incident.channel_id)

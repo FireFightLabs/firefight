@@ -4,14 +4,21 @@
 # them as people decide. Messages and chat cards posted before Halon checked memories itself still take their buttons.
 class MemoryPostService
   # What a platform message shows, so the adapter never reads a memory record. reminder is set for an earlier reminder.
-  Shown = Data.define(:post_id, :kind, :incident_identifier, :memories, :reminder) do
-    def initialize(post_id:, kind:, incident_identifier:, memories:, reminder: nil) = super
+  # approved_lesson is set when a direct message went to the person who approved the lesson it shows for pull request reviews.
+  Shown = Data.define(:post_id, :kind, :incident_identifier, :memories, :reminder, :approved_lesson) do
+    def initialize(post_id:, kind:, incident_identifier:, memories:, reminder: nil, approved_lesson: false) = super
   end
-  ShownMemory = Data.define(:id, :text, :about, :about_removed, :state, :reason, :decided_by, :correction, :standing)
+  # checked_by_halon is set when Halon's check alone confirmed it, and approved_by names who approved it as a lesson for
+  # pull request reviews when no person confirmed it.
+  ShownMemory = Data.define(:id, :text, :about, :about_removed, :state, :reason, :decided_by, :correction, :checked_by_halon, :approved_by)
   # What an earlier reminder was about: how many of its memories the person it went to taught, how many the team's runs and
   # incidents taught, and whether it went to a person rather than a channel.
   ShownReminder = Data.define(:taught, :learned, :direct)
 
+  # A form in Slack cannot wait for an approval, so an edit that keeps a lesson approved where an approval rule covers
+  # deciding on lessons is made on the Lessons tab, which waits for it.
+  LESSON_EDIT_HELD = "Deciding on lessons needs an approval in this workspace, so edit it on the Lessons tab of the Memory page, " \
+                     "where the edit waits for that approval.".freeze
   NOT_POSTED = [ AdapterError::IsArchived, AdapterError::NotFound, AdapterError::NotInChannel ].freeze
   # Errors that pass, so the job sending the message tries again rather than giving up.
   PASSING = [ AdapterError::RateLimited, AdapterError::ServerError, AdapterError::Unavailable ].freeze
@@ -46,27 +53,26 @@ class MemoryPostService
     post!(incident, [ memory ], kind: kind, thread_id: thread_id)
   end
 
-  # Halon's nightly check found evidence against a memory a person confirmed, so that person is told once by direct
-  # message, with Still right, Not right and Edit. Nothing is sent when they have no platform account, or when the
-  # platform cannot take it, and the memory waits on the Memory page either way. Returns the post, or nil.
-  def tell_confirmer!(memory)
-    person = memory.confirmed_by
-    return nil unless memory.state == Chat::Memory::STATE_DISPUTED && person&.platform_user_id.present? && @workspace.platform.present?
-    return nil if person.removed? || !Chat::Memory.visible_to(person, @workspace).exists?(id: memory.id)
-    return nil if told_already?(memory)
+  # Halon's nightly check found evidence against a memory a person stands behind, so whoever confirmed it and whoever
+  # approved it as a lesson for pull request reviews are each told once by direct message, with Still right, Not right
+  # and Edit. Nothing is sent to one without a platform account, or when the platform cannot take it, and the memory
+  # waits on the Memory page either way. postmortem_of is the incident whose completed postmortem disputed it, when one
+  # did, so the message says the postmortem disagrees rather than Halon. Returns the posts sent.
+  def tell_people_behind!(memory, postmortem_of: nil)
+    return [] unless memory.state == Chat::Memory::STATE_DISPUTED && @workspace.platform.present?
 
-    post = Chat::MemoryPost.create!(workspace: @workspace, kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: person, channel_id: person.platform_user_id,
-                                    memory_ids: [ memory.id ], evidence: memory.state_reason)
-    posted = adapter.post_learned_memories_to_user(user_id: person.platform_user_id, post: shown(post))
-    post.posted!(posted[:message_id], channel_id: posted[:channel_id] || post.channel_id)
-    post
-  rescue *PASSING => error
-    post&.destroy!
-    raise error
-  rescue AdapterError => error
-    post&.destroy!
-    Rails.logger.info({ event: "memory_post.confirmer_not_told", memory_id: memory.id, error: error.class.name }.to_json)
-    nil
+    # Each person is tried on their own, so a send that fails for a while never keeps the other from being told. The
+    # first such failure is raised after, and the job tries again, finding whoever was told already.
+    failed = nil
+    told = [ memory.confirmed_by, memory.approved_by ].compact.uniq.filter_map do |person|
+      tell_person_behind!(memory, person, postmortem_of)
+    rescue *PASSING => error
+      failed ||= error
+      nil
+    end
+    raise failed if failed
+
+    told
   end
 
   # Someone pressing Still right or Not right, or Confirm on a message posted before Halon checked memories itself. reference is the post a button names, or the incident on a message posted
@@ -100,11 +106,16 @@ class MemoryPostService
     return "That memory is gone. Close this and look on the Memory page." unless memory
     return "Write what is right instead." if correction.blank?
 
-    replacement = memory.reject!(by: member, reason: reason.presence || "Corrected in #{post.place}", correction: correction.strip)
-    return memory.reject_blocked_reason unless replacement
+    edited = memory.edit_without_waiting!(by: member, words: correction, reason: reason.presence || "Corrected in #{post.place}",
+                                          source: AbilityGateway::SOURCE_SLACK)
+    return memory.edit_blocked_reason(member) unless edited
 
     redraw(post)
     nil
+  rescue AbilityGateway::Denied => denied
+    AuthorizedDispatch.denied_message(denied)
+  rescue Chat::Memory::Lesson::EditHeld
+    LESSON_EDIT_HELD
   rescue ActiveRecord::RecordInvalid => error
     error.record.errors.full_messages.to_sentence
   end
@@ -112,14 +123,33 @@ class MemoryPostService
   def shown(post)
     memories = post.memories
     Shown.new(post_id: post.id, kind: post.kind, incident_identifier: post.incident&.identifier, memories: memories.map { |memory| shown_memory(memory) },
-              reminder: (shown_reminder(post, memories) if post.kind == Chat::MemoryPost::KIND_REMINDER))
+              reminder: (shown_reminder(post, memories) if post.kind == Chat::MemoryPost::KIND_REMINDER),
+              approved_lesson: post.kind == Chat::MemoryPost::KIND_CHALLENGED && post.recipient_id.present? && memories.any? { |memory| memory.approved_by_id == post.recipient_id })
   end
 
   private
 
+  def tell_person_behind!(memory, person, postmortem_of)
+    return nil if person.platform_user_id.blank? || person.removed? || !Chat::Memory.visible_to(person, @workspace).exists?(id: memory.id)
+    return nil if told_already?(memory, person)
+
+    post = Chat::MemoryPost.create!(workspace: @workspace, kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: person, channel_id: person.platform_user_id,
+                                    memory_ids: [ memory.id ], evidence: memory.state_reason, incident: postmortem_of)
+    posted = adapter.post_learned_memories_to_user(user_id: person.platform_user_id, post: shown(post))
+    post.posted!(posted[:message_id], channel_id: posted[:channel_id] || post.channel_id)
+    post
+  rescue *PASSING => error
+    post&.destroy!
+    raise error
+  rescue AdapterError => error
+    post&.destroy!
+    Rails.logger.info({ event: "memory_post.person_behind_not_told", memory_id: memory.id, error: error.class.name }.to_json)
+    nil
+  end
+
   # The person was told about this memory with these very words already, so a second job for the same dispute sends nothing.
-  def told_already?(memory)
-    Chat::MemoryPost.where(workspace: @workspace, kind: Chat::MemoryPost::KIND_CHALLENGED).where("? = ANY(memory_ids)", memory.id)
+  def told_already?(memory, person)
+    Chat::MemoryPost.where(workspace: @workspace, kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: person).where("? = ANY(memory_ids)", memory.id)
                     .any? { |post| post.evidence == memory.state_reason }
   end
 
@@ -131,7 +161,8 @@ class MemoryPostService
   def shown_memory(memory)
     ShownMemory.new(id: memory.id, text: memory.text, about: memory.about, about_removed: memory.about_removed?, state: memory.state,
                     reason: memory.state_reason, decided_by: (memory.decider if [ Chat::Memory::STATE_CONFIRMED, Chat::Memory::STATE_REJECTED ].include?(memory.state)),
-                    correction: memory.replaced_by&.text, standing: memory.standing)
+                    correction: memory.replaced_by&.text, checked_by_halon: memory.checked_by_halon_alone?,
+                    approved_by: (memory.approved_by&.display_name if memory.approved? && memory.confirmed_by_id.nil?))
   end
 
   # A memory about a resource outside the person's map reach answers as one the message does not show.

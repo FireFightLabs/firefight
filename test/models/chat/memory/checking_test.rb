@@ -323,7 +323,77 @@ class Chat::Memory::CheckingTest < ActiveSupport::TestCase
     assert_equal [ Chat::MemoryEvent::KIND_VERIFIED, Chat::MemoryEvent::KIND_CONFIRMED ], memory.events.map(&:kind)
   end
 
+  test "a lesson a person approved for reviews is never rejected or corrected by Halon, only disputed for them, and never again with evidence they saw" do
+    lesson = approved_lesson("Checkout retries go up when the payment timeout changes", strict: true)
+    assert lesson.person_stands_behind?
+
+    first = lesson.found_wrong_by_halon!(evidence: "The client sets no timeout.", correction: "Checkout retries are fixed at three", review: @review)
+
+    assert_equal [ lesson.id ], first.challenged, "the person who approved it is told"
+    assert_match "approved it for pull request reviews", first.words
+    assert_equal [ Chat::Memory::STATE_DISPUTED, @alice, true, nil ], lesson.reload.values_at(:state, :approved_by, :strict, :replaced_by_id)
+    assert lesson.awaiting_decision?
+    assert_equal 0, @review.reload.removals, "a dispute removes nothing"
+    assert_equal 1, Chat::Memory.where(workspace: @workspace).count, "no correction is saved in its place"
+
+    travel 1.minute
+    lesson.confirm!(by: @alice)
+    travel 1.day
+    settled = lesson.found_wrong_by_halon!(evidence: "The client sets no timeout.", correction: nil, review: @review)
+
+    assert_equal Chat::Memory::OUTCOME_HELD, settled.outcome
+    assert_empty settled.challenged
+    assert_equal Chat::Memory::STATE_CONFIRMED, lesson.reload.state
+  end
+
+  test "a lesson approved while Halon's check runs is never rejected by that check, and the removal goes back" do
+    lesson = remember("Checkout retries go up when the payment timeout changes", source: incidents(:active_critical_ws1))
+    stale = Chat::Memory.find(lesson.id)
+    assert lesson.approve!(by: @alice)
+    stale.define_singleton_method(:person_stands_behind?) { false }
+
+    settled = stale.found_wrong_by_halon!(evidence: "The client sets no timeout.", correction: nil, review: @review)
+
+    assert_nil settled.outcome
+    assert_equal [ Chat::Memory::STATE_UNCONFIRMED, @alice ], lesson.reload.values_at(:state, :approved_by)
+    assert_equal 0, @review.reload.removals
+  end
+
+  test "shown right, a memory says otherwise than an approved lesson, which is disputed for the person who approved it rather than rejected" do
+    lesson = approved_lesson("web deploys from main")
+    newer = remember("web deploys from release")
+    lesson.contradicted!(newer, reason: "A chat showed \"web deploys from release\".")
+
+    settled = newer.verified_by_halon!(evidence: "The deploy settings of web name release.", review: @review)
+
+    assert_equal [ lesson.id ], settled.challenged
+    assert_equal [ Chat::Memory::STATE_DISPUTED, @alice ], lesson.reload.values_at(:state, :approved_by)
+    assert_equal 0, @review.reload.removals
+  end
+
+  test "an approved lesson stands as a person behind it, whatever Halon's check made of it" do
+    lesson = approved_lesson("web deploys from main")
+    assert_equal Chat::Memory::STANDING_PERSON, lesson.standing
+
+    lesson.verified_by_halon!(evidence: "The deploy settings of web name main.", review: @review)
+
+    assert_equal Chat::Memory::STANDING_PERSON, lesson.reload.standing
+  end
+
+  test "shown right, an approved lesson keeps its approval and is recorded as one a person stands behind" do
+    lesson = approved_lesson("web deploys from main")
+
+    settled = lesson.verified_by_halon!(evidence: "The deploy settings of web name main.", review: @review)
+
+    assert_equal [ Chat::Memory::STATE_CONFIRMED, @alice, true ], lesson.reload.values_at(:state, :approved_by, :decided_by_halon)
+    assert_match "approved it for pull request reviews", settled.words
+  end
+
   private
+
+  def approved_lesson(text, strict: false)
+    remember(text, source: incidents(:active_critical_ws1)).tap { |lesson| assert lesson.approve!(by: @alice, strict: strict) }
+  end
 
   def remember(text, state: Chat::Memory::STATE_UNCONFIRMED, **columns)
     Chat::Memory.create!(workspace: @workspace, text: text, state: state, **columns)

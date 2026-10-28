@@ -62,6 +62,28 @@ class Chat::Memory::MergingTest < ActiveSupport::TestCase
     assert_equal [ Chat::Memory::STATE_CONFIRMED, @alice ], duplicate.reload.values_at(:state, :confirmed_by)
   end
 
+  test "a lesson a person approved for reviews ranks with a person's confirmation, so it is the one kept" do
+    halon = remember("web deploys from main", state: Chat::Memory::STATE_CONFIRMED, decided_by_halon: true, confirmed_at: Time.current, use_count: 9)
+    lesson = approved_lesson("Web deploys from main.")
+
+    assert_equal lesson, Chat::Memory.strongest([ halon, lesson ])
+  end
+
+  test "an approved lesson is never merged by Halon, whether approved before the merge or while it got ready" do
+    keeper = approved_lesson("web deploys from main")
+    other = approved_lesson("Web deploys from main.", strict: true)
+
+    assert_not other.merge_into!(keeper)
+    assert_equal [ Chat::Memory::STATE_UNCONFIRMED, @alice, true ], other.reload.values_at(:state, :approved_by, :strict)
+
+    duplicate = remember("Web deploys from MAIN", source: incidents(:active_critical_ws1))
+    stale = Chat::Memory.find(duplicate.id)
+    assert duplicate.approve!(by: @alice)
+
+    assert_not stale.merge_into!(keeper)
+    assert_equal [ Chat::Memory::STATE_UNCONFIRMED, @alice ], duplicate.reload.values_at(:state, :approved_by)
+  end
+
   test "a memory is never merged into one rejected or merged meanwhile" do
     keeper = remember("web deploys from main")
     duplicate = remember("Web deploys from main.")
@@ -96,5 +118,9 @@ class Chat::Memory::MergingTest < ActiveSupport::TestCase
 
   def remember(text, subject: nil, state: Chat::Memory::STATE_UNCONFIRMED, **columns)
     Chat::Memory.create!(workspace: @workspace, text: text, subject: subject, state: state, **columns)
+  end
+
+  def approved_lesson(text, strict: false)
+    remember(text, source: incidents(:active_critical_ws1)).tap { |lesson| assert lesson.approve!(by: @alice, strict: strict) }
   end
 end

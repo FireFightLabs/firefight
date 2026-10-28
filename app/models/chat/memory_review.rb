@@ -22,7 +22,7 @@ class Chat::MemoryReview < ApplicationRecord
 
   # What the run checks, in the order picked.
   def memories
-    found = Chat::Memory.where(workspace_id: workspace_id, id: memory_ids).includes(:subject, :confirmed_by, :events).index_by(&:id)
+    found = Chat::Memory.where(workspace_id: workspace_id, id: memory_ids).includes(:subject, :confirmed_by, :events, approved_by: :user).index_by(&:id)
     memory_ids.filter_map { |id| found[id] }
   end
 

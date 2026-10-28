@@ -13,7 +13,8 @@ class Chat::MemoryPost < ApplicationRecord
   # Memories nobody confirmed for a while, to the person who taught them or for the team. None is sent any more, and one
   # sent before is still redrawn when someone decides there.
   KIND_REMINDER = "reminder".freeze
-  # Halon's nightly check found evidence against a memory a person confirmed, told to that person by direct message once.
+  # Halon's nightly check, or a completed postmortem (its incident), found evidence against a memory a person confirmed or
+  # approved as a lesson, told to each such person by direct message once.
   KIND_CHALLENGED = "challenged".freeze
   KINDS = [ KIND_INCIDENT, KIND_POSTMORTEM, KIND_LEARNED, KIND_DISPUTED, KIND_REMINDER, KIND_CHALLENGED ].freeze
 
@@ -34,7 +35,7 @@ class Chat::MemoryPost < ApplicationRecord
 
   # The memories it shows, in the order first shown. One deleted since is left out.
   def memories
-    found = Chat::Memory.where(workspace_id: workspace_id, id: memory_ids).includes(:subject, :confirmed_by, :rejected_by, :replaced_by).index_by(&:id)
+    found = Chat::Memory.where(workspace_id: workspace_id, id: memory_ids).includes(:subject, :confirmed_by, :rejected_by, :replaced_by, approved_by: :user).index_by(&:id)
     memory_ids.filter_map { |id| found[id] }
   end
 
@@ -42,9 +43,9 @@ class Chat::MemoryPost < ApplicationRecord
 
   # Where a decision was made, as its reason says, such as "Marked not right in INC-12".
   def place
+    return "a direct message" if kind == KIND_CHALLENGED
     return incident.identifier if incident
     return "a chat" if conversation_id
-    return "a direct message" if kind == KIND_CHALLENGED
 
     "a reminder"
   end
