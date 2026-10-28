@@ -131,7 +131,7 @@ class PullRequestReview::StrictCheckTest < ActiveSupport::TestCase
     assert @review.claim_commit_status!(PullRequestReview::COMMIT_STATUS_FAILING, "b" * 40)
   end
 
-  test "a change to an approved lesson announces each open finding it produced, after it commits, and so does its expiry" do
+  test "a change to an approved lesson announces each open finding it produced, after it commits, and expiry never reaches it" do
     held = finding(lesson: @strict)
     said = []
     subscriber = ActiveSupport::Notifications.subscribe(PullRequestReview::EVENT) { |event| said << event.payload.values_at(:finding_id, :change) }
@@ -144,9 +144,9 @@ class PullRequestReview::StrictCheckTest < ActiveSupport::TestCase
     expiring.update_columns(updated_at: 40.days.ago)
     said.clear
     @workspace.update!(memory_expiry_days: 30)
-    assert_equal 1, Chat::Memory.expire!(@workspace)
-    assert_equal [ [ other.id, PullRequestReview::CHANGE_FINDING_CHANGED ] ], said
-    assert_not other.reload.holding?
+    assert_equal 0, Chat::Memory.expire!(@workspace)
+    assert_empty said
+    assert other.reload.holding?
   ensure
     ActiveSupport::Notifications.unsubscribe(subscriber)
   end

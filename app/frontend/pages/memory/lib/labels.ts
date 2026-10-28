@@ -33,8 +33,8 @@ export function inFilter(memory: ChatMemory, filter: MemoryFilter): boolean {
   return FILTER_STATES[filter] === memory.state
 }
 
-// Who stands behind it, in words, such as "Confirmed by Ada, Oct 3" or "Checked by Halon, Oct 26". A postmortem nobody
-// signed off is never read as a person, and neither is Halon.
+// Who stands behind it, in words, such as "Confirmed by Ada, Oct 3", "Approved by Ada for pull request reviews, Oct 3" or
+// "Checked by Halon, Oct 26". A postmortem nobody signed off is never read as a person, and neither is Halon.
 export function vouch(memory: ChatMemory): string {
   return `${vouchedBy(memory)}, ${formatDate(vouchedAt(memory))}`
 }
@@ -51,6 +51,9 @@ function vouchedBy(memory: ChatMemory): string {
   }
   if (memory.confirmedBy) {
     return `Confirmed by ${memory.confirmedBy}`
+  }
+  if (memory.approvedBy) {
+    return `Approved by ${memory.approvedBy} for pull request reviews`
   }
   if (memory.state === CHAT_MEMORY_STATE.CONFIRMED) {
     return memory.decidedByHalon && !memory.decidedByPostmortem ? "Checked by Halon" : `Confirmed${decidedBy(memory)}`
@@ -79,7 +82,13 @@ function vouchedAt(memory: ChatMemory): string {
   }
   const setAsideBy = SET_ASIDE_BY[memory.state]
   const setAside = setAsideBy && [ ...memory.events ].reverse().find((event) => setAsideBy.includes(event.kind))
-  return setAside ? setAside.at : (memory.confirmedAt ?? memory.createdAt)
+  if (setAside) {
+    return setAside.at
+  }
+  if (!memory.confirmedBy && memory.approvedBy && memory.approvedAt) {
+    return memory.approvedAt
+  }
+  return memory.confirmedAt ?? memory.createdAt
 }
 
 // What Halon's nightly check last found, said beside the memory, or null when there is nothing to say.

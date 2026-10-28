@@ -132,7 +132,7 @@ module Mcp
       # What people confirmed about it or its services. Unconfirmed memories stay with recall, since they are hunches.
       def self.confirmed(resource, entries)
         Chat::Memory.where(workspace: resource.workspace, state: Chat::Memory::STATE_CONFIRMED).where(subject: [ resource ] + entries)
-                    .includes(:subject, confirmed_by: :user).most_trusted_first.limit(Chat::Memory::STARTING_LIMIT).map(&:line)
+                    .includes(:subject, approved_by: :user, confirmed_by: :user).most_trusted_first.limit(Chat::Memory::STARTING_LIMIT).map(&:line)
       end
 
       def self.past_incidents(workspace, entries)

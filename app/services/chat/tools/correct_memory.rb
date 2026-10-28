@@ -32,6 +32,8 @@ class Chat::Tools::CorrectMemory < RubyLLM::Tool
     memory = Chat::Memory.visible_to(@agent_run.acting_principal, @agent_run.workspace).find_by(id: asked["memory"].to_s)
     return refused(tool_call, "There is no memory #{asked['memory']}.", kind: Chat::StepOutcome::FAILURE_NOT_FOUND) unless memory
 
+    return refused(tool_call, approved_lesson(memory)) if memory.approved? && memory.person_stands_behind?
+
     Chat::Tools.memory_change(@agent_run, Ability::Action::ACTION_UPDATE, tool_name: name, params: asked.slice("memory"), tool_call_id: tool_call&.id) do
       outcome = memory.reject!(by: @agent_run.memory_teacher, reason: asked["reason"].to_s.strip, correction: asked["correction"].to_s.strip)
       next refused(tool_call, memory.reject_blocked_reason) unless outcome
@@ -43,6 +45,14 @@ class Chat::Tools::CorrectMemory < RubyLLM::Tool
   end
 
   private
+
+  # A lesson a person approved for pull request reviews is changed only by a person who may decide on lessons, never by
+  # Halon on their behalf, so it is left as it is and the person is pointed where an edit keeps it approved.
+  def approved_lesson(memory)
+    page = AppUrl.absolute(Rails.application.routes.url_helpers.memory_path(Chat::Memory::QUERY_PARAM => memory.id))
+    "#{memory.approved_by&.display_name || "A person"} approved it for pull request reviews, so it is left as it is. Tell the person that editing it " \
+      "on the Memory page keeps it approved: #{page}"
+  end
 
   def refused(tool_call, words, kind: Chat::StepOutcome::FAILURE_ERROR)
     Chat::Tools.mark_failed(@agent_run, tool_call&.id, kind: kind)

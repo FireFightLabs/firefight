@@ -13,6 +13,14 @@ module Chat::Memory::Lesson
   STATUS_APPROVED = "approved".freeze
   STATUS_TURNED_DOWN = "turned_down".freeze
   STATUSES = [ STATUS_WAITING, STATUS_APPROVED, STATUS_TURNED_DOWN ].freeze
+  # An edit from a form that cannot wait for an approval would need one to keep the lesson approved.
+  class EditHeld < StandardError; end
+
+  # What an edit came to (edit_by!): corrected, so memory is what stands now, kept as still right, or nothing changed.
+  EDIT_CORRECTED = :corrected
+  EDIT_KEPT = :kept
+  EDIT_UNCHANGED = :unchanged
+  Edited = Data.define(:outcome, :memory)
   # How many approved lessons one review reads, those about what the change touches first.
   REVIEW_LIMIT = 40
 
@@ -152,11 +160,13 @@ module Chat::Memory::Lesson
 
   # The lead or an admin rewording it. New words replace it as a lesson approved by them, and the old wording is kept as
   # rejected so it is not learned again. The same words only change whether it is strict. Returns the lesson that stands.
-  def edit_lesson!(by:, text:, strict:)
+  def edit_lesson!(by:, text:, strict:, reason: nil)
     return nil if edit_lesson_blocked_reason(by)
 
     words = text.to_s.strip
     if words == self.text.strip
+      # The same words on an approved lesson disputed since say it is still right, so it is back in use and still approved.
+      confirm!(by: by) if approved? && state == Chat::Memory::STATE_DISPUTED
       return nil unless approved_lesson? || approve!(by: by, strict: strict)
 
       update!(strict: strict)
@@ -165,10 +175,53 @@ module Chat::Memory::Lesson
     end
 
     transaction do
-      replacement = reject!(by: by, reason: "Edited by #{by.display_name}", correction: words)
+      replacement = reject!(by: by, reason: reason.presence || "Edited by #{by.display_name}", correction: words)
       replacement&.approve!(by: by, strict: strict)
       replacement
     end
+  end
+
+  # A person writing what is right instead, wherever they edit it: an incident's channel, a direct message, a chat card or
+  # the Memory page. An approved lesson edited by someone who may decide on lessons goes through edit_lesson!, as on the
+  # Lessons tab, so it stays approved, and the caller authorizes lessons.decide through the gateway first, approval rules
+  # included. The same words on an approved lesson say it is still right when it was disputed, and change nothing when it
+  # is in use, whoever writes them. Anything else is corrected as any memory. Returns an Edited, or nil when it was
+  # refused (edit_blocked_reason).
+  def edit_by!(by:, words:, reason:)
+    words = words.to_s.strip
+    if approved? && words == text.strip
+      return (confirm!(by: by) ? Edited.new(outcome: EDIT_KEPT, memory: self) : nil) if state == Chat::Memory::STATE_DISPUTED
+      return Edited.new(outcome: EDIT_UNCHANGED, memory: self) if in_use?
+    end
+
+    standing = if keeps_approval_through_edit?(by)
+      edit_lesson!(by: by, text: words, strict: strict, reason: reason)
+    else
+      reject!(by: by, reason: reason, correction: words)
+    end
+    standing && Edited.new(outcome: EDIT_CORRECTED, memory: standing)
+  end
+
+  def keeps_approval_through_edit?(by) = approved? && edit_lesson_blocked_reason(by).nil?
+
+  # edit_by! from a form that cannot wait for an approval, such as one in Slack. Keeping the lesson approved is a decision
+  # on it, asked through the gateway as lessons.decide from source. One an approval rule would hold raises EditHeld
+  # before anything is asked, since nothing could pick the form up again, and one the gateway refuses raises its Denied.
+  def edit_without_waiting!(by:, words:, reason:, source:)
+    return edit_by!(by: by, words: words, reason: reason) unless keeps_approval_through_edit?(by)
+
+    request = { principal: by, action_key: Ability::Action::LESSON_DECIDE, workspace: workspace, scope: decide_scope,
+                params: { SCOPE_LESSON => id }, context: { source: source } }
+    raise EditHeld if decision_held?(request)
+
+    AbilityGateway.authorize!(**request) { edit_by!(by: by, words: words, reason: reason) }
+  rescue AbilityGateway::PendingApproval
+    raise EditHeld
+  end
+
+  # Why the memory itself refused an edit. A refusal from the gateway is said by the caller that asked it.
+  def edit_blocked_reason(by)
+    reject_blocked_reason || (edit_lesson_blocked_reason(by) if lesson?) || "It changed meanwhile. Look at it again on the Memory page."
   end
 
   # Turned down by the lead or an admin: rejected, so neither reviews nor Halon use it, and it is not learned again.
@@ -183,6 +236,12 @@ module Chat::Memory::Lesson
   def announce_lesson_change(finding_ids = held_finding_ids) = self.class.announce_findings_changed(finding_ids)
 
   private
+
+  def decision_held?(request)
+    action = Ability::Action.lookup(request[:action_key], workspace)
+    action.present? && AbilityGateway.approval_requirement(workspace, action, request[:action_key], request[:scope], request[:context],
+                                                           params: request[:params], principal: request[:principal]).present?
+  end
 
   def approve_state_blocked_reason
     return TURNED_DOWN_REASON if state == Chat::Memory::STATE_REJECTED

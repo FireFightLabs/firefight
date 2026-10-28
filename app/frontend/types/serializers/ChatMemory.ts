@@ -9,6 +9,8 @@ export default interface ChatMemory {
   about?: string
   aboutRemoved: boolean
   addedBy?: string
+  approvedAt?: string
+  approvedBy?: string
   awaitingDecision: boolean
   checkOutcome?: ChatMemoryCheckOutcome
   checkedAt?: string
