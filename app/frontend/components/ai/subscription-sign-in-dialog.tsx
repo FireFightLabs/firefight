@@ -130,7 +130,7 @@ export function SubscriptionSignInDialog({ signIn }: { signIn: SubscriptionSignI
   }
 
   const finishing = Boolean(signIn) && handedBackFor === signIn?.id
-  const title = signIn ?`${signIn.reconnecting ? "Sign in again to" : "Connect"} ${signIn.name}` : ""
+  const title = signIn ? `${signIn.reconnecting ? "Sign in again to" : "Connect"} ${signIn.name}` : ""
 
   return (
     <Dialog open={Boolean(signIn)} onOpenChange={whenClosed(cancel)}>

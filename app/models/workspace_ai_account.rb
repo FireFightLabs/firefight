@@ -266,6 +266,14 @@ class WorkspaceAiAccount < ApplicationRecord
     reload
   end
 
+  # Writes these keys of what the proxy says of a subscription in one statement, so a key another request wrote
+  # meanwhile, such as a refused sign-in, is never written back over. Other columns are written with them.
+  def merge_proxy_state!(fields, columns = {})
+    merged = Arel.sql(self.class.sanitize_sql([ "proxy_state || ?::jsonb", fields.to_json ]))
+    self.class.where(id: id).update_all(columns.merge(proxy_state: merged, updated_at: Time.current))
+    reload
+  end
+
   def disable!
     update!(enabled: false)
   end

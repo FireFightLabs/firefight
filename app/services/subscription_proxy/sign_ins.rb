@@ -178,7 +178,7 @@ module SubscriptionProxy
 
     # The same login signed in again keeps the credential it had, with fresh tokens and the workspace's prefix.
     def signed_in_again!(sign_in, account)
-      account.update_columns(failing_since: nil, last_error: nil, proxy_state: account.proxy_state.merge("signed_out" => false), updated_at: Time.current)
+      account.merge_proxy_state!({ "signed_out" => false }, { failing_since: nil, last_error: nil })
       return finished(sign_in.reload) unless settle_done!(sign_in, account)
 
       Outcome.new(account: account.reload, reconnected: true, fresh: true)

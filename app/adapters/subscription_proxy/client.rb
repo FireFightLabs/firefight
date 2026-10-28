@@ -10,6 +10,8 @@ module SubscriptionProxy
     # The proxy answers a sign-in's state with one of these.
     STATUS_WAITING = "wait".freeze
     STATUS_DONE = "ok".freeze
+    # A credential's status when its provider refused it.
+    CREDENTIAL_ERROR = "error".freeze
     VERSION_HEADER = "X-Cpa-Version".freeze
     # A credential's name as the proxy writes it, never a wildcard, so a delete can only ever name one.
     CREDENTIAL_NAME = /\A[\w.@+-]+\.json\z/

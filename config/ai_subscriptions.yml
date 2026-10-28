@@ -6,6 +6,9 @@
 #   lands on an address on the person's own computer that does not load, which they paste back).
 # main and fast: the models Halon runs on and does quick work on, preferred first, the first the proxy lists for the
 #   workspace taken. An admin can pick any other the proxy lists.
+# limits (optional): how the provider says how much of the limit is left, in the signals the proxy keeps from its last
+#   answer. Each window is read from <prefix>-<window>-used-percent, and when it resets from <prefix>-<window>-reset-at
+#   or <prefix>-<window>-reset-after-seconds. Without it the plan says only when it is at its limit.
 chatgpt:
   name: ChatGPT
   plan: ChatGPT Plus or Pro
@@ -14,6 +17,9 @@ chatgpt:
     - proxy: codex
   main: [ gpt-6.1-sol, gpt-6-sol, gpt-5.6-sol ]
   fast: [ gpt-6-luna, gpt-5.6-luna ]
+  limits:
+    prefix: x-codex
+    windows: [ primary, secondary ]
 
 google:
   name: Google AI

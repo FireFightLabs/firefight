@@ -3,8 +3,6 @@ module SubscriptionProxy
   # order the proxy tries them in, switching one off and on, and removing one. Every call names only this workspace's
   # credentials.
   class Accounts
-    # The Codex limits, each a window with how much of it is used and when it resets.
-    LIMIT_WINDOWS = %w[primary secondary].freeze
     # How long a credential that names no sign-in is kept for an account to claim it.
     UNCLAIMED_AFTER = 30.minutes
 
@@ -36,9 +34,9 @@ module SubscriptionProxy
       held, gone = @workspace.workspace_ai_accounts.subscriptions.where.not(proxy_credential: nil).to_a
                              .partition { |account| by_name.key?(account.proxy_credential) }
       # A credential the proxy no longer holds needs signing in again, and nothing else is asked of it.
-      gone.each { |account| account.update_columns(proxy_state: account.proxy_state.merge("signed_out" => true), updated_at: Time.current) }
+      gone.each { |account| account.merge_proxy_state!({ "signed_out" => true }) }
       held.each do |account|
-        account.update_columns(proxy_state: account.proxy_state.merge(state_of(by_name.fetch(account.proxy_credential))), updated_at: Time.current)
+        account.merge_proxy_state!(state_of(by_name.fetch(account.proxy_credential)))
       end
       refresh_models!(held)
       rank!(held)
@@ -53,7 +51,7 @@ module SubscriptionProxy
       accounts.each do |account|
         served = client.credential_models(account.proxy_credential, prefix: prefix)
         models = served.filter_map { |id| facts[id]&.to_h&.stringify_keys }
-        account.update_columns(proxy_state: account.proxy_state.merge("models" => models), updated_at: Time.current) if models.any?
+        account.merge_proxy_state!({ "models" => models }) if models.any?
       rescue SubscriptionProxy::Error => error
         Rails.logger.warn({ event: "subscription_proxy.models_unread", account_id: account.id, error: error.message }.to_json)
       end
@@ -69,7 +67,7 @@ module SubscriptionProxy
           next if account.proxy_state.to_h["priority"] == priority
 
           client.prioritize(account.proxy_credential, priority)
-          account.update_columns(proxy_state: account.proxy_state.merge("priority" => priority), updated_at: Time.current)
+          account.merge_proxy_state!({ "priority" => priority })
         rescue SubscriptionProxy::NotFound
           next
         end
@@ -143,11 +141,14 @@ module SubscriptionProxy
 
     # A sign-in the provider refused for good is in error with no time to try again.
     def signed_out?(credential)
-      credential.status == "error" && credential.next_retry_after.nil?
+      credential.status == Client::CREDENTIAL_ERROR && credential.next_retry_after.nil?
     end
 
+    # How much is left is read the way the credential's subscription declares, and a plan that declares nothing says
+    # only when it is at its limit.
     def limit_of(credential)
-      windows = LIMIT_WINDOWS.filter_map { |window| window_of(credential, window) }
+      limits = AiSubscriptions.for_proxy(credential.provider)&.limits
+      windows = limits ? limits.windows.filter_map { |window| window_of(credential, limits, window) } : []
       busiest = windows.max_by { |window| window[:used] }
       reached = credential.next_retry_after if credential.unavailable && credential.next_retry_after&.future?
       reached ||= busiest[:resets_at] if busiest && busiest[:used] >= 100
@@ -159,20 +160,19 @@ module SubscriptionProxy
       }.compact
     end
 
-    def window_of(credential, window)
-      used = credential.quota["x-codex-#{window}-used-percent"]
+    def window_of(credential, limits, window)
+      used = credential.quota[limits.used(window)]
       return nil if used.blank?
 
-      resets_at = reset_time(credential, window)
-      { used: used.to_f, resets_at: resets_at }
+      { used: used.to_f, resets_at: reset_time(credential, limits, window) }
     end
 
-    def reset_time(credential, window)
-      at = credential.quota["x-codex-#{window}-reset-at"]
+    def reset_time(credential, limits, window)
+      at = credential.quota[limits.reset_at(window)]
       return Time.zone.at(at.to_i) if at.to_s.match?(/\A\d+\z/)
       return Time.zone.parse(at.to_s) if at.present?
 
-      after = credential.quota["x-codex-#{window}-reset-after-seconds"]
+      after = credential.quota[limits.reset_after(window)]
       (credential.quota_observed_at || Time.current) + after.to_i.seconds if after.present?
     rescue ArgumentError
       nil

@@ -29,6 +29,16 @@ class SubscriptionProxy::AccountsTest < ActiveSupport::TestCase
     assert_equal :signed_out, broken.reload.state
   end
 
+  test "a plan that declares no limit signals says nothing of how much is left, whatever the proxy kept" do
+    account = add_subscription_account!(@workspace, subscription: "supergrok", credential: "xai-ana.json")
+    Client.any_instance.stubs(:prioritize)
+
+    SubscriptionProxy::Accounts.new(@workspace).sync!([ proxy_credential(name: "xai-ana.json", provider: "xai", **codex_limit(used: 62, resets_in: 2.hours)) ])
+
+    assert_nil account.reload.proxy_limit["left_percent"]
+    assert_equal false, account.proxy_limit["reported"]
+  end
+
   test "a sign-in at its limit says until when" do
     account = add_subscription_account!(@workspace, credential: "codex-ana.json")
     Client.any_instance.stubs(:prioritize)

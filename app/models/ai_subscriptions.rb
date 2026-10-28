@@ -11,7 +11,16 @@ module AiSubscriptions
 
   Site = Data.define(:proxy, :label)
 
-  Subscription = Data.define(:key, :name, :plan, :sign_in, :sites, :main_models, :fast_models) do
+  # Where the provider says how much of each limit window is used and when it resets, in the proxy's signals.
+  Limits = Data.define(:prefix, :windows) do
+    def used(window) = "#{prefix}-#{window}-used-percent"
+
+    def reset_at(window) = "#{prefix}-#{window}-reset-at"
+
+    def reset_after(window) = "#{prefix}-#{window}-reset-after-seconds"
+  end
+
+  Subscription = Data.define(:key, :name, :plan, :sign_in, :sites, :main_models, :fast_models, :limits) do
     def device? = sign_in == SIGN_IN_DEVICE
 
     def site(proxy) = sites.find { |site| site.proxy == proxy.to_s }
@@ -41,8 +50,9 @@ module AiSubscriptions
       raise ArgumentError, "#{key} signs in by #{entry['sign_in'].inspect}" unless SIGN_INS.include?(entry.fetch("sign_in"))
 
       sites = entry.fetch("sites").map { |site| Site.new(proxy: site.fetch("proxy"), label: site["label"]) }.freeze
+      limits = entry["limits"]&.then { |declared| Limits.new(prefix: declared.fetch("prefix"), windows: declared.fetch("windows").freeze) }
       [ key, Subscription.new(key: key, name: entry.fetch("name"), plan: entry.fetch("plan"), sign_in: entry.fetch("sign_in"), sites: sites,
-                              main_models: entry.fetch("main").freeze, fast_models: entry.fetch("fast").freeze) ]
+                              main_models: entry.fetch("main").freeze, fast_models: entry.fetch("fast").freeze, limits: limits) ]
     end.freeze
   end
   private_class_method :registry

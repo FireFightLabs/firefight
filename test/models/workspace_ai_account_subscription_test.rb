@@ -91,4 +91,15 @@ class WorkspaceAiAccountSubscriptionTest < ActiveSupport::TestCase
     assert_equal "ChatGPT subscription for ben@example.com", limited.subscription_named
     assert WorkspaceAiAccount.usable.exists?(limited.id), "a limit changes nothing about which accounts Halon tries"
   end
+
+  test "what the proxy says is merged in one statement, so a key written meanwhile is kept" do
+    account = add_subscription_account!(@workspace)
+    stale = WorkspaceAiAccount.find(account.id)
+    WorkspaceAiAccount.where(id: account.id).update_all(Arel.sql("proxy_state = proxy_state || '{\"signed_out\": true}'::jsonb"))
+
+    stale.merge_proxy_state!({ "priority" => 2 }, { last_error: nil })
+
+    assert_equal [ true, 2 ], stale.proxy_state.values_at("signed_out", "priority")
+    assert_equal SUBSCRIPTION_MODELS.size, stale.proxy_models.size
+  end
 end
