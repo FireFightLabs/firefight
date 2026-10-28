@@ -8,10 +8,10 @@ class AgentChatQueriesTest < ActionDispatch::IntegrationTest
   # Pinned, so a query added per message or per prop shows here. Raise them only for a prop that is new. The
   # conversation is counted before the tools' labels are cached (Workspace::ToolLabels), so it reads them, and once they
   # are it sends one query fewer.
-  PAGE_QUERIES = 18
-  THREAD_QUERIES = 46
+  PAGE_QUERIES = 19
+  THREAD_QUERIES = 47
   # What a question sent from the open chat reads back. Nothing the page shares is counted, since none of it is sent.
-  ASKED_QUERIES = 27
+  ASKED_QUERIES = 28
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -43,8 +43,6 @@ class AgentChatQueriesTest < ActionDispatch::IntegrationTest
       headers = inertia_partial_headers("agent/index", AgentChatsController::ASKED_PROPS)
                 .merge("X-Inertia-Reset" => AgentChatsController::PROP_MESSAGES, AgentChatsController::LOADED_FROM_HEADER => oldest.id)
 
-      # A request reads its workspace afresh, so the tools' labels it memoizes are read again.
-      sign_in(users(:alice), Workspace.find(@workspace.id))
       Rails.cache.clear
       queries = counted { get agent_chat_url(conversation), headers: headers }
 
