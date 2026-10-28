@@ -96,13 +96,27 @@ class SubscriptionProxy::AccountsTest < ActiveSupport::TestCase
     assert_not WorkspaceAiAccount.exists?(account.id)
   end
 
-  test "a finished sign-in nobody claimed is removed once nothing can claim it, and a claimed one or one with no time never is" do
+  test "a credential nobody claimed goes once nothing can claim it, and a claimed one never does" do
     add_subscription_account!(@workspace, credential: "codex-ana.json")
     credentials = [ proxy_credential(name: "codex-ana.json", created_at: 2.hours.ago),
                     proxy_credential(name: "codex-stray.json", created_at: 2.hours.ago),
                     proxy_credential(name: "codex-untimed.json", created_at: nil),
                     proxy_credential(name: "codex-new.json", created_at: 1.minute.ago) ]
     Client.any_instance.expects(:delete).with("codex-stray.json").once
+    Client.any_instance.expects(:delete).with("codex-untimed.json").once
+
+    SubscriptionProxy::Accounts.sweep_unclaimed!(credentials)
+  end
+
+  test "a credential a sign-in made stays while that sign-in waits, and goes once it ended without an account" do
+    waiting = SubscriptionSignIn.create!(workspace: @workspace, subscription: "chatgpt", proxy: "codex", state: "w", url: "https://auth.openai.com")
+    cancelled = SubscriptionSignIn.create!(workspace: @workspace, subscription: "chatgpt", proxy: "codex", state: "c", url: "https://auth.openai.com",
+                                           status: SubscriptionSignIn::STATUS_CANCELLED)
+    credentials = [ proxy_credential(name: "codex-waiting.json", sign_in_id: waiting.id),
+                    proxy_credential(name: "codex-late.json", sign_in_id: cancelled.id),
+                    proxy_credential(name: "codex-forgotten.json", sign_in_id: SecureRandom.uuid) ]
+    Client.any_instance.expects(:delete).with("codex-late.json").once
+    Client.any_instance.expects(:delete).with("codex-forgotten.json").once
 
     SubscriptionProxy::Accounts.sweep_unclaimed!(credentials)
   end

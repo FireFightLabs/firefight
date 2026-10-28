@@ -30,7 +30,9 @@ class SubscriptionSignInsController < InertiaController
   end
 
   def destroy
-    service.cancel!(@sign_in)
+    # One that finished first was connected, which its own answer said.
+    return back unless service.cancel!(@sign_in)
+
     back notice: "#{@sign_in.subscription_definition&.name || 'The'} sign-in was cancelled."
   end
 

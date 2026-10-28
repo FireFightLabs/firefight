@@ -25,8 +25,7 @@ class SubscriptionSignInsControllerTest < ActionDispatch::IntegrationTest
   test "a finished sign-in is connected and checked, and says so" do
     post subscription_sign_ins_path, params: { subscription: "supergrok" }
     Client.any_instance.stubs(:sign_in_status).returns(:done)
-    Client.any_instance.stubs(:credentials).returns([ proxy_credential(name: "xai-ana.json", provider: "xai") ])
-    Client.any_instance.stubs(:claim)
+    Client.any_instance.stubs(:credentials).returns([ proxy_credential(name: "xai-ana.json", provider: "xai", sign_in_id: started.id) ])
     Client.any_instance.stubs(:models_for).returns([ proxy_model("grok-4.7"), proxy_model("grok-4.7-build-fast") ])
     Client.any_instance.stubs(:credential_models).returns(%w[grok-4.7 grok-4.7-build-fast])
     FirefightAi.expects(:check_account).once
@@ -50,10 +49,32 @@ class SubscriptionSignInsControllerTest < ActionDispatch::IntegrationTest
   test "a sign-in that will not finish says why" do
     post subscription_sign_ins_path, params: { subscription: "supergrok" }
     Client.any_instance.stubs(:sign_in_status).returns("Authentication failed")
+    Client.any_instance.stubs(:sign_in_refusal).returns(nil)
 
     post advance_subscription_sign_in_path(started)
 
     assert_equal "The sign-in did not finish: Authentication failed. Start again.", flash[:alert]
+  end
+
+  test "an account already connected to another workspace is refused with a plain sentence" do
+    post subscription_sign_ins_path, params: { subscription: "supergrok" }
+    Client.any_instance.stubs(:sign_in_status).returns("Failed to save authentication tokens: firefight: this account is already connected to another workspace")
+    Client.any_instance.stubs(:sign_in_refusal).returns(Client::REFUSED_TAKEN)
+
+    post advance_subscription_sign_in_path(started)
+
+    assert_equal SubscriptionProxy::SignIns::TAKEN, flash[:alert]
+  end
+
+  test "cancelling a sign-in that had already connected says nothing of a cancel" do
+    post subscription_sign_ins_path, params: { subscription: "supergrok" }
+    started.settle!(SubscriptionSignIn::STATUS_DONE)
+    Client.any_instance.expects(:cancel_sign_in).never
+
+    delete subscription_sign_in_path(started)
+
+    assert_nil flash[:notice]
+    assert_equal SubscriptionSignIn::STATUS_DONE, started.status
   end
 
   test "cancelling ends the sign-in at the proxy" do

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react"
 import { router } from "@inertiajs/react"
-import type { Page } from "@inertiajs/core"
+import type { CancelToken, Page } from "@inertiajs/core"
 import { IconCopy, IconExternalLink, IconLoader2 } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
@@ -41,6 +41,7 @@ export function SubscriptionSignInDialog({ signIn }: { signIn: SubscriptionSignI
   // A request of the person's own (handing back or cancelling) is never cut short by a check, and checks never overlap.
   const busy = useRef(false)
   const asking = useRef(false)
+  const check = useRef<CancelToken | null>(null)
   const signInId = signIn?.id
 
   useEffect(() => {
@@ -52,10 +53,29 @@ export function SubscriptionSignInDialog({ signIn }: { signIn: SubscriptionSignI
         return
       }
       asking.current = true
-      router.post(advanceSubscriptionSignInPath(signInId), {}, { ...QUIET_VISIT, async: true, onFinish: () => (asking.current = false) })
+      router.post(advanceSubscriptionSignInPath(signInId), {}, {
+        ...QUIET_VISIT,
+        async: true,
+        onCancelToken: (token) => {
+          check.current = token
+        },
+        onFinish: () => {
+          asking.current = false
+          check.current = null
+        },
+      })
     }, ASK_EVERY_MS)
-    return () => window.clearInterval(timer)
+    return () => {
+      window.clearInterval(timer)
+      check.current?.cancel()
+    }
   }, [signInId])
+
+  // A check answered before the person's own request would land after it and show the sign-in it had seen, so it is
+  // dropped first.
+  function dropCheck() {
+    check.current?.cancel()
+  }
 
   function idle() {
     busy.current = false
@@ -66,6 +86,7 @@ export function SubscriptionSignInDialog({ signIn }: { signIn: SubscriptionSignI
       return
     }
     busy.current = true
+    dropCheck()
     router.delete(subscriptionSignInPath(signIn.id), { ...QUIET_VISIT, onFinish: idle })
   }
 
@@ -92,6 +113,7 @@ export function SubscriptionSignInDialog({ signIn }: { signIn: SubscriptionSignI
       return
     }
     busy.current = true
+    dropCheck()
     setSending(true)
     router.post(
       finishSubscriptionSignInPath(signIn.id),

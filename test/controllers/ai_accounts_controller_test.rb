@@ -166,10 +166,24 @@ class AiAccountsControllerTest < ActionDispatch::IntegrationTest
     assert_equal SubscriptionProxy::UNAVAILABLE_FOR_CHANGES, flash[:alert]
   end
 
+  test "the card says why a subscription cannot be edited or checked while the proxy is not usable" do
+    subscription_proxy_up!
+    add_subscription_account!(@workspace)
+    add_ai_account!(@workspace)
+
+    get settings_workspace_path, headers: inertia_headers
+    assert(inertia_props.fetch("aiAccounts").none? { |account| account["editBlockedReason"] })
+
+    SubscriptionProxy::Check.failed!("down")
+    get settings_workspace_path, headers: inertia_headers
+    reasons = inertia_props.fetch("aiAccounts").to_h { |account| [ account["kind"], account["editBlockedReason"] ] }
+    assert_equal({ AiProviders::KIND_SUBSCRIPTION => SubscriptionProxy::UNAVAILABLE_FOR_CHANGES, AiProviders::KIND_API_KEY => nil }, reasons)
+  end
+
   test "signing a subscription in again starts where it signed in first" do
     subscription_proxy_up!
     account = add_subscription_account!(@workspace, credential: "codex-ana.json", state: { "signed_out" => true })
-    SubscriptionProxy::Client.any_instance.expects(:start_sign_in).with("codex")
+    SubscriptionProxy::Client.any_instance.expects(:start_sign_in).with("codex", sign_in_id: instance_of(String))
                              .returns(SubscriptionProxy::Client::SignIn.new(state: "again", url: "https://auth.openai.com", user_code: nil, expires_at: nil))
 
     post subscription_sign_ins_path, params: { account_id: account.id }

@@ -45,6 +45,10 @@ class WorkspaceAiAccountSerializer < BaseSerializer
   type :string
   def deletion_consequence = account.deletion_consequence
 
+  # Why the account cannot be edited, checked or signed in again right now, or null when it can.
+  type :string, optional: true
+  def edit_blocked_reason = account.change_blocked_reason
+
   # What a subscription account adds: the plan, the models its sign-in serves, and its limit as the proxy last saw it.
   # leftPercent and resetsAt are null where the provider does not say.
   type "{ plan: string; models: { id: string; name: string }[]; leftPercent: number | null; resetsAt: string | null; reachedUntil: string | null } | null"

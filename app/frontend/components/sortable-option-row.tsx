@@ -103,7 +103,12 @@ function OptionCells({
 
       {!readOnly && (
         <TableCell>
-          <RowActions onEdit={onEdit} onDelete={onDelete} deleteDisabledReason={option.deletionBlockedReason} />
+          <RowActions
+            onEdit={onEdit}
+            onDelete={onDelete}
+            editDisabledReason={option.editBlockedReason}
+            deleteDisabledReason={option.deletionBlockedReason}
+          />
         </TableCell>
       )}
     </>

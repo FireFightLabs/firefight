@@ -3,6 +3,7 @@
 export default interface WorkspaceAiAccount {
   id: string
   deletionConsequence: string
+  editBlockedReason?: string
   enabled: boolean
   keySummary?: string
   kind: string

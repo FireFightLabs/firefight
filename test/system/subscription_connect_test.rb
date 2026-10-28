@@ -11,7 +11,6 @@ class SubscriptionConnectTest < ApplicationSystemTestCase
                                                                          user_code: "SP7R-PYF3", expires_at: 30.minutes.from_now))
     Client.any_instance.stubs(:models_for).returns([ proxy_model("grok-4.7", name: "Grok 4.7"), proxy_model("grok-4.7-build-fast", name: "Grok 4.7 Fast") ])
     Client.any_instance.stubs(:credential_models).returns(%w[grok-4.7 grok-4.7-build-fast])
-    Client.any_instance.stubs(:claim)
     FirefightAi.stubs(:check_account)
   end
 
@@ -31,13 +30,30 @@ class SubscriptionConnectTest < ApplicationSystemTestCase
     end
 
     Client.any_instance.stubs(:sign_in_status).returns(:done)
-    Client.any_instance.stubs(:credentials).returns([ proxy_credential(name: "xai-ana.json", provider: "xai") ])
+    started = SubscriptionSignIn.find_by!(workspace: @workspace, state: "xai-1")
+    Client.any_instance.stubs(:credentials).returns([ proxy_credential(name: "xai-ana.json", provider: "xai", sign_in_id: started.id) ])
 
     assert_text "SuperGrok subscription for ana@example.com connected.", wait: 10
     assert_no_selector "[role=dialog]"
     assert_text "38% of its limit left"
     page.scroll_to(find("[data-slot=card-title]", text: "AI accounts"), align: :top)
     page.save_screenshot(Rails.root.join("tmp/screenshots/subscription-connected.png"))
+  end
+
+  test "while the subscription service is down, Check again and Edit are disabled and say why" do
+    add_subscription_account!(@workspace, credential: "codex-ana.json", state: { "limit" => { "left_percent" => 38 } })
+    SubscriptionProxy::Check.failed!("down")
+    visit settings_workspace_path
+
+    check_again = find("button", text: "Check again")
+    assert_predicate check_again, :disabled?
+    check_again.find(:xpath, "..").hover
+    assert_text SubscriptionProxy::UNAVAILABLE_FOR_CHANGES
+
+    find("body").send_keys(:escape)
+    within(find("tr", text: "ana@example.com")) { click_button "Actions" }
+    assert_selector "[role=menuitem][data-disabled]", text: "Edit"
+    page.save_screenshot(Rails.root.join("tmp/screenshots/subscription-blocked.png"))
   end
 
   test "a browser sign-in asks for the address it lands on" do
@@ -73,7 +89,8 @@ class SubscriptionConnectTest < ApplicationSystemTestCase
     end
 
     Client.any_instance.stubs(:sign_in_status).returns(:done)
-    Client.any_instance.stubs(:credentials).returns([ proxy_credential(name: "codex-ana.json") ])
+    started = SubscriptionSignIn.find_by!(workspace: @workspace, state: "abc")
+    Client.any_instance.stubs(:credentials).returns([ proxy_credential(name: "codex-ana.json", sign_in_id: started.id) ])
 
     assert_text "ChatGPT subscription for ana@example.com connected.", wait: 10
     assert_no_selector "[role=dialog]"

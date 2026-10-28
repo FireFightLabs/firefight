@@ -1,5 +1,6 @@
 import { router } from "@inertiajs/react"
 
+import { Blocked } from "@/components/blocked-tooltip"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { checkAiAccountPath, subscriptionSignInsPath } from "@/lib/routes"
@@ -35,6 +36,7 @@ export function AiAccountState({ account, readOnly }: { account: WorkspaceAiAcco
   const signedOut = account.state === AI_ACCOUNT_STATES.SIGNED_OUT
   const recheckable = !readOnly && account.enabled && !signedOut && account.state !== AI_ACCOUNT_STATES.VERIFIED
   const explained = EXPLAINED.includes(account.state)
+  const blocked = account.editBlockedReason ?? undefined
 
   function check() {
     router.post(checkAiAccountPath(account.id), {}, { preserveScroll: true })
@@ -53,14 +55,18 @@ export function AiAccountState({ account, readOnly }: { account: WorkspaceAiAcco
       )}
       {explained && account.lastError && <p className="max-w-64 text-xs text-muted-foreground">{account.lastError}</p>}
       {!readOnly && signedOut && (
-        <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={signInAgain}>
-          Reconnect
-        </Button>
+        <Blocked reason={blocked}>
+          <Button variant="link" size="sm" className="h-auto p-0 text-xs" disabled={Boolean(blocked)} onClick={signInAgain}>
+            Reconnect
+          </Button>
+        </Blocked>
       )}
       {recheckable && (
-        <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={check}>
-          Check again
-        </Button>
+        <Blocked reason={blocked}>
+          <Button variant="link" size="sm" className="h-auto p-0 text-xs" disabled={Boolean(blocked)} onClick={check}>
+            Check again
+          </Button>
+        </Blocked>
       )}
     </div>
   )

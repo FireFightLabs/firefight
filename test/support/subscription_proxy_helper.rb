@@ -31,7 +31,7 @@ module SubscriptionProxyHelper
     SubscriptionProxy::Client::Credential.new(
       name: name, provider: provider, email: email, label: nil, status: rest.fetch(:status, "active"), status_message: nil, disabled: false,
       unavailable: rest.fetch(:unavailable, false), next_retry_after: rest[:next_retry_after], quota: rest.fetch(:quota, {}),
-      quota_observed_at: rest[:quota_observed_at], created_at: created_at, updated_at: updated_at, succeeded: 0, failed: 0
+      quota_observed_at: rest[:quota_observed_at], created_at: created_at, updated_at: updated_at, succeeded: 0, failed: 0, sign_in_id: rest[:sign_in_id]
     )
   end
 

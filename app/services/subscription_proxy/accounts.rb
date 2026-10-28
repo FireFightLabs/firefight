@@ -5,7 +5,7 @@ module SubscriptionProxy
   class Accounts
     # The Codex limits, each a window with how much of it is used and when it resets.
     LIMIT_WINDOWS = %w[primary secondary].freeze
-    # A finished sign-in no workspace claimed, left by a sign-in that broke off before Firefight heard it finish.
+    # How long a credential that names no sign-in is kept for an account to claim it.
     UNCLAIMED_AFTER = 30.minutes
 
     # Sign-ins nobody finished are kept a day, so a page left open can still say what became of one.
@@ -96,23 +96,32 @@ module SubscriptionProxy
       account.destroy!
     end
 
-    # Removes finished sign-ins no workspace claimed, once nothing can still claim them. The proxy's credentials are all
-    # workspaces', so this runs once for the install, one kind at a time under the lock claims take. A credential with no
-    # time of its own is never taken as old.
+    # Removes credentials no account names once nothing will claim them. The proxy's credentials are all workspaces', so
+    # this runs once for the install, one kind at a time under the lock claims take.
     def self.sweep_unclaimed!(credentials)
       client = Client.new
       credentials.group_by(&:provider).each do |provider, kind|
         ClaimLock.hold(provider, wait: SignIns::LOCK_WAIT) do
           claimed = WorkspaceAiAccount.where(proxy_credential: kind.map(&:name)).pluck(:proxy_credential)
-          stale = kind.reject { |credential| claimed.include?(credential.name) }
-                      .select { |credential| credential.created_at.present? && credential.created_at < UNCLAIMED_AFTER.ago }
-          stale.each do |credential|
+          waiting = SubscriptionSignIn.waiting.where(id: kind.filter_map(&:sign_in_id).grep(SubscriptionProxy::ModelFacts::UUID)).pluck(:id)
+          kind.reject { |credential| claimed.include?(credential.name) }.select { |credential| unclaimable?(credential, waiting) }.each do |credential|
             client.delete(credential.name)
             Rails.logger.info({ event: "subscription_proxy.unclaimed_removed", provider: credential.provider }.to_json)
           end
         end
       end
     end
+
+    # A credential a sign-in made waits while that sign-in does, and goes once it ended without an account, cancelled
+    # or failed, which is a sign-in approved after it was cancelled. One that names no sign-in waits UNCLAIMED_AFTER
+    # from when it was last written, and goes at once when the proxy gives no time for it.
+    def self.unclaimable?(credential, waiting)
+      return !waiting.include?(credential.sign_in_id) if credential.sign_in_id.present?
+
+      written = credential.updated_at || credential.created_at
+      written.nil? || written < UNCLAIMED_AFTER.ago
+    end
+    private_class_method :unclaimable?
 
     # What one credential says of its limit and its sign-in, as the account keeps it.
     def state_of(credential)

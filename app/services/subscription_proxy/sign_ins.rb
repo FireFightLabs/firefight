@@ -1,28 +1,22 @@
 module SubscriptionProxy
-  # Connecting a workspace's AI subscription: the proxy starts a sign-in, the person finishes it with the provider (a
-  # code to enter, or an address to paste back), and the credential the proxy then holds is claimed for the workspace by
-  # giving it the workspace's prefix. The proxy does not say which credential a sign-in made, so a credential is claimed
-  # only when this sign-in is the one sign-in of its kind that could have made it, from when each started and ended.
-  # Anything else is never guessed at: the credentials are removed and the person signs in again.
+  # Connecting a workspace's AI subscription: the proxy starts a sign-in named by the sign-in's own id and workspace,
+  # the person finishes it with the provider (a code to enter, or an address to paste back), and the proxy saves the
+  # credential already stamped with both (deploy/subscription-proxy/firefight_sign_in.go). The credential is then found
+  # by the sign-in's id, never guessed at, and the account is made for it.
   class SignIns
     Failed = Class.new(StandardError)
     # The proxy could not be asked, which is said once while the sign-in keeps waiting.
     StillWaiting = Class.new(StandardError)
 
-    # How long a request waits for another claim of the same kind before the page asks again.
+    # How long a request waits for the sweep of the same kind before the page asks again.
     LOCK_WAIT = 3.seconds
-    # The most other sign-ins still waiting that a claim asks the proxy about. Past it the claim is not guessed at.
-    RIVALS_ASKED = 5
-    # Ended sign-ins older than this cannot have made a credential that is still unclaimed.
-    RIVALS_LOOK_BACK = 1.day
 
     UNAVAILABLE = SubscriptionProxy::UNAVAILABLE
     UNREACHABLE_WHILE_WAITING = "Firefight cannot reach the subscription service right now. Your sign-in is kept and finishes once it answers again.".freeze
     TIMED_OUT = "The sign-in timed out before it finished. Start again.".freeze
     NOT_THE_ADDRESS = "That is not the address this sign-in sent your browser to. Copy the whole address from the address bar after you sign in, and paste it here.".freeze
     TAKEN = "This account is already connected to another Firefight workspace. Disconnect it there first, or sign in with another account.".freeze
-    NOTHING_NEW = "The sign-in finished, but no new account came of it. Start again.".freeze
-    AT_ONCE = "Another sign-in to the same service finished around the same time, so Firefight could not tell them apart. Start again.".freeze
+    NOTHING_NEW = "The sign-in finished, but no account came of it. Start again.".freeze
     CANCELLED = "The sign-in was cancelled.".freeze
 
     # The account connected or signed in again, or nil while the person has not finished.
@@ -34,7 +28,8 @@ module SubscriptionProxy
       @by = by
     end
 
-    # A person has one sign-in at a time, so starting another cancels theirs that was waiting.
+    # A person has one sign-in at a time, so starting another cancels theirs that was waiting. The sign-in's id is
+    # chosen first, since the proxy is told it when the sign-in starts.
     def start!(subscription_key, site: nil, account: nil)
       raise Failed, UNAVAILABLE unless SubscriptionProxy.usable?
 
@@ -43,9 +38,10 @@ module SubscriptionProxy
       raise Failed, "That is not a place #{subscription.name} signs in." unless chosen
 
       SubscriptionSignIn.waiting.where(workspace: @workspace, started_by: @by).find_each { |waiting| cancel!(waiting) }
-      started = client.start_sign_in(chosen.proxy)
+      id = SecureRandom.uuid
+      started = client.start_sign_in(chosen.proxy, sign_in_id: id)
       SubscriptionSignIn.create!(
-        workspace: @workspace, started_by: @by, workspace_ai_account: account, subscription: subscription.key, proxy: chosen.proxy,
+        id: id, workspace: @workspace, started_by: @by, workspace_ai_account: account, subscription: subscription.key, proxy: chosen.proxy,
         state: started.state, url: started.url, user_code: started.user_code,
         expires_at: started.expires_at || SubscriptionSignIn::PASTE_WAIT.from_now
       )
@@ -57,10 +53,10 @@ module SubscriptionProxy
     def start_again!(account) = start!(account.provider, site: account.proxy_state.to_h["proxy"], account: account)
 
     # The address the person's browser landed on after signing in. Only this sign-in's own state is taken, so one
-    # workspace can never finish another's. It looks once whether that finished it, and the page asks again after.
+    # workspace can never finish another's. It looks once whether that finished it, and the page asks again after. Once
+    # the proxy has the code it is not asked for again, even when the look fails.
     def hand_back!(sign_in, address)
       return finished(sign_in) unless sign_in.waiting?
-      return fail!(sign_in, TIMED_OUT) if sign_in.expired?
 
       query = Rack::Utils.parse_query(URI.parse(address.to_s.strip).query.to_s)
       raise Failed, NOT_THE_ADDRESS unless query["state"] == sign_in.state && query["code"].present?
@@ -70,34 +66,43 @@ module SubscriptionProxy
       rescue SubscriptionProxy::Error
         raise Failed, UNAVAILABLE
       end
-      advance!(sign_in)
+      begin
+        advance!(sign_in)
+      rescue StillWaiting
+        nil
+      end
     rescue URI::InvalidURIError
       raise Failed, NOT_THE_ADDRESS
     end
 
     # Asks the proxy whether the person finished. Answers the Outcome once they did and nil while they have not. Raises
-    # Failed with why it will not finish, and StillWaiting the first time the proxy cannot be asked.
+    # Failed with why it will not finish, and StillWaiting the first time the proxy cannot be asked. A sign-in the proxy
+    # finished is taken up even when it finished just before its time ran out.
     def advance!(sign_in)
       return finished(sign_in) unless sign_in.waiting?
-      return fail!(sign_in, TIMED_OUT) if sign_in.expired?
 
       status = client.sign_in_status(sign_in.state)
-      sign_in.update_columns(error: nil) if sign_in.error.present?
+      answered_again!(sign_in)
+      return claim!(sign_in) if status == :done
+      return timed_out!(sign_in) if sign_in.expired?
       return nil if status == :waiting
-      return fail!(sign_in, "The sign-in did not finish: #{status.to_s.strip.delete_suffix('.')}. Start again.") unless status == :done
 
-      claim!(sign_in)
+      fail!(sign_in, refused_because(sign_in) || "The sign-in did not finish: #{status.to_s.strip.delete_suffix('.')}. Start again.")
     rescue SubscriptionProxy::Error
       unreachable!(sign_in)
     end
 
-    # Kept, so a credential the proxy made from it before it was cancelled is never claimed by another sign-in.
+    # Kept, so a credential the proxy saved from it before it was cancelled is found and removed (Accounts.sweep!).
+    # Answers whether this request cancelled it, false when it had already finished.
     def cancel!(sign_in)
-      return unless sign_in.settle!(SubscriptionSignIn::STATUS_CANCELLED, error: CANCELLED)
+      return false unless sign_in.settle!(SubscriptionSignIn::STATUS_CANCELLED, error: CANCELLED)
 
-      client.cancel_sign_in(sign_in.state)
-    rescue SubscriptionProxy::Error
-      nil
+      begin
+        client.cancel_sign_in(sign_in.state)
+      rescue SubscriptionProxy::Error => error
+        Rails.logger.warn({ event: "subscription_proxy.cancel_unsent", sign_in_id: sign_in.id, error: error.message }.to_json)
+      end
+      true
     end
 
     private
@@ -109,11 +114,34 @@ module SubscriptionProxy
       raise Failed, reason
     end
 
-    def unreachable!(sign_in)
-      return nil if sign_in.error.present?
+    # The proxy stops waiting on it too, so the provider approving it later saves nothing.
+    def timed_out!(sign_in)
+      begin
+        client.cancel_sign_in(sign_in.state)
+      rescue SubscriptionProxy::Error
+        nil
+      end
+      fail!(sign_in, TIMED_OUT)
+    end
 
-      sign_in.update_columns(error: UNREACHABLE_WHILE_WAITING)
-      raise StillWaiting, UNREACHABLE_WHILE_WAITING
+    # Said once: the error is written only on a waiting sign-in that has none yet.
+    def unreachable!(sign_in)
+      first = SubscriptionSignIn.where(id: sign_in.id, status: SubscriptionSignIn::STATUS_WAITING, error: nil)
+                                .update_all(error: UNREACHABLE_WHILE_WAITING, updated_at: Time.current) == 1
+      raise StillWaiting, UNREACHABLE_WHILE_WAITING if first
+
+      nil
+    end
+
+    def answered_again!(sign_in)
+      SubscriptionSignIn.where(id: sign_in.id, status: SubscriptionSignIn::STATUS_WAITING).where.not(error: nil).update_all(error: nil)
+    end
+
+    # Without the proxy's word on why, the sign-in still ends with what the proxy said of it.
+    def refused_because(sign_in)
+      TAKEN if client.sign_in_refusal(sign_in.id) == Client::REFUSED_TAKEN
+    rescue SubscriptionProxy::Error
+      nil
     end
 
     # A sign-in another request already settled answers what that request found.
@@ -123,71 +151,56 @@ module SubscriptionProxy
       Outcome.new(account: @workspace.workspace_ai_accounts.find_by(id: sign_in.workspace_ai_account_id), reconnected: false, fresh: false)
     end
 
-    # Another claim of the same kind holding the lock leaves this one waiting, and the page asks again.
+    # The credential this sign-in made is the one carrying its id. The proxy lists it a moment after it is saved, so
+    # until then the sign-in waits. The sweep of the same kind never runs meanwhile.
     def claim!(sign_in)
       result = ClaimLock.hold(sign_in.proxy, wait: LOCK_WAIT) do
         sign_in.reload
         next finished(sign_in) unless sign_in.waiting?
 
-        credentials = client.credentials.select { |credential| credential.provider == sign_in.proxy }
-        claimed = WorkspaceAiAccount.where(proxy_credential: credentials.map(&:name)).to_a.index_by(&:proxy_credential)
-        unclaimed = credentials.reject { |credential| claimed.key?(credential.name) }
-        fresh = unclaimed.select { |credential| sign_in.could_have_made?(made_at(credential)) }
-        next signed_in_again!(sign_in, credentials, claimed) if fresh.empty?
+        credential = client.credentials.find { |candidate| candidate.provider == sign_in.proxy && candidate.sign_in_id == sign_in.id }
+        unless credential
+          fail!(sign_in, NOTHING_NEW) if sign_in.expired?
+          next nil
+        end
 
-        rivals = fresh.flat_map { |credential| rivals_for(sign_in, credential, unclaimed - fresh) }.uniq
-        next connect!(sign_in, fresh.first) if fresh.size == 1 && rivals.empty?
-
-        fresh.each { |credential| client.delete(credential.name) }
-        rivals.select(&:waiting?).each { |rival| rival.settle!(SubscriptionSignIn::STATUS_FAILED, error: AT_ONCE) }
-        fail!(sign_in, AT_ONCE)
+        holder = WorkspaceAiAccount.find_by(proxy_credential: credential.name)
+        if holder && holder.workspace_id != @workspace.id
+          fail!(sign_in, TAKEN)
+        elsif holder
+          signed_in_again!(sign_in, holder)
+        else
+          connect!(sign_in, credential)
+        end
       end
       result == ClaimLock::BUSY ? nil : result
     end
 
-    # A credential with no time of its own is taken as made now, which no ended sign-in can account for.
-    def made_at(credential) = credential.created_at || Time.current
+    # The same login signed in again keeps the credential it had, with fresh tokens and the workspace's prefix.
+    def signed_in_again!(sign_in, account)
+      account.update_columns(failing_since: nil, last_error: nil, proxy_state: account.proxy_state.merge("signed_out" => false), updated_at: Time.current)
+      return finished(sign_in.reload) unless settle_done!(sign_in, account)
 
-    # The other sign-ins of the kind that could have made the credential: ended ones whose time covers it, and waiting
-    # ones the proxy says finished. One that another unclaimed credential outside this sign-in's time accounts for is
-    # not counted, since a sign-in makes one credential.
-    def rivals_for(sign_in, credential, accounted)
-      at = made_at(credential)
-      others = SubscriptionSignIn.where(proxy: sign_in.proxy).where.not(id: sign_in.id).where(created_at: RIVALS_LOOK_BACK.ago..)
-                                 .select { |other| other.could_have_made?(at) }
-                                 .reject { |other| accounted.any? { |elsewhere| other.could_have_made?(made_at(elsewhere)) } }
-      ended, waiting = others.partition { |other| !other.waiting? }
-      return others if waiting.size > RIVALS_ASKED
-
-      ended + waiting.select { |other| client.sign_in_status(other.state) == :done }
+      Outcome.new(account: account.reload, reconnected: true, fresh: true)
     end
 
-    # The same account signed in again keeps the credential it had, with fresh tokens and the prefix it already carries.
-    def signed_in_again!(sign_in, credentials, claimed)
-      touched = credentials.select { |credential| credential.updated_at.nil? || sign_in.could_have_made?(credential.updated_at) }
-                           .filter_map { |credential| claimed[credential.name] }
-      ours = touched.find { |account| account.workspace_id == @workspace.id }
-      fail!(sign_in, touched.any? ? TAKEN : NOTHING_NEW) unless ours
-
-      ours.update_columns(failing_since: nil, last_error: nil, proxy_state: ours.proxy_state.merge("signed_out" => false), updated_at: Time.current)
-      sign_in.update_columns(workspace_ai_account_id: ours.id)
-      sign_in.settle!(SubscriptionSignIn::STATUS_DONE)
-      Outcome.new(account: ours.reload, reconnected: true, fresh: true)
-    end
-
-    # The prefix goes on before the account is saved, so a credential this workspace holds is only ever reachable with
-    # its prefix. A save that fails takes the credential away again.
     def connect!(sign_in, credential)
-      client.claim(credential.name, prefix: SubscriptionProxy.prefix_for(@workspace))
       state = Accounts.new(@workspace).state_of(credential).merge("models" => models_of(credential), "proxy" => sign_in.proxy)
       replacing = sign_in.workspace_ai_account
       account = replacing ? reconnect_with(replacing, credential, state) : new_account(sign_in, credential, state)
-      sign_in.update_columns(workspace_ai_account_id: account.id)
-      sign_in.settle!(SubscriptionSignIn::STATUS_DONE)
+      return finished(sign_in.reload) unless settle_done!(sign_in, account)
+
       Outcome.new(account: account.reload, reconnected: replacing.present?, fresh: true)
+    rescue ActiveRecord::RecordNotUnique
+      finished(sign_in.reload)
     rescue ActiveRecord::RecordInvalid => error
       client.delete(credential.name)
       fail!(sign_in, "The sign-in finished, but #{error.record.errors.full_messages.to_sentence.downcase_first}. Start again.")
+    end
+
+    def settle_done!(sign_in, account)
+      SubscriptionSignIn.where(id: sign_in.id, status: SubscriptionSignIn::STATUS_WAITING)
+                        .update_all(status: SubscriptionSignIn::STATUS_DONE, error: nil, workspace_ai_account_id: account.id, updated_at: Time.current) == 1
     end
 
     def models_of(credential)

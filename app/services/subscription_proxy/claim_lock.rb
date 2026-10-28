@@ -1,6 +1,6 @@
 module SubscriptionProxy
-  # One claim or sweep at a time for each kind of sign-in across the install, so two workspaces never claim from the same
-  # list and the sweep never removes a credential being claimed. The lock is a session's own, on a connection of its
+  # One claim or sweep at a time for each kind of sign-in across the install, so the sweep never removes a credential
+  # being claimed. The lock is a session's own, on a connection of its
   # own, so no transaction stays open while the proxy answers.
   module ClaimLock
     ASK_EVERY = 0.2
