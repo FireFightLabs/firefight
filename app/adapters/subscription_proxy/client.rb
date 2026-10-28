@@ -104,9 +104,10 @@ module SubscriptionProxy
       body.fetch("models", []).map { |model| model["id"].to_s.delete_prefix("#{prefix}/") }.uniq
     end
 
+    # A credential the proxy no longer holds is already gone, which is what a delete asks for.
     def delete(name)
       checked = checked_name(name)
-      call(:delete_credential, Net::HTTP::Delete, "#{MANAGEMENT}/credentials?#{{ name: checked }.to_query}")
+      call(:delete_credential, Net::HTTP::Delete, "#{MANAGEMENT}/credentials?#{{ name: checked }.to_query}", missing_is_done: true)
       nil
     end
 
@@ -170,7 +171,7 @@ module SubscriptionProxy
       raise Refused.new("the subscription proxy answered something that is not JSON", status: response.code.to_i)
     end
 
-    def call(operation, verb, path, key: SubscriptionProxy.settings.management_key, body: nil, headers: {})
+    def call(operation, verb, path, key: SubscriptionProxy.settings.management_key, body: nil, headers: {}, missing_is_done: false)
       uri = URI("#{SubscriptionProxy.url}#{path}")
       request = verb.new(uri)
       request["Authorization"] = "Bearer #{key}" if key
@@ -181,8 +182,10 @@ module SubscriptionProxy
       end
       response = transport(uri, request)
       return response if response.is_a?(Net::HTTPSuccess)
+      return response if missing_is_done && response.is_a?(Net::HTTPNotFound)
 
-      raise Refused.new("the subscription proxy answered #{response.code}: #{reason(response)}", status: response.code.to_i)
+      refused = response.is_a?(Net::HTTPNotFound) ? NotFound : Refused
+      raise refused.new("the subscription proxy answered #{response.code}: #{reason(response)}", status: response.code.to_i)
     rescue Error => error
       PlatformCallFailure.note(workspace: @workspace, platform: PLATFORM, operation: operation, error: error)
       raise

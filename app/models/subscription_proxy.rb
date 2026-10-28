@@ -17,6 +17,9 @@ module SubscriptionProxy
     end
   end
 
+  # The proxy does not hold what was named, such as a credential removed there.
+  NotFound = Class.new(Refused)
+
   # Said where a subscription cannot be connected because the proxy is down or does not keep workspaces apart.
   UNAVAILABLE = "Subscriptions cannot be connected right now. Try again in a few minutes.".freeze
 
