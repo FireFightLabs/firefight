@@ -6,7 +6,7 @@ export default interface OperatorAttentionItem {
   external: boolean
   href?: string
   key: string
-  kind: "workflow_failed" | "workflow_stuck" | "webhook_failing" | "platform_failed" | "alert_stuck" | "queue_backed_up" | "jobs_failed" | "halon_failed" | "halon_limit" | "halon_not_posted" | "halon_stuck" | "skill_broken" | "ai_out_of_credit" | "ai_short_of_credit" | "ai_balance_unchecked" | "sandbox_failover" | "sandbox_rogue" | "sandbox_trouble" | "sandbox_unread"
+  kind: "workflow_failed" | "workflow_stuck" | "webhook_failing" | "platform_failed" | "alert_stuck" | "queue_backed_up" | "jobs_failed" | "halon_failed" | "halon_limit" | "halon_not_posted" | "halon_stuck" | "skill_broken" | "ai_out_of_credit" | "ai_short_of_credit" | "ai_balance_unchecked" | "sandbox_failover" | "sandbox_rogue" | "sandbox_trouble" | "sandbox_unread" | "subscription_proxy_failing"
   place: string
   subject: string
   title: string
