@@ -66,6 +66,8 @@ class WorkspaceAiAccount < ApplicationRecord
         value.present? ? kept_settings[field.key] = value : kept_settings.delete(field.key)
       end
     end
+    # A setting only another region asks for, such as a workspace ID left from before the region changed, is not kept.
+    definition.fields.each { |field| kept_settings.delete(field.key) unless field.secret || field.applies?(kept_settings) }
     self.settings = kept_settings
     write_secrets(kept_secrets)
   end
@@ -264,8 +266,11 @@ class WorkspaceAiAccount < ApplicationRecord
     return if oauth?
 
     values = settings.to_h.merge(secrets)
-    definition.fields.select(&:required).each do |field|
+    definition.fields.select { |field| field.required && field.applies?(values) }.each do |field|
       errors.add(:base, "#{field.label} is required") if values[field.key].blank?
+    end
+    definition.fields.select { |field| field.choices.any? && values[field.key].present? }.each do |field|
+      errors.add(:base, "#{field.label} is not one #{definition.name} serves") unless field.choice?(values[field.key])
     end
     return if errors.any?
 

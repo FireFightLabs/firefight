@@ -78,6 +78,42 @@ class AiAccountsTest < ApplicationSystemTestCase
     assert_equal page.evaluate_script("document.documentElement.clientWidth"), page.evaluate_script("document.documentElement.scrollWidth")
   end
 
+  test "an admin adds a Qwen account by region, asked for a workspace ID only where Model Studio's address carries it" do
+    FirefightAi.stubs(:check_account)
+    visit settings_workspace_path
+    show_card
+
+    click_button "Add account"
+    within("[role=dialog]") { find("button[role=combobox]", match: :first).click }
+    find("[role=option]", text: "Qwen", exact_text: true).click
+    within("[role=dialog]") do
+      assert_equal "QwenCloud, Singapore (ap-southeast-1.maas.qwencloudapi.com)", combobox("Region").text
+      assert_no_field "Workspace ID"
+      combobox("Region").click
+    end
+    page.save_screenshot(Rails.root.join("tmp/screenshots/ai-accounts-qwen-regions.png"))
+    find("[role=option]", text: "Alibaba Cloud Model Studio, Germany Frankfurt (your workspace's address)").click
+    within("[role=dialog]") do
+      fill_in "API key", with: "sk-qwen-team-9b1c"
+      fill_in "Workspace ID", with: "llm-4f2a"
+      page.save_screenshot(Rails.root.join("tmp/screenshots/ai-accounts-qwen-add.png"))
+      click_button "Add and check"
+    end
+
+    assert_toast "Qwen was added and works."
+    account = @workspace.workspace_ai_accounts.find_by!(label: "Qwen")
+    assert_equal({ "region" => "alibaba-eu-central-1", "workspace_id" => "llm-4f2a" }, account.settings)
+    assert_equal [ "qwen3.8-max", "qwen3.8-flash" ], account.models.values_at("main", "fast")
+
+    click_button "Add account"
+    within("[role=dialog]") { find("button[role=combobox]", match: :first).click }
+    find("[role=option]", text: "Z.AI", exact_text: true).click
+    within("[role=dialog]") do
+      assert_equal "Global (api.z.ai)", combobox("Region").text
+      page.save_screenshot(Rails.root.join("tmp/screenshots/ai-accounts-zai-add.png"))
+    end
+  end
+
   test "on Firefight's cloud the credits row under the accounts says what is left and where to buy more" do
     on_firefights_cloud!(credit: AiAccountTestHelper::Credit.new(true, false))
 
@@ -94,6 +130,10 @@ class AiAccountsTest < ApplicationSystemTestCase
   def choose_model(label, model)
     find("label", text: label, exact_text: true).find(:xpath, "..").find("button[role=combobox]").click
     page.document.find("[cmdk-item]", text: model, exact_text: true).click
+  end
+
+  def combobox(label)
+    find("label", text: label, exact_text: true).find(:xpath, "..").find("button[role=combobox]")
   end
 
   def show_card

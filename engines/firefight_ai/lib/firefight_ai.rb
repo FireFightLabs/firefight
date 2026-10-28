@@ -2,6 +2,7 @@ require "concurrent/map"
 require "ruby_llm"
 require "schematist"
 require "firefight_ai/version"
+require "firefight_ai/providers"
 require "firefight_ai/configuration"
 require "firefight_ai/credit"
 require "firefight_ai/balance"
@@ -310,9 +311,24 @@ module FirefightAi
     return if stamp.first.to_i.zero? || stamp == @registry_stamp
 
     RubyLLM.models.load_from_store
+    if add_registered_models(store)
+      RubyLLM.models.load_from_store
+      stamp = store.pick(Arel.sql("COUNT(*)"), Arel.sql("MAX(updated_at)"))
+    end
     @registry_stamp = stamp
   rescue ActiveRecord::ActiveRecordError => e
     Rails.logger.warn({ event: "ai.model_registry_unread", error: e.class.name, message: e.message }.to_json)
+  end
+
+  # The providers Firefight registers bring their models in a file (FirefightAi::Providers), which RubyLLM adds when a
+  # process first reads the registry and a refresh writes into the table. Reading the table alone would drop them until
+  # the next refresh wherever the table was last refreshed before a provider was added, so those missing are written in.
+  # Whether any was.
+  def add_registered_models(store)
+    held = (RubyLLM.models.all + RubyLLM.models.unlisted).to_set { |model| [ model.provider.to_s, model.id ] }
+    missing = RubyLLM::Models.models_from_provider_gems.reject { |model| held.include?([ model.provider.to_s, model.id ]) }
+    missing.each { |model| store.from_llm(model).save! }
+    missing.any?
   end
 
   # A model whose price the registry does not know is billed at zero, so nothing stops a run that uses it.

@@ -18,6 +18,34 @@ class AiAccountsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "4f2a", 1 ], [ account.credential_hint, account.position ]
   end
 
+  test "Z.AI, MiniMax and Qwen accounts are added with their region and deleted, each confirmed with a toast" do
+    FirefightAi.stubs(:check_account)
+    { "zai" => { region: "global" }, "minimax" => { region: "china" }, "qwen" => { region: "alibaba-ap-northeast-1", workspace_id: "llm-4f2a" } }.each do |provider, settings|
+      post ai_accounts_path, params: { provider: provider, label: "Our #{provider}", settings: { api_key: "key-#{provider}-9b1c", **settings },
+                                       models: AiAccountTestHelper::REGISTERED_MODELS.fetch(provider) }
+
+      assert_equal "Our #{provider} was added and works.", flash[:notice]
+      account = @workspace.workspace_ai_accounts.find_by!(label: "Our #{provider}")
+      assert_equal settings.stringify_keys, account.settings
+      assert_equal "9b1c", account.credential_hint
+
+      delete ai_account_path(account)
+      assert_equal "Our #{provider} was deleted.", flash[:notice]
+    end
+  end
+
+  test "the form is sent each region a provider serves, and the setting only some of them ask for" do
+    get settings_workspace_path, headers: inertia_headers
+
+    qwen = inertia_props.fetch("aiProviders").find { |provider| provider["slug"] == "qwen" }
+    region = qwen["fields"].find { |field| field["key"] == "region" }
+    workspace = qwen["fields"].find { |field| field["key"] == "workspace_id" }
+    assert_equal({ "key" => "ap-southeast-1", "label" => "QwenCloud, Singapore (ap-southeast-1.maas.qwencloudapi.com)" }, region["choices"].first)
+    assert_nil region["onlyWhen"]
+    assert_equal({ "key" => "region", "values" => %w[alibaba-eu-central-1 alibaba-ap-northeast-1] }, workspace["onlyWhen"])
+    assert_equal [ "glm-5.3", "glm-5.3-flash" ], inertia_props.fetch("aiProviders").find { |provider| provider["slug"] == "zai" }.values_at("mainModel", "fastModel")
+  end
+
   test "a save whose check fails is kept, out of Halon's way, and says why in plain words" do
     FirefightAi.stubs(:check_account).raises(FirefightAi::TerminalError.new("401 invalid x-api-key sk-ant-abc", reason: "UnauthorizedError"))
 

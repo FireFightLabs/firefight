@@ -135,6 +135,38 @@ class FirefightAi::CreditTest < ActiveSupport::TestCase
     [ anthropic, deepseek, xai ].each { |error| assert_raises(FirefightAi::OutOfCredit) { FirefightAi.translating_errors { raise error } } }
   end
 
+  # Each in the provider's documented shape. Z.AI's 1113 comes as a 429, and Model Studio's codes under several statuses.
+  test "Z.AI's spent balance and Model Studio's overdue or spent account are out of credit, never a rate limit" do
+    zai = { "error" => { "code" => "1113", "message" => "Insufficient balance or no resource package. Please recharge." } }
+    refusals = [ RubyLLM::RateLimitError.new(zai.dig("error", "message"), response: Response.new(429, zai, {})) ]
+    { "Arrearage" => 400, "isv.OUT_OF_SERVICE" => 400, "PrepaidBillOverdue" => 429, "PostpaidBillOverdue" => 429,
+      "BudgetLimitExceeded" => 429, "AllocationQuota.FreeTierOnly" => 403, "Throttling.AllocationQuota" => 429 }.each do |code, status|
+      body = { "error" => { "code" => code, "message" => "Access denied, please make sure your account is in good standing.", "type" => code } }
+      kind = { 400 => RubyLLM::BadRequestError, 403 => RubyLLM::ForbiddenError, 429 => RubyLLM::RateLimitError }.fetch(status)
+      refusals << kind.new(body.dig("error", "message"), response: Response.new(status, body.to_json, {}))
+    end
+
+    refusals.each do |error|
+      assert_raises(FirefightAi::OutOfCredit) { FirefightAi.translating_errors { raise error } }
+      assert_not FirefightAi.provider_down?(error), "#{error.message} is the payer's to fix"
+    end
+  end
+
+  test "MiniMax's insufficient balance in base_resp is out of credit, whatever the status" do
+    body = { "base_resp" => { "status_code" => 1008, "status_msg" => "insufficient balance" } }
+    error = RubyLLM::BadRequestError.new("insufficient balance", response: Response.new(400, body, {}))
+
+    assert_raises(FirefightAi::OutOfCredit) { FirefightAi.translating_errors { raise error } }
+  end
+
+  test "Z.AI's rate limit is still the provider being busy" do
+    body = { "error" => { "code" => "1302", "message" => "High concurrency usage of this API, please reduce concurrency or contact customer service." } }
+    error = RubyLLM::RateLimitError.new(body.dig("error", "message"), response: Response.new(429, body, {}))
+
+    assert FirefightAi.provider_down?(error)
+    assert_raises(FirefightAi::TransientError) { FirefightAi.translating_errors { raise error } }
+  end
+
   test "a 403 that is not about money is still the key refused, not out of credit" do
     error = RubyLLM::ForbiddenError.new("This model is not available in your region", response: Response.new(403, {}, {}))
 

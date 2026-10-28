@@ -102,6 +102,42 @@ xai:
   name: xAI
   main: grok-4.6
   fast: grok-4.20-0309-non-reasoning
+# Z.AI, MiniMax and Qwen each serve a region from an address of its own, and a key works only where it was
+# made, so the form asks for the region by the names in regions, the first being where it starts. Their models and
+# prices are FirefightAi::Providers', since RubyLLM's catalog holds none of them.
+zai:
+  name: Z.AI
+  main: glm-5.3
+  fast: glm-5.3-flash
+  regions:
+    global: Global (api.z.ai)
+    china: China, BigModel (open.bigmodel.cn)
+minimax:
+  name: MiniMax
+  main: MiniMax-M3
+  fast: MiniMax-M3.1-Flash
+  regions:
+    global: Global (api.minimax.io)
+    china: China (api.minimax.cn)
+qwen:
+  name: Qwen
+  main: qwen3.8-max
+  fast: qwen3.8-flash
+  # QwenCloud's regions first, then Alibaba Cloud Model Studio's, whose Frankfurt and Tokyo addresses carry the
+  # workspace's ID.
+  regions:
+    ap-southeast-1: QwenCloud, Singapore (ap-southeast-1.maas.qwencloudapi.com)
+    us-east-1: QwenCloud, US Virginia (us-east-1.maas.qwencloudapi.com)
+    eu-central-1: QwenCloud, Germany Frankfurt (eu-central-1.maas.qwencloudapi.com)
+    ap-northeast-1: QwenCloud, Japan Tokyo (ap-northeast-1.maas.qwencloudapi.com)
+    cn-hongkong: QwenCloud, China Hong Kong (cn-hongkong.maas.qwencloudapi.com)
+    cn-beijing: QwenCloud, China Beijing (cn-beijing.maas.qwencloudapi.com)
+    alibaba-ap-southeast-1: Alibaba Cloud Model Studio, Singapore (dashscope-intl.aliyuncs.com)
+    alibaba-us-east-1: Alibaba Cloud Model Studio, US Virginia (dashscope-us.aliyuncs.com)
+    alibaba-eu-central-1: Alibaba Cloud Model Studio, Germany Frankfurt (your workspace's address)
+    alibaba-ap-northeast-1: Alibaba Cloud Model Studio, Japan Tokyo (your workspace's address)
+    alibaba-cn-hongkong: Alibaba Cloud Model Studio, China Hong Kong (cn-hongkong.dashscope.aliyuncs.com)
+    alibaba-cn-beijing: Alibaba Cloud Model Studio, China Beijing (dashscope.aliyuncs.com)
 ollama:
   name: Ollama
 gpustack:
@@ -120,6 +156,7 @@ settings:
   location: Location
   project_id: Project ID
   organization_id: Organization ID
+  workspace_id: Workspace ID
 
 # The models a person can switch a dashboard chat to, per provider, in the order the picker lists them, everyday models
 # first. label is what the picker and each reply call the model, and note says in a few words what it is for. Only the
@@ -169,3 +206,12 @@ chat_models:
   xai:
     - { model: grok-4.3, label: Grok 4.3, note: "Everyday questions" }
     - { model: grok-4.7, label: Grok 4.7, note: "Investigations and tricky problems" }
+  zai:
+    - { model: glm-5.3-flash, label: GLM-5.3 Flash, note: "Everyday questions" }
+    - { model: glm-5.3, label: GLM-5.3, note: "Investigations and tricky problems, reads text only" }
+  minimax:
+    - { model: MiniMax-M3.1-Flash, label: MiniMax M3.1 Flash, note: "Everyday questions, reads text only" }
+    - { model: MiniMax-M3, label: MiniMax M3, note: "Investigations and tricky problems" }
+  qwen:
+    - { model: qwen3.8-flash, label: Qwen3.8 Flash, note: "Everyday questions" }
+    - { model: qwen3.8-max, label: Qwen3.8 Max, note: "Investigations and tricky problems" }

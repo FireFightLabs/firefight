@@ -4,8 +4,16 @@ module FirefightAi
   # providers still say it under another class, which only their code or their words tell apart.
   class Credit
     PAYMENT_REQUIRED = 402
-    # OpenAI says a spent balance with a 429 whose code is insufficient_quota, which RubyLLM raises as a rate limit.
-    QUOTA_CODES = %w[insufficient_quota].freeze
+    # The error codes that mean a spent balance whatever the status they come with. OpenAI says it with a 429 whose code
+    # is insufficient_quota, and Z.AI with a 429 whose code is 1113, which RubyLLM raises as a rate limit
+    # (docs.z.ai/api-reference/api-code). Model Studio says an overdue account, a spent budget or a spent free quota under
+    # codes of its own, as a 400, 403 or 429 (alibabacloud.com/help/en/model-studio/error-code).
+    QUOTA_CODES = %w[
+      insufficient_quota 1113
+      Arrearage isv.OUT_OF_SERVICE PrepaidBillOverdue PostpaidBillOverdue BudgetLimitExceeded AllocationQuota.FreeTierOnly Throttling.AllocationQuota
+    ].freeze
+    # MiniMax says a spent balance or credit in base_resp.status_code (platform.minimax.io/docs/api-reference/errorcode).
+    BALANCE_STATUS_CODES = [ 1008, 2053 ].freeze
     # Said only in words under a class that means something else, by Anthropic's usage limit (a bad request), Gemini's
     # spent prepayment (a rate limit), OpenRouter's key spending limit (the key refused, seen live as "something went
     # wrong") and xAI's team out of credits or at its monthly spending limit. The code fix proxy reads the provider's own
@@ -47,6 +55,7 @@ module FirefightAi
       @status = status
       @payment_required = payment_required
       @error = error_object(body)
+      @status_code = base_resp_code(body)
       @words = [ message, @error["message"] ].compact.join(" ")
       @headers = headers || {}
     end
@@ -55,7 +64,7 @@ module FirefightAi
       return false if in_flight?
 
       @payment_required || @status == PAYMENT_REQUIRED || QUOTA_CODES.include?(@error["code"].to_s) || QUOTA_CODES.include?(@error["type"].to_s) ||
-        SPENT_SOURCES.include?(limit_source) || @words.match?(OUT_OF_CREDIT_WORDS)
+        SPENT_SOURCES.include?(limit_source) || BALANCE_STATUS_CODES.include?(@status_code) || @words.match?(OUT_OF_CREDIT_WORDS)
     end
 
     # A wait-and-retry, never a spent balance. OpenRouter documents a 402 with Retry-After as the only one to retry.
@@ -69,8 +78,17 @@ module FirefightAi
 
     # Providers nest it under "error", as a parsed hash or as the raw JSON text.
     def error_object(body)
-      parsed = body.is_a?(String) ? JSON.parse(body) : body
-      found = parsed.is_a?(Hash) ? parsed["error"] || parsed[:error] : nil
+      found = parsed(body)["error"]
+      found.is_a?(Hash) ? found : {}
+    end
+
+    def base_resp_code(body)
+      code = parsed(body).dig("base_resp", "status_code")
+      code.to_i if code.present?
+    end
+
+    def parsed(body)
+      found = body.is_a?(String) ? JSON.parse(body) : body
       found.is_a?(Hash) ? found.deep_stringify_keys : {}
     rescue JSON::ParserError
       {}

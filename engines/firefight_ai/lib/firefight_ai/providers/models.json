@@ -1,0 +1,238 @@
+[
+  {
+    "id": "glm-5.3",
+    "name": "GLM-5.3",
+    "provider": "zai",
+    "family": "glm-5.3",
+    "created_at": null,
+    "context_window": 1000000,
+    "max_output_tokens": 131072,
+    "knowledge_cutoff": null,
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "capabilities": [
+      "function_calling",
+      "structured_output",
+      "reasoning"
+    ],
+    "pricing": {
+      "text_tokens": {
+        "standard": {
+          "input_per_million": 1.4,
+          "output_per_million": 4.4,
+          "cache_read_input_per_million": 0.26
+        }
+      }
+    },
+    "metadata": {
+      "source": "firefight",
+      "docs": "https://docs.z.ai/guides/llm/glm-5.3",
+      "pricing_docs": "https://docs.z.ai/guides/overview/pricing"
+    }
+  },
+  {
+    "id": "glm-5.3-flash",
+    "name": "GLM-5.3 Flash",
+    "provider": "zai",
+    "family": "glm-5.3",
+    "created_at": null,
+    "context_window": 1000000,
+    "max_output_tokens": 131072,
+    "knowledge_cutoff": null,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "capabilities": [
+      "function_calling",
+      "structured_output",
+      "reasoning",
+      "vision"
+    ],
+    "pricing": {
+      "text_tokens": {
+        "standard": {
+          "input_per_million": 0.15,
+          "output_per_million": 0.5,
+          "cache_read_input_per_million": 0.03
+        }
+      }
+    },
+    "metadata": {
+      "source": "firefight",
+      "docs": "https://docs.z.ai/guides/llm/glm-5.3-flash",
+      "pricing_docs": "https://docs.z.ai/guides/overview/pricing"
+    }
+  },
+  {
+    "id": "MiniMax-M3",
+    "name": "MiniMax M3",
+    "provider": "minimax",
+    "family": "minimax-m3",
+    "created_at": null,
+    "context_window": 1000000,
+    "max_output_tokens": 131072,
+    "knowledge_cutoff": null,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "capabilities": [
+      "function_calling",
+      "structured_output",
+      "reasoning",
+      "vision"
+    ],
+    "pricing": {
+      "text_tokens": {
+        "standard": {
+          "input_per_million": 0.3,
+          "output_per_million": 1.2,
+          "cache_read_input_per_million": 0.06
+        },
+        "long_context": {
+          "input_per_million": 0.6,
+          "output_per_million": 2.4,
+          "cache_read_input_per_million": 0.12
+        },
+        "long_context_threshold": 512000
+      }
+    },
+    "metadata": {
+      "source": "firefight",
+      "docs": "https://platform.minimax.io/docs/api-reference/text-chat-openai",
+      "pricing_docs": "https://platform.minimax.io/docs/guides/pricing-paygo"
+    }
+  },
+  {
+    "id": "MiniMax-M3.1-Flash",
+    "name": "MiniMax M3.1 Flash",
+    "provider": "minimax",
+    "family": "minimax-m3",
+    "created_at": null,
+    "context_window": 1000000,
+    "max_output_tokens": 131072,
+    "knowledge_cutoff": null,
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "capabilities": [
+      "function_calling",
+      "structured_output",
+      "reasoning"
+    ],
+    "pricing": {
+      "text_tokens": {
+        "standard": {
+          "input_per_million": 0.15,
+          "output_per_million": 0.6,
+          "cache_read_input_per_million": 0.015
+        }
+      }
+    },
+    "metadata": {
+      "source": "firefight",
+      "docs": "https://platform.minimax.io/docs/api-reference/text-chat-openai",
+      "pricing_docs": "https://platform.minimax.io/docs/guides/pricing-paygo"
+    }
+  },
+  {
+    "id": "qwen3.8-max",
+    "name": "Qwen3.8 Max",
+    "provider": "qwen",
+    "family": "qwen3.8",
+    "created_at": null,
+    "context_window": 1000000,
+    "max_output_tokens": 131072,
+    "knowledge_cutoff": null,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "capabilities": [
+      "function_calling",
+      "structured_output",
+      "reasoning",
+      "vision"
+    ],
+    "pricing": {
+      "text_tokens": {
+        "standard": {
+          "input_per_million": 2,
+          "output_per_million": 6,
+          "cache_read_input_per_million": 0.25
+        }
+      }
+    },
+    "metadata": {
+      "source": "firefight",
+      "docs": "https://www.alibabacloud.com/help/en/model-studio/qwen3-8-max",
+      "pricing_docs": "https://www.alibabacloud.com/help/en/model-studio/model-pricing"
+    }
+  },
+  {
+    "id": "qwen3.8-flash",
+    "name": "Qwen3.8 Flash",
+    "provider": "qwen",
+    "family": "qwen3.8",
+    "created_at": null,
+    "context_window": 1000000,
+    "max_output_tokens": 131072,
+    "knowledge_cutoff": null,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "capabilities": [
+      "function_calling",
+      "structured_output",
+      "reasoning",
+      "vision"
+    ],
+    "pricing": {
+      "text_tokens": {
+        "standard": {
+          "input_per_million": 0.15,
+          "output_per_million": 0.47,
+          "cache_read_input_per_million": 0.016
+        }
+      }
+    },
+    "metadata": {
+      "source": "firefight",
+      "docs": "https://www.alibabacloud.com/help/en/model-studio/qwen3-8-flash",
+      "pricing_docs": "https://www.alibabacloud.com/help/en/model-studio/model-pricing"
+    }
+  }
+]

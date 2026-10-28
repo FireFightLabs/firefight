@@ -22,8 +22,12 @@ module AiProviders
   # A setting whose value is an address the server will call.
   ADDRESS_SETTING = "api_base".freeze
 
-  # Settings a provider writes into the host it calls, such as Bedrock's region, so each must be a plain name.
-  HOST_NAME_SETTINGS = %w[region location].freeze
+  # Settings a provider writes into the host it calls, such as Bedrock's region or a Model Studio workspace, so each must
+  # be a plain name.
+  HOST_NAME_SETTINGS = %w[region location workspace_id].freeze
+
+  # The setting a provider that serves each region at its own address is told the region by.
+  REGION_SETTING = "region".freeze
   HOST_NAME = /\A[a-z0-9-]+\z/i
 
   # The registry's sections that are not providers.
@@ -32,7 +36,20 @@ module AiProviders
   # A model a person can switch a dashboard chat to, with the name and the few words the picker shows.
   ChatModel = Data.define(:model, :label, :note)
 
-  Field = Data.define(:key, :option, :label, :secret, :required)
+  # choices are what a setting can be, for a provider that says (a region it serves), else empty and the setting is typed.
+  # only_when names the setting and its values that ask for this one, such as the regions a Model Studio workspace ID is
+  # part of the address in, and the setting is asked for and needed only then. Nil for a setting always asked for.
+  Field = Data.define(:key, :option, :label, :secret, :required, :choices, :only_when) do
+    def initialize(key:, option:, label:, secret:, required:, choices: [], only_when: nil) = super
+
+    def choice?(value) = choices.any? { |choice| choice.key == value.to_s }
+
+    # Whether the setting is asked for, given what the others are.
+    def applies?(values) = only_when.nil? || only_when.values.include?(values.to_h[only_when.key].to_s)
+  end
+
+  Choice = Data.define(:key, :label)
+  OnlyWhen = Data.define(:key, :values)
 
   # A provider that charges more at busy hours, as a multiple of the price the registry holds. days and hours are in
   # UTC, each hour range from its first hour up to its last, and off_peak_dates are the first and last dates of days
@@ -307,11 +324,15 @@ module AiProviders
     klass = RubyLLM::Provider.resolve!(slug)
     labels = registry.fetch("settings").merge(entry.fetch("labels", {}))
     required = klass.configuration_requirements.map(&:to_s) + EXPLICIT_CREDENTIALS.fetch(slug, []).map { |key| "#{slug}_#{key}" }
+    regions = klass.respond_to?(:regions) ? klass.regions : {}
     fields = klass.configuration_options.filter_map do |option|
       key = option.to_s.delete_prefix("#{slug}_")
       next unless labels.key?(key)
 
-      Field.new(key: key, option: option, label: labels.fetch(key), secret: SECRET_SETTINGS.include?(key), required: required.include?(option.to_s))
+      asked_in = regions.select { |_region, needs| needs.include?(key) }.keys
+      Field.new(key: key, option: option, label: labels.fetch(key), secret: SECRET_SETTINGS.include?(key),
+                required: required.include?(option.to_s) || asked_in.any?, choices: key == REGION_SETTING ? region_choices(entry, regions) : [],
+                only_when: asked_in.any? ? OnlyWhen.new(key: REGION_SETTING, values: asked_in.freeze) : nil)
     end
     Provider.new(
       slug: slug, name: entry.fetch("name"), main_models: Array(entry["main"]).freeze, fast_models: Array(entry["fast"]).freeze, backup_models: Array(entry["backup"]).freeze, code_fix_models: code_models(slug, entry, "code_fix"),
@@ -321,6 +342,15 @@ module AiProviders
     )
   end
   private_class_method :build
+
+  # The regions a provider serves at addresses of its own, in the registry's order with its names for them, the first
+  # being where the form starts.
+  def self.region_choices(entry, regions)
+    return [] if regions.empty?
+
+    entry.fetch("regions").filter_map { |key, label| Choice.new(key: key, label: label) if regions.key?(key) }.freeze
+  end
+  private_class_method :region_choices
 
   # ANTHROPIC_CODE_FIX_MODEL, ANTHROPIC_CODE_REVIEW_MODEL and the like replace the registry's picks for that provider's
   # accounts, since each provider names the same model its own way.
