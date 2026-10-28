@@ -44,6 +44,7 @@ export function OptionsTable<T extends ConfigurableOption>({
   onToggleEnabled,
   onEdit,
   onDelete,
+  deleteLabel,
   readOnly = false,
 }: {
   options: T[]
@@ -71,6 +72,8 @@ export function OptionsTable<T extends ConfigurableOption>({
   onToggleEnabled: (option: T) => void
   onEdit: (option: T) => void
   onDelete: (option: T) => void
+  // What taking a row away is called when it is not Delete, such as Disconnect for a subscription.
+  deleteLabel?: (option: T) => string | undefined
   // For a viewer the gateway would refuse. No drag handle, switches, default
   // picker or row menu.
   readOnly?: boolean
@@ -100,6 +103,7 @@ export function OptionsTable<T extends ConfigurableOption>({
     onToggleEnabled: () => onToggleEnabled(option),
     onEdit: () => onEdit(option),
     onDelete: () => onDelete(option),
+    deleteLabel: deleteLabel?.(option),
     children: cells?.(option),
   })
 

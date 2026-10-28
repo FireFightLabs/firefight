@@ -13,11 +13,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 export function RowActions({
   onEdit,
   onDelete,
+  editDisabledReason,
   deleteDisabledReason,
   deleteLabel = "Delete",
 }: {
   onEdit?: () => void
   onDelete: () => void
+  editDisabledReason?: string | null
   deleteDisabledReason?: string
   // What taking the row away is called, such as Remove for a member, whose row stays in the history.
   deleteLabel?: string
@@ -31,7 +33,20 @@ export function RowActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-32">
-        {onEdit && (
+        {onEdit && editDisabledReason && (
+          <>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="block">
+                  <DropdownMenuItem disabled onSelect={(event) => event.preventDefault()}>Edit</DropdownMenuItem>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="left" className="max-w-56">{editDisabledReason}</TooltipContent>
+            </Tooltip>
+            <DropdownMenuSeparator />
+          </>
+        )}
+        {onEdit && !editDisabledReason && (
           <>
             <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
             <DropdownMenuSeparator />

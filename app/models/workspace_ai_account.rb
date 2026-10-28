@@ -8,7 +8,7 @@ class WorkspaceAiAccount < ApplicationRecord
   MAIN = "main".freeze
   FAST = "fast".freeze
   ROLES = [ MAIN, FAST ].freeze
-  KINDS = [ AiProviders::KIND_API_KEY, AiProviders::KIND_OAUTH ].freeze
+  KINDS = [ AiProviders::KIND_API_KEY, AiProviders::KIND_OAUTH, AiProviders::KIND_SUBSCRIPTION ].freeze
 
   LABEL_LIMIT = 80
   ERROR_LIMIT = 300
@@ -44,9 +44,45 @@ class WorkspaceAiAccount < ApplicationRecord
     account
   end
 
-  def provider_definition = AiProviders.find(provider)
+  scope :subscriptions, -> { where(kind: AiProviders::KIND_SUBSCRIPTION) }
+
+  # A subscription's provider is its key in config/ai_subscriptions.yml, so it has no provider definition.
+  def provider_definition = (AiProviders.find(provider) unless subscription?)
 
   def oauth? = kind == AiProviders::KIND_OAUTH
+
+  def subscription? = kind == AiProviders::KIND_SUBSCRIPTION
+
+  def subscription_definition = (AiSubscriptions.find(provider) if subscription?)
+
+  # Whether a call can be made on it now: a provider Firefight offers, or a subscription the proxy holds while the proxy
+  # is up and keeps workspaces apart.
+  def callable?
+    return provider_definition.present? unless subscription?
+
+    subscription_definition.present? && proxy_credential.present? && SubscriptionProxy.usable?
+  end
+
+  # The models the subscription's sign-in serves, as the proxy last listed them, each a hash with its id, name,
+  # context_window, max_output_tokens and input_modalities.
+  def proxy_models = Array(proxy_state.to_h["models"])
+
+  def proxy_model_ids = proxy_models.map { |model| model["id"].to_s }
+
+  # "ChatGPT subscription for ana@example.com", what toasts call it.
+  def subscription_named
+    named = "#{subscription_definition&.name || provider} subscription"
+    credential_hint.present? ? "#{named} for #{credential_hint}" : named
+  end
+
+  # How much of its limit is left and when it resets, as the proxy last saw it (SubscriptionProxy::Accounts).
+  def proxy_limit = proxy_state.to_h["limit"].to_h
+
+  # The proxy says the sign-in no longer works, so it needs signing in again.
+  # Only a refused sign-in counts. Any other failed check leaves it failing, with Check again.
+  def signed_out? = subscription? && proxy_state.to_h["signed_out"] == true
+
+  def limit_reached? = subscription? && proxy_limit["reached_until"].present? && Time.zone.parse(proxy_limit["reached_until"].to_s) > Time.current
 
   # Blank values keep what is stored, since the form never shows a stored secret and an empty field means unchanged.
   def assign_settings(values)
@@ -88,17 +124,29 @@ class WorkspaceAiAccount < ApplicationRecord
     self.models = values
   end
 
-  def model_for(role) = models.to_h[role.to_s].presence || provider_definition&.recommended(role)
+  def model_for(role)
+    chosen = models.to_h[role.to_s].presence
+    return chosen if chosen
+    return subscription_definition&.recommended(role, proxy_model_ids) if subscription?
+
+    provider_definition&.recommended(role)
+  end
 
   # The configuration a call on this account runs with. It starts with every setting of every provider RubyLLM knows
   # empty, so nothing the deployment configured, such as Firefight's own keys or a credential provider, can reach a call
   # this account pays for, then takes only this account's settings.
+  # A subscription calls the subscription proxy with its client key, the only setting it takes, and names its models with
+  # the workspace's prefix (choice_for), so the proxy answers it only from this workspace's sign-ins.
   def llm_context
     definition = provider_definition
     values = context_values
     RubyLLM.context do |config|
       AiProviders.every_provider_option.each { |option| config.public_send("#{option}=", nil) }
       definition&.fields&.each { |field| config.public_send("#{field.option}=", values[field.key]) }
+      if subscription?
+        config.subscription_proxy_api_key = SubscriptionProxy.settings.client_key
+        config.subscription_proxy_api_base = SubscriptionProxy.inference_base
+      end
       config.request_timeout = FirefightAi.configuration.request_timeout
       config.faraday_adapter = PUBLIC_ADDRESS_ADAPTER if checks_address_on_each_call?
     end
@@ -115,6 +163,11 @@ class WorkspaceAiAccount < ApplicationRecord
   # for reviewing it, each while the registry can price it, and on the main model otherwise.
   def choice_for(purpose)
     model = recommended_for(purpose) || model_for(AiPurpose.quick?(purpose) ? FAST : MAIN)
+    if subscription?
+      return FirefightAi::ModelChoice.new(model: SubscriptionProxy.model_for(workspace, model), provider: AiProviders::SUBSCRIPTION_PROXY,
+                                          context: llm_context, payer: AiPayer.account(self))
+    end
+
     FirefightAi::ModelChoice.new(model: model, provider: provider, context: llm_context, payer: AiPayer.account(self))
   end
 
@@ -131,7 +184,7 @@ class WorkspaceAiAccount < ApplicationRecord
 
   # "Key ending in 4f2a. Enter a new one to replace it.", or nil before any key is stored.
   def credential_summary
-    return credential_hint.present? ? "Signed in as #{credential_hint}." : "Signed in." if oauth?
+    return credential_hint.present? ? "Signed in as #{credential_hint}." : "Signed in." if oauth? || subscription?
     return nil if credential_hint.blank?
 
     noun = provider_definition&.secret_fields&.first&.label || "Key"
@@ -147,11 +200,18 @@ class WorkspaceAiAccount < ApplicationRecord
   STATE_FAILING = :failing
   STATE_VERIFIED = :verified
   STATE_UNCHECKED = :unchecked
-  STATES = [ STATE_VERIFIED, STATE_UNCHECKED, STATE_OUT_OF_CREDIT, STATE_FAILING, STATE_DISABLED ].freeze
+  # A subscription whose sign-in no longer works, and one at its limit until it resets. What Halon does with either is
+  # what it does with any account: a refused sign-in is skipped like a refused key, and a limit is a provider that
+  # does not answer for now.
+  STATE_SIGNED_OUT = :signed_out
+  STATE_LIMIT_REACHED = :limit_reached
+  STATES = [ STATE_VERIFIED, STATE_UNCHECKED, STATE_OUT_OF_CREDIT, STATE_FAILING, STATE_SIGNED_OUT, STATE_LIMIT_REACHED, STATE_DISABLED ].freeze
 
   def state
     return STATE_DISABLED unless enabled
     return STATE_OUT_OF_CREDIT if out_of_credit_since
+    return STATE_SIGNED_OUT if signed_out?
+    return STATE_LIMIT_REACHED if limit_reached?
     return STATE_FAILING if failing_since
     return STATE_VERIFIED if verified_at
 
@@ -164,19 +224,23 @@ class WorkspaceAiAccount < ApplicationRecord
     stuck!(:out_of_credit_since, error)
   end
 
+  # A subscription refused this way has had its sign-in refused, so it is signed out.
   def key_refused!(error)
-    stuck!(:failing_since, error)
+    moved = stuck!(:failing_since, error)
+    signed_out_by_refusal! if subscription?
+    moved
   end
 
   # Every answered call says it works.
   def answered!
     self.class.where(id: id).update_all(last_used_at: Time.current, out_of_credit_since: nil, failing_since: nil, last_error: nil,
-                                        updated_at: Time.current)
+                                        updated_at: Time.current, **signed_in_again)
   end
 
   def checked!
     now = Time.current
-    self.class.where(id: id).update_all(verified_at: now, out_of_credit_since: nil, failing_since: nil, last_error: nil, updated_at: now)
+    self.class.where(id: id).update_all(verified_at: now, out_of_credit_since: nil, failing_since: nil, last_error: nil, updated_at: now,
+                                        **signed_in_again)
     reload
   end
 
@@ -189,6 +253,24 @@ class WorkspaceAiAccount < ApplicationRecord
       changes[AiPayer.out_of_credit?(error) ? :out_of_credit_since : :failing_since] = Time.current
     end
     self.class.where(id: id).update_all(changes)
+    signed_out_by_refusal! if subscription? && FirefightAi.key_refused?(error)
+    reload
+  end
+
+  # Why it cannot be checked or edited now: a subscription is reached only through the proxy.
+  def change_blocked_reason = (SubscriptionProxy::UNAVAILABLE_FOR_CHANGES if subscription? && !SubscriptionProxy.usable?)
+
+  # A subscription is turned off or on as it is, whatever the proxy now says of the models it was saved with.
+  def switch_subscription!(on)
+    self.class.where(id: id).update_all(enabled: on, updated_at: Time.current)
+    reload
+  end
+
+  # Writes these keys of what the proxy says of a subscription in one statement, so a key another request wrote
+  # meanwhile, such as a refused sign-in, is never written back over. Other columns are written with them.
+  def merge_proxy_state!(fields, columns = {})
+    merged = Arel.sql(self.class.sanitize_sql([ "proxy_state || ?::jsonb", fields.to_json ]))
+    self.class.where(id: id).update_all(columns.merge(proxy_state: merged, updated_at: Time.current))
     reload
   end
 
@@ -244,6 +326,13 @@ class WorkspaceAiAccount < ApplicationRecord
     values.merge("api_key" => secrets["access_token"], "api_base" => sign_in&.api_base)
   end
 
+  def signed_out_by_refusal!
+    self.class.where(id: id).update_all(Arel.sql("proxy_state = proxy_state || '{\"signed_out\": true}'::jsonb"))
+  end
+
+  # An answer or a passed check says a subscription's sign-in works again. Other accounts keep no such state.
+  def signed_in_again = subscription? ? { proxy_state: Arel.sql("proxy_state - 'signed_out'") } : {}
+
   def stuck!(column, error)
     moved = self.class.where(id: id, column => nil)
                 .update_all(column => Time.current, :last_error => AiAccountError.words(error, model: nil), :updated_at => Time.current) == 1
@@ -252,6 +341,8 @@ class WorkspaceAiAccount < ApplicationRecord
   end
 
   def provider_offered
+    return errors.add(:provider, "is not a subscription Firefight offers") if subscription? && subscription_definition.nil?
+    return if subscription?
     return errors.add(:provider, "is not one Firefight offers") unless provider_definition
     return if AiProviders.offered_to?(workspace, provider)
 
@@ -261,7 +352,7 @@ class WorkspaceAiAccount < ApplicationRecord
   def settings_complete
     definition = provider_definition
     return unless definition
-    return if oauth?
+    return if oauth? || subscription?
 
     values = settings.to_h.merge(secrets)
     definition.fields.select(&:required).each do |field|
@@ -275,6 +366,7 @@ class WorkspaceAiAccount < ApplicationRecord
   # Halon makes room in a long run from how much the main model can read, so a model the registry cannot size never
   # runs an investigation. Quick work is one call and needs no size.
   def models_known
+    return subscription_models_known if subscription?
     return unless provider_definition
 
     ROLES.each do |role|
@@ -283,6 +375,20 @@ class WorkspaceAiAccount < ApplicationRecord
       next if role == FAST || FirefightAi.context_window(model, provider: provider)
 
       errors.add(:"models.#{role}", "is a model Firefight does not know the size of, so Halon cannot run on it. Choose another, or ask whoever runs Firefight to add it to the model registry")
+    end
+  end
+
+  # A subscription runs only models its sign-in serves, and the main one must say how much it reads.
+  def subscription_models_known
+    ROLES.each do |role|
+      model = model_for(role)
+      next errors.add(:"models.#{role}", "needs a model") if model.blank?
+
+      known = proxy_models.find { |entry| entry["id"] == model }
+      next errors.add(:"models.#{role}", "is not a model this subscription serves") unless known
+      next if role == FAST || known["context_window"].to_i.positive?
+
+      errors.add(:"models.#{role}", "does not say how much it can read, so Halon cannot run on it. Choose another")
     end
   end
 

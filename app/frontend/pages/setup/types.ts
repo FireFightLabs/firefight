@@ -4,6 +4,8 @@ import type { CreditPurchase } from "@/components/ai/credit-packs"
 import type { AiSignIn } from "@/components/ai/ai-accounts-card"
 import type {
   AiProviderOption,
+  AiSubscriptionOption,
+  SubscriptionSignIn,
   EnvironmentOption,
   MemberAccess,
   OnboardingCategory,
@@ -32,6 +34,8 @@ export interface SetupPageProps extends SharedProps {
   aiAccounts: WorkspaceAiAccount[]
   aiProviders: AiProviderOption[]
   aiSignIn: AiSignIn | null
+  aiSubscriptions: AiSubscriptionOption[]
+  aiSubscriptionSignIn: SubscriptionSignIn | null
   aiFallback: string
   aiCredits: AiCredits | null
   aiCreditPurchase: CreditPurchase | null

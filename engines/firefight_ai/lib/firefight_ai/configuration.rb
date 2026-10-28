@@ -101,6 +101,10 @@ module FirefightAi
     # and tells whoever can fix it, so the engine never writes that state or enqueues anything itself.
     attr_accessor :on_refused
 
+    # Called with a model and its provider when RubyLLM's registry does not hold it, for a provider whose models are the
+    # app's to describe. Answers a ModelFacts or nil, and nil leaves the model unknown as before.
+    attr_accessor :model_facts
+
     # Returns the playbooks' words, which the version of every prompt carrying the manual includes (Manual.version).
     attr_accessor :playbooks
 

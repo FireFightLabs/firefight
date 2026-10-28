@@ -7,4 +7,5 @@ export interface ConfigurableOption {
   deletionBlockedReason?: string
   disableBlockedReason?: string
   defaultBlockedReason?: string
+  editBlockedReason?: string | null
 }

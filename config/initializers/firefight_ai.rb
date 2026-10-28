@@ -41,5 +41,12 @@ FirefightAi.configure do |config|
   config.specialist_model = ENV["FIREFIGHT_AI_SPECIALIST_MODEL"]
 end
 
+# A workspace's subscriptions are called through the subscription proxy, a RubyLLM provider of its own whose models
+# the app describes.
+Rails.application.config.to_prepare do
+  AiProviders.register_subscription_proxy!
+  FirefightAi.configuration.model_facts = ->(model, provider) { SubscriptionProxy::ModelFacts.for(model, provider) }
+end
+
 # A workspace's AI account with its own API base calls through this adapter where private networks are refused.
 Faraday::Adapter.register_middleware(firefight_public_address: -> { Integrations::PublicAddressAdapter })

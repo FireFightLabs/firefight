@@ -77,6 +77,13 @@ module FirefightAi
   # an answer cut to fit a balance is worse than a clean failure that tells the team.
   OutputCap = Data.define(:max)
 
+  # What the app knows of a model RubyLLM's registry does not hold (Configuration#model_facts).
+  ModelFacts = Data.define(:name, :context_window, :max_output_tokens, :input_modalities)
+
+  def app_model_facts(model_id, provider)
+    configuration.model_facts&.call(model_id.to_s, provider.to_s)
+  end
+
   # A provider reserves the whole cap against the balance before it writes a word, and with no cap it reserves the
   # model's own maximum, so each purpose asks for what it writes plus room for the model's reasoning. Read from the
   # ledger: an agent turn wrote at most about 5,200 tokens, a citation check about 1,500, the rest under 1,000.
@@ -109,7 +116,7 @@ module FirefightAi
     limit = RubyLLM.models.find(model_id.to_s, provider: provider.presence).max_output_tokens.to_i
     limit.positive? ? limit : nil
   rescue RubyLLM::ModelNotFoundError
-    nil
+    app_model_facts(model_id, provider)&.max_output_tokens&.then { |known| known.positive? ? known : nil }
   end
 
   # One model call for a purpose, in the ledger and capped at what the purpose writes. The block gets a fresh chat
@@ -383,7 +390,7 @@ module FirefightAi
     window = RubyLLM.models.find(model_id.to_s, provider: provider.presence).context_window.to_i
     window.positive? ? window : nil
   rescue RubyLLM::ModelNotFoundError
-    nil
+    app_model_facts(model_id, provider)&.context_window&.then { |known| known.positive? ? known : nil }
   end
 
   # What the registry says a model takes besides text, such as image or pdf. A model it does not know takes only text,
@@ -392,14 +399,14 @@ module FirefightAi
   def input_modalities(model_id, provider: nil)
     RubyLLM.models.find(model_id.to_s, provider: provider.presence).modalities.input
   rescue RubyLLM::ModelNotFoundError
-    []
+    app_model_facts(model_id, provider)&.input_modalities.to_a
   end
 
   # The name the registry gives a model, such as Claude Sonnet 5, or nil for a model it does not know.
   def model_name(model_id, provider: nil)
     RubyLLM.models.find(model_id.to_s, provider: provider.presence).name.presence
   rescue RubyLLM::ModelNotFoundError
-    nil
+    app_model_facts(model_id, provider)&.name.presence
   end
 
   # A model the registry does not know needs its provider named. RubyLLM then trusts the id. A workspace's own account

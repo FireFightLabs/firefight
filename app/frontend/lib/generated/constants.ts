@@ -1655,8 +1655,17 @@ export const AI_ACCOUNT_STATES = {
   "UNCHECKED": "unchecked",
   "OUT_OF_CREDIT": "out_of_credit",
   "FAILING": "failing",
+  "SIGNED_OUT": "signed_out",
+  "LIMIT_REACHED": "limit_reached",
   "DISABLED": "disabled"
 } as const
+
+export const AI_SUBSCRIPTION_SIGN_IN_PROPS = {
+  "ACCOUNTS": "aiAccounts",
+  "SUBSCRIPTION_SIGN_IN": "aiSubscriptionSignIn"
+} as const
+
+export const SUBSCRIPTION_CALLBACK_ADDRESS_PARAM = "callback_address" as const
 
 export const APPROVAL_RUN_WINDOW_MINUTES = 60 as const
 

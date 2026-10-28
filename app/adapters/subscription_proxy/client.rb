@@ -10,6 +10,8 @@ module SubscriptionProxy
     # The proxy answers a sign-in's state with one of these.
     STATUS_WAITING = "wait".freeze
     STATUS_DONE = "ok".freeze
+    # A credential's status when its provider refused it.
+    CREDENTIAL_ERROR = "error".freeze
     VERSION_HEADER = "X-Cpa-Version".freeze
     # A credential's name as the proxy writes it, never a wildcard, so a delete can only ever name one.
     CREDENTIAL_NAME = /\A[\w.@+-]+\.json\z/
@@ -110,6 +112,17 @@ module SubscriptionProxy
     # Higher goes first among one workspace's credentials for the same model.
     def prioritize(name, priority)
       patch(:prioritize, name, priority: priority)
+    end
+
+    # Off at the proxy, so no call reaches it, even from the workspace's other sign-ins' pool.
+    def switch(name, on:)
+      patch(:switch, name, disabled: !on)
+    end
+
+    # The models one credential serves, by their own names.
+    def credential_models(name, prefix:)
+      body = json(call(:credential_models, Net::HTTP::Get, "#{MANAGEMENT}/credentials/models?#{{ name: checked_name(name) }.to_query}"))
+      body.fetch("models", []).map { |model| model["id"].to_s.delete_prefix("#{prefix}/") }.uniq
     end
 
     # A credential the proxy no longer holds is already gone, which is what a delete asks for.

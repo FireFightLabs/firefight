@@ -4,6 +4,7 @@ class AiAccountsController < InertiaController
   CHECKS_PER_MINUTE = 10
   TOO_MANY = "That is a lot of AI account changes at once. Wait a minute and try again.".freeze
   SIGN_IN_SESSION_KEY = :ai_account_sign_in
+  PROXY_UNREACHABLE = "Firefight could not reach the service that holds subscription sign-ins, so nothing changed. Try again in a minute.".freeze
 
   authorizes Ability::Action::RESOURCE_AI_ACCOUNTS,
     create: %i[create sign_in sign_in_callback],
@@ -25,6 +26,8 @@ class AiAccountsController < InertiaController
   end
 
   def update
+    return refuse_change if @account.change_blocked_reason
+
     result = service.update!(@account, label: params[:label], settings: settings_param, models: models_param)
     checked(result, "#{@account.label} was updated")
   rescue ActiveRecord::RecordInvalid => e
@@ -32,20 +35,28 @@ class AiAccountsController < InertiaController
   end
 
   def check
+    return refuse_change if @account.change_blocked_reason
+
     checked(service.check!(@account), "#{@account.label} was checked")
   end
 
   def disable
+    return switch_subscription(on: false) if @account.subscription?
+
     @account.disable!
     redirect_to settings_workspace_path, notice: "#{@account.label} was turned off. Halon will skip it."
   end
 
   def enable
+    return switch_subscription(on: true) if @account.subscription?
+
     @account.enable!
     redirect_to settings_workspace_path, notice: "#{@account.label} was turned on."
   end
 
   def destroy
+    return disconnect_subscription if @account.subscription?
+
     @account.destroy!
     redirect_to settings_workspace_path, notice: "#{@account.label} was deleted."
   end
@@ -76,6 +87,26 @@ class AiAccountsController < InertiaController
   private
 
   def service = WorkspaceAiAccountService.new(current_workspace, by: current_membership)
+
+  # A subscription's sign-in lives in the subscription proxy, which is told first.
+  def subscriptions = SubscriptionProxy::Accounts.new(current_workspace)
+
+  def refuse_change = redirect_back(fallback_location: settings_workspace_path, alert: @account.change_blocked_reason)
+
+  def switch_subscription(on:)
+    subscriptions.switch!(@account, on: on)
+    said = on ? "#{@account.subscription_named} was turned on." : "#{@account.subscription_named} was turned off. Halon will skip it."
+    redirect_back fallback_location: settings_workspace_path, notice: said
+  rescue SubscriptionProxy::Error
+    redirect_back fallback_location: settings_workspace_path, alert: PROXY_UNREACHABLE
+  end
+
+  def disconnect_subscription
+    subscriptions.disconnect!(@account)
+    redirect_back fallback_location: settings_workspace_path, notice: "#{@account.subscription_named} was disconnected."
+  rescue SubscriptionProxy::Error
+    redirect_back fallback_location: settings_workspace_path, alert: PROXY_UNREACHABLE
+  end
 
   def set_account
     @account = current_workspace.workspace_ai_accounts.find(params[:id])

@@ -610,6 +610,12 @@ Rails.application.routes.draw do
     post "/settings/workspace/slack/reinstall", to: "workspace_settings#reinstall_slack", as: :reinstall_slack
     patch "/settings/workspace/workflows", to: "workflow_settings#update", as: :settings_workspace_workflows
     resources :allowances, only: [ :create, :update, :destroy ], path: "settings/workspace/without-asking"
+    resources :subscription_sign_ins, only: [ :create, :destroy ], path: "settings/workspace/ai-accounts/subscription-sign-ins" do
+      member do
+        post :finish
+        post :advance
+      end
+    end
     resources :ai_accounts, only: [ :create, :update, :destroy ], path: "settings/workspace/ai-accounts" do
       collection do
         patch :reorder

@@ -370,6 +370,9 @@ class Investigation < ApplicationRecord
     return nil unless status == STATUS_FAILED
     return AiCredit.cannot(workspace).delete_suffix(".") if AiCredit.recorded?(error_summary)
 
+    limit = AiCredit.subscription_limit(workspace) if error_summary.to_s == SubscriptionProxy::LIMIT_REASON
+    return limit.delete_suffix(".") if limit
+
     PLAIN_STOP_REASONS.include?(error_summary.to_s) ? error_summary : GAVE_UP
   end
 
