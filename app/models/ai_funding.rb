@@ -7,9 +7,19 @@ module AiFunding
     house_model = FirefightAi.deployment_model_for(purpose, workspace: workspace)
     return [ house_model ] if workspace.nil?
 
-    own = workspace.usable_ai_accounts.select { |account| account.provider_definition }.map { |account| account.choice_for(purpose) }
+    own = workspace.usable_ai_accounts.select(&:callable?).map { |account| account.choice_for(purpose) }.uniq { |choice| route(choice) }
     payer = house_payer(workspace)
     payer ? own + [ house_model.with(payer: payer) ] : own
+  end
+
+  # What a choice is sent to. A workspace's subscriptions all go to the subscription proxy, which pools every sign-in of
+  # one subscription that serves the model, so those are one route and each subscription is its own. Anything else is
+  # its provider, and an account's own key on it.
+  def self.route(choice)
+    account = choice.payer&.account
+    return [ AiProviders::SUBSCRIPTION_PROXY, account.provider, choice.model ] if account&.subscription?
+
+    [ choice.provider_name, choice.model, account&.id ]
   end
 
   # What Halon's loop carries on with when the model behind failing stops answering, or nil when nothing can. A
@@ -22,8 +32,8 @@ module AiFunding
   def self.backup_for(workspace, purpose, failing:, tried: [])
     spent = tried + [ failing ]
     same_account = failing.own_account? ? AiProviders.account_backup_choices(failing) : []
-    down = spent.map(&:provider_name)
-    others = self.for(workspace, purpose).reject { |choice| down.include?(choice.provider_name) }
+    down = spent.map { |choice| provider_of(choice) }
+    others = self.for(workspace, purpose).reject { |choice| down.include?(provider_of(choice)) }
     (same_account + others + house_backups(workspace, failing)).find { |choice| spent.none? { |seen| same?(seen, choice) } }
   end
 
@@ -38,6 +48,13 @@ module AiFunding
     [ named, *AiProviders.deployment_backup_choices(failing) ].compact.map { |choice| choice.with(payer: payer) }
   end
   private_class_method :house_backups
+
+  # The provider a failure is held against. Each subscription is one, since one at its limit says nothing of another.
+  def self.provider_of(choice)
+    account = choice.payer&.account
+    account&.subscription? ? "#{AiProviders::SUBSCRIPTION_PROXY}:#{account.provider}" : choice.provider_name
+  end
+  private_class_method :provider_of
 
   def self.same?(one, other)
     one.model == other.model && one.provider_name == other.provider_name && one.payer == other.payer

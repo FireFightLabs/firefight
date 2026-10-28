@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_28_180000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_28_200000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -3381,6 +3381,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_180000) do
     t.index ["key"], name: "index_subscription_proxy_checks_on_key", unique: true
   end
 
+  create_table "subscription_sign_ins", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "started_by_id"
+    t.uuid "workspace_ai_account_id"
+    t.string "subscription", null: false
+    t.string "proxy", null: false
+    t.string "state", null: false
+    t.string "url", null: false
+    t.string "user_code"
+    t.datetime "expires_at"
+    t.string "status", default: "waiting", null: false
+    t.string "error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["proxy", "status"], name: "index_subscription_sign_ins_on_proxy_and_status"
+    t.index ["started_by_id"], name: "index_subscription_sign_ins_on_started_by_id"
+    t.index ["state"], name: "index_subscription_sign_ins_on_state", unique: true
+    t.index ["workspace_ai_account_id"], name: "index_subscription_sign_ins_on_workspace_ai_account_id"
+    t.index ["workspace_id"], name: "index_subscription_sign_ins_on_workspace_id"
+  end
+
   create_table "system_agents", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "name", null: false
@@ -3703,7 +3724,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_180000) do
     t.uuid "created_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "proxy_credential"
+    t.jsonb "proxy_state", default: {}, null: false
     t.index ["created_by_id"], name: "index_workspace_ai_accounts_on_created_by_id"
+    t.index ["proxy_credential"], name: "index_workspace_ai_accounts_on_proxy_credential", unique: true, where: "(proxy_credential IS NOT NULL)"
     t.index ["workspace_id", "position"], name: "index_workspace_ai_accounts_on_workspace_id_and_position", unique: true
   end
 
@@ -4164,6 +4188,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_28_180000) do
   add_foreign_key "solid_workflow_events", "solid_workflow_steps", column: "step_id", on_delete: :cascade
   add_foreign_key "solid_workflow_events", "solid_workflow_workflows", column: "workflow_id", on_delete: :cascade
   add_foreign_key "solid_workflow_steps", "solid_workflow_workflows", column: "workflow_id", on_delete: :cascade
+  add_foreign_key "subscription_sign_ins", "workspace_ai_accounts", on_delete: :cascade
+  add_foreign_key "subscription_sign_ins", "workspace_memberships", column: "started_by_id", on_delete: :nullify
+  add_foreign_key "subscription_sign_ins", "workspaces", on_delete: :cascade
   add_foreign_key "user_identities", "users", on_delete: :cascade
   add_foreign_key "webhook_delinquency_trackers", "webhooks"
   add_foreign_key "webhook_deliveries", "incident_events"

@@ -114,5 +114,55 @@ class AiAccountsControllerTest < ActionDispatch::IntegrationTest
     assert_includes inertia_props.fetch("aiProviders").map { |provider| provider["slug"] }, "ollama"
     assert_nil inertia_props["aiCredits"], "credits are only sold on Firefight's cloud"
     assert_nil inertia_props["aiSignIn"], "Sign in with ChatGPT waits for its flag"
+    assert_empty inertia_props.fetch("aiSubscriptions"), "subscriptions are offered only where the subscription proxy is set up"
+  end
+
+  test "with the subscription proxy set up, the card offers the five subscriptions" do
+    subscription_proxy_up!
+
+    get settings_workspace_path, headers: inertia_headers
+
+    offered = inertia_props.fetch("aiSubscriptions")
+    assert_equal %w[chatgpt google supergrok kimi meta], offered.map { |subscription| subscription["key"] }
+    assert offered.none? { |subscription| subscription["blockedReason"] }
+  end
+
+  test "a subscription is turned off and on at the proxy too, and each says so" do
+    subscription_proxy_up!
+    account = add_subscription_account!(@workspace, credential: "codex-ana.json")
+    SubscriptionProxy::Client.any_instance.expects(:switch).with("codex-ana.json", on: false)
+    SubscriptionProxy::Client.any_instance.expects(:switch).with("codex-ana.json", on: true)
+
+    patch disable_ai_account_path(account)
+    assert_equal "ChatGPT subscription for ana@example.com was turned off. Halon will skip it.", flash[:notice]
+    patch enable_ai_account_path(account)
+    assert_equal "ChatGPT subscription for ana@example.com was turned on.", flash[:notice]
+  end
+
+  test "disconnecting a subscription removes its sign-in from the proxy first, and keeps the account when that fails" do
+    subscription_proxy_up!
+    account = add_subscription_account!(@workspace, credential: "codex-ana.json")
+    SubscriptionProxy::Client.any_instance.stubs(:delete).raises(SubscriptionProxy::Unreachable, "could not reach the subscription proxy")
+
+    delete ai_account_path(account)
+    assert_equal AiAccountsController::PROXY_UNREACHABLE, flash[:alert]
+    assert WorkspaceAiAccount.exists?(account.id)
+
+    SubscriptionProxy::Client.any_instance.unstub(:delete)
+    SubscriptionProxy::Client.any_instance.expects(:delete).with("codex-ana.json")
+    delete ai_account_path(account)
+    assert_equal "ChatGPT subscription for ana@example.com was disconnected.", flash[:notice]
+    assert_not WorkspaceAiAccount.exists?(account.id)
+  end
+
+  test "signing a subscription in again starts where it signed in first" do
+    subscription_proxy_up!
+    account = add_subscription_account!(@workspace, credential: "codex-ana.json", state: { "signed_out" => true })
+    SubscriptionProxy::Client.any_instance.expects(:start_sign_in).with("codex")
+                             .returns(SubscriptionProxy::Client::SignIn.new(state: "again", url: "https://auth.openai.com", user_code: nil, expires_at: nil))
+
+    post subscription_sign_ins_path, params: { account_id: account.id }
+
+    assert_equal account, SubscriptionSignIn.find_by!(state: "again").workspace_ai_account
   end
 end

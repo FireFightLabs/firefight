@@ -1,0 +1,55 @@
+# The AI subscriptions a workspace can connect through the subscription proxy (docs/ai.md, Subscriptions).
+#
+# name: what the card and the toasts call it. plan: the plans it covers, on the connect button.
+# sites: where the person signs in, each the proxy's sign-in for it (proxy) and, when there are several, a label to
+#   choose by. sign_in: device (the person enters a code the proxy shows on the provider's page) or paste (the browser
+#   lands on an address on the person's own computer that does not load, which they paste back).
+# main and fast: the models Halon runs on and does quick work on, preferred first, the first the proxy lists for the
+#   workspace taken. An admin can pick any other the proxy lists.
+chatgpt:
+  name: ChatGPT
+  plan: ChatGPT Plus or Pro
+  sign_in: paste
+  sites:
+    - proxy: codex
+  main: [ gpt-6.1-sol, gpt-6-sol, gpt-5.6-sol ]
+  fast: [ gpt-6-luna, gpt-5.6-luna ]
+
+google:
+  name: Google AI
+  plan: Google AI Pro or Ultra
+  sign_in: paste
+  sites:
+    - proxy: antigravity
+  main: [ gemini-4-argon-high, gemini-3.8-flash-high ]
+  fast: [ gemini-3.8-flash-high, gemini-3-flash ]
+
+supergrok:
+  name: SuperGrok
+  plan: SuperGrok
+  sign_in: device
+  sites:
+    - proxy: xai
+  main: [ grok-4.7, grok-4.6 ]
+  fast: [ grok-4.7-build-fast, grok-3-mini-fast ]
+
+kimi:
+  name: Kimi Code
+  plan: Kimi Code plan
+  sign_in: device
+  sites:
+    - proxy: kimi-ai
+      label: kimi.ai
+    - proxy: kimi
+      label: kimi.com
+  main: [ kimi-k3, kimi-k2.8 ]
+  fast: [ kimi-k2.8-code, kimi-k2.7-code-highspeed ]
+
+meta:
+  name: Muse Code
+  plan: Meta Muse Code
+  sign_in: device
+  sites:
+    - proxy: meta
+  main: [ muse-wonder-1.0, muse-spark-1.3 ]
+  fast: [ muse-spark-1.3, muse-spark-1.2 ]

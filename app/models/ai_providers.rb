@@ -7,6 +7,8 @@ module AiProviders
 
   KIND_API_KEY = "api_key".freeze
   KIND_OAUTH = "oauth".freeze
+  # An AI subscription signed in through the subscription proxy (AiSubscriptions).
+  KIND_SUBSCRIPTION = "subscription".freeze
 
   # Settings that are credentials. They are encrypted, never sent back to the page, and only reach a model through
   # WorkspaceAiAccount#llm_context.
@@ -25,6 +27,36 @@ module AiProviders
   # Settings a provider writes into the host it calls, such as Bedrock's region, so each must be a plain name.
   HOST_NAME_SETTINGS = %w[region location].freeze
   HOST_NAME = /\A[a-z0-9-]+\z/i
+
+  # A workspace's subscriptions answer through the subscription proxy, in OpenAI's shape. It is a provider of its own, so
+  # nothing keyed by provider (an account's backups, code fixes, the chat's model picker) takes it for OpenAI and sends
+  # the proxy a model without the workspace's prefix. Its models are the workspace's own, which RubyLLM's registry cannot
+  # hold, so it takes any id, and SubscriptionProxy::ModelFacts says how large each is.
+  SUBSCRIPTION_PROXY = "subscription_proxy".freeze
+
+  class SubscriptionProxyProvider < RubyLLM::Providers::OpenAI
+    RubyLLM::Providers::OpenAI.protocols.each { |name, protocol_class| protocols[name] = protocol_class }
+    @default_protocol = RubyLLM::Providers::OpenAI.default_protocol
+
+    def api_base = @config.subscription_proxy_api_base
+
+    def headers = { "Authorization" => "Bearer #{@config.subscription_proxy_api_key}" }
+
+    def account_identity = Digest::SHA256.hexdigest([ api_base, @config.subscription_proxy_api_key ].join("\0"))
+
+    class << self
+      def configuration_options = %i[subscription_proxy_api_key subscription_proxy_api_base]
+
+      def configuration_requirements = %i[subscription_proxy_api_key subscription_proxy_api_base]
+
+      def assume_models_exist? = true
+    end
+  end
+
+  # Called once at boot, so every context starts with the proxy's settings emptied too (every_provider_option).
+  def self.register_subscription_proxy!
+    RubyLLM::Provider.register(SUBSCRIPTION_PROXY.to_sym, SubscriptionProxyProvider)
+  end
 
   # The registry's sections that are not providers.
   SECTIONS = %w[settings chat_models].freeze

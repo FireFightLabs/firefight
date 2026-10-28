@@ -26,6 +26,21 @@ module AiCredit
     "Halon cannot #{doing} right now because #{why(workspace)}. #{who(workspace)}."
   end
 
+  # Said when Halon gave up on a usage limit and the first account the workspace pays with is one of its subscriptions,
+  # nil otherwise, so what was said before is said. When it resets comes from what the proxy last said of it.
+  def self.subscription_limit(workspace)
+    return nil unless workspace
+
+    account = AiFunding.for(workspace, AiPurpose::INVESTIGATION).first&.payer&.account
+    return nil unless account&.subscription?
+
+    limit = account.proxy_limit
+    resets = (limit["reached_until"] || limit["resets_at"]).presence&.then { |at| Time.zone.parse(at.to_s) }
+    resets_words = resets&.future? ? "It resets #{SubscriptionProxy.from_now(resets)}." : "It resets on its own."
+    "Halon cannot answer right now because this workspace's #{account.subscription_definition&.name} subscription reached its usage limit. " \
+      "#{resets_words} An admin can see it under Settings, Workspace, AI accounts."
+  end
+
   def self.why(workspace)
     case situation(workspace)
     when :no_account then "this workspace has no AI account set up"

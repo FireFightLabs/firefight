@@ -9,7 +9,9 @@ class Chat::ModelSwitch < ApplicationRecord
   CAUSE_UNAVAILABLE = "unavailable".freeze
   CAUSE_OUT_OF_CREDIT = "out_of_credit".freeze
   CAUSE_KEY_REFUSED = "key_refused".freeze
-  CAUSES = [ CAUSE_DOWN, CAUSE_UNAVAILABLE, CAUSE_OUT_OF_CREDIT, CAUSE_KEY_REFUSED ].freeze
+  # A workspace's subscription refused for its usage limit, until it resets.
+  CAUSE_LIMIT_REACHED = "limit_reached".freeze
+  CAUSES = [ CAUSE_DOWN, CAUSE_UNAVAILABLE, CAUSE_OUT_OF_CREDIT, CAUSE_KEY_REFUSED, CAUSE_LIMIT_REACHED ].freeze
 
   belongs_to :chat
 
@@ -22,7 +24,7 @@ class Chat::ModelSwitch < ApplicationRecord
   def self.record!(chat, failed:, backup:, error:)
     chat.model_switches.create!(
       failed_model: failed.model, failed_provider: failed.provider_name, backup_model: backup.model, backup_provider: backup.provider_name,
-      reason: error.class.name.demodulize, cause: cause_of(error)
+      reason: error.class.name.demodulize, cause: SubscriptionProxy.limit_reached?(failed, error) ? CAUSE_LIMIT_REACHED : cause_of(error)
     )
   end
 
@@ -50,6 +52,7 @@ class Chat::ModelSwitch < ApplicationRecord
     when CAUSE_UNAVAILABLE then "#{failed} is not available on this account"
     when CAUSE_OUT_OF_CREDIT then "The account behind #{failed} is out of credit"
     when CAUSE_KEY_REFUSED then "The key behind #{failed} was refused"
+    when CAUSE_LIMIT_REACHED then "This workspace's subscription reached its usage limit for #{failed}"
     else "#{failed} is not answering"
     end
   end

@@ -15,7 +15,7 @@ class WorkspaceAiAccountSerializer < BaseSerializer
   def name = account.label
 
   type :string
-  def provider_name = account.provider_definition&.name || account.provider
+  def provider_name = account.subscription_definition&.plan || account.provider_definition&.name || account.provider
 
   type "{ main: string; fast: string }"
   def models = { main: account.model_for(WorkspaceAiAccount::MAIN).to_s, fast: account.model_for(WorkspaceAiAccount::FAST).to_s }
@@ -44,4 +44,20 @@ class WorkspaceAiAccountSerializer < BaseSerializer
 
   type :string
   def deletion_consequence = account.deletion_consequence
+
+  # What a subscription account adds: the plan, the models its sign-in serves, and its limit as the proxy last saw it.
+  # leftPercent and resetsAt are null where the provider does not say.
+  type "{ plan: string; models: { id: string; name: string }[]; leftPercent: number | null; resetsAt: string | null; reachedUntil: string | null } | null"
+  def subscription
+    return nil unless account.subscription?
+
+    limit = account.proxy_limit
+    {
+      plan: account.subscription_definition&.plan.to_s,
+      models: account.proxy_models.map { |model| { id: model["id"].to_s, name: model["name"].presence || model["id"].to_s } },
+      leftPercent: limit["left_percent"],
+      resetsAt: limit["resets_at"],
+      reachedUntil: account.limit_reached? ? limit["reached_until"] : nil
+    }
+  end
 end

@@ -10,8 +10,8 @@ class ConversationReplyJob < ApplicationJob
   # The lock outlives a dead worker no longer than the page waits on it.
   limits_concurrency key: ->(conversation_id, *) { conversation_id }, duration: Conversation::REPLY_CEILING
 
-  retry_on FirefightAi::TransientError, wait: :polynomially_longer, attempts: 3 do |job, _error|
-    say_nothing_came_of_it(job)
+  retry_on FirefightAi::TransientError, wait: :polynomially_longer, attempts: 3 do |job, error|
+    say_nothing_came_of_it(job, error)
   end
   discard_on FirefightAi::TerminalError do |job, _error|
     say_nothing_came_of_it(job)
@@ -31,9 +31,13 @@ class ConversationReplyJob < ApplicationJob
   self.runs_again_when_interrupted = false
 
   # The person is told when the job gives up, or they would wait forever.
-  def self.say_nothing_came_of_it(job)
+  # A workspace whose subscription reached its usage limit is told so, and when it resets.
+  def self.say_nothing_came_of_it(job, error = nil)
     conversation = Conversation.find_by(id: job.arguments.first)
-    Conversation::Delivery.give_up!(conversation, Conversation::Delivery::FAILED) if conversation
+    return unless conversation
+
+    limit = AiCredit.subscription_limit(conversation.workspace) if error && SubscriptionProxy.limited?(error)
+    Conversation::Delivery.give_up!(conversation, limit || Conversation::Delivery::FAILED)
   end
 
   # A job queued before the asker was passed along falls back to whoever started the conversation. A held call someone

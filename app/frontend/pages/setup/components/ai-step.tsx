@@ -23,7 +23,9 @@ function isChoice(value: string): value is AiChoice {
 // Halon needs a model to write with. The person's own key is always offered, with its live check, and Firefight credits
 // or the deployment's own keys where this Firefight has them. Each choice arrives in the words the server gives it.
 export function AiStep({ step }: { step: OnboardingStep }) {
-  const { aiChoice, aiChoices, aiAccounts, aiProviders, aiSignIn, aiFallback, aiCredits, aiCreditPurchase } = usePage<SetupPageProps>().props
+  const {
+    aiChoice, aiChoices, aiAccounts, aiProviders, aiSignIn, aiSubscriptions, aiSubscriptionSignIn, aiFallback, aiCredits, aiCreditPurchase,
+  } = usePage<SetupPageProps>().props
   const canManageAccounts = useCan("ai_accounts")
   // Packs bought here bring the person back to this step, so the row's link away to billing is left off.
   const purchase = canManageAccounts ? aiCreditPurchase : null
@@ -82,6 +84,8 @@ export function AiStep({ step }: { step: OnboardingStep }) {
           accounts={aiAccounts}
           providers={aiProviders}
           signIn={aiSignIn}
+          subscriptions={aiSubscriptions}
+          subscriptionSignIn={aiSubscriptionSignIn}
           fallback={aiFallback}
           credits={null}
           canManage={canManageAccounts}

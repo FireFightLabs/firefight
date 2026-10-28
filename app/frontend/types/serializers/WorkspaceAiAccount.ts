@@ -14,6 +14,7 @@ export default interface WorkspaceAiAccount {
   provider: string
   providerName: string
   settings: Record<string, string>
-  state: "verified" | "unchecked" | "out_of_credit" | "failing" | "disabled"
+  state: "verified" | "unchecked" | "out_of_credit" | "failing" | "signed_out" | "limit_reached" | "disabled"
+  subscription: { plan: string; models: { id: string; name: string }[]; leftPercent: number | null; resetsAt: string | null; reachedUntil: string | null } | null
   verifiedAt?: string
 }

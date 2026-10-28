@@ -38,6 +38,10 @@ development:
     class: SubscriptionProxyHealthJob # checks the subscription proxy answers and keeps workspaces apart, so a failing one is used by nobody
     queue: background
     schedule: every 5 minutes
+  subscription_proxy_sync:
+    class: SubscriptionProxySyncJob # reads each workspace's subscriptions' limits, sign-ins and models, and orders their sign-ins by when their limits reset
+    queue: background
+    schedule: every 5 minutes
   code_box_sweep:
     class: CodeBoxSweepJob # stops code sandboxes nothing uses any more, so none runs and costs after its run is gone
     queue: background
@@ -184,6 +188,10 @@ staging:
     schedule: every 10 minutes
   subscription_proxy_health:
     class: SubscriptionProxyHealthJob # checks the subscription proxy answers and keeps workspaces apart, so a failing one is used by nobody
+    queue: background
+    schedule: every 5 minutes
+  subscription_proxy_sync:
+    class: SubscriptionProxySyncJob # reads each workspace's subscriptions' limits, sign-ins and models, and orders their sign-ins by when their limits reset
     queue: background
     schedule: every 5 minutes
   code_box_sweep:
@@ -362,6 +370,10 @@ production:
     schedule: every 10 minutes
   subscription_proxy_health:
     class: SubscriptionProxyHealthJob # checks the subscription proxy answers and keeps workspaces apart, so a failing one is used by nobody
+    queue: background
+    schedule: every 5 minutes
+  subscription_proxy_sync:
+    class: SubscriptionProxySyncJob # reads each workspace's subscriptions' limits, sign-ins and models, and orders their sign-ins by when their limits reset
     queue: background
     schedule: every 5 minutes
   code_box_sweep:

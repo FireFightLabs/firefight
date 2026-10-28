@@ -93,6 +93,17 @@ module SubscriptionProxy
       patch(:prioritize, name, priority: priority)
     end
 
+    # Off at the proxy, so no call reaches it, even from the workspace's other sign-ins' pool.
+    def switch(name, on:)
+      patch(:switch, name, disabled: !on)
+    end
+
+    # The models one credential serves, by their own names.
+    def credential_models(name, prefix:)
+      body = json(call(:credential_models, Net::HTTP::Get, "#{MANAGEMENT}/credentials/models?#{{ name: checked_name(name) }.to_query}"))
+      body.fetch("models", []).map { |model| model["id"].to_s.delete_prefix("#{prefix}/") }.uniq
+    end
+
     def delete(name)
       checked = checked_name(name)
       call(:delete_credential, Net::HTTP::Delete, "#{MANAGEMENT}/credentials?#{{ name: checked }.to_query}")

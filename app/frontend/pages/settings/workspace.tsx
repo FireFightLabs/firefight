@@ -26,6 +26,8 @@ import { WorkflowRunsCard } from "@/pages/settings/components/workspace/workflow
 import { AllowancesCard } from "@/pages/settings/components/workspace/allowances-card"
 import type {
   AiProviderOption,
+  AiSubscriptionOption,
+  SubscriptionSignIn,
   Allowance,
   AllowanceChoice,
   EnvironmentOption,
@@ -40,6 +42,8 @@ interface WorkspacePageProps extends SharedProps {
   aiAccounts: WorkspaceAiAccount[]
   aiProviders: AiProviderOption[]
   aiSignIn: AiSignIn | null
+  aiSubscriptions: AiSubscriptionOption[]
+  aiSubscriptionSignIn: SubscriptionSignIn | null
   aiFallback: string
   aiCredits: AiCredits | null
   workflowRunRetentionDays: number
@@ -77,7 +81,8 @@ function agentSlug(choice: string): string {
 
 export default function Workspace() {
   const {
-    settings, issueWebhookUrl, aiAccounts, aiProviders, aiSignIn, aiFallback, aiCredits, workflowRunRetentionDays, allowances,
+    settings, issueWebhookUrl, aiAccounts, aiProviders, aiSignIn, aiSubscriptions, aiSubscriptionSignIn, aiFallback, aiCredits,
+    workflowRunRetentionDays, allowances,
     allowanceCapabilities, allowanceTools, environments,
   } = usePage<WorkspacePageProps>().props
   const canManageAiAccounts = useCan("ai_accounts")
@@ -434,6 +439,8 @@ export default function Workspace() {
           accounts={aiAccounts}
           providers={aiProviders}
           signIn={aiSignIn}
+          subscriptions={aiSubscriptions}
+          subscriptionSignIn={aiSubscriptionSignIn}
           fallback={aiFallback}
           credits={aiCredits}
           canManage={canManageAiAccounts}
