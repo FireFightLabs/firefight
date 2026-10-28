@@ -61,12 +61,16 @@ class SubscriptionProxy::ClientTest < ActiveSupport::TestCase
     assert_equal Time.zone.parse("2026-10-28T09:00:00Z"), credential.created_at
   end
 
-  test "the proxy says why it refused a sign-in's credential" do
-    sent = stub_proxy(proxy_response(200, { refused: "taken" }), proxy_response(200, { refused: "" }))
+  test "the proxy says which credential a sign-in made and whose it is, or why it refused it" do
+    sent = stub_proxy(proxy_response(200, { refused: "taken", credential: "", workspace: "" }),
+                      proxy_response(200, { refused: "", credential: "codex-ana.json", workspace: @workspace.id }))
     client = SubscriptionProxy::Client.new(workspace: @workspace)
 
-    assert_equal SubscriptionProxy::Client::REFUSED_TAKEN, client.sign_in_refusal("9f1c2e60-0000-4000-8000-000000000001")
-    assert_nil client.sign_in_refusal("9f1c2e60-0000-4000-8000-000000000002")
+    refused = client.sign_in_result("9f1c2e60-0000-4000-8000-000000000001")
+    made = client.sign_in_result("9f1c2e60-0000-4000-8000-000000000002")
+
+    assert_equal [ SubscriptionProxy::Client::REFUSED_TAKEN, nil ], [ refused.refused, refused.credential ]
+    assert_equal [ nil, "codex-ana.json", @workspace.id ], [ made.refused, made.credential, made.workspace ]
     assert_equal [ "/firefight/sign-ins/9f1c2e60-0000-4000-8000-000000000001", "Bearer management-key" ], [ sent.first.path, sent.first["Authorization"] ]
   end
 

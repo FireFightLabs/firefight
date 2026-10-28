@@ -28,8 +28,12 @@ RUN grep -qx '	serverOptions := \[\]api.ServerOption(nil)' cmd/server/main.go \
 # The release's own image, for everything around the binary.
 FROM eceasy/cli-proxy-api:v8.0.28@sha256:5de1679350c368fb031d46900da30d97c1e9e9a3b150fc4c4181e7e65022a09e
 
+# psql, pinned. Debian drops a version once a newer one ships, and the build then stops here until both are moved.
+ARG POSTGRESQL_CLIENT_VERSION=15+248+deb12u1
+ARG POSTGRESQL_CLIENT_15_VERSION=15.19-0+deb12u1
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends postgresql-client \
+  && apt-get install -y --no-install-recommends \
+       "postgresql-client=${POSTGRESQL_CLIENT_VERSION}" "postgresql-client-15=${POSTGRESQL_CLIENT_15_VERSION}" \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /out/CLIProxyAPI /CLIProxyAPI/CLIProxyAPI

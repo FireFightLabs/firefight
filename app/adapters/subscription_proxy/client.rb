@@ -26,6 +26,10 @@ module SubscriptionProxy
     WORKSPACE_PARAM = "firefight_workspace".freeze
     REFUSED_TAKEN = "taken".freeze
     REFUSED_UNNAMED = "unnamed".freeze
+    # Where the hook says what became of a sign-in (deploy/subscription-proxy/firefight_sign_in.go).
+    SIGN_IN_RESULTS = "/firefight/sign-ins".freeze
+
+    SignInResult = Data.define(:credential, :workspace, :refused)
 
     # One credential as the proxy reports it. quota holds the limit signals its provider sent with its last answer.
     # sign_in_id is the id of the Firefight sign-in that made it, which the proxy's hook keeps as its note.
@@ -65,11 +69,13 @@ module SubscriptionProxy
                  expires_at: expires_in.positive? ? expires_in.seconds.from_now : nil)
     end
 
-    # Why the proxy refused to save a sign-in's credential: REFUSED_TAKEN when the login is connected to another
-    # workspace, REFUSED_UNNAMED when the sign-in carried no id, nil otherwise.
-    def sign_in_refusal(sign_in_id)
-      body = json(call(:sign_in_refusal, Net::HTTP::Get, "/firefight/sign-ins/#{CGI.escape(sign_in_id.to_s)}"))
-      body["refused"].presence
+    # What became of a sign-in, as the proxy's hook knows it: the credential it made and the workspace that credential
+    # serves, or why it was refused (REFUSED_TAKEN when the login is connected to another workspace, REFUSED_UNNAMED
+    # when the sign-in carried no id). A proxy without the hook answers NotFound. Refusals are kept in the proxy's memory,
+    # so one from before a restart reads as none.
+    def sign_in_result(sign_in_id)
+      body = json(call(:sign_in_result, Net::HTTP::Get, "#{SIGN_IN_RESULTS}/#{CGI.escape(sign_in_id.to_s)}"))
+      SignInResult.new(credential: body["credential"].presence, workspace: body["workspace"].presence, refused: body["refused"].presence)
     end
 
     # :waiting, :done, or the proxy's reason it failed as a string.
