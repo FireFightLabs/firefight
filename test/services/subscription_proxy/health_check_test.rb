@@ -5,8 +5,11 @@ class SubscriptionProxy::HealthCheckTest < ActiveSupport::TestCase
 
   setup { configure_subscription_proxy! }
 
-  test "a proxy that answers with workspaces kept apart passes, and is usable" do
-    stub_proxy(proxy_response(200, { status: "ok" }, "X-Cpa-Version" => "v8.0.28"), proxy_response(200, ISOLATED))
+  # The proxy's answer for a sign-in it has nothing on, which only a proxy with Firefight's hook gives.
+  def hooked = proxy_response(200, { refused: "", credential: "", workspace: "" })
+
+  test "a proxy that answers with workspaces kept apart and Firefight's sign-in hook in it passes, and is usable" do
+    sent = stub_proxy(proxy_response(200, { status: "ok" }, "X-Cpa-Version" => "v8.0.28"), proxy_response(200, ISOLATED), hooked)
 
     SubscriptionProxy::HealthCheck.run
 
@@ -14,6 +17,16 @@ class SubscriptionProxy::HealthCheckTest < ActiveSupport::TestCase
     assert_nil check.failing_since
     assert_equal "v8.0.28", check.version
     assert_predicate SubscriptionProxy, :usable?
+    assert sent.last.path.start_with?(SubscriptionProxy::Client::SIGN_IN_RESULTS)
+  end
+
+  test "a proxy without Firefight's sign-in hook fails, since its sign-ins would be saved unnamed" do
+    stub_proxy(proxy_response(200, { status: "ok" }), proxy_response(200, ISOLATED), proxy_response(404, ""))
+
+    SubscriptionProxy::HealthCheck.run
+
+    assert_equal SubscriptionProxy::HealthCheck::NO_HOOK, SubscriptionProxy::Check.current.last_error
+    refute_predicate SubscriptionProxy, :usable?
   end
 
   test "a proxy that would let one workspace reach another's subscription fails, and is used by nobody" do
@@ -38,7 +51,7 @@ class SubscriptionProxy::HealthCheckTest < ActiveSupport::TestCase
     end
 
     Net::HTTP.unstub(:start)
-    stub_proxy(proxy_response(200, { status: "ok" }), proxy_response(200, ISOLATED))
+    stub_proxy(proxy_response(200, { status: "ok" }), proxy_response(200, ISOLATED), hooked)
     SubscriptionProxy::HealthCheck.run
     assert_predicate SubscriptionProxy, :usable?
   end

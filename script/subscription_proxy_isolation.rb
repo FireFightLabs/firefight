@@ -110,11 +110,15 @@ module SubscriptionProxyIsolation
 
     # OpenAI's token endpoint as the Codex sign-in asks it, the code naming the login (code "ana" signs in
     # ana@example.com), so two codes for one login make the same credential, as the real sign-in does.
+    # A code of login~plan signs that login in on that plan, which the proxy puts in the credential's file name. A
+    # refresh carries the same login in its refresh token.
     def tokens_for(body)
-      login = URI.decode_www_form(body.to_s).to_h["code"].to_s
-      claims = { email: "#{login}@example.com", "https://api.openai.com/auth" => { chatgpt_account_id: "account-#{login}", chatgpt_plan_type: "plus" } }
+      form = URI.decode_www_form(body.to_s).to_h
+      signed = form["code"] || form["refresh_token"].to_s.delete_prefix("refresh-")
+      login, plan = signed.to_s.split("~", 2)
+      claims = { email: "#{login}@example.com", "https://api.openai.com/auth" => { chatgpt_account_id: "account-#{login}", chatgpt_plan_type: plan || "plus" } }
       id_token = [ { alg: "none" }, claims ].map { |part| [ part.to_json ].pack("m0").tr("+/", "-_").delete("=") }.join(".") + ".signature"
-      [ 200, { access_token: "access-#{login}", refresh_token: "refresh-#{login}", id_token: id_token, expires_in: 3600 }.to_json ]
+      [ 200, { access_token: "access-#{login}", refresh_token: "refresh-#{signed}", id_token: id_token, expires_in: 3600 }.to_json ]
     end
 
     def read_request(io)
@@ -288,9 +292,12 @@ module SubscriptionProxyIsolation
       "still waiting"
     end
 
-    def refusal(sign_in_id)
-      JSON.parse(management(Net::HTTP::Get, "/firefight/sign-ins/#{sign_in_id}").body)["refused"]
+    # What the hook says became of a sign-in: refused, credential and workspace.
+    def sign_in_result(sign_in_id)
+      JSON.parse(management(Net::HTTP::Get, "/firefight/sign-ins/#{sign_in_id}").body)
     end
+
+    def refusal(sign_in_id) = sign_in_result(sign_in_id)["refused"]
 
     def credentials
       JSON.parse(management(Net::HTTP::Get, "/v8/management/credentials").body).fetch("files")
@@ -478,7 +485,18 @@ class SubscriptionProxyIsolationTest < Minitest::Test
     client.credentials.select { |file| file["note"].to_s != "" }.each { |file| client.delete(file.fetch("name")) }
   end
 
-  def credential_for(sign_in_id) = client.credentials.find { |file| file["note"] == sign_in_id }
+  # The proxy lists a saved credential a moment after its sign-in says it finished.
+  def listed
+    20.times do
+      found = yield
+      return found unless found.nil? || found == []
+
+      Kernel.sleep 0.25
+    end
+    yield
+  end
+
+  def credential_for(sign_in_id) = listed { client.credentials.find { |file| file["note"] == sign_in_id } }
 
   def served_only_for?(file, workspace) = client.models_for(file.fetch("name")).then { |ids| ids.any? && ids.all? { |id| id.start_with?("#{workspace}/") } }
 
@@ -525,6 +543,53 @@ class SubscriptionProxyIsolationTest < Minitest::Test
       client.finish_sign_in(state, login)
       assert_equal "ok", client.settled(state), "the same login signed in again in its own workspace is a reconnect"
       assert_equal owned.fetch("name"), credential_for(again).fetch("name")
+      assert_equal({ "refused" => "", "credential" => owned.fetch("name"), "workspace" => WORKSPACE_A }, client.sign_in_result(again))
+    end
+  end
+
+  # The proxy names a ChatGPT credential by its plan too, so the same login on another plan is another file name.
+  def test_e2_the_same_login_on_another_plan_is_still_one_login
+    with_sign_ins do
+      login = "dana-#{SecureRandom.hex(3)}"
+      first = SecureRandom.uuid
+      state = client.start_sign_in(sign_in_id: first, workspace: WORKSPACE_A)
+      client.finish_sign_in(state, "#{login}~plus")
+      assert_equal "ok", client.settled(state)
+      owned = credential_for(first).fetch("name")
+
+      elsewhere = SecureRandom.uuid
+      state = client.start_sign_in(sign_in_id: elsewhere, workspace: WORKSPACE_B)
+      client.finish_sign_in(state, "#{login}~pro")
+      assert_match(/Failed to save/, client.settled(state))
+      assert_equal "taken", client.refusal(elsewhere)
+      assert_nil credential_for(elsewhere)
+
+      again = SecureRandom.uuid
+      state = client.start_sign_in(sign_in_id: again, workspace: WORKSPACE_A)
+      client.finish_sign_in(state, "#{login}~pro")
+      assert_equal "ok", client.settled(state)
+      mine = client.credentials.select { |file| file["email"] == "#{login}@example.com" }
+      assert_equal [ owned ], mine.map { |file| file["name"] }, "signed in again on another plan, it replaces its credential rather than adding one"
+      assert_equal again, mine.first.fetch("note")
+    end
+  end
+
+  def test_e3_the_same_login_signed_in_from_two_workspaces_at_once_is_connected_to_one
+    with_sign_ins do
+      login = "erin-#{SecureRandom.hex(3)}"
+      mine = SecureRandom.uuid
+      theirs = SecureRandom.uuid
+      state_mine = client.start_sign_in(sign_in_id: mine, workspace: WORKSPACE_A)
+      state_theirs = client.start_sign_in(sign_in_id: theirs, workspace: WORKSPACE_B)
+      [ Thread.new { client.finish_sign_in(state_mine, login) }, Thread.new { client.finish_sign_in(state_theirs, login) } ].each(&:join)
+
+      outcomes = [ client.settled(state_mine), client.settled(state_theirs) ]
+      assert_equal 1, outcomes.count("ok"), outcomes.inspect
+      saved = listed { client.credentials.select { |file| file["email"] == "#{login}@example.com" } }
+      assert_equal 1, saved.size, -> { [ client.sign_in_result(mine), client.sign_in_result(theirs), client.credentials.map { |file| file.slice("name", "email", "note") } ].inspect }
+      winner = outcomes.first == "ok" ? [ mine, WORKSPACE_A ] : [ theirs, WORKSPACE_B ]
+      assert_equal winner, [ saved.first.fetch("note"), client.sign_in_result(winner.first).fetch("workspace") ]
+      assert_equal "taken", client.refusal(winner.first == mine ? theirs : mine)
     end
   end
 
