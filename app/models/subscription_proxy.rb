@@ -17,6 +17,9 @@ module SubscriptionProxy
     end
   end
 
+  # The proxy does not hold what was named, such as a credential removed there.
+  NotFound = Class.new(Refused)
+
   # Where failed calls to it are kept, beside the chat platform's (PlatformCallFailure).
   PLATFORM = "subscription_proxy".freeze
 

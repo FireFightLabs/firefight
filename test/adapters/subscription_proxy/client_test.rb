@@ -71,6 +71,20 @@ class SubscriptionProxy::ClientTest < ActiveSupport::TestCase
     end
   end
 
+  test "deleting a credential the proxy no longer holds is done, and is not kept as a failure" do
+    stub_proxy(proxy_response(404, { error: "auth file not found" }))
+
+    assert_nil SubscriptionProxy::Client.new(workspace: @workspace).delete("codex-gone.json")
+    assert_not PlatformCallFailure.exists?(workspace: @workspace, platform: SubscriptionProxy::PLATFORM)
+  end
+
+  test "changing a credential the proxy no longer holds says it is not found" do
+    stub_proxy(proxy_response(404, { error: "auth file not found" }))
+
+    error = assert_raises(SubscriptionProxy::NotFound) { SubscriptionProxy::Client.new(workspace: @workspace).prioritize("codex-gone.json", 1) }
+    assert_equal 404, error.status
+  end
+
   test "a workspace sees only the models its own prefix names that answer in text, with their sizes" do
     other = workspaces(:slack_workspace_two)
     sized = { data: [
