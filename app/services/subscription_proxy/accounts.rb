@@ -95,11 +95,13 @@ module SubscriptionProxy
     end
 
     # Removes credentials no account names once nothing will claim them. The proxy's credentials are all workspaces', so
-    # this runs once for the install, one kind at a time under the lock claims take.
+    # this runs once for the install, one kind at a time under the lock claims take, reading that kind again once the
+    # lock is held, so a credential claimed since the first read is seen as claimed.
     def self.sweep_unclaimed!(credentials)
       client = Client.new
-      credentials.group_by(&:provider).each do |provider, kind|
+      credentials.map(&:provider).uniq.each do |provider|
         ClaimLock.hold(provider, wait: SignIns::LOCK_WAIT) do
+          kind = client.credentials.select { |credential| credential.provider == provider }
           claimed = WorkspaceAiAccount.where(proxy_credential: kind.map(&:name)).pluck(:proxy_credential)
           waiting = SubscriptionSignIn.waiting.where(id: kind.filter_map(&:sign_in_id).grep(SubscriptionProxy::ModelFacts::UUID)).pluck(:id)
           kind.reject { |credential| claimed.include?(credential.name) }.select { |credential| unclaimable?(credential, waiting) }.each do |credential|

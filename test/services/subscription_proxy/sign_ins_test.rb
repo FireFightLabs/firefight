@@ -10,12 +10,21 @@ class SubscriptionProxy::SignInsTest < ActiveSupport::TestCase
     @service = SubscriptionProxy::SignIns.new(@workspace, by: @member)
     Client.any_instance.stubs(:models_for).returns([ proxy_model("gpt-6.1-sol"), proxy_model("gpt-6-luna") ])
     Client.any_instance.stubs(:credential_models).returns(%w[gpt-6.1-sol gpt-6-luna])
+    Client.any_instance.stubs(:sign_in_result).returns(Client::SignInResult.new(credential: nil, workspace: nil, refused: nil))
   end
 
   def start(subscription = "chatgpt", state: "state-#{SecureRandom.hex(4)}", service: @service, **)
     Client.any_instance.stubs(:start_sign_in).returns(Client::SignIn.new(state: state, url: "https://auth.openai.com/oauth/authorize?state=#{state}", user_code: nil, expires_at: nil))
     service.start!(subscription, **)
   end
+
+  # What the proxy's hook says the sign-in made, and the credential as the proxy lists it.
+  def made(sign_in, name, workspace: sign_in.workspace, email: "ana@example.com", listed: true)
+    Client.any_instance.stubs(:sign_in_result).with(sign_in.id).returns(Client::SignInResult.new(credential: name, workspace: workspace.id, refused: nil))
+    proxy_credential(name: name, email: email, sign_in_id: sign_in.id).tap { |credential| @listed = [ *@listed, credential ] if listed }
+  end
+
+  def list_made = Client.any_instance.stubs(:credentials).returns(@listed.to_a)
 
   test "the proxy is told the sign-in's own id when it starts, so the credential it saves names it" do
     Client.any_instance.expects(:start_sign_in).with("codex", sign_in_id: instance_of(String))
@@ -26,13 +35,12 @@ class SubscriptionProxy::SignInsTest < ActiveSupport::TestCase
     assert_match SubscriptionProxy::ModelFacts::UUID, sign_in.id
   end
 
-  test "a finished sign-in becomes the account for exactly the credential carrying its id" do
+  test "a finished sign-in becomes the account for exactly the credential its id made" do
     sign_in = start
     Client.any_instance.stubs(:sign_in_status).returns(:done)
-    Client.any_instance.stubs(:credentials).returns([
-      proxy_credential(name: "codex-ben.json", email: "ben@example.com", sign_in_id: SecureRandom.uuid),
-      proxy_credential(name: "codex-ana.json", sign_in_id: sign_in.id)
-    ])
+    @listed = [ proxy_credential(name: "codex-ben.json", email: "ben@example.com", sign_in_id: SecureRandom.uuid) ]
+    made(sign_in, "codex-ana.json")
+    list_made
 
     outcome = @service.advance!(sign_in)
 
@@ -49,28 +57,60 @@ class SubscriptionProxy::SignInsTest < ActiveSupport::TestCase
     mine = start
     theirs = start(service: theirs_service)
     Client.any_instance.stubs(:sign_in_status).returns(:done)
-    Client.any_instance.stubs(:credentials).returns([
-      proxy_credential(name: "codex-ana.json", sign_in_id: mine.id),
-      proxy_credential(name: "codex-ben.json", email: "ben@example.com", sign_in_id: theirs.id)
-    ])
+    made(mine, "codex-ana.json")
+    made(theirs, "codex-ben.json", email: "ben@example.com")
+    list_made
 
     assert_equal "codex-ana.json", @service.advance!(mine).account.proxy_credential
     assert_equal "codex-ben.json", theirs_service.advance!(theirs).account.proxy_credential
   end
 
+  test "a credential the hook says serves another workspace is never taken" do
+    sign_in = start
+    Client.any_instance.stubs(:sign_in_status).returns(:done)
+    made(sign_in, "codex-ana.json", workspace: workspaces(:slack_workspace_two))
+    list_made
+
+    error = assert_raises(SubscriptionProxy::SignIns::Failed) { @service.advance!(sign_in) }
+
+    assert_equal SubscriptionProxy::SignIns::TAKEN, error.message
+    assert_empty @workspace.workspace_ai_accounts.subscriptions
+  end
+
   test "a finished sign-in whose credential the proxy does not list yet keeps waiting" do
     sign_in = start
     Client.any_instance.stubs(:sign_in_status).returns(:done)
-    Client.any_instance.stubs(:credentials).returns([ proxy_credential(name: "codex-ben.json", sign_in_id: SecureRandom.uuid) ])
+    made(sign_in, "codex-ana.json", listed: false)
+    list_made
 
     assert_nil @service.advance!(sign_in)
     assert sign_in.reload.waiting?
   end
 
+  test "a sign-in the proxy has forgotten since it finished is still taken up, not failed" do
+    sign_in = start
+    Client.any_instance.stubs(:sign_in_status).returns("unknown or expired state")
+    made(sign_in, "codex-ana.json")
+    list_made
+
+    assert_equal "codex-ana.json", @service.advance!(sign_in).account.proxy_credential
+  end
+
+  test "a sign-in that failed says so in Firefight's words, never the proxy's" do
+    sign_in = start
+    Client.any_instance.stubs(:sign_in_status).returns("unknown or expired state")
+    Client.any_instance.stubs(:credentials).returns([])
+
+    error = assert_raises(SubscriptionProxy::SignIns::Failed) { @service.advance!(sign_in) }
+
+    assert_equal SubscriptionProxy::SignIns::DID_NOT_FINISH, error.message
+    assert_equal SubscriptionProxy::SignIns::DID_NOT_FINISH, sign_in.reload.error
+  end
+
   test "the same login already connected to another workspace is refused by the proxy, and said so plainly" do
     sign_in = start
-    Client.any_instance.stubs(:sign_in_status).returns("Failed to save authentication tokens: firefight: this account is already connected to another workspace")
-    Client.any_instance.expects(:sign_in_refusal).with(sign_in.id).returns(Client::REFUSED_TAKEN)
+    Client.any_instance.stubs(:sign_in_status).returns("Failed to save authentication tokens")
+    Client.any_instance.stubs(:sign_in_result).with(sign_in.id).returns(Client::SignInResult.new(credential: nil, workspace: nil, refused: Client::REFUSED_TAKEN))
 
     error = assert_raises(SubscriptionProxy::SignIns::Failed) { @service.advance!(sign_in) }
 
@@ -83,7 +123,8 @@ class SubscriptionProxy::SignInsTest < ActiveSupport::TestCase
     add_subscription_account!(workspaces(:slack_workspace_two), credential: "codex-ana.json")
     sign_in = start
     Client.any_instance.stubs(:sign_in_status).returns(:done)
-    Client.any_instance.stubs(:credentials).returns([ proxy_credential(name: "codex-ana.json", sign_in_id: sign_in.id) ])
+    made(sign_in, "codex-ana.json")
+    list_made
 
     error = assert_raises(SubscriptionProxy::SignIns::Failed) { @service.advance!(sign_in) }
 
@@ -95,7 +136,8 @@ class SubscriptionProxy::SignInsTest < ActiveSupport::TestCase
     account = add_subscription_account!(@workspace, credential: "codex-ana.json", state: { "signed_out" => true })
     sign_in = start(account: account)
     Client.any_instance.stubs(:sign_in_status).returns(:done)
-    Client.any_instance.stubs(:credentials).returns([ proxy_credential(name: "codex-ana.json", created_at: 1.day.ago, updated_at: Time.current, sign_in_id: sign_in.id) ])
+    made(sign_in, "codex-ana.json")
+    list_made
 
     outcome = @service.advance!(sign_in)
 
@@ -115,7 +157,8 @@ class SubscriptionProxy::SignInsTest < ActiveSupport::TestCase
     sign_in = start(state: "mine")
     Client.any_instance.expects(:finish_sign_in).with("codex", state: "mine", code: "the-code")
     Client.any_instance.stubs(:sign_in_status).returns(:done)
-    Client.any_instance.stubs(:credentials).returns([ proxy_credential(name: "codex-ana.json", sign_in_id: sign_in.id) ])
+    made(sign_in, "codex-ana.json")
+    list_made
 
     outcome = @service.hand_back!(sign_in, "http://localhost:1455/auth/callback?code=the-code&state=mine")
 
@@ -146,7 +189,8 @@ class SubscriptionProxy::SignInsTest < ActiveSupport::TestCase
     sign_in = start
     sign_in.update_columns(expires_at: 1.second.ago)
     Client.any_instance.stubs(:sign_in_status).returns(:done)
-    Client.any_instance.stubs(:credentials).returns([ proxy_credential(name: "codex-ana.json", sign_in_id: sign_in.id) ])
+    made(sign_in, "codex-ana.json")
+    list_made
 
     assert_equal "codex-ana.json", @service.advance!(sign_in).account.proxy_credential
   end

@@ -26,6 +26,7 @@ class SubscriptionSignInsControllerTest < ActionDispatch::IntegrationTest
     post subscription_sign_ins_path, params: { subscription: "supergrok" }
     Client.any_instance.stubs(:sign_in_status).returns(:done)
     Client.any_instance.stubs(:credentials).returns([ proxy_credential(name: "xai-ana.json", provider: "xai", sign_in_id: started.id) ])
+    Client.any_instance.stubs(:sign_in_result).returns(Client::SignInResult.new(credential: "xai-ana.json", workspace: @workspace.id, refused: nil))
     Client.any_instance.stubs(:models_for).returns([ proxy_model("grok-4.7"), proxy_model("grok-4.7-build-fast") ])
     Client.any_instance.stubs(:credential_models).returns(%w[grok-4.7 grok-4.7-build-fast])
     FirefightAi.expects(:check_account).once
@@ -46,20 +47,20 @@ class SubscriptionSignInsControllerTest < ActionDispatch::IntegrationTest
     assert_nil flash[:alert]
   end
 
-  test "a sign-in that will not finish says why" do
+  test "a sign-in that will not finish says so in Firefight's own words" do
     post subscription_sign_ins_path, params: { subscription: "supergrok" }
     Client.any_instance.stubs(:sign_in_status).returns("Authentication failed")
-    Client.any_instance.stubs(:sign_in_refusal).returns(nil)
+    Client.any_instance.stubs(:sign_in_result).returns(Client::SignInResult.new(credential: nil, workspace: nil, refused: nil))
 
     post advance_subscription_sign_in_path(started)
 
-    assert_equal "The sign-in did not finish: Authentication failed. Start again.", flash[:alert]
+    assert_equal SubscriptionProxy::SignIns::DID_NOT_FINISH, flash[:alert]
   end
 
   test "an account already connected to another workspace is refused with a plain sentence" do
     post subscription_sign_ins_path, params: { subscription: "supergrok" }
-    Client.any_instance.stubs(:sign_in_status).returns("Failed to save authentication tokens: firefight: this account is already connected to another workspace")
-    Client.any_instance.stubs(:sign_in_refusal).returns(Client::REFUSED_TAKEN)
+    Client.any_instance.stubs(:sign_in_status).returns("Failed to save authentication tokens")
+    Client.any_instance.stubs(:sign_in_result).returns(Client::SignInResult.new(credential: nil, workspace: nil, refused: Client::REFUSED_TAKEN))
 
     post advance_subscription_sign_in_path(started)
 

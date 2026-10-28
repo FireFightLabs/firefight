@@ -112,10 +112,22 @@ class SubscriptionProxy::AccountsTest < ActiveSupport::TestCase
                     proxy_credential(name: "codex-stray.json", created_at: 2.hours.ago),
                     proxy_credential(name: "codex-untimed.json", created_at: nil),
                     proxy_credential(name: "codex-new.json", created_at: 1.minute.ago) ]
+    Client.any_instance.stubs(:credentials).returns(credentials)
     Client.any_instance.expects(:delete).with("codex-stray.json").once
     Client.any_instance.expects(:delete).with("codex-untimed.json").once
 
     SubscriptionProxy::Accounts.sweep_unclaimed!(credentials)
+  end
+
+  test "the sweep judges each credential as the proxy lists it once the lock is held, not as it was first read" do
+    ended = SubscriptionSignIn.create!(workspace: @workspace, subscription: "chatgpt", proxy: "codex", state: "e", url: "https://auth.openai.com",
+                                       status: SubscriptionSignIn::STATUS_CANCELLED)
+    waiting = SubscriptionSignIn.create!(workspace: @workspace, subscription: "chatgpt", proxy: "codex", state: "w", url: "https://auth.openai.com")
+    first_read = [ proxy_credential(name: "codex-ana.json", sign_in_id: ended.id) ]
+    Client.any_instance.stubs(:credentials).returns([ proxy_credential(name: "codex-ana.json", sign_in_id: waiting.id) ])
+    Client.any_instance.expects(:delete).never
+
+    SubscriptionProxy::Accounts.sweep_unclaimed!(first_read)
   end
 
   test "a credential a sign-in made stays while that sign-in waits, and goes once it ended without an account" do
@@ -125,6 +137,7 @@ class SubscriptionProxy::AccountsTest < ActiveSupport::TestCase
     credentials = [ proxy_credential(name: "codex-waiting.json", sign_in_id: waiting.id),
                     proxy_credential(name: "codex-late.json", sign_in_id: cancelled.id),
                     proxy_credential(name: "codex-forgotten.json", sign_in_id: SecureRandom.uuid) ]
+    Client.any_instance.stubs(:credentials).returns(credentials)
     Client.any_instance.expects(:delete).with("codex-late.json").once
     Client.any_instance.expects(:delete).with("codex-forgotten.json").once
 

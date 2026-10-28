@@ -32,6 +32,7 @@ class SubscriptionConnectTest < ApplicationSystemTestCase
     Client.any_instance.stubs(:sign_in_status).returns(:done)
     started = SubscriptionSignIn.find_by!(workspace: @workspace, state: "xai-1")
     Client.any_instance.stubs(:credentials).returns([ proxy_credential(name: "xai-ana.json", provider: "xai", sign_in_id: started.id) ])
+    Client.any_instance.stubs(:sign_in_result).returns(Client::SignInResult.new(credential: "xai-ana.json", workspace: @workspace.id, refused: nil))
 
     assert_text "SuperGrok subscription for ana@example.com connected.", wait: 10
     assert_no_selector "[role=dialog]"
@@ -91,6 +92,7 @@ class SubscriptionConnectTest < ApplicationSystemTestCase
     Client.any_instance.stubs(:sign_in_status).returns(:done)
     started = SubscriptionSignIn.find_by!(workspace: @workspace, state: "abc")
     Client.any_instance.stubs(:credentials).returns([ proxy_credential(name: "codex-ana.json", sign_in_id: started.id) ])
+    Client.any_instance.stubs(:sign_in_result).returns(Client::SignInResult.new(credential: "codex-ana.json", workspace: @workspace.id, refused: nil))
 
     assert_text "ChatGPT subscription for ana@example.com connected.", wait: 10
     assert_no_selector "[role=dialog]"

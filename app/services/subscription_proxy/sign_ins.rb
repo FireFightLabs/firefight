@@ -18,6 +18,10 @@ module SubscriptionProxy
     TAKEN = "This account is already connected to another Firefight workspace. Disconnect it there first, or sign in with another account.".freeze
     NOTHING_NEW = "The sign-in finished, but no account came of it. Start again.".freeze
     CANCELLED = "The sign-in was cancelled.".freeze
+    # Whatever else the proxy says of a sign-in that failed, which is never shown as it is.
+    DID_NOT_FINISH = "The sign-in did not finish. Start again.".freeze
+
+    MISSING = :missing
 
     # The account connected or signed in again, or nil while the person has not finished.
     # fresh is false when another request already settled it, which already said so.
@@ -76,18 +80,25 @@ module SubscriptionProxy
     end
 
     # Asks the proxy whether the person finished. Answers the Outcome once they did and nil while they have not. Raises
-    # Failed with why it will not finish, and StillWaiting the first time the proxy cannot be asked. A sign-in the proxy
-    # finished is taken up even when it finished just before its time ran out.
+    # Failed with why it will not finish, and StillWaiting the first time the proxy cannot be asked. Whenever the proxy
+    # is not waiting on it, the credential the sign-in made is looked for before anything else, since the proxy forgets
+    # a finished sign-in a minute after it finished and then answers as if it never knew it. So a sign-in finished just
+    # before its time ran out, or longer ago than the proxy remembers, is still taken up.
     def advance!(sign_in)
       return finished(sign_in) unless sign_in.waiting?
 
       status = client.sign_in_status(sign_in.state)
       answered_again!(sign_in)
-      return claim!(sign_in) if status == :done
-      return timed_out!(sign_in) if sign_in.expired?
-      return nil if status == :waiting
+      if status == :waiting
+        return sign_in.expired? ? timed_out!(sign_in) : nil
+      end
 
-      fail!(sign_in, refused_because(sign_in) || "The sign-in did not finish: #{status.to_s.strip.delete_suffix('.')}. Start again.")
+      claimed = claim!(sign_in)
+      return claimed unless claimed == MISSING
+      return (sign_in.expired? ? fail!(sign_in, NOTHING_NEW) : nil) if status == :done
+
+      Rails.logger.info({ event: "subscription_proxy.sign_in_failed", sign_in_id: sign_in.id, status: status.to_s.truncate(200) }.to_json)
+      fail!(sign_in, refused_because(sign_in) || DID_NOT_FINISH)
     rescue SubscriptionProxy::Error
       unreachable!(sign_in)
     end
@@ -137,9 +148,9 @@ module SubscriptionProxy
       SubscriptionSignIn.where(id: sign_in.id, status: SubscriptionSignIn::STATUS_WAITING).where.not(error: nil).update_all(error: nil)
     end
 
-    # Without the proxy's word on why, the sign-in still ends with what the proxy said of it.
+    # Without the proxy's word on why, which it keeps only until it restarts, the sign-in ends with DID_NOT_FINISH.
     def refused_because(sign_in)
-      TAKEN if client.sign_in_refusal(sign_in.id) == Client::REFUSED_TAKEN
+      TAKEN if client.sign_in_result(sign_in.id).refused == Client::REFUSED_TAKEN
     rescue SubscriptionProxy::Error
       nil
     end
@@ -151,18 +162,20 @@ module SubscriptionProxy
       Outcome.new(account: @workspace.workspace_ai_accounts.find_by(id: sign_in.workspace_ai_account_id), reconnected: false, fresh: false)
     end
 
-    # The credential this sign-in made is the one carrying its id. The proxy lists it a moment after it is saved, so
-    # until then the sign-in waits. The sweep of the same kind never runs meanwhile.
+    # The credential this sign-in made is the one the proxy's hook stamped with its id, taken only when it serves this
+    # workspace. Answers MISSING when the proxy saved none, and nil while the proxy does not list it yet or the sweep
+    # of the same kind holds the lock.
     def claim!(sign_in)
       result = ClaimLock.hold(sign_in.proxy, wait: LOCK_WAIT) do
         sign_in.reload
         next finished(sign_in) unless sign_in.waiting?
 
-        credential = client.credentials.find { |candidate| candidate.provider == sign_in.proxy && candidate.sign_in_id == sign_in.id }
-        unless credential
-          fail!(sign_in, NOTHING_NEW) if sign_in.expired?
-          next nil
-        end
+        made = client.sign_in_result(sign_in.id)
+        next MISSING if made.credential.blank?
+        next fail!(sign_in, TAKEN) unless made.workspace == SubscriptionProxy.prefix_for(@workspace)
+
+        credential = client.credentials.find { |candidate| candidate.name == made.credential && candidate.sign_in_id == sign_in.id }
+        next nil unless credential
 
         holder = WorkspaceAiAccount.find_by(proxy_credential: credential.name)
         if holder && holder.workspace_id != @workspace.id
