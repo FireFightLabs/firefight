@@ -32,12 +32,30 @@ interface Draft {
   fast: string
 }
 
+type ProviderField = AiProviderOption["fields"][number]
+
+// A setting picked from a list, such as the region a provider serves, starts on its first choice.
+function defaultSettings(provider: AiProviderOption | undefined): Record<string, string> {
+  const settings: Record<string, string> = {}
+  for (const field of provider?.fields ?? []) {
+    if (field.choices.length > 0) {
+      settings[field.key] = field.choices[0].key
+    }
+  }
+  return settings
+}
+
+// A setting only some choices ask for, such as a workspace ID that is part of one region's address, shows only for them.
+function fieldShown(field: ProviderField, settings: Record<string, string>): boolean {
+  return !field.onlyWhen || field.onlyWhen.values.includes(settings[field.onlyWhen.key] ?? "")
+}
+
 // Secrets are never sent to the page, so an edit starts them empty and an empty one keeps what is stored.
 function draftFor(account: WorkspaceAiAccount | null, provider: AiProviderOption | undefined): Draft {
   return {
     provider: account?.provider ?? provider?.slug ?? "",
     label: account?.label ?? provider?.name ?? "",
-    settings: { ...(account?.settings ?? {}) },
+    settings: account ? { ...account.settings } : defaultSettings(provider),
     main: account?.models.main ?? provider?.mainModel ?? "",
     fast: account?.models.fast ?? provider?.fastModel ?? "",
   }
@@ -81,6 +99,12 @@ export function AiAccountDialog({
   const fieldId = (field: string) => `ai-account-${field}-${editing?.id ?? "new"}`
   const baseErrors = errorText(errors.base)
   const keyField = provider?.fields.find((candidate) => candidate.secret)
+  const shownFields = provider?.fields.filter((field) => fieldShown(field, draft.settings)) ?? []
+
+  // A saved secret left empty keeps what is stored, so on an edit it is not required.
+  function settingRequired(field: ProviderField): boolean {
+    return field.required && !(field.secret && keySummary)
+  }
   const keySummary = editing?.keySummary
 
   // A new provider brings its own settings and recommended models. A label still reading the old provider's name follows it.
@@ -90,7 +114,7 @@ export function AiAccountDialog({
     setDraft({
       provider: slug,
       label: !draft.label || draft.label === previous?.name ? chosen?.name ?? "" : draft.label,
-      settings: {},
+      settings: defaultSettings(chosen),
       main: chosen?.mainModel ?? "",
       fast: chosen?.fastModel ?? "",
     })
@@ -137,7 +161,7 @@ export function AiAccountDialog({
   return (
     <Dialog open={Boolean(state)} onOpenChange={whenClosed(onClose)}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="min-w-0">
           <DialogHeader>
             <DialogTitle>{editing ? `Edit ${editing.label}` : "Add an AI account"}</DialogTitle>
             <DialogDescription>
@@ -179,19 +203,19 @@ export function AiAccountDialog({
               {errorText(errors.label) && <p className="text-xs text-destructive">{errorText(errors.label)}</p>}
             </div>
 
-            {provider?.fields.map((field) => (
+            {shownFields.map((field) => (
               <div key={field.key} className="flex flex-col gap-2">
                 <Label htmlFor={fieldId(field.key)}>
                   {field.label}
                   {!field.required && <span className="font-normal text-muted-foreground"> (optional)</span>}
                 </Label>
-                <Input
+                <SettingInput
                   id={fieldId(field.key)}
-                  type={field.secret ? "password" : "text"}
-                  autoComplete="off"
+                  field={field}
                   value={draft.settings[field.key] ?? ""}
-                  onChange={(event) => changeSetting(field.key, event.target.value)}
                   placeholder={field.secret && keySummary ? "Unchanged" : undefined}
+                  required={settingRequired(field)}
+                  onChange={(value) => changeSetting(field.key, value)}
                 />
                 {keySummary && field.key === keyField?.key && <p className="text-xs text-muted-foreground">{keySummary}</p>}
               </div>
@@ -228,5 +252,55 @@ export function AiAccountDialog({
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// A setting picked from the provider's list when it has one, such as a region, and typed otherwise.
+function SettingInput({
+  id,
+  field,
+  value,
+  placeholder,
+  required,
+  onChange,
+}: {
+  id: string
+  field: ProviderField
+  value: string
+  placeholder?: string
+  required: boolean
+  onChange: (value: string) => void
+}) {
+  function changeTyped(event: React.ChangeEvent<HTMLInputElement>) {
+    onChange(event.target.value)
+  }
+
+  if (field.choices.length === 0) {
+    return (
+      <Input
+        id={id}
+        type={field.secret ? "password" : "text"}
+        autoComplete="off"
+        value={value}
+        onChange={changeTyped}
+        placeholder={placeholder}
+        aria-required={required}
+      />
+    )
+  }
+
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger id={id} className="w-full min-w-0" aria-required={required}>
+        <SelectValue className="min-w-0 truncate" />
+      </SelectTrigger>
+      <SelectContent>
+        {field.choices.map((choice) => (
+          <SelectItem key={choice.key} value={choice.key}>
+            {choice.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }

@@ -15,6 +15,9 @@ module FirefightAi
       ollama_api_key ollama_api_base
       gpustack_api_key gpustack_api_base
       xai_api_key xai_api_base
+      zai_api_key zai_region
+      minimax_api_key minimax_region
+      qwen_api_key qwen_region qwen_workspace_id
     ].freeze
 
     attr_accessor :default_model, :default_provider, :provider_settings, :request_timeout

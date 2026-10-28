@@ -45,7 +45,10 @@ module AiAccountTestHelper
     "bedrock" => { "main" => "anthropic.claude-sonnet-4-5-20250929-v1:0", "fast" => "anthropic.claude-sonnet-4-5-20250929-v1:0" },
     "vertexai" => { "main" => "claude-opus-5-5", "fast" => "claude-opus-5-5" },
     "openrouter" => { "main" => "openai/shared-vision", "fast" => "openai/shared-vision" },
-    "deepseek" => { "main" => "deepseek-v4-pro", "fast" => "deepseek-flash" }
+    "deepseek" => { "main" => "deepseek-v4-pro", "fast" => "deepseek-flash" },
+    "zai" => { "main" => "glm-5.3", "fast" => "glm-5.3-flash" },
+    "minimax" => { "main" => "MiniMax-M3", "fast" => "MiniMax-M3.1-Flash" },
+    "qwen" => { "main" => "qwen3.8-max", "fast" => "qwen3.8-flash" }
   }.freeze
 
   def add_ai_account!(workspace, provider: "anthropic", key: "sk-ant-own-key-4f2a", label: nil, settings: {}, models: nil, **attributes)

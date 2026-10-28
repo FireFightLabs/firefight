@@ -73,6 +73,50 @@ class WorkspaceAiAccountTest < ActiveSupport::TestCase
     assert_includes vertex.errors[:base], "Location should be a name such as us-east-1"
   end
 
+  test "Z.AI, MiniMax and Qwen need a region they serve, and their accounts reach only that region's address" do
+    account = @workspace.workspace_ai_accounts.new(provider: "zai", label: "Z.AI", kind: AiProviders::KIND_API_KEY, position: 1)
+    account.assign_settings("api_key" => "zai-own-4f2a")
+    account.assign_models(AiAccountTestHelper::REGISTERED_MODELS.fetch("zai"))
+    assert_not account.valid?
+    assert_includes account.errors[:base], "Region is required"
+
+    account.assign_settings("region" => "mars")
+    assert_not account.valid?
+    assert_includes account.errors[:base], "Region is not one Z.AI serves"
+
+    account.assign_settings("region" => "china")
+    assert account.valid?, account.errors.full_messages.to_sentence
+    account.save!
+    config = account.llm_context.config
+    assert_equal [ "zai-own-4f2a", "china" ], [ config.zai_api_key, config.zai_region ]
+    assert_equal "API key ending in 4f2a. Enter a new one to replace it.", account.credential_summary
+    assert_not_includes account.settings.to_json, "zai-own", "the key is only in the encrypted column"
+
+    minimax = add_ai_account!(@workspace, provider: "minimax", key: "mm-own", settings: { "region" => "global" })
+    assert_equal "global", minimax.llm_context.config.minimax_region
+  end
+
+  test "a Model Studio workspace ID is needed only where it is part of the address, and is not kept once another region is chosen" do
+    account = @workspace.workspace_ai_accounts.new(provider: "qwen", label: "Qwen", kind: AiProviders::KIND_API_KEY, position: 1)
+    account.assign_settings("api_key" => "sk-qwen-own", "region" => "alibaba-eu-central-1")
+    account.assign_models(AiAccountTestHelper::REGISTERED_MODELS.fetch("qwen"))
+    assert_not account.valid?
+    assert_includes account.errors[:base], "Workspace ID is required"
+
+    account.assign_settings("workspace_id" => "llm.evil.example.com")
+    assert_not account.valid?
+    assert_includes account.errors[:base], "Workspace ID should be a name such as us-east-1"
+
+    account.assign_settings("workspace_id" => "llm-4f2a")
+    assert account.valid?, account.errors.full_messages.to_sentence
+    assert_equal "https://llm-4f2a.eu-central-1.maas.aliyuncs.com/compatible-mode/v1",
+                 FirefightAi::Providers::Qwen.address(account.llm_context.config)
+
+    account.assign_settings("region" => "eu-central-1")
+    assert account.valid?, "QwenCloud's Frankfurt needs no workspace"
+    assert_nil account.settings["workspace_id"]
+  end
+
   test "Vertex AI needs a service account key, so it never falls back to the machine's own Google credentials" do
     account = @workspace.workspace_ai_accounts.new(provider: "vertexai", label: "Vertex", kind: AiProviders::KIND_API_KEY, position: 1)
     account.assign_settings("project_id" => "acme", "location" => "us-central1")

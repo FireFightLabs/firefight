@@ -3,11 +3,12 @@ require "test_helper"
 class AiProvidersTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
-  # Read from the catalog RubyLLM ships, which the nightly refresh fills the registry from. The test registry holds a
-  # few rows only. A newer main model ahead of it is picked up once the registry holds it, and the last is always there.
+  # Read from the catalog RubyLLM ships, and the file of models FirefightAi::Providers registers, which the nightly
+  # refresh fills the registry from. The test registry holds a few rows only. A newer main model ahead of it is picked
+  # up once the registry holds it, and the last is always there.
   test "every recommended model is one the catalog holds for its provider, with tool calling and a known size" do
-    catalog = JSON.parse(File.read(File.join(Gem.loaded_specs["ruby_llm"].full_gem_path, "lib/ruby_llm/models.json")))
-                  .index_by { |model| [ model["provider"], model["id"] ] }
+    shipped = JSON.parse(File.read(File.join(Gem.loaded_specs["ruby_llm"].full_gem_path, "lib/ruby_llm/models.json")))
+    catalog = (shipped + JSON.parse(File.read(FirefightAi::Providers::MODELS))).index_by { |model| [ model["provider"], model["id"] ] }
     AiProviders.all.each do |provider|
       # A deployment's own models, such as an Azure deployment or a local Ollama, are named by whoever runs them.
       next if provider.assumes_models || provider.local
@@ -19,6 +20,48 @@ class AiProvidersTest < ActiveSupport::TestCase
         assert model["context_window"].to_i.positive?, "Halon can size #{provider.slug} #{model_id}"
       end
     end
+  end
+
+  # Every price and size cited, so a spend cap counts each call, and the pages say where each number was read.
+  test "every model Firefight registers for a provider RubyLLM does not ship is priced, sized and cites its pages" do
+    models = JSON.parse(File.read(FirefightAi::Providers::MODELS))
+
+    assert_equal %w[minimax qwen zai], models.pluck("provider").uniq.sort
+    models.each do |model|
+      prices = model.dig("pricing", "text_tokens", "standard")
+      assert prices["input_per_million"].positive? && prices["output_per_million"].positive?, "#{model["id"]} is priced"
+      assert prices["cache_read_input_per_million"].positive?, "#{model["id"]} prices a cache read"
+      assert model["context_window"].positive? && model["max_output_tokens"].positive?, "#{model["id"]} is sized"
+      assert_includes model["capabilities"], "function_calling"
+      assert_match %r{\Ahttps://}, model.dig("metadata", "docs")
+      assert_match %r{\Ahttps://}, model.dig("metadata", "pricing_docs")
+    end
+  end
+
+  test "a provider that serves each region at its own address is asked for the region by name, the first where the form starts" do
+    zai = AiProviders.find("zai")
+    assert_equal [ [ "global", "Global (api.z.ai)" ], [ "china", "China, BigModel (open.bigmodel.cn)" ] ], zai.field("region").choices.map { |choice| [ choice.key, choice.label ] }
+    assert_equal %w[api_key region], zai.fields.select(&:required).map(&:key).sort
+    assert_equal %w[global china], AiProviders.find("minimax").field("region").choices.map(&:key)
+    assert_empty AiProviders.find("bedrock").field("region").choices, "a region a provider does not list is typed"
+
+    registry = YAML.load_file(AiProviders::REGISTRY_PATH)
+    { "zai" => FirefightAi::Providers::Zai, "minimax" => FirefightAi::Providers::Minimax, "qwen" => FirefightAi::Providers::Qwen }.each do |slug, provider|
+      assert_equal provider.regions.keys.sort, registry.dig(slug, "regions").keys.sort, "#{slug} names every region it serves, and only those"
+    end
+  end
+
+  test "Qwen asks for a Model Studio workspace only in the regions whose address carries it" do
+    qwen = AiProviders.find("qwen")
+    workspace = qwen.field("workspace_id")
+
+    assert_equal 12, qwen.field("region").choices.size
+    assert_equal "ap-southeast-1", qwen.field("region").choices.first.key
+    assert_equal %w[alibaba-eu-central-1 alibaba-ap-northeast-1], workspace.only_when.values
+    assert workspace.required
+    assert workspace.applies?("region" => "alibaba-eu-central-1")
+    assert_not workspace.applies?("region" => "eu-central-1"), "QwenCloud's Frankfurt has an address of its own"
+    assert_nil qwen.field("region").only_when
   end
 
   test "what a provider asks for comes from RubyLLM, with Bedrock and Vertex AI made to bring their own keys" do

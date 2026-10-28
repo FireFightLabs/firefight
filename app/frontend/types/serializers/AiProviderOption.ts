@@ -4,7 +4,7 @@ export default interface AiProviderOption {
   chatModels: string[]
   codeFixes: boolean
   fastModel?: string
-  fields: { key: string; label: string; secret: boolean; required: boolean }[]
+  fields: { key: string; label: string; secret: boolean; required: boolean; choices: { key: string; label: string }[]; onlyWhen: { key: string; values: string[] } | null }[]
   mainModel?: string
   name: string
   slug: string
