@@ -52,12 +52,28 @@ class PullRequestReview::Comments
 
   def self.refused(reason) = REFUSED[reason]
 
+  # What markdown reads as markup in text that should read as written.
+  MARKUP = /[\\`*_\[\]()<>#!|~]/
+
   # A reply the finding's thread would not take, posted in the pull request's conversation instead, led by the finding it
-  # is about and linked to its comment where it has one.
+  # is about and linked to its comment where it has one. The claim and path are written as text, so nothing in them
+  # breaks the link, the bold or the code span.
   def self.elsewhere_reply(finding, body)
-    named = finding.host_comment_url.present? ? "[#{finding.claim}](#{finding.host_comment_url})" : "**#{finding.claim}**"
-    where = " on `#{finding.path}`#{" line #{finding.line}" if finding.line}" if finding.path.present?
+    claim = plain_text(finding.claim)
+    named = finding.host_comment_url.present? ? "[#{claim}](#{finding.host_comment_url.to_s.gsub(/[\s()]/) { |char| format("%%%02X", char.ord) }})" : "**#{claim}**"
+    where = " on #{code_span(finding.path)}#{" line #{finding.line}" if finding.line}" if finding.path.present?
     "About my finding#{where}, #{named}\n\n#{body}"
+  end
+
+  # Text on one line with every character markdown reads as markup escaped.
+  def self.plain_text(text) = text.to_s.squish.gsub(MARKUP) { |char| "\\#{char}" }
+
+  # A code span around text on one line, its fence longer than any run of backticks inside it.
+  def self.code_span(text)
+    flat = text.to_s.squish
+    fence = "`" * (flat.scan(/`+/).map(&:size).max.to_i + 1)
+    padded = flat.start_with?("`") || flat.end_with?("`") ? " #{flat} " : flat
+    "#{fence}#{padded}#{fence}"
   end
 
   # collapses is whether the host folds a details block, hides whether it keeps an HTML comment out of sight, and

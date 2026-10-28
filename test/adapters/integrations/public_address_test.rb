@@ -16,6 +16,14 @@ module Integrations
       ENV.delete("INTEGRATION_KUBERNETES_PRIVATE_HOSTS")
     end
 
+    test "a name that does not resolve is marked unreachable, so a caller tries it again, and a private one never is" do
+      Addrinfo.stubs(:getaddrinfo).raises(SocketError)
+      assert_kind_of Integrations::Unreachable, assert_raises(PublicAddress::Refused) { PublicAddress.check!("gitlab.acme.example", provider_key: "gitlab") }
+
+      Addrinfo.stubs(:getaddrinfo).returns([ Addrinfo.tcp("10.0.0.5", 0) ])
+      assert_not_kind_of Integrations::Unreachable, assert_raises(PublicAddress::Refused) { PublicAddress.check!("gitlab.acme.example", provider_key: "gitlab") }
+    end
+
     test "a host that cannot be found is said in words" do
       Addrinfo.stubs(:getaddrinfo).raises(SocketError)
 

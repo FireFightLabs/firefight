@@ -156,9 +156,20 @@ module Integrations
       pack(row).pull_request_changes_between(row, repository: repository, from: from, to: to).to_s.truncate(OUTCOME_DIFF_LIMIT)
     end
 
-    # A refusal worth trying again: a rate limit, a host that did not answer in time, or one that failed on its side.
+    # A refusal worth trying again: a rate limit, a host that did not answer in time or could not be reached, or one that
+    # failed on its side, said by the error or by one it was raised from.
     def retryable?(error)
-      error.is_a?(RateLimited) || error.is_a?(TimedOut) || error.try(:http_status).to_i >= 500
+      causes(error).any? { |each| [ RateLimited, TimedOut, Unreachable ].any? { |kind| each.is_a?(kind) } || each.try(:http_status).to_i >= 500 }
+    end
+
+    # The error and each it was raised from, as a pack that words a refusal its own way raises it from the client's.
+    def causes(error)
+      chain = []
+      while error && chain.size < 10 && !chain.include?(error)
+        chain << error
+        error = error.cause
+      end
+      chain
     end
 
     def sets_checks?(integration)

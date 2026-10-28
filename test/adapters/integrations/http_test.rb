@@ -151,6 +151,47 @@ module Integrations
       assert_not_kind_of Integrations::TimedOut, assert_raises(AcmeError) { Http.request(@uri, Net::HTTP::Get.new(@uri), error_class: AcmeError) }
     end
 
+    test "a connection that drops, is refused or cannot be named is marked unreachable, so a caller tries it again" do
+      [ Errno::ECONNRESET, Errno::ECONNREFUSED, SocketError, OpenSSL::SSL::SSLError, EOFError, Net::HTTPBadResponse ].each do |raised|
+        Net::HTTP.stubs(:start).raises(raised)
+
+        error = assert_raises(AcmeError) { Http.request(@uri, Net::HTTP::Get.new(@uri), error_class: AcmeError) }
+        assert_kind_of Integrations::Unreachable, error
+        assert_nil error.http_status
+      end
+    end
+
+    test "an answer that is not JSON keeps its status, so a 502 page reads as the host failing on its side" do
+      Http.stubs(:request).returns(response(502, "<html>Bad gateway</html>"))
+
+      assert_equal 502, assert_raises(AcmeError) { json }.http_status
+    end
+
+    test "a 403 that says to wait is a rate limit, and any other 403 is a refusal" do
+      [ { "retry-after" => [ "60" ] }, { "x-ratelimit-remaining" => [ "0" ] } ].each do |headers|
+        Http.stubs(:request).returns(response(403, '{"message":"You have exceeded a secondary rate limit"}', headers: headers))
+
+        error = assert_raises(AcmeError) { json }
+        assert_kind_of Integrations::RateLimited, error
+        assert_equal 403, error.http_status
+      end
+
+      Http.stubs(:request).returns(response(403, '{"message":"Resource not accessible"}', headers: { "x-ratelimit-remaining" => [ "4999" ] }))
+      error = assert_raises(AcmeError) { json }
+      assert_not_kind_of Integrations::RateLimited, error
+      assert_equal 403, error.http_status
+    end
+
+    test "a 403 that names a secondary rate limit is a rate limit with no header, and a 408 is a host that did not answer in time" do
+      Http.stubs(:request).returns(response(403, '{"message":"You have exceeded a secondary rate limit. Please wait a few minutes."}'))
+      assert_kind_of Integrations::RateLimited, assert_raises(AcmeError) { json }
+
+      Http.stubs(:request).returns(response(408, '{"message":"Request Timeout"}'))
+      error = assert_raises(AcmeError) { json }
+      assert_kind_of Integrations::TimedOut, error
+      assert_equal 408, error.http_status
+    end
+
     test "a path segment is escaped, so a name with a slash stays one segment" do
       assert_equal "a%2Fb%20c", Http.segment("a/b c")
     end

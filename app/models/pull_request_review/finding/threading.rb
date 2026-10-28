@@ -7,6 +7,9 @@ module PullRequestReview::Finding::Threading
 
   # The thread's history a reply is answered with is cut to this many entries, newest kept.
   THREAD_KEPT = 20
+  # The replies the review's page keeps that could not be posted, newest kept, so a thread refused for good adds at most
+  # this many however many pushes are checked.
+  UNPOSTED_KEPT = 20
 
   # Kept without announcing, since posting the comment changed nothing a person reads of the finding. url is the comment's
   # page as the host gave it.
@@ -51,11 +54,23 @@ module PullRequestReview::Finding::Threading
     self.class.where(id: id).update_all([ "thread_said = thread_said || ?::jsonb, updated_at = ?", [ entry ].to_json, Time.current ])
   end
 
+  # The thread refused a reply for good, as one whose comment was deleted. Kept once, so only the first refused reply goes
+  # in the conversation. False when another worker kept it first.
+  def thread_refused!(why)
+    self.class.where(id: id, thread_refused_at: nil).update_all(thread_refusal: why.to_s.truncate(1_000), thread_refused_at: Time.current, updated_at: Time.current)
+        .positive?.tap { |won| reload if won }
+  end
+
   # A reply Halon could not post on the thread or in the pull request's conversation, kept with why so the review's page
-  # still shows it. Appended in SQL, like what was said.
+  # still shows it. Appended in SQL, like what was said, keeping the newest UNPOSTED_KEPT.
   def unposted_reply!(body:, reason:)
     entry = { "body" => body.to_s.truncate(4_000), "reason" => reason.to_s, "at" => Time.current.utc.iso8601 }
-    self.class.where(id: id).update_all([ "unposted_replies = unposted_replies || ?::jsonb, updated_at = ?", [ entry ].to_json, Time.current ])
+    self.class.where(id: id).update_all([ <<~SQL.squish, [ entry ].to_json, UNPOSTED_KEPT, Time.current ])
+      unposted_replies = (SELECT COALESCE(jsonb_agg(kept.value ORDER BY kept.position), '[]'::jsonb)
+                          FROM (SELECT entry.value, entry.position FROM jsonb_array_elements(unposted_replies || ?::jsonb) WITH ORDINALITY AS entry(value, position)
+                                ORDER BY entry.position DESC LIMIT ?) AS kept),
+      updated_at = ?
+    SQL
   end
 
   # Every comment on the thread a reply could answer: the one that started it and each said on it since.

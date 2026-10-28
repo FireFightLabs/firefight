@@ -123,5 +123,47 @@ module Integrations
       end
       assert_includes error.message, "switched off"
     end
+
+    test "a refusal is for good only when the host answered a 4xx other than 429, or said the thing is not there" do
+      status = ->(code) { Integrations::Error.new("answered #{code}").tap { |error| error.http_status = code } }
+      wrapped_404 = begin
+        begin
+          raise GithubApp::NotFound, "GitHub: Not Found"
+        rescue GithubApp::NotFound
+          raise Integrations::Error, "GitHub has no review comment 701."
+        end
+      rescue Integrations::Error => error
+        error
+      end
+
+      [ status.call(404), status.call(422), status.call(403), Integrations::Error.new("gone").extend(Integrations::NotFound), wrapped_404 ].each do |error|
+        assert PullRequestReviews.refused_for_good?(error), error.message
+      end
+
+      temporary = [
+        status.call(429), status.call(502), Integrations::Error.new("GitHub answered 502 with something that is not JSON").tap { |error| error.http_status = 502 },
+        status.call(403).extend(Integrations::RateLimited), Integrations::Error.new("could not reach api.github.com (Errno::ECONNRESET)").extend(Integrations::Unreachable),
+        Integrations::Error.new("could not reach api.github.com (Net::ReadTimeout)").extend(Integrations::TimedOut), Integrations::Error.new("no status"),
+        PullRequestReviews::Stopped.new("comment_on_pull_request was not run."), PullRequestReviews::ToolOff.new("switched off"),
+        Integrations::PolicyRefusal.new("a rule").tap { |error| error.http_status = 403 }, StandardError.new("not ours"),
+        status.call(401), status.call(408),
+        GithubApp::NotPermitted.new("GitHub: Resource not accessible by integration").tap { |error| error.http_status = 403 },
+        GithubApp::Unauthorized.new("GitHub: Bad credentials").tap { |error| error.http_status = 401 },
+        GitlabApi::Refused.new("GitLab answered 403: insufficient_scope").tap { |error| error.http_status = 403 },
+        BitbucketApi::Refused.new("Bitbucket answered 401").tap { |error| error.http_status = 401 }
+      ]
+      temporary.each { |error| assert_not PullRequestReviews.refused_for_good?(error), error.message }
+    end
+
+    test "a host refusing a call that was never made, as an installation suspended or missing a permission, is Firefight's state and not the host's answer" do
+      tool = @integration.tools.create!(name: "comment_on_pull_request", description: "Comments.", enabled: true, read_only: false)
+      Installations.stubs(:refusal).with(@row, tool).returns("comment_on_pull_request was not run. The app is suspended. Tell the person.")
+
+      error = assert_raises(PullRequestReviews::Stopped) do
+        PullRequestReviews.call!(@row, PullRequestReviews::COMMENT, authorize: ->(*, &run) { run.call }, repository: "acme/shop", number: 4, body: "Hi")
+      end
+      assert_not_kind_of PullRequestReviews::Refused, error
+      assert_not PullRequestReviews.refused_for_good?(error)
+    end
   end
 end

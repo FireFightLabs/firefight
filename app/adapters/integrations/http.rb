@@ -1,10 +1,15 @@
 module Integrations
-  # Reaching a provider's host, and the parts of reading its answer every client shares: JSON with its errors mapped,
-  # a 429 as RateLimited, a host that did not answer in time as TimedOut, and a file at a signed address. How a provider
-  # words its reason stays with its own client.
+  # Reaching a provider's host, and the parts of reading its answer every client shares: JSON with its errors mapped and
+  # the status kept, a 429 or a 403 that says to wait as RateLimited, a host that did not answer in time as TimedOut, one
+  # that could not be reached as Unreachable, and a file at a signed address. How a provider words its reason stays with
+  # its own client.
   module Http
     OPEN_TIMEOUT = 5
     TOO_MANY_REQUESTS = 429
+    FORBIDDEN = 403
+    REQUEST_TIMEOUT = 408
+    # What a host says in a 403 that is a secondary rate limit, which may come with no header saying so.
+    SECONDARY_RATE_LIMIT = /secondary rate limit/i
     NOT_FOUND = 404
     # What a redirect to stored content keeps by default, the tail of a log where it says why something failed.
     DOWNLOAD_LIMIT = 2_000_000
@@ -44,17 +49,24 @@ module Integrations
     rescue Timeout::Error => error
       raise error_class.new("could not reach #{uri.host} (#{error.class.name})").extend(TimedOut)
     rescue SystemCallError, SocketError, OpenSSL::SSL::SSLError, IOError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Zlib::Error => error
-      raise error_class, "could not reach #{uri.host} (#{error.class.name})"
+      raise error_class.new("could not reach #{uri.host} (#{error.class.name})").extend(Unreachable)
+    end
+
+    # A 429, or a 403 that says when to try again or names a secondary rate limit (Retry-After, no calls remaining, or
+    # the host's own words).
+    def self.rate_limited?(code, headers, said = "")
+      code == TOO_MANY_REQUESTS ||
+        (code == FORBIDDEN && (headers["retry-after"].present? || headers["x-ratelimit-remaining"] == "0" || said.to_s.match?(SECONDARY_RATE_LIMIT)))
     end
 
     # The answer read as JSON. A 2xx answer that is not JSON still counts as done and reads as {}, so a change that went
-    # through is never reported as failed. Anything else raises "<provider> answered <code>: <reason>", RateLimited for a
-    # 429, the class refine names for the code and reason, or error_class. reason reads the provider's own words from
-    # the parsed body. A 429 is rate_limited (error_class unless given), marked RateLimited, and a 404 is marked NotFound.
-    # with_status answers an Answer holding the status, the body and the headers. as: :text answers a 2xx body as the text it is, for an endpoint that
-    # answers text such as a log, with errors read the same way. redirect: :download follows a redirect the provider
-    # documents to stored content through download (https only, a public address, no credentials), for provider_key,
-    # keeping its last download_limit bytes as text.
+    # through is never reported as failed. Anything else raises "<provider> answered <code>: <reason>" with its status,
+    # the class refine names for the code and reason, or error_class. reason reads the provider's own words from the
+    # parsed body. A 429, or a 403 that says to wait, is rate_limited (error_class unless given), marked RateLimited, and a
+    # 404 is marked NotFound. with_status answers an Answer holding the status, the body and the headers. as: :text
+    # answers a 2xx body as the text it is, for an endpoint that answers text such as a log, with errors read the same
+    # way. redirect: :download follows a redirect the provider documents to stored content through download (https only,
+    # a public address, no credentials), for provider_key, keeping its last download_limit bytes as text.
     def self.json(uri, request, error_class:, provider_name:, reason: REASON, refine: nil, rate_limited: nil, read_timeout: 30, with_status: false,
                   as: :json, redirect: nil, provider_key: nil, download_limit: DOWNLOAD_LIMIT, **)
       raise ArgumentError, "following a redirect to download needs the provider_key its address is checked for" if redirect == :download && provider_key.blank?
@@ -73,11 +85,13 @@ module Integrations
       end
 
       said = (body.is_a?(Hash) && reason.call(body)).presence || "no reason given"
-      raise (rate_limited || error_class).new("#{provider_name} answered #{code}: #{said}").extend(RateLimited) if code == TOO_MANY_REQUESTS
-      raise error_class, "#{provider_name} answered #{code} with something that is not JSON" unless body
+      if rate_limited?(code, headers_of(response), said)
+        raise answered((rate_limited || error_class).new("#{provider_name} answered #{code}: #{said}").extend(RateLimited), code)
+      end
+      raise answered(error_class.new("#{provider_name} answered #{code}: the request timed out").extend(TimedOut), code) if code == REQUEST_TIMEOUT
+      raise answered(error_class.new("#{provider_name} answered #{code} with something that is not JSON"), code) unless body
 
-      error = (refine&.call(code, said) || error_class).new("#{provider_name} answered #{code}: #{said}")
-      error.http_status = code if error.respond_to?(:http_status=)
+      error = answered((refine&.call(code, said) || error_class).new("#{provider_name} answered #{code}: #{said}"), code)
       raise code == NOT_FOUND ? error.extend(NotFound) : error
     end
 
@@ -110,6 +124,12 @@ module Integrations
 
     # One segment of a path, escaped, so a name with a slash or a space stays one segment.
     def self.segment(value) = ERB::Util.url_encode(value.to_s)
+
+    # The error with the status the host answered, so a caller tells its own failure (5xx) from a refusal (4xx).
+    def self.answered(error, code)
+      error.http_status = code if error.respond_to?(:http_status=)
+      error
+    end
 
     def self.headers_of(response)
       return {} unless response.respond_to?(:to_hash)

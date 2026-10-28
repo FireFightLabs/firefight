@@ -29,7 +29,10 @@ module Integrations
     FILE = :file
     # The line comments a review posted, read back, on a host that posts a review whole.
     POSTED_COMMENTS = :posted_comments
-    READS = [ CHANGES, FILE, POSTED_COMMENTS ].freeze
+    # The comments in a pull request's conversation since a moment, read back to learn whether a comment a call that did
+    # not answer may have posted went up.
+    CONVERSATION = :conversation
+    READS = [ CHANGES, FILE, POSTED_COMMENTS, CONVERSATION ].freeze
     OPERATIONS = [ COMMENT, EDIT, REVIEW, REPLY, RESOLVE, *READS ].freeze
 
     # How a person asks for a review in a comment: Firefight's handle, or Halon's or Firefight's name, then review.
@@ -77,8 +80,11 @@ module Integrations
     # A line comment as a review posts it.
     LineComment = Data.define(:path, :line, :body)
 
-    # A line comment a review posted, read back: the host's reference to it, its page and its words.
-    PostedComment = Data.define(:reference, :url, :body)
+    # A comment read back: the host's reference to it, its page and its words, and for one in the conversation every name
+    # the host gives its author and when it was written.
+    PostedComment = Data.define(:reference, :url, :body, :authors, :at) do
+      def initialize(authors: [], at: nil, **) = super(authors: Array(authors).compact_blank.map(&:to_s), at: at, **)
+    end
 
     # What a review posted: the host's reference to the review and its page, and one reference and page per line comment in
     # the order given, nil for a line the host would not place.
@@ -92,6 +98,14 @@ module Integrations
     # The connection's tool for a post is gone or switched off under Integrations, which is Firefight's own setting, never
     # the host's answer.
     class ToolOff < Refused; end
+
+    # The connection's tool answered without reaching the host, as for an app installation that was suspended or lacks a
+    # permission the call needs (Installations.refusal). Firefight's own state, never the host's answer, so it is no
+    # Refused.
+    class Stopped < Integrations::Error; end
+
+    # Statuses that say nothing about the thing a call named. Its credential, a request that timed out, a rate limit.
+    NOT_THE_THING = [ 401, Http::REQUEST_TIMEOUT, Http::TOO_MANY_REQUESTS ].freeze
 
     module_function
 
@@ -141,6 +155,15 @@ module Integrations
     rescue StandardError => error
       Rails.logger.warn({ event: "pull_request_reviews.visibility_unread", integration_environment_id: environment_row.id, error: error.class.name }.to_json)
       true
+    end
+
+    # The comments a pack's conversation read says it found, from facts listing each one's id, page, words, authors and
+    # time, in the same shape whichever host.
+    def conversation_of(facts)
+      Array(facts["comments"]).map do |comment|
+        PullRequestReviews::PostedComment.new(reference: comment["id"]&.to_s, url: comment["url"], body: comment["body"].to_s, authors: comment["authors"],
+                                              at: (Time.zone.parse(comment["at"].to_s) if comment["at"].present?))
+      end
     end
 
     # Whether the host can read back the line comments a review posted, which only a host that posts a review whole needs.
@@ -202,10 +225,13 @@ module Integrations
       raise ToolOff, "#{integration.display_name}'s #{name} is switched off under Integrations, so Halon cannot review there." unless tool.enabled?
 
       result = authorize.call(tool, arguments) { NativeExecutor.call(tool: tool, environment_row: environment_row, arguments: arguments) }
-      raise Refused, Sentence.ended(answer_text(result).presence || "#{name} failed") if result.is_a?(Hash) && result["isError"]
+      if result.is_a?(Hash) && result["isError"]
+        said = Sentence.ended(answer_text(result).presence || "#{name} failed")
+        raise(Installations.refusal(environment_row, tool) ? Stopped : Refused, said)
+      end
 
       facts = result.to_h.dig(Telemetry::STRUCTURED, Telemetry::FACTS).to_h if result.is_a?(Hash)
-      return pack.review_posted(operation, facts.to_h) if operation == POSTED_COMMENTS
+      return pack.review_posted(operation, facts.to_h) if [ POSTED_COMMENTS, CONVERSATION ].include?(operation)
       return answer_text(result.is_a?(Hash) ? result : { "content" => [ { "text" => result.to_s } ] }) if READS.include?(operation)
 
       posted = pack.review_posted(operation, result.to_h.dig(Telemetry::STRUCTURED, Telemetry::FACTS).to_h)
@@ -224,11 +250,29 @@ module Integrations
     def unplaceable?(error) = UNPLACEABLE.include?(error.try(:http_status))
 
     # The host refused a post and will refuse it again however often it is asked, as a reply to a comment that was deleted
-    # or on a conversation that was locked. A rate limit, a host that did not answer in time or failed on its side is not
-    # (ReviewHost.retryable?), and neither is one of Firefight's own rules, a tool switched off or something this install
-    # cannot do right now.
+    # or on a conversation that was locked. Only an answer the host gave about the thing counts, a 4xx or its word that the
+    # thing is not there, said by the error or by one it was raised from. A rate limit, a request that timed out, a host
+    # that failed on its side or could not be reached, a refusal of Firefight's own credential or permission
+    # (NotAuthorized, or a 401), an error with no answer behind it, and Firefight's own rules and state never do.
+    # The host said the thing a call named is not there, by the error or by one it was raised from.
+    def not_found?(error)
+      ReviewHost.causes(error).any? { |each| each.is_a?(Integrations::NotFound) || each.try(:http_status).to_i == Http::NOT_FOUND }
+    end
+
+    # The provider refused Firefight's own credential or a permission it lacks (NotAuthorized, or a 401), by the error or
+    # by one it was raised from.
+    def not_authorized?(error)
+      ReviewHost.causes(error).any? { |each| each.is_a?(NotAuthorized) || each.try(:http_status).to_i == 401 }
+    end
+
     def refused_for_good?(error)
-      error.is_a?(Integrations::Error) && [ PolicyRefusal, ToolOff, Unavailable ].none? { |kind| error.is_a?(kind) } && !ReviewHost.retryable?(error)
+      return false unless error.is_a?(Integrations::Error)
+      return false if [ PolicyRefusal, ToolOff, Stopped, Unavailable ].any? { |kind| error.is_a?(kind) } || ReviewHost.retryable?(error)
+
+      chain = ReviewHost.causes(error)
+      return false if not_authorized?(error) || chain.any? { |each| NOT_THE_THING.include?(each.try(:http_status).to_i) }
+
+      chain.any? { |each| each.is_a?(Integrations::NotFound) || each.try(:http_status).to_i.between?(400, 499) }
     end
 
     def answer_text(result) = Array(result.to_h["content"]).filter_map { |part| part["text"] }.join("\n").strip

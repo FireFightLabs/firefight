@@ -12,8 +12,11 @@ module Integrations
           PullRequestReviews::COMMENT => "comment_on_pull_request", PullRequestReviews::EDIT => "edit_pull_request_comment",
           PullRequestReviews::REVIEW => "review_pull_request", PullRequestReviews::REPLY => "reply_to_pull_request_comment",
           PullRequestReviews::RESOLVE => "resolve_pull_request_comment",
-          PullRequestReviews::CHANGES => "compare_commits", PullRequestReviews::FILE => "fetch_file"
+          PullRequestReviews::CHANGES => "compare_commits", PullRequestReviews::FILE => "fetch_file",
+          PullRequestReviews::CONVERSATION => "list_pull_request_comments"
         }.freeze
+        # The newest comments read back at once, which holds any a call made a moment ago.
+        CONVERSATION_PAGE = 100
         # Each line comment is its own comment, so a review is several calls and the app posts them one at a time.
         REVIEW_ATOMIC = false
         OPEN = "OPEN".freeze
@@ -70,10 +73,17 @@ module Integrations
                                  "someone else started is refused, and a person resolves it on Bitbucket",
                     params_schema: Code.object_schema({ "repo" => repo, "number" => number, "comment_id" => comment_id }, %w[repo number comment_id]),
                     read_only: false
+
+          pack.tool :list_pull_request_comments,
+                    summary: "Lists the newest comments in a pull request's conversation.",
+                    description: "List the newest comments in a pull request's conversation, oldest first, with each one's id, author, time and page",
+                    params_schema: Code.object_schema({ "repo" => repo, "number" => number, "since" => { "type" => "string", "description" => "Only comments written from this time, in ISO 8601 (optional)" } }, %w[repo number]),
+                    read_only: true
         end
 
         module ClassMethods
-          def review_call(operation, repository:, number: nil, body: nil, reference: nil, line: false, commit: nil, comments: [], base: nil, path: nil, start: nil)
+          def review_call(operation, repository:, number: nil, body: nil, reference: nil, line: false, commit: nil, comments: [], base: nil, path: nil, start: nil,
+                          since: nil)
             arguments = case operation
             when PullRequestReviews::COMMENT then { "repo" => repository, "number" => number, "body" => body }
             when PullRequestReviews::EDIT then { "repo" => repository, "number" => number, "comment_id" => reference.to_i, "body" => body }
@@ -84,6 +94,7 @@ module Integrations
             when PullRequestReviews::RESOLVE then { "repo" => repository, "number" => number, "comment_id" => reference.to_i }
             when PullRequestReviews::CHANGES then { "repo" => repository, "base" => base, "head" => commit }
             when PullRequestReviews::FILE then { "repo" => repository, "path" => path, "ref" => commit, "start_line" => start }.compact
+            when PullRequestReviews::CONVERSATION then { "repo" => repository, "number" => number, "since" => since&.utc&.iso8601 }.compact
             end
             [ REVIEW_TOOLS.fetch(operation), arguments ]
           end
@@ -93,6 +104,7 @@ module Integrations
             when PullRequestReviews::REVIEW
               PullRequestReviews::Posted.new(reference: facts["comment_id"]&.to_s, comments: Array(facts["comment_ids"]).map { |id| id&.to_s },
                                              urls: Array(facts["comment_urls"]))
+            when PullRequestReviews::CONVERSATION then PullRequestReviews.conversation_of(facts)
             else facts["comment_id"]&.to_s
             end
           end
@@ -126,6 +138,26 @@ module Integrations
           end
           Telemetry.result("Commented on PR ##{number} in #{repo} as comment #{comment['id']}.", link: link(comment.dig("links", "html", "href")),
                            facts: { "comment_id" => comment["id"] })
+        end
+
+        # The newest comments in a pull request's conversation (comments, newest first, one page), leaving out comments on
+        # lines and deleted ones, read oldest first. Each keeps every name Bitbucket gives its author.
+        def list_pull_request_comments(environment_row:, arguments:)
+          repo, number, bitbucket = comment_target(arguments, environment_row)
+          since = since_argument(arguments)
+          pull = bitbucket.get("#{BitbucketApi.repository(repo)}/pullrequests/#{number}")
+          listed = bitbucket.get(comments_path(repo, number), { "sort" => "-created_on", "pagelen" => CONVERSATION_PAGE })
+          comments = Array(listed["values"]).reject { |comment| comment["inline"] || comment["deleted"] }
+                                            .select { |comment| since.nil? || Time.zone.parse(comment["created_on"].to_s).to_i >= since.to_i }.reverse
+          lines = comments.map { |comment| "#{comment['id']} by #{comment.dig('user', 'display_name')} at #{comment['created_on']}" }
+          Telemetry.result("PR ##{number} in #{repo} has #{comments.size} #{'comment'.pluralize(comments.size)} in its conversation#{" since #{since.iso8601}" if since}.\n" \
+                           "#{lines.join("\n")}".strip,
+                           link: link(pull.dig("links", "html", "href")),
+                           facts: { "comments" => comments.map do |comment|
+                             user = comment["user"].to_h
+                             { "id" => comment["id"], "url" => comment.dig("links", "html", "href"), "body" => comment.dig("content", "raw").to_s,
+                               "authors" => [ user["account_id"], user["uuid"], user["nickname"] ], "at" => comment["created_on"] }
+                           end })
         end
 
         def edit_pull_request_comment(environment_row:, arguments:)
@@ -190,6 +222,16 @@ module Integrations
         end
 
         private
+
+        # The moment a read starts from, or nil when none was given. One that is not a time is refused in words.
+        def since_argument(arguments)
+          value = arguments["since"].to_s.strip.presence
+          return unless value
+
+          Time.zone.parse(value) || fail!("since must be a time in ISO 8601")
+        rescue ArgumentError
+          fail!("since must be a time in ISO 8601")
+        end
 
         def comments_path(repo, number) = "#{BitbucketApi.repository(repo)}/pullrequests/#{number}/comments"
 

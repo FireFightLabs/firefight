@@ -296,6 +296,7 @@ module Integrations
         "edit_pull_request_comment" => { "pull_requests" => WRITE },
         "resolve_review_thread" => { "pull_requests" => WRITE },
         "list_review_comments" => { "pull_requests" => READ },
+        "list_pull_request_comments" => { "pull_requests" => READ },
         "update_issue" => { "issues" => WRITE },
         "label_issue" => { "issues" => WRITE },
         "assign_issue" => { "issues" => WRITE },

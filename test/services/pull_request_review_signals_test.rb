@@ -120,7 +120,9 @@ class PullRequestReviewSignalsTest < ActiveSupport::TestCase
 
     assert_enqueued_jobs 3, only: PullRequestReviewRefusalPostJob do
       2.times { @signals.receive!(asked) }
+      travel PullRequestReview::Refusal::COMMENT_ANSWER_EVERY + 1.minute
       2.times { @signals.receive!(commented) }
+      travel PullRequestReview::Refusal::COMMENT_ANSWER_EVERY + 1.minute
       2.times { @signals.receive!(again) }
     end
 

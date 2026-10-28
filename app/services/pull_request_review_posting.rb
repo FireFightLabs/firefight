@@ -16,6 +16,9 @@ class PullRequestReviewPosting
   # A call an approval rule holds, or one waiting behind it. The posting picks up once the approval is decided.
   class Held < StandardError; end
 
+  # What a reply kept on the review's page for want of access says after the host's words.
+  ACCESS_HINT = "Firefight's access to the code host may need fixing under Integrations.".freeze
+
   RESUMED = "resumed".freeze
   # What a decided approval queues when it was declined: the posts that waited behind it.
   CAUGHT_UP = "caught_up".freeze
@@ -101,9 +104,12 @@ class PullRequestReviewPosting
   # Replies on a finding's thread and keeps what was said there. then_resolve resolves the thread once the reply went up,
   # which a held reply carries to its approval.
   # A reply held or waiting behind a held post goes up once the approval is decided, its resolve after it, and answers
-  # nil now. recheck marks what a push's check said, of which only the newest waits. A reply the host refuses for good
-  # goes up in the conversation instead (reply_elsewhere!), and its thread is left as it is.
+  # nil now. recheck marks what a push's check said, of which only the newest waits. The first reply the host refuses for
+  # good goes up in the conversation instead (reply_elsewhere!), and its thread is left as it is. The thread is never
+  # asked again, and every later reply is kept on the review's page, so a push never adds another comment.
   def reply!(finding, body, then_resolve: false, recheck: false)
+    return keep_on_page!(finding, body, "Its thread refused an earlier reply, so this one is kept here. #{finding.thread_refusal}") if finding.thread_refusal.present?
+
     waiting = { "kind" => PullRequestReview::PENDING_REPLY, "finding_id" => finding.id, "body" => body, "resolve" => then_resolve, "recheck" => recheck }
     posted = call!(Integrations::PullRequestReviews::REPLY, reference: finding.host_comment_id, body: body,
                                                             purpose: { "record" => "reply", "finding_id" => finding.id, "body" => body, "resolve" => then_resolve },
@@ -300,18 +306,45 @@ class PullRequestReviewPosting
     nil
   end
 
-  # What follows a refused reply on a finding's thread. The same words go in the conversation, only when the host refused it
-  # for good. A rate limit or a slow host, a tool switched off or a call the gateway denied leaves it as it was.
+  # What follows a refused reply on a finding's thread. One refused for Firefight's own access to the code host, its
+  # credential, a permission or the repository, says nothing about the thread, so it is kept on the review's page with a
+  # hint and the thread is asked again next time. Only when the host refused it for good, the thread's refusal is kept on
+  # the finding and the same words go in the conversation, once. A reply another worker already found refused
+  # meanwhile is kept on the review's page. A rate limit or a slow host, a tool switched off or a call the gateway denied
+  # leaves it as it was.
   def thread_refused(finding, body, recheck)
-    ->(error) { reply_elsewhere!(finding, body, refusal_words(error), recheck: recheck) if Integrations::PullRequestReviews.refused_for_good?(error) }
+    lambda do |error|
+      next keep_on_page!(finding, body, "#{refusal_words(error)} #{ACCESS_HINT}") if Integrations::PullRequestReviews.not_authorized?(error)
+      next unless Integrations::PullRequestReviews.refused_for_good?(error)
+      next keep_on_page!(finding, body, "#{refusal_words(error)} #{ACCESS_HINT}") if Integrations::PullRequestReviews.not_found?(error) && !pull_request_readable?
+
+      words = refusal_words(error)
+      if finding.thread_refused!(words)
+        reply_elsewhere!(finding, body, words, recheck: recheck)
+      else
+        keep_on_page!(finding, body, "Its thread refused an earlier reply, so this one is kept here. #{words}")
+      end
+    end
+  end
+
+  # A comment the host says is not there may be the connection's access to the repository lost rather than the comment
+  # gone, so the pull request's conversation is read through the same connection to tell them apart.
+  def pull_request_readable?
+    !call!(Integrations::PullRequestReviews::CONVERSATION, since: Time.current).nil?
+  rescue Held
+    false
+  end
+
+  def keep_on_page!(finding, body, reason)
+    finding.unposted_reply!(body: body, reason: reason)
+    Rails.logger.warn({ event: "pull_request_review.reply_unposted", pull_request_review_finding_id: finding.id }.to_json)
+    nil
   end
 
   # A reply the conversation refused too, whatever the reason, kept on the review's page with both reasons.
   def conversation_refused(finding, body, thread_words)
     lambda do |error|
-      reason = [ "It could not go on the finding's thread. #{thread_words}", "It could not go in the pull request's conversation either. #{refusal_words(error)}" ].join(" ")
-      finding.unposted_reply!(body: body, reason: reason)
-      Rails.logger.warn({ event: "pull_request_review.reply_unposted", pull_request_review_finding_id: finding.id }.to_json)
+      keep_on_page!(finding, body, "It could not go on the finding's thread. #{thread_words} It could not go in the pull request's conversation either. #{refusal_words(error)}")
     end
   end
 

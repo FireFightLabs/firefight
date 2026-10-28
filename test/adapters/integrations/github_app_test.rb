@@ -127,6 +127,32 @@ module Integrations
       assert_not_kind_of GithubApp::NotPermitted, error
     end
 
+    test "an answer GitHub refused keeps its status, a page that is not JSON included, and a 403 that says to wait is a rate limit" do
+      Http.stubs(:request).returns(answer("422", message: "Validation Failed"))
+      assert_equal 422, assert_raises(GithubApp::Error) { GithubApp.get("/repos/acme/web/pulls/1", token: "ghs_token") }.http_status
+
+      Http.stubs(:request).returns(stub(code: "502", body: "<html>Bad gateway</html>"))
+      assert_equal 502, assert_raises(GithubApp::Error) { GithubApp.get("/repos/acme/web/pulls/1", token: "ghs_token") }.http_status
+
+      limited = stub(code: "403", body: { message: "You have exceeded a secondary rate limit." }.to_json)
+      limited.stubs(:[]).with("x-ratelimit-remaining").returns(nil)
+      limited.stubs(:[]).with("retry-after").returns("60")
+      Http.stubs(:request).returns(limited)
+      error = assert_raises(GithubApp::RateLimited) { GithubApp.get("/repos/acme/web/pulls/1", token: "ghs_token") }
+      assert_equal 403, error.http_status
+
+      Http.stubs(:request).returns(answer("403", message: "You have exceeded a secondary rate limit. Please wait a few minutes before you try again."))
+      assert_raises(GithubApp::RateLimited) { GithubApp.get("/repos/acme/web/pulls/1", token: "ghs_token") }
+    end
+
+    test "a refusal of the App's own credential or permission says it is the credential, never the thing asked about" do
+      Http.stubs(:request).returns(refused).then.returns(refused)
+      assert_kind_of Integrations::NotAuthorized, assert_raises(GithubApp::NotPermitted) { GithubApp.get("/repos/acme/web/pulls/1", token: "ghs_token") }
+
+      Http.stubs(:request).returns(answer("401", message: "Bad credentials"))
+      assert_kind_of Integrations::NotAuthorized, assert_raises(GithubApp::Unauthorized) { GithubApp.get("/repos/acme/web/pulls/1", token: "ghs_token") }
+    end
+
     test "a pull request opens from a branch the change was already pushed to, ready for review" do
       GithubApp.expects(:post).with("/repos/acme/api/pulls", { title: "Restore the pool", head: "halon/fix-1", base: "main", body: "Why", draft: false }, token: "t")
                .returns("html_url" => "https://github.com/acme/api/pull/7")

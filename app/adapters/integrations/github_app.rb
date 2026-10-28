@@ -9,14 +9,18 @@ module Integrations
     end
     # The installation was not granted a permission the call needs, which GitHub says as "Resource not accessible by
     # integration" (docs.github.com, REST API, troubleshooting).
-    class NotPermitted < Error; end
+    class NotPermitted < Error
+      include Integrations::NotAuthorized
+    end
     # The repository's plan does not have the feature, such as rulesets or branch protection on a private repository of a
     # GitHub Free account, which GitHub answers 403 with "Upgrade to GitHub Pro or make this repository public to enable
     # this feature." (docs.github.com, GitHub's plans, which lists protected branches in private repositories from GitHub
     # Pro up). It says what the plan lacks, never what the App may do.
     class PlanLimited < Error; end
     # GitHub did not accept the token, such as one minted for an installation that changed since.
-    class Unauthorized < Error; end
+    class Unauthorized < Error
+      include Integrations::NotAuthorized
+    end
     # GitHub answered that the repository is not there, or not one the installation can see, the one answer a re-read
     # takes as gone.
     class NotFound < Error
@@ -202,6 +206,21 @@ module Integrations
         end
       end
 
+      # One page of a list, with the number of the last page GitHub links to (the Link header's rel="last"), or the page
+      # itself when GitHub links to none, as for the only page.
+      def page(path, token:)
+        uri = URI.parse("#{API_ROOT}#{path}")
+        refreshing(token) do |value|
+          request = Net::HTTP::Get.new(uri)
+          request["Authorization"] = "Bearer #{value}"
+          apply_api_headers(request)
+          response = Http.request(uri, request, error_class: Error)
+          body = parse_response(response)
+          last = response["link"].to_s[/[?&]page=(\d+)[^>]*>;\s*rel="last"/, 1]
+          [ body, last ? last.to_i : URI.decode_www_form(uri.query.to_s).to_h.fetch("page", "1").to_i ]
+        end
+      end
+
       # Any GET of the REST API, by its path and query, for the general read (Integrations::ApiReads), which checks the
       # path before it gets here. A list value is sent once per value.
       def read(path, query, token:)
@@ -368,25 +387,28 @@ module Integrations
       end
 
       def rate_limited?(response)
-        response.code.to_i == 429 || (response.code.to_i == 403 && (response["x-ratelimit-remaining"] == "0" || response["retry-after"].present?))
+        response.code.to_i == 429 || (response.code.to_i == 403 && (response["x-ratelimit-remaining"] == "0" || response["retry-after"].present? ||
+                                                                   response.body.to_s.match?(Http::SECONDARY_RATE_LIMIT)))
       end
 
+      # Each refusal keeps the status GitHub answered, so a caller tells GitHub failing on its side from a refusal.
       def parse_response(response)
+        code = response.code.to_i
         body = JSON.parse(response.body.to_s)
-        unless response.code.to_i.between?(200, 299)
+        unless code.between?(200, 299)
           message = "GitHub: #{body['message'] || "HTTP #{response.code}"}"
-          raise RateLimited, message if rate_limited?(response)
-          raise NotFound, message if response.code.to_i == NOT_FOUND
-          raise Unauthorized, message if response.code.to_i == UNAUTHORIZED
-          raise NotPermitted, message if response.code.to_i == 403 && message.match?(NOT_PERMITTED)
-          raise PlanLimited, message if response.code.to_i == 403 && message.match?(PLAN_LIMITED)
+          raise Http.answered(RateLimited.new(message), code) if rate_limited?(response)
+          raise Http.answered(NotFound.new(message), code) if code == NOT_FOUND
+          raise Http.answered(Unauthorized.new(message), code) if code == UNAUTHORIZED
+          raise Http.answered(NotPermitted.new(message), code) if code == 403 && message.match?(NOT_PERMITTED)
+          raise Http.answered(PlanLimited.new(message), code) if code == 403 && message.match?(PLAN_LIMITED)
 
-          raise Error, message
+          raise Http.answered(Error.new(message), code)
         end
 
         body
       rescue JSON::ParserError
-        raise Error, "GitHub returned invalid JSON (HTTP #{response.code})"
+        raise Http.answered(Error.new("GitHub returned invalid JSON (HTTP #{response.code})"), code)
       end
     end
   end

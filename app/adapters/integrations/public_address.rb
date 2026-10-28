@@ -27,7 +27,7 @@ module Integrations
     def self.resolve(host)
       IPAddr.new(Addrinfo.getaddrinfo(host, nil, nil, :STREAM).first.ip_address)
     rescue SocketError, IPAddr::InvalidAddressError
-      raise Refused, "#{host} could not be found."
+      raise Refused.new("#{host} could not be found.").extend(Unreachable)
     end
 
     def self.private?(ip) = NetworkAddress.private_ip?(ip)
