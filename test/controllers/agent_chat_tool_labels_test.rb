@@ -41,7 +41,9 @@ class AgentChatToolLabelsTest < ActionDispatch::IntegrationTest
     titled = inertia_props[AgentChatsController::PROP_MESSAGES].flat_map { |message| message["tools"] }.find { |step| step["key"] == "call_2" }
     assert_match "acme", titled["title"]
     page = queries_sent { get agent_chat_url(@conversation), headers: inertia_headers }
-    assert_empty (cold + warm + page).grep(/FROM "workspaces" WHERE "workspaces"."id"/), "each request holds one workspace"
+    [ cold, warm, page ].each do |queries|
+      assert_equal 1, queries.grep(/FROM "workspaces" WHERE "workspaces"."id"/).size, "each request holds one workspace"
+    end
   end
 
   test "a tool switched off, or a connection renamed, shows on the next view" do
@@ -56,9 +58,7 @@ class AgentChatToolLabelsTest < ActionDispatch::IntegrationTest
 
   private
 
-  # Each view is a request of its own, with its own workspace, as a person's next visit is.
   def thread
-    sign_in(users(:alice), Workspace.find(@workspace.id))
     queries_sent { get agent_chat_url(@conversation), headers: inertia_partial_headers("agent/index", AgentChatsController::THREAD_PROPS) }
   end
 

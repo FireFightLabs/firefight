@@ -69,6 +69,8 @@ class AiAccountsTest < ApplicationSystemTestCase
       click_button "Delete"
     end
     assert_text "Team Anthropic was deleted."
+    assert_no_selector "tr", text: "Team Anthropic"
+    assert_selector "tr", text: "OpenAI"
     assert_equal [ "OpenAI" ], @workspace.workspace_ai_accounts.reload.map(&:label)
 
     page.current_window.resize_to(390, 1400)

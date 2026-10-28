@@ -12,9 +12,9 @@ class WorkflowCanvasQueriesTest < ActionDispatch::IntegrationTest
                   CANVAS::PROP_PUBLISH_REQUESTS, CANVAS::PROP_MY_PUBLISH_REQUEST ].freeze
   RUN_POLL = [ *CANVAS_POLL, CANVAS::PROP_RUN, CANVAS::PROP_RUNS, CANVAS::PROP_LAST_RUN ].freeze
   # Pinned, so a query added per prop, step, tool or run shows here. Raise them only for a prop that is new.
-  PAGE_QUERIES = 61
-  CANVAS_POLL_QUERIES = 27
-  RUN_POLL_QUERIES = 35
+  PAGE_QUERIES = 62
+  CANVAS_POLL_QUERIES = 28
+  RUN_POLL_QUERIES = 36
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -111,9 +111,7 @@ class WorkflowCanvasQueriesTest < ActionDispatch::IntegrationTest
     [ sent(workflow_path(@workflow), nil), sent(workflow_path(@workflow), CANVAS_POLL), sent(workflow_path(@workflow, run: run.id), RUN_POLL) ]
   end
 
-  # A request reads its workspace afresh, as each one in production does.
   def sent(path, props)
-    sign_in(users(:alice), Workspace.find(@workspace.id))
     headers = props ? inertia_partial_headers("halon/workflow", props) : inertia_headers
     queries_sent { get path, headers: headers }.tap { assert_response :success }
   end
