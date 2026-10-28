@@ -273,6 +273,20 @@ class MemoryPostServiceTest < ActiveSupport::TestCase
     assert_equal "a direct message", to_bob.place
   end
 
+  test "a dispute a postmortem raised about a memory a person confirmed tells that person, naming the postmortem" do
+    @memory.confirm!(by: @member)
+    @memory.dispute!("The #{@incident.identifier} postmortem says otherwise", by: Chat::MemoryEvent::ACTOR_POSTMORTEM)
+    @adapter.expects(:post_learned_memories_to_user).with { |user_id:, post:|
+      user_id == @member.platform_user_id && post.kind == Chat::MemoryPost::KIND_CHALLENGED && post.memories.map(&:id) == [ @memory.id ]
+    }.returns(message_id: "9.1", channel_id: "D9")
+
+    MemoryChallengeJob.perform_now(@memory.id, @incident.id)
+
+    post = Chat::MemoryPost.find_by!(kind: Chat::MemoryPost::KIND_CHALLENGED, recipient: @member)
+    assert_equal "The #{@incident.identifier} postmortem disagrees with a memory you confirmed",
+                 Slack::Messages::LearnedMemories.plain_title(MemoryPostService.new(@workspace).shown(post))
+  end
+
   test "a send that fails for a while never keeps the other person from being told, and the job tries the failed one again" do
     bob = workspace_memberships(:bob_workspace_one)
     lesson = Chat::Memory.create!(workspace: @workspace, text: "The cause was DNS", state: Chat::Memory::STATE_UNCONFIRMED, source: @incident)
