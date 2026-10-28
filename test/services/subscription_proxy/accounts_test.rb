@@ -64,10 +64,43 @@ class SubscriptionProxy::AccountsTest < ActiveSupport::TestCase
     SubscriptionProxy::Accounts.new(@workspace).sync!([ proxy_credential(name: "codex-ana.json") ])
   end
 
-  test "a finished sign-in nobody claimed is removed once nothing can claim it, and a claimed one never is" do
+  test "a credential the proxy no longer holds needs signing in again, and the workspace's other accounts are still brought up to date" do
+    gone = add_subscription_account!(@workspace, credential: "codex-gone.json")
+    held = add_subscription_account!(@workspace, credential: "codex-held.json", email: "ben@example.com")
+    Client.any_instance.stubs(:credential_models).with("codex-gone.json", anything).raises(SubscriptionProxy::NotFound.new("gone", status: 404))
+    Client.any_instance.stubs(:prioritize)
+
+    SubscriptionProxy::Accounts.new(@workspace).sync!([ proxy_credential(name: "codex-held.json", **codex_limit(used: 50, resets_in: 1.hour)) ])
+
+    assert_equal :signed_out, gone.reload.state
+    assert_equal 50, held.reload.proxy_limit["left_percent"]
+  end
+
+  test "a subscription turns off as it is, even when the model it was saved with is gone, and one the proxy lost still turns off" do
+    account = add_subscription_account!(@workspace, credential: "codex-gone.json")
+    account.update_columns(models: { "main" => "gpt-retired", "fast" => "gpt-6-luna" })
+    Client.any_instance.stubs(:switch).raises(SubscriptionProxy::NotFound.new("auth file not found", status: 404))
+
+    SubscriptionProxy::Accounts.new(@workspace).switch!(account, on: false)
+
+    assert_not account.reload.enabled
+  end
+
+  test "without the proxy set up a subscription can still be disconnected" do
+    account = add_subscription_account!(@workspace, credential: "codex-ana.json")
+    SubscriptionProxy.unstub(:settings)
+    Client.any_instance.expects(:delete).never
+
+    SubscriptionProxy::Accounts.new(@workspace).disconnect!(account)
+
+    assert_not WorkspaceAiAccount.exists?(account.id)
+  end
+
+  test "a finished sign-in nobody claimed is removed once nothing can claim it, and a claimed one or one with no time never is" do
     add_subscription_account!(@workspace, credential: "codex-ana.json")
     credentials = [ proxy_credential(name: "codex-ana.json", created_at: 2.hours.ago),
                     proxy_credential(name: "codex-stray.json", created_at: 2.hours.ago),
+                    proxy_credential(name: "codex-untimed.json", created_at: nil),
                     proxy_credential(name: "codex-new.json", created_at: 1.minute.ago) ]
     Client.any_instance.expects(:delete).with("codex-stray.json").once
 

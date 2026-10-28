@@ -2,6 +2,9 @@
 # happens at the provider through the subscription proxy. The page shows its code or asks for the address it landed on,
 # and asks every few seconds whether it finished.
 class SubscriptionSignInsController < InertiaController
+  # The address a browser sign-in lands on carries the provider's one-time code, which is filtered from the logs.
+  CALLBACK_ADDRESS_PARAM = :callback_address
+
   authorizes Ability::Action::RESOURCE_AI_ACCOUNTS, create: %i[create finish advance destroy]
 
   before_action :set_sign_in, only: %i[finish advance destroy]
@@ -15,20 +18,20 @@ class SubscriptionSignInsController < InertiaController
   end
 
   def finish
-    settled(service.hand_back!(@sign_in, params[:address].to_s))
-  rescue SubscriptionProxy::SignIns::Failed => e
+    settled(service.hand_back!(@sign_in, params[CALLBACK_ADDRESS_PARAM].to_s))
+  rescue SubscriptionProxy::SignIns::Failed, SubscriptionProxy::SignIns::StillWaiting => e
     back alert: e.message
   end
 
   def advance
     settled(service.advance!(@sign_in))
-  rescue SubscriptionProxy::SignIns::Failed => e
+  rescue SubscriptionProxy::SignIns::Failed, SubscriptionProxy::SignIns::StillWaiting => e
     back alert: e.message
   end
 
   def destroy
     service.cancel!(@sign_in)
-    back
+    back notice: "#{@sign_in.subscription_definition&.name || 'The'} sign-in was cancelled."
   end
 
   private

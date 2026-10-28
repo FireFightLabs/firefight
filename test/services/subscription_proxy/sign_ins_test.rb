@@ -104,6 +104,63 @@ class SubscriptionProxy::SignInsTest < ActiveSupport::TestCase
     assert_equal SubscriptionProxy::SignIns::TIMED_OUT, error.message
   end
 
+  test "a credential a cancelled sign-in elsewhere may have made is never claimed, even by the same login signing in again" do
+    other = workspaces(:slack_workspace_two)
+    Client.any_instance.stubs(:start_sign_in).returns(Client::SignIn.new(state: "theirs", url: "https://auth.openai.com", user_code: nil, expires_at: nil))
+    theirs = SubscriptionProxy::SignIns.new(other, by: nil).start!("chatgpt")
+    made = Time.current
+    Client.any_instance.stubs(:cancel_sign_in)
+    SubscriptionProxy::SignIns.new(other, by: nil).cancel!(theirs)
+    account = add_subscription_account!(@workspace, credential: "codex-old.json", state: { "signed_out" => true })
+    theirs.update_columns(created_at: 2.minutes.ago)
+
+    mine = start(account: account)
+    Client.any_instance.stubs(:sign_in_status).returns(:done)
+    Client.any_instance.stubs(:credentials).returns([ proxy_credential(name: "codex-theirs.json", created_at: made) ])
+    Client.any_instance.expects(:claim).never
+    Client.any_instance.expects(:delete).with("codex-theirs.json")
+
+    error = assert_raises(SubscriptionProxy::SignIns::Failed) { @service.advance!(mine) }
+
+    assert_equal SubscriptionProxy::SignIns::AT_ONCE, error.message
+    assert_equal "codex-old.json", account.reload.proxy_credential
+  end
+
+  test "an abandoned sign-in that ran out before the new credential was made does not stop the next one" do
+    other = workspaces(:slack_workspace_two)
+    abandoned = SubscriptionSignIn.create!(workspace: other, subscription: "chatgpt", proxy: "codex", state: "old", url: "https://auth.openai.com",
+                                           expires_at: 10.minutes.ago, created_at: 20.minutes.ago)
+    sign_in = start
+    Client.any_instance.stubs(:sign_in_status).returns(:done)
+    Client.any_instance.stubs(:credentials).returns([ proxy_credential(name: "codex-ana.json") ])
+    Client.any_instance.expects(:claim).with("codex-ana.json", prefix: @workspace.id)
+
+    assert @service.advance!(sign_in).account
+    assert abandoned.reload.waiting?
+  end
+
+  test "a sign-in past its time ends without asking the proxy" do
+    sign_in = start
+    sign_in.update_columns(expires_at: 1.minute.ago)
+    Client.any_instance.expects(:sign_in_status).never
+
+    error = assert_raises(SubscriptionProxy::SignIns::Failed) { @service.advance!(sign_in) }
+    assert_equal SubscriptionProxy::SignIns::TIMED_OUT, error.message
+  end
+
+  test "handing back an address looks once and leaves the rest to the page, and a second hand back after it finished answers what came of it" do
+    sign_in = start(state: "mine")
+    Client.any_instance.stubs(:finish_sign_in)
+    Client.any_instance.expects(:sign_in_status).once.returns(:waiting)
+
+    assert_nil @service.hand_back!(sign_in, "http://localhost:1455/auth/callback?code=c&state=mine")
+
+    sign_in.settle!(SubscriptionSignIn::STATUS_DONE)
+    Client.any_instance.expects(:finish_sign_in).never
+    outcome = @service.hand_back!(sign_in.reload, "http://localhost:1455/auth/callback?code=c&state=mine")
+    assert_not outcome.fresh
+  end
+
   test "nothing starts while the proxy is not usable" do
     SubscriptionProxy::Check.failed!("down")
     Client.any_instance.expects(:start_sign_in).never

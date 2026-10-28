@@ -54,4 +54,28 @@ class SubscriptionConnectTest < ApplicationSystemTestCase
       page.save_screenshot(Rails.root.join("tmp/screenshots/subscription-paste.png"))
     end
   end
+
+  test "a pasted address is handed back once, the checks never cut it short, and the connect says so" do
+    Client.any_instance.stubs(:start_sign_in).returns(Client::SignIn.new(state: "abc", url: "https://auth.openai.com/oauth/authorize?state=abc", user_code: nil, expires_at: nil))
+    Client.any_instance.stubs(:sign_in_status).returns(:waiting)
+    Client.any_instance.expects(:finish_sign_in).once.with("codex", state: "abc", code: "the-code")
+    Client.any_instance.stubs(:models_for).returns([ proxy_model("gpt-6.1-sol"), proxy_model("gpt-6-luna") ])
+    Client.any_instance.stubs(:credential_models).returns(%w[gpt-6.1-sol gpt-6-luna])
+    visit settings_workspace_path
+    click_button "Connect a subscription"
+    find("[role=menuitem]", text: "ChatGPT Plus or Pro").click
+
+    within("[role=dialog]") do
+      fill_in "Address your browser opened", with: "http://localhost:1455/auth/callback?code=the-code&state=abc"
+      click_button "Connect"
+      assert_text "Finishing the sign-in"
+      assert_no_button "Connect"
+    end
+
+    Client.any_instance.stubs(:sign_in_status).returns(:done)
+    Client.any_instance.stubs(:credentials).returns([ proxy_credential(name: "codex-ana.json") ])
+
+    assert_text "ChatGPT subscription for ana@example.com connected.", wait: 10
+    assert_no_selector "[role=dialog]"
+  end
 end

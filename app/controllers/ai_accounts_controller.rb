@@ -26,6 +26,8 @@ class AiAccountsController < InertiaController
   end
 
   def update
+    return refuse_change if @account.change_blocked_reason
+
     result = service.update!(@account, label: params[:label], settings: settings_param, models: models_param)
     checked(result, "#{@account.label} was updated")
   rescue ActiveRecord::RecordInvalid => e
@@ -33,6 +35,8 @@ class AiAccountsController < InertiaController
   end
 
   def check
+    return refuse_change if @account.change_blocked_reason
+
     checked(service.check!(@account), "#{@account.label} was checked")
   end
 
@@ -86,6 +90,8 @@ class AiAccountsController < InertiaController
 
   # A subscription's sign-in lives in the subscription proxy, which is told first.
   def subscriptions = SubscriptionProxy::Accounts.new(current_workspace)
+
+  def refuse_change = redirect_back(fallback_location: settings_workspace_path, alert: @account.change_blocked_reason)
 
   def switch_subscription(on:)
     subscriptions.switch!(@account, on: on)

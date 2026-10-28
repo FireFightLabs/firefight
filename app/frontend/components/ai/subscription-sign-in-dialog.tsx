@@ -1,5 +1,6 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react"
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react"
 import { router } from "@inertiajs/react"
+import type { Page } from "@inertiajs/core"
 import { IconCopy, IconExternalLink, IconLoader2 } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
@@ -14,13 +15,14 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { AI_SUBSCRIPTION_SIGN_IN_PROPS } from "@/lib/generated/constants"
+import { AI_SUBSCRIPTION_SIGN_IN_PROPS, SUBSCRIPTION_CALLBACK_ADDRESS_PARAM } from "@/lib/generated/constants"
 import { whenClosed } from "@/lib/handlers"
 import {
   advanceSubscriptionSignInPath,
   finishSubscriptionSignInPath,
   subscriptionSignInPath,
 } from "@/lib/routes"
+import type { FlashData } from "@/types"
 import type { SubscriptionSignIn } from "@/types/serializers"
 
 const SIGN_IN_PROPS: string[] = Object.values(AI_SUBSCRIPTION_SIGN_IN_PROPS)
@@ -34,6 +36,11 @@ export function SubscriptionSignInDialog({ signIn }: { signIn: SubscriptionSignI
   const [address, setAddress] = useState("")
   const [sending, setSending] = useState(false)
   const [copied, setCopied] = useState(false)
+  // The address went through and the proxy is finishing the sign-in, so the same code is never handed back twice.
+  const [handedBackFor, setHandedBackFor] = useState<string | null>(null)
+  // A request of the person's own (handing back or cancelling) is never cut short by a check, and checks never overlap.
+  const busy = useRef(false)
+  const asking = useRef(false)
   const signInId = signIn?.id
 
   useEffect(() => {
@@ -41,16 +48,25 @@ export function SubscriptionSignInDialog({ signIn }: { signIn: SubscriptionSignI
       return
     }
     const timer = window.setInterval(() => {
-      router.post(advanceSubscriptionSignInPath(signInId), {}, QUIET_VISIT)
+      if (busy.current || asking.current) {
+        return
+      }
+      asking.current = true
+      router.post(advanceSubscriptionSignInPath(signInId), {}, { ...QUIET_VISIT, async: true, onFinish: () => (asking.current = false) })
     }, ASK_EVERY_MS)
     return () => window.clearInterval(timer)
   }, [signInId])
+
+  function idle() {
+    busy.current = false
+  }
 
   function cancel() {
     if (!signIn) {
       return
     }
-    router.delete(subscriptionSignInPath(signIn.id), QUIET_VISIT)
+    busy.current = true
+    router.delete(subscriptionSignInPath(signIn.id), { ...QUIET_VISIT, onFinish: idle })
   }
 
   function changeAddress(event: ChangeEvent<HTMLInputElement>) {
@@ -58,8 +74,16 @@ export function SubscriptionSignInDialog({ signIn }: { signIn: SubscriptionSignI
   }
 
   function finished() {
+    idle()
     setSending(false)
     setAddress("")
+  }
+
+  function handedBack(page: Page) {
+    const flash = page.flash as FlashData | undefined
+    if (!flash?.alert && signIn) {
+      setHandedBackFor(signIn.id)
+    }
   }
 
   function handBack(event: FormEvent) {
@@ -67,8 +91,13 @@ export function SubscriptionSignInDialog({ signIn }: { signIn: SubscriptionSignI
     if (!signIn) {
       return
     }
+    busy.current = true
     setSending(true)
-    router.post(finishSubscriptionSignInPath(signIn.id), { address }, { ...QUIET_VISIT, onFinish: finished })
+    router.post(
+      finishSubscriptionSignInPath(signIn.id),
+      { [SUBSCRIPTION_CALLBACK_ADDRESS_PARAM]: address },
+      { ...QUIET_VISIT, onSuccess: handedBack, onFinish: finished },
+    )
   }
 
   function copyCode() {
@@ -78,7 +107,8 @@ export function SubscriptionSignInDialog({ signIn }: { signIn: SubscriptionSignI
     void navigator.clipboard.writeText(signIn.userCode).then(() => setCopied(true))
   }
 
-  const title = signIn ? `${signIn.reconnecting ? "Sign in again to" : "Connect"} ${signIn.name}` : ""
+  const finishing = Boolean(signIn) && handedBackFor === signIn?.id
+  const title = signIn ?`${signIn.reconnecting ? "Sign in again to" : "Connect"} ${signIn.name}` : ""
 
   return (
     <Dialog open={Boolean(signIn)} onOpenChange={whenClosed(cancel)}>
@@ -133,24 +163,33 @@ export function SubscriptionSignInDialog({ signIn }: { signIn: SubscriptionSignI
                   Sign in on {signIn.host}
                 </a>
               </Button>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor={`subscription-address-${signIn.id}`}>Address your browser opened</Label>
-                <Input
-                  id={`subscription-address-${signIn.id}`}
-                  value={address}
-                  onChange={changeAddress}
-                  placeholder="http://localhost..."
-                  autoComplete="off"
-                />
-              </div>
+              {finishing ? (
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <IconLoader2 className="size-4 animate-spin" />
+                  Finishing the sign-in. This closes by itself once it has.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor={`subscription-address-${signIn.id}`}>Address your browser opened</Label>
+                  <Input
+                    id={`subscription-address-${signIn.id}`}
+                    value={address}
+                    onChange={changeAddress}
+                    placeholder="http://localhost..."
+                    autoComplete="off"
+                  />
+                </div>
+              )}
             </div>
             <DialogFooter>
               <DialogClose asChild>
                 <Button type="button" variant="outline">Cancel</Button>
               </DialogClose>
-              <Button type="submit" disabled={sending || address.trim() === ""}>
-                {sending ? "Connecting" : "Connect"}
-              </Button>
+              {!finishing && (
+                <Button type="submit" disabled={sending || address.trim() === ""}>
+                  {sending ? "Connecting" : "Connect"}
+                </Button>
+              )}
             </DialogFooter>
           </form>
         ) : null}

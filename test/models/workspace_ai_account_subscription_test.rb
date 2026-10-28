@@ -62,6 +62,27 @@ class WorkspaceAiAccountSubscriptionTest < ActiveSupport::TestCase
     assert_equal grok, backup.payer.account
   end
 
+  test "only a refused sign-in signs a subscription out, and any other failed check leaves Check again" do
+    account = add_subscription_account!(@workspace)
+
+    account.check_failed!(FirefightAi::TerminalError.new("400 bad request", reason: "BadRequestError"))
+    assert_equal :failing, account.state
+
+    account.check_failed!(FirefightAi::TerminalError.new("401", reason: "UnauthorizedError"))
+    assert_equal :signed_out, account.state
+
+    account.checked!
+    assert_equal :verified, account.state
+  end
+
+  test "a subscription cannot be checked or changed while the proxy is not usable" do
+    account = add_subscription_account!(@workspace)
+    assert_nil account.change_blocked_reason
+
+    SubscriptionProxy::Check.failed!("down")
+    assert_equal SubscriptionProxy::UNAVAILABLE_FOR_CHANGES, account.change_blocked_reason
+  end
+
   test "its state says when its sign-in stopped working or it reached its limit, and its toasts name it" do
     signed_out = add_subscription_account!(@workspace, state: { "signed_out" => true })
     limited = add_subscription_account!(@workspace, email: "ben@example.com", state: { "limit" => { "reached_until" => 2.hours.from_now.iso8601 } })

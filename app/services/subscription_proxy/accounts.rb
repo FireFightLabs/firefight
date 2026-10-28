@@ -33,17 +33,18 @@ module SubscriptionProxy
     # sign-ins so a new conversation goes to the one with room whose limit resets soonest.
     def sync!(credentials = client.credentials)
       by_name = credentials.index_by(&:name)
-      accounts = @workspace.workspace_ai_accounts.subscriptions.where.not(proxy_credential: nil).to_a
-      accounts.each do |account|
-        credential = by_name[account.proxy_credential]
-        next account.update_columns(proxy_state: account.proxy_state.merge("signed_out" => true), updated_at: Time.current) unless credential
-
-        account.update_columns(proxy_state: account.proxy_state.merge(state_of(credential)), updated_at: Time.current)
+      held, gone = @workspace.workspace_ai_accounts.subscriptions.where.not(proxy_credential: nil).to_a
+                             .partition { |account| by_name.key?(account.proxy_credential) }
+      # A credential the proxy no longer holds needs signing in again, and nothing else is asked of it.
+      gone.each { |account| account.update_columns(proxy_state: account.proxy_state.merge("signed_out" => true), updated_at: Time.current) }
+      held.each do |account|
+        account.update_columns(proxy_state: account.proxy_state.merge(state_of(by_name.fetch(account.proxy_credential))), updated_at: Time.current)
       end
-      refresh_models!(accounts)
-      rank!(accounts)
+      refresh_models!(held)
+      rank!(held)
     end
 
+    # One account the proxy cannot answer for keeps the models it had, and the rest are still refreshed.
     def refresh_models!(accounts = @workspace.workspace_ai_accounts.subscriptions.where.not(proxy_credential: nil).to_a)
       return if accounts.empty?
 
@@ -53,6 +54,8 @@ module SubscriptionProxy
         served = client.credential_models(account.proxy_credential, prefix: prefix)
         models = served.filter_map { |id| facts[id]&.to_h&.stringify_keys }
         account.update_columns(proxy_state: account.proxy_state.merge("models" => models), updated_at: Time.current) if models.any?
+      rescue SubscriptionProxy::Error => error
+        Rails.logger.warn({ event: "subscription_proxy.models_unread", account_id: account.id, error: error.message }.to_json)
       end
     end
 
@@ -67,31 +70,47 @@ module SubscriptionProxy
 
           client.prioritize(account.proxy_credential, priority)
           account.update_columns(proxy_state: account.proxy_state.merge("priority" => priority), updated_at: Time.current)
+        rescue SubscriptionProxy::NotFound
+          next
         end
       end
     end
 
+    # Told to the proxy first, so the pool skips a sign-in that is off. A credential the proxy no longer holds has
+    # nothing to switch, and without the proxy set up the row alone changes.
     def switch!(account, on:)
-      client.switch(account.proxy_credential, on: on) if account.proxy_credential.present?
-      on ? account.enable! : account.disable!
+      if SubscriptionProxy.configured? && account.proxy_credential.present?
+        begin
+          client.switch(account.proxy_credential, on: on)
+        rescue SubscriptionProxy::NotFound
+          nil
+        end
+      end
+      account.switch_subscription!(on)
     end
 
     # The sign-in is removed from the proxy before the account, so a sign-in never outlives the account that names it.
+    # Without the proxy set up nothing can reach the sign-in, and the sweep removes it once the proxy is back.
     def disconnect!(account)
-      client.delete(account.proxy_credential) if account.proxy_credential.present?
+      client.delete(account.proxy_credential) if SubscriptionProxy.configured? && account.proxy_credential.present?
       account.destroy!
     end
 
     # Removes finished sign-ins no workspace claimed, once nothing can still claim them. The proxy's credentials are all
-    # workspaces', so this runs once for the install.
+    # workspaces', so this runs once for the install, one kind at a time under the lock claims take. A credential with no
+    # time of its own is never taken as old.
     def self.sweep_unclaimed!(credentials)
-      claimed = WorkspaceAiAccount.where(proxy_credential: credentials.map(&:name)).pluck(:proxy_credential)
-      stale = credentials.reject { |credential| claimed.include?(credential.name) }
-                         .select { |credential| credential.created_at.nil? || credential.created_at < UNCLAIMED_AFTER.ago }
       client = Client.new
-      stale.each do |credential|
-        client.delete(credential.name)
-        Rails.logger.info({ event: "subscription_proxy.unclaimed_removed", provider: credential.provider }.to_json)
+      credentials.group_by(&:provider).each do |provider, kind|
+        ClaimLock.hold(provider, wait: SignIns::LOCK_WAIT) do
+          claimed = WorkspaceAiAccount.where(proxy_credential: kind.map(&:name)).pluck(:proxy_credential)
+          stale = kind.reject { |credential| claimed.include?(credential.name) }
+                      .select { |credential| credential.created_at.present? && credential.created_at < UNCLAIMED_AFTER.ago }
+          stale.each do |credential|
+            client.delete(credential.name)
+            Rails.logger.info({ event: "subscription_proxy.unclaimed_removed", provider: credential.provider }.to_json)
+          end
+        end
       end
     end
 

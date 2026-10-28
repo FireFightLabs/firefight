@@ -79,7 +79,8 @@ class WorkspaceAiAccount < ApplicationRecord
   def proxy_limit = proxy_state.to_h["limit"].to_h
 
   # The proxy says the sign-in no longer works, so it needs signing in again.
-  def signed_out? = subscription? && (failing_since.present? || proxy_state.to_h["signed_out"] == true)
+  # Only a refused sign-in counts. Any other failed check leaves it failing, with Check again.
+  def signed_out? = subscription? && proxy_state.to_h["signed_out"] == true
 
   def limit_reached? = subscription? && proxy_limit["reached_until"].present? && Time.zone.parse(proxy_limit["reached_until"].to_s) > Time.current
 
@@ -223,19 +224,23 @@ class WorkspaceAiAccount < ApplicationRecord
     stuck!(:out_of_credit_since, error)
   end
 
+  # A subscription refused this way has had its sign-in refused, so it is signed out.
   def key_refused!(error)
-    stuck!(:failing_since, error)
+    moved = stuck!(:failing_since, error)
+    signed_out_by_refusal! if subscription?
+    moved
   end
 
   # Every answered call says it works.
   def answered!
     self.class.where(id: id).update_all(last_used_at: Time.current, out_of_credit_since: nil, failing_since: nil, last_error: nil,
-                                        updated_at: Time.current)
+                                        updated_at: Time.current, **signed_in_again)
   end
 
   def checked!
     now = Time.current
-    self.class.where(id: id).update_all(verified_at: now, out_of_credit_since: nil, failing_since: nil, last_error: nil, updated_at: now)
+    self.class.where(id: id).update_all(verified_at: now, out_of_credit_since: nil, failing_since: nil, last_error: nil, updated_at: now,
+                                        **signed_in_again)
     reload
   end
 
@@ -248,6 +253,16 @@ class WorkspaceAiAccount < ApplicationRecord
       changes[AiPayer.out_of_credit?(error) ? :out_of_credit_since : :failing_since] = Time.current
     end
     self.class.where(id: id).update_all(changes)
+    signed_out_by_refusal! if subscription? && FirefightAi.key_refused?(error)
+    reload
+  end
+
+  # Why it cannot be checked or edited now: a subscription is reached only through the proxy.
+  def change_blocked_reason = (SubscriptionProxy::UNAVAILABLE_FOR_CHANGES if subscription? && !SubscriptionProxy.usable?)
+
+  # A subscription is turned off or on as it is, whatever the proxy now says of the models it was saved with.
+  def switch_subscription!(on)
+    self.class.where(id: id).update_all(enabled: on, updated_at: Time.current)
     reload
   end
 
@@ -302,6 +317,13 @@ class WorkspaceAiAccount < ApplicationRecord
     sign_in = provider_definition&.sign_in
     values.merge("api_key" => secrets["access_token"], "api_base" => sign_in&.api_base)
   end
+
+  def signed_out_by_refusal!
+    self.class.where(id: id).update_all(Arel.sql("proxy_state = proxy_state || '{\"signed_out\": true}'::jsonb"))
+  end
+
+  # An answer or a passed check says a subscription's sign-in works again. Other accounts keep no such state.
+  def signed_in_again = subscription? ? { proxy_state: Arel.sql("proxy_state - 'signed_out'") } : {}
 
   def stuck!(column, error)
     moved = self.class.where(id: id, column => nil)

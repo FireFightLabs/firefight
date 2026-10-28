@@ -1665,6 +1665,8 @@ export const AI_SUBSCRIPTION_SIGN_IN_PROPS = {
   "SUBSCRIPTION_SIGN_IN": "aiSubscriptionSignIn"
 } as const
 
+export const SUBSCRIPTION_CALLBACK_ADDRESS_PARAM = "callback_address" as const
+
 export const APPROVAL_RUN_WINDOW_MINUTES = 60 as const
 
 export const WATCH_SPEC_KEYS = {

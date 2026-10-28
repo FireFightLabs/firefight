@@ -22,6 +22,7 @@ module SubscriptionProxy
 
   # Said where a subscription cannot be connected because the proxy is down or does not keep workspaces apart.
   UNAVAILABLE = "Subscriptions cannot be connected right now. Try again in a few minutes.".freeze
+  UNAVAILABLE_FOR_CHANGES = "Subscriptions cannot be checked or changed right now. Try again in a few minutes.".freeze
 
   # Where failed calls to it are kept, beside the chat platform's (PlatformCallFailure).
   PLATFORM = "subscription_proxy".freeze

@@ -155,6 +155,17 @@ class AiAccountsControllerTest < ActionDispatch::IntegrationTest
     assert_not WorkspaceAiAccount.exists?(account.id)
   end
 
+  test "a subscription is not checked while the proxy is not usable, and says why" do
+    subscription_proxy_up!
+    account = add_subscription_account!(@workspace)
+    SubscriptionProxy::Check.failed!("down")
+    FirefightAi.expects(:check_account).never
+
+    post check_ai_account_path(account)
+
+    assert_equal SubscriptionProxy::UNAVAILABLE_FOR_CHANGES, flash[:alert]
+  end
+
   test "signing a subscription in again starts where it signed in first" do
     subscription_proxy_up!
     account = add_subscription_account!(@workspace, credential: "codex-ana.json", state: { "signed_out" => true })

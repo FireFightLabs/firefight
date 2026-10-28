@@ -62,7 +62,29 @@ class SubscriptionSignInsControllerTest < ActionDispatch::IntegrationTest
 
     delete subscription_sign_in_path(started)
 
-    assert_not SubscriptionSignIn.exists?(state: "xai-1")
+    assert_equal "SuperGrok sign-in was cancelled.", flash[:notice]
+    assert_equal SubscriptionSignIn::STATUS_CANCELLED, started.status, "kept, since the proxy may have made a credential from it"
+  end
+
+  test "the proxy not answering while a sign-in waits is said once, and the sign-in keeps waiting" do
+    post subscription_sign_ins_path, params: { subscription: "supergrok" }
+    Client.any_instance.stubs(:sign_in_status).raises(SubscriptionProxy::Unreachable, "could not reach the subscription proxy")
+
+    post advance_subscription_sign_in_path(started)
+    assert_equal SubscriptionProxy::SignIns::UNREACHABLE_WHILE_WAITING, flash[:alert]
+    follow_redirect!
+
+    post advance_subscription_sign_in_path(started)
+    assert_nil flash[:alert]
+    assert started.waiting?
+  end
+
+  test "the address a browser sign-in lands on carries its code, so it is kept out of the logs" do
+    filter = ActiveSupport::ParameterFilter.new(Rails.application.config.filter_parameters)
+    address = "http://localhost:1455/auth/callback?code=secret-code&state=s"
+
+    assert_equal({ SubscriptionSignInsController::CALLBACK_ADDRESS_PARAM.to_s => "[FILTERED]" },
+                 filter.filter(SubscriptionSignInsController::CALLBACK_ADDRESS_PARAM.to_s => address))
   end
 
   test "a person cannot reach someone else's sign-in" do
