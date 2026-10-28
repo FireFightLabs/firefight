@@ -21,9 +21,16 @@ module SubscriptionProxy
       def device? = user_code.present?
     end
 
+    # What a sign-in's start names, read by the proxy's post-auth hook.
+    SIGN_IN_PARAM = "firefight_sign_in".freeze
+    WORKSPACE_PARAM = "firefight_workspace".freeze
+    REFUSED_TAKEN = "taken".freeze
+    REFUSED_UNNAMED = "unnamed".freeze
+
     # One credential as the proxy reports it. quota holds the limit signals its provider sent with its last answer.
+    # sign_in_id is the id of the Firefight sign-in that made it, which the proxy's hook keeps as its note.
     Credential = Data.define(:name, :provider, :email, :label, :status, :status_message, :disabled, :unavailable,
-                             :next_retry_after, :quota, :quota_observed_at, :created_at, :updated_at, :succeeded, :failed)
+                             :next_retry_after, :quota, :quota_observed_at, :created_at, :updated_at, :succeeded, :failed, :sign_in_id)
 
     # A model a workspace's sign-ins serve, by its own name.
     Model = Data.define(:id, :name, :context_window, :max_output_tokens, :input_modalities)
@@ -47,11 +54,22 @@ module SubscriptionProxy
     # The settings the proxy runs with, read back so Firefight can confirm the ones that keep workspaces apart.
     def settings = json(call(:settings, Net::HTTP::Get, "#{MANAGEMENT}/config"))
 
-    def start_sign_in(provider)
-      body = json(call(:start_sign_in, Net::HTTP::Get, "#{MANAGEMENT}/oauth/auth-url?#{{ provider: provider }.to_query}"))
+    # Starts a sign-in named by Firefight's own id for it, for this client's workspace. The proxy stamps the credential
+    # it saves with both (deploy/subscription-proxy/firefight_sign_in.go), so the credential is found by the id, and
+    # carries the workspace's prefix from the moment it exists.
+    def start_sign_in(provider, sign_in_id:)
+      query = { provider: provider, SIGN_IN_PARAM => sign_in_id, WORKSPACE_PARAM => SubscriptionProxy.prefix_for(@workspace) }
+      body = json(call(:start_sign_in, Net::HTTP::Get, "#{MANAGEMENT}/oauth/auth-url?#{query.to_query}"))
       expires_in = body["expires_in"].to_i
       SignIn.new(state: body.fetch("state"), url: body.fetch("url"), user_code: body["user_code"].presence,
                  expires_at: expires_in.positive? ? expires_in.seconds.from_now : nil)
+    end
+
+    # Why the proxy refused to save a sign-in's credential: REFUSED_TAKEN when the login is connected to another
+    # workspace, REFUSED_UNNAMED when the sign-in carried no id, nil otherwise.
+    def sign_in_refusal(sign_in_id)
+      body = json(call(:sign_in_refusal, Net::HTTP::Get, "/firefight/sign-ins/#{CGI.escape(sign_in_id.to_s)}"))
+      body["refused"].presence
     end
 
     # :waiting, :done, or the proxy's reason it failed as a string.
@@ -81,11 +99,6 @@ module SubscriptionProxy
 
     def credentials
       json(call(:credentials, Net::HTTP::Get, "#{MANAGEMENT}/credentials")).fetch("files", []).map { |file| credential(file) }
-    end
-
-    # Gives a credential to a workspace. From then on only calls naming that workspace's prefix reach it.
-    def claim(name, prefix:)
-      patch(:claim, name, prefix: prefix)
     end
 
     # Higher goes first among one workspace's credentials for the same model.
@@ -144,7 +157,7 @@ module SubscriptionProxy
         unavailable: file["unavailable"] == true, next_retry_after: time(file["next_retry_after"]),
         quota: quota["signals"].is_a?(Hash) ? quota["signals"] : {}, quota_observed_at: time(quota["observed_at"]),
         created_at: time(file["created_at"]), updated_at: time(file["updated_at"]),
-        succeeded: file["success"].to_i, failed: file["failed"].to_i
+        succeeded: file["success"].to_i, failed: file["failed"].to_i, sign_in_id: file["note"].presence
       )
     end
 

@@ -15,12 +15,15 @@ class SubscriptionProxy::ClientTest < ActiveSupport::TestCase
   test "a device sign-in answers its code, where to enter it and when the proxy stops waiting" do
     sent = stub_proxy(proxy_response(200, { status: "ok", state: "xai-1", url: "https://accounts.x.ai/oauth2/device?user_code=SP7R", user_code: "SP7R", flow: "device", expires_in: 1800 }))
 
-    sign_in = SubscriptionProxy::Client.new(workspace: @workspace).start_sign_in("xai")
+    sign_in_id = SecureRandom.uuid
+    sign_in = SubscriptionProxy::Client.new(workspace: @workspace).start_sign_in("xai", sign_in_id: sign_in_id)
 
     assert_predicate sign_in, :device?
     assert_equal [ "xai-1", "SP7R" ], [ sign_in.state, sign_in.user_code ]
     assert_in_delta 30.minutes.from_now, sign_in.expires_at, 5
-    assert_equal "/v8/management/oauth/auth-url?provider=xai", sent.first.path
+    asked = Rack::Utils.parse_query(URI(sent.first.path).query)
+    assert_equal({ "provider" => "xai", "firefight_sign_in" => sign_in_id, "firefight_workspace" => @workspace.id }, asked,
+                 "the proxy stamps the credential with the sign-in and its workspace")
     assert_equal "Bearer management-key", sent.first["Authorization"]
   end
 
@@ -28,7 +31,7 @@ class SubscriptionProxy::ClientTest < ActiveSupport::TestCase
     sent = stub_proxy(proxy_response(200, { status: "ok", state: "abc", url: "https://auth.openai.com/oauth/authorize?state=abc" }), proxy_response(200, { status: "ok" }))
     client = SubscriptionProxy::Client.new(workspace: @workspace)
 
-    refute_predicate client.start_sign_in("codex"), :device?
+    refute_predicate client.start_sign_in("codex", sign_in_id: SecureRandom.uuid), :device?
     client.finish_sign_in("codex", state: "abc", code: "the-code")
 
     assert_equal "/v8/management/oauth/callback", sent.last.path
@@ -47,24 +50,32 @@ class SubscriptionProxy::ClientTest < ActiveSupport::TestCase
     stub_proxy(proxy_response(200, { files: [ {
       name: "codex-a@example.com-plus.json", provider: "codex", email: "a@example.com", status: "active", unavailable: false,
       quota: { observed_at: "2026-10-28T10:00:00Z", signals: { "x-codex-primary-used-percent" => "40" } },
-      created_at: "2026-10-28T09:00:00Z", success: 3, failed: 1
+      created_at: "2026-10-28T09:00:00Z", success: 3, failed: 1, note: "9f1c2e60-0000-4000-8000-000000000001"
     } ] }))
 
     credential = SubscriptionProxy::Client.new.credentials.sole
 
     assert_equal [ "codex-a@example.com-plus.json", "codex", "a@example.com", 3, 1 ], [ credential.name, credential.provider, credential.email, credential.succeeded, credential.failed ]
+    assert_equal "9f1c2e60-0000-4000-8000-000000000001", credential.sign_in_id
     assert_equal({ "x-codex-primary-used-percent" => "40" }, credential.quota)
     assert_equal Time.zone.parse("2026-10-28T09:00:00Z"), credential.created_at
   end
 
-  test "claiming gives a credential its workspace's prefix, and a delete can only ever name one credential" do
-    sent = stub_proxy(proxy_response(200, { status: "ok" }), proxy_response(200, { status: "ok" }))
+  test "the proxy says why it refused a sign-in's credential" do
+    sent = stub_proxy(proxy_response(200, { refused: "taken" }), proxy_response(200, { refused: "" }))
     client = SubscriptionProxy::Client.new(workspace: @workspace)
 
-    client.claim("codex-a.json", prefix: SubscriptionProxy.prefix_for(@workspace))
+    assert_equal SubscriptionProxy::Client::REFUSED_TAKEN, client.sign_in_refusal("9f1c2e60-0000-4000-8000-000000000001")
+    assert_nil client.sign_in_refusal("9f1c2e60-0000-4000-8000-000000000002")
+    assert_equal [ "/firefight/sign-ins/9f1c2e60-0000-4000-8000-000000000001", "Bearer management-key" ], [ sent.first.path, sent.first["Authorization"] ]
+  end
+
+  test "a delete can only ever name one credential" do
+    sent = stub_proxy(proxy_response(200, { status: "ok" }))
+    client = SubscriptionProxy::Client.new(workspace: @workspace)
+
     client.delete("codex-a.json")
 
-    assert_equal({ "name" => "codex-a.json", "prefix" => @workspace.id }, JSON.parse(sent.first.body))
     assert_equal "/v8/management/credentials?name=codex-a.json", sent.last.path
     [ "", "*", "all", "../config.json" ].each do |name|
       assert_raises(ArgumentError) { client.delete(name) }
