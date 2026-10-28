@@ -21,11 +21,12 @@ module Operator
     KIND_SANDBOX_ROGUE = "sandbox_rogue".freeze
     KIND_SANDBOX_TROUBLE = "sandbox_trouble".freeze
     KIND_SANDBOX_UNREAD = "sandbox_unread".freeze
+    KIND_SUBSCRIPTION_PROXY_FAILING = "subscription_proxy_failing".freeze
     KINDS = [
       KIND_WORKFLOW_FAILED, KIND_WORKFLOW_STUCK, KIND_WEBHOOK_FAILING, KIND_PLATFORM_FAILED, KIND_ALERT_STUCK,
       KIND_QUEUE_BACKED_UP, KIND_JOBS_FAILED, KIND_HALON_FAILED, KIND_HALON_LIMIT, KIND_HALON_NOT_POSTED, KIND_HALON_STUCK,
       KIND_SKILL_BROKEN, KIND_AI_OUT_OF_CREDIT, KIND_AI_SHORT_OF_CREDIT, KIND_AI_BALANCE_UNCHECKED, KIND_SANDBOX_FAILOVER,
-      KIND_SANDBOX_ROGUE, KIND_SANDBOX_TROUBLE, KIND_SANDBOX_UNREAD
+      KIND_SANDBOX_ROGUE, KIND_SANDBOX_TROUBLE, KIND_SANDBOX_UNREAD, KIND_SUBSCRIPTION_PROXY_FAILING
     ].freeze
 
     # The page an item opens.
@@ -63,8 +64,8 @@ module Operator
 
     def items
       @items ||= [
-        *credit_items, *workflow_items, *webhook_items, *platform_items, *alert_items, *job_items, *halon_items, *skill_items,
-        *sandbox_items, *inventory_items
+        *credit_items, *subscription_proxy_items, *workflow_items, *webhook_items, *platform_items, *alert_items, *job_items,
+        *halon_items, *skill_items, *sandbox_items, *inventory_items
       ].sort_by { |item| [ item.tone == IncidentProcess::TONE_BAD ? 0 : 1, -item.at.to_f ] }
     end
 
@@ -241,6 +242,19 @@ module Operator
     end
 
     def credit_refusals = Inference.where(error_kind: Inference::ERROR_OUT_OF_CREDIT)
+
+    # The subscription proxy is the install's, so it shows only when no workspace is selected. While its check fails no
+    # workspace's subscription is used.
+    def subscription_proxy_items
+      return [] if @filter.workspace || !SubscriptionProxy.configured?
+
+      check = SubscriptionProxy::Check.current
+      return [] unless check&.failing_since
+
+      [ item(key: "subscription-proxy", kind: KIND_SUBSCRIPTION_PROXY_FAILING, title: "Subscription proxy failing", subject: check.last_error.to_s,
+             detail: "Failing since #{check.failing_since.utc.iso8601}, last checked #{check.checked_at&.utc&.iso8601}. Workspaces' subscriptions are not used meanwhile",
+             at: check.failing_since, target: nil) ]
+    end
 
     def out_of_credit_item(account)
       since = account.out_of_credit_since

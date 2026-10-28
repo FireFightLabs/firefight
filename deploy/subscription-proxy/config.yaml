@@ -1,0 +1,45 @@
+# The subscription proxy's settings. The entrypoint fills in the client key from PROXY_CLIENT_KEY
+# and seeds this file into the proxy's database on every start, so this file is what runs.
+# The management key is MANAGEMENT_PASSWORD, read by the proxy itself, never written here.
+config-version: 8
+
+server:
+  host: ""
+  port: 8317
+
+management:
+  # Firefight reaches it over the private network, never from localhost.
+  allow-remote: true
+  secret-key: ""
+  disable-control-panel: true
+  disable-auto-update-panel: true
+
+access:
+  api-keys:
+    - "__PROXY_CLIENT_KEY__"
+
+routing:
+  strategy: "round-robin"
+  session-affinity: true
+  session-affinity-ttl: "1h"
+  # Every credential carries its workspace's id as its prefix, and a request names the prefix it may use.
+  # With this on, a request for one prefix is never served by a credential of another or of none.
+  force-model-prefix: true
+
+upstream:
+  claude:
+    # The Anthropic shaped model list is the one that says how much each model reads and writes. Firefight reads it,
+    # so it lists the models by their own names.
+    disable-cloaking-model-list: true
+
+observability:
+  logs:
+    debug: false
+    logging-to-file: false
+    # Request logs would keep a workspace's prompts in the proxy.
+    request-log: false
+  usage:
+    usage-statistics-enabled: false
+
+plugins:
+  enabled: false

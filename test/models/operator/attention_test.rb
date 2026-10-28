@@ -117,6 +117,19 @@ class Operator::AttentionTest < ActiveSupport::TestCase
     assert items.none? { |item| item.kind == Operator::Attention::KIND_AI_OUT_OF_CREDIT }, "the account is the install's, not a workspace's"
   end
 
+  test "a failing subscription proxy is listed for the whole install with why and since when, and a passing one is not" do
+    configure_subscription_proxy!
+    SubscriptionProxy::Check.failed!("could not reach the subscription proxy (Errno::ECONNREFUSED)")
+
+    failing = install_items.find { |item| item.kind == Operator::Attention::KIND_SUBSCRIPTION_PROXY_FAILING }
+
+    assert_equal [ "Subscription proxy failing", "could not reach the subscription proxy (Errno::ECONNREFUSED)" ], [ failing.title, failing.subject ]
+    assert items.none? { |item| item.kind == Operator::Attention::KIND_SUBSCRIPTION_PROXY_FAILING }, "the proxy is the install's, not a workspace's"
+
+    SubscriptionProxy::Check.passed!(version: "v8.0.28")
+    assert install_items.none? { |item| item.kind == Operator::Attention::KIND_SUBSCRIPTION_PROXY_FAILING }
+  end
+
   test "an AI account refused in the window that has credit again is short of credit, not out" do
     call!(Inference::STATUS_ERROR, kind: Inference::ERROR_OUT_OF_CREDIT, at: 2.hours.ago)
     AiAccount.create!(provider: "openrouter", out_of_credit_since: nil)

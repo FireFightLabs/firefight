@@ -72,6 +72,7 @@ plain_adapters = Dir.chdir(__dir__) { Dir.glob("app/adapters/*.rb") }.sort - PLA
 component :platform_factory, in: PLATFORM_FACTORY_FILES
 component :adapters, in: plain_adapters + %w[app/adapters/alert_providers/**/*.rb]
 component :slack_adapter, in: "app/adapters/slack/**/*.rb"
+component :subscription_proxy_adapter, in: "app/adapters/subscription_proxy/**/*.rb"
 component :integrations_layer,
           in: %w[app/adapters/integrations/**/*.rb app/services/integrations/**/*.rb]
 component :channels, in: "app/channels/**/*.rb"
@@ -185,6 +186,10 @@ operator_controllers.cannot_use :handlers, :dispatchers, :adapters, :slack_adapt
 (component_specs.keys - [ :operator_controllers, :operator_models, :operator_serializers, :operator_namespace ]).each do |component_name|
   send(component_name).cannot_use :operator_controllers, :operator_models, :operator_serializers
 end
+
+# The subscription proxy holds every workspace's subscription sign-ins and its management key reaches all of them, so
+# only services, which run for one workspace and record what they did, talk to it.
+subscription_proxy_adapter.can_only_be_used_by :services
 
 # Provider clients and credential shapes stay behind the integrations layer.
 integration_clients.can_only_be_used_by :integrations_layer, :sandbox_clients, :provider_code

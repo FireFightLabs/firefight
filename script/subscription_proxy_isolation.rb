@@ -1,0 +1,466 @@
+# Proves that the pinned subscription proxy keeps each workspace to its own subscriptions.
+#
+# It builds deploy/subscription-proxy, runs it on a Postgres of its own and gives it credentials for the
+# five supported subscriptions the way Firefight does (upload, then prefix with the workspace's id).
+# Every credential reaches its provider through a stub of its own, so which credential a request used is
+# read off the stub that saw it, with the providers' real addresses and nothing sent anywhere.
+#
+#   ruby script/subscription_proxy_isolation.rb
+#
+# Needs Docker. Exits non-zero when any request for one workspace reaches a credential that is not its own.
+
+require "fileutils"
+require "json"
+require "net/http"
+require "open3"
+require "openssl"
+require "securerandom"
+require "socket"
+require "tmpdir"
+require "uri"
+require "minitest/autorun"
+
+module SubscriptionProxyIsolation
+  ROOT = File.expand_path("..", __dir__)
+  PROVIDERS = (ENV["ISOLATION_PROVIDERS"] || "codex antigravity xai kimi meta").split.freeze
+  MANAGEMENT_KEY = SecureRandom.hex(24)
+  CLIENT_KEY = SecureRandom.hex(24)
+
+  # Stands in for every provider. Each credential is given its own port as its outbound proxy, so a
+  # connection on a port is a request made with that credential. TLS is answered with a certificate from
+  # a CA only the proxy container trusts.
+  class Upstream
+    # Antigravity lists only the models its account says it may use.
+    ANTIGRAVITY_CATALOG = {
+      models: %w[
+        claude-opus-4-6-thinking claude-sonnet-4-6 claude-opus-5-5-high claude-sonnet-5-5-high gemini-4-argon-high
+        gemini-3.8-flash-high gemini-3-flash gemini-3.1-flash-lite gemini-3.5-flash-lite gpt-oss-120b-medium
+      ].to_h { |id| [ id, {} ] }
+    }.to_json
+
+    attr_reader :ca_pem, :hits
+
+    def initialize
+      @hits = Queue.new
+      @modes = {}
+      @ca_key = OpenSSL::PKey::RSA.new(2048)
+      @ca = certificate("Isolation test CA", @ca_key, nil, ca: true)
+      @ca_pem = @ca.to_pem
+      @leaf_key = OpenSSL::PKey::RSA.new(2048)
+      @contexts = {}
+      @lock = Mutex.new
+    end
+
+    def open_port(mode = :unavailable)
+      server = TCPServer.new("127.0.0.1", 0)
+      port = server.addr[1]
+      @modes[port] = mode
+      Thread.new { loop { serve(server.accept, port) } }
+      port
+    end
+
+    def set_mode(port, mode)
+      @modes[port] = mode
+    end
+
+    def drain
+      seen = []
+      seen << @hits.pop until @hits.empty?
+      seen
+    end
+
+    private
+
+    def serve(socket, port)
+      Thread.new do
+        line, = read_request(socket)
+        host = line.split[1].to_s.split(":").first
+        warn "connect on #{port} to #{host}" if ENV["ISOLATION_DEBUG"]
+        socket.write("HTTP/1.1 200 Connection established\r\n\r\n")
+        tls = OpenSSL::SSL::SSLSocket.new(socket, context_for(host))
+        tls.accept
+        request_line, = read_request(tls)
+        catalog = request_line.include?(":fetchAvailableModels")
+        warn "catalog request on #{port}" if catalog && ENV["ISOLATION_DEBUG"]
+        @hits << { port:, host:, request: request_line } unless catalog
+        status, payload = catalog ? [ 200, ANTIGRAVITY_CATALOG ] : answer(@modes.fetch(port))
+        tls.write("HTTP/1.1 #{status} Stub\r\nContent-Type: application/json\r\nContent-Length: #{payload.bytesize}\r\nConnection: close\r\n\r\n#{payload}")
+        tls.close
+      rescue StandardError => e
+        warn "stub on #{port}: #{e.class} #{e.message}" if ENV["ISOLATION_DEBUG"]
+        nil
+      ensure
+        socket.close unless socket.closed?
+      end
+    end
+
+    def answer(mode)
+      case mode
+      when :exhausted
+        [ 429, { error: { type: "usage_limit_reached", code: "usage_limit_reached", message: "The usage limit has been reached", resets_in_seconds: 3600 } }.to_json ]
+      else
+        [ 503, { error: { message: "unavailable" } }.to_json ]
+      end
+    end
+
+    def read_request(io)
+      line = io.gets.to_s.strip
+      headers = {}
+      while (header = io.gets) && header != "\r\n"
+        key, value = header.split(":", 2)
+        headers[key.to_s.downcase] = value.to_s.strip
+      end
+      io.read(headers["content-length"].to_i) if headers["content-length"]
+      [ line, headers ]
+    end
+
+    def context_for(host)
+      @lock.synchronize do
+        @contexts[host] ||= OpenSSL::SSL::SSLContext.new.tap do |context|
+          context.cert = certificate(host, @leaf_key, @ca)
+          context.key = @leaf_key
+          context.alpn_protocols = [ "http/1.1" ]
+          context.alpn_select_cb = ->(_offered) { "http/1.1" }
+        end
+      end
+    end
+
+    def certificate(name, key, issuer, ca: false)
+      cert = OpenSSL::X509::Certificate.new
+      cert.version = 2
+      cert.serial = SecureRandom.random_number(1 << 62)
+      cert.subject = OpenSSL::X509::Name.parse("/CN=#{name}")
+      cert.issuer = issuer ? issuer.subject : cert.subject
+      cert.public_key = key.public_key
+      cert.not_before = Time.now - 3600
+      cert.not_after = Time.now + 86_400
+      extensions = OpenSSL::X509::ExtensionFactory.new(cert, issuer || cert)
+      if ca
+        cert.add_extension(extensions.create_extension("basicConstraints", "CA:TRUE", true))
+        cert.add_extension(extensions.create_extension("keyUsage", "keyCertSign, cRLSign", true))
+      else
+        cert.add_extension(extensions.create_extension("subjectAltName", "DNS:#{name}", false))
+        cert.add_extension(extensions.create_extension("extendedKeyUsage", "serverAuth", false))
+      end
+      cert.sign(issuer ? @ca_key : key, OpenSSL::Digest.new("SHA256"))
+      cert
+    end
+  end
+
+  # The pinned proxy image and a Postgres of its own. The proxy shares the host's network, so it reaches
+  # the stub on localhost, and listens on the port its settings name.
+  class Proxy
+    attr_reader :port
+
+    def initialize(ca_pem)
+      @tag = "firefight-subscription-proxy-isolation:#{SecureRandom.hex(4)}"
+      @postgres = "isolation-pg-#{SecureRandom.hex(4)}"
+      @proxy = "isolation-proxy-#{SecureRandom.hex(4)}"
+      @dir = Dir.mktmpdir("subscription-proxy-isolation")
+      File.write(File.join(@dir, "ca.pem"), ca_pem)
+      @port = 8317
+      @postgres_port = free_port
+    end
+
+    def start
+      docker("build", "-q", "-t", @tag, File.join(ROOT, "deploy/subscription-proxy"))
+      docker("run", "-d", "--name", @postgres, "-p", "127.0.0.1:#{@postgres_port}:5432", "-e", "POSTGRES_PASSWORD=isolation", "postgres:17-alpine")
+      wait_until("Postgres") { system("docker", "exec", @postgres, "pg_isready", "-h", "127.0.0.1", "-U", "postgres", out: File::NULL, err: File::NULL) }
+      docker("run", "-d", "--name", @proxy, "--network", "host",
+        "-v", "#{File.join(@dir, 'ca.pem')}:/isolation/ca.pem:ro",
+        "-e", "SSL_CERT_FILE=/isolation/ca.pem",
+        "-e", "PGSTORE_DSN=postgres://postgres:isolation@127.0.0.1:#{@postgres_port}/postgres?sslmode=disable",
+        "-e", "MANAGEMENT_PASSWORD=#{MANAGEMENT_KEY}",
+        "-e", "PROXY_CLIENT_KEY=#{CLIENT_KEY}",
+        @tag, "--local-model")
+      wait_until("the proxy") { healthy? }
+    end
+
+    def stop
+      [ @proxy, @postgres ].each { |name| system("docker", "rm", "-f", name, out: File::NULL, err: File::NULL) }
+      system("docker", "rmi", "-f", @tag, out: File::NULL, err: File::NULL)
+      FileUtils.rm_rf(@dir)
+    end
+
+    def logs
+      Open3.capture2e("docker", "logs", "--tail", "60", @proxy).first
+    end
+
+    private
+
+    def healthy?
+      Net::HTTP.get_response(URI("http://127.0.0.1:#{@port}/healthz")).is_a?(Net::HTTPSuccess)
+    rescue StandardError
+      false
+    end
+
+    def free_port
+      server = TCPServer.new("127.0.0.1", 0)
+      server.addr[1]
+    ensure
+      server&.close
+    end
+
+    def wait_until(what, seconds: 90)
+      deadline = Time.now + seconds
+      until yield
+        raise "#{what} did not come up\n#{logs}" if Time.now > deadline
+
+        Kernel.sleep 0.5
+      end
+    end
+
+    def docker(*args)
+      output, status = Open3.capture2e("docker", *args)
+      raise "docker #{args.first} failed: #{output}" unless status.success?
+
+      output
+    end
+  end
+
+  # Talks to the proxy the way Firefight does.
+  class Client
+    def initialize(port)
+      @base = "http://127.0.0.1:#{port}"
+    end
+
+    def upload(name, body)
+      management(Net::HTTP::Post, "/v8/management/credentials?name=#{name}", body.to_json)
+    end
+
+    def patch_fields(name, fields)
+      management(Net::HTTP::Patch, "/v8/management/credentials/fields", fields.merge(name:).to_json)
+    end
+
+    def reset_cooldown(name)
+      files = JSON.parse(management(Net::HTTP::Get, "/v8/management/credentials?name=#{name}").body).fetch("files")
+      files.each { |file| management(Net::HTTP::Post, "/v8/management/routing/cooldown/reset", { auth_index: file.fetch("auth_index") }.to_json) }
+    end
+
+    def delete(name)
+      management(Net::HTTP::Delete, "/v8/management/credentials?name=#{name}")
+    end
+
+    def models_for(name)
+      JSON.parse(management(Net::HTTP::Get, "/v8/management/credentials/models?name=#{name}").body).fetch("models").map { |model| model.fetch("id") }
+    end
+
+    def chat(model, text, cache_key: nil)
+      body = { model:, messages: [ { role: "user", content: text } ] }
+      body[:prompt_cache_key] = cache_key if cache_key
+      inference("/v1/chat/completions", body)
+    end
+
+    def respond(model, text, cache_key: nil)
+      body = { model:, input: text, stream: false }
+      body[:prompt_cache_key] = cache_key if cache_key
+      inference("/v1/responses", body)
+    end
+
+    private
+
+    def inference(path, body)
+      request(Net::HTTP::Post, path, CLIENT_KEY, body.to_json)
+    end
+
+    def management(verb, path, body = nil)
+      response = request(verb, path, MANAGEMENT_KEY, body)
+      raise "#{verb.name} #{path} failed: #{response.code} #{response.body}" unless response.is_a?(Net::HTTPSuccess)
+
+      response
+    end
+
+    def request(verb, path, key, body)
+      uri = URI("#{@base}#{path}")
+      request = verb.new(uri)
+      request["Authorization"] = "Bearer #{key}"
+      request["Content-Type"] = "application/json"
+      request.body = body if body
+      Net::HTTP.start(uri.host, uri.port, read_timeout: 300) { |http| http.request(request) }
+    end
+  end
+
+  # One provider's credential file as its sign-in leaves it, tokens that never expire included so the
+  # proxy uses it without refreshing first.
+  def self.credential(provider, label, port)
+    far = "2099-01-01T00:00:00Z"
+    base = {
+      type: provider, access_token: "access-#{label}", refresh_token: "refresh-#{label}",
+      email: "#{label}@example.com", expired: far, last_refresh: Time.now.utc.iso8601
+    }
+    extra =
+      case provider
+      when "codex" then { account_id: "account-#{label}", plan_type: "plus" }
+      when "antigravity"
+        # What the proxy keeps after asking Antigravity which models the account may use.
+        catalog = { model_ids: JSON.parse(Upstream::ANTIGRAVITY_CATALOG).fetch("models").keys, project_id: "project-#{label}", endpoint: "https://daily-cloudcode-pa.googleapis.com" }
+        { project_id: "project-#{label}", expires_in: 3600, timestamp: (Time.now.to_f * 1000).to_i, antigravity_capability_hints: catalog }
+      when "xai" then { base_url: "https://api.x.ai/v1", auth_kind: "oauth" }
+      when "kimi" then { domain: "kimi.com", base_url: "https://api.kimi.com/coding/v1" }
+      when "meta" then { auth_kind: "oauth", api_key: "key-#{label}", dca_token: "dca-#{label}", dca_expired: far }
+      end
+    base.merge(extra, proxy_url: "http://127.0.0.1:#{port}")
+  end
+end
+
+class SubscriptionProxyIsolationTest < Minitest::Test
+  include SubscriptionProxyIsolation
+  i_suck_and_my_tests_are_order_dependent!
+
+  WORKSPACE_A = SecureRandom.uuid
+  WORKSPACE_B = SecureRandom.uuid
+
+  # One proxy for the whole run, since starting one takes seconds. Tests run in order and each sets the
+  # state it needs.
+  def self.world
+    @world ||= begin
+      upstream = Upstream.new
+      proxy = Proxy.new(upstream.ca_pem)
+      Minitest.after_run { proxy.stop }
+      proxy.start
+      client = Client.new(proxy.port)
+      credentials = {}
+      PROVIDERS.each do |provider|
+        { "a1" => WORKSPACE_A, "a2" => WORKSPACE_A, "b1" => WORKSPACE_B, "b2" => WORKSPACE_B }.each do |slot, workspace|
+          name = "#{provider}-#{slot}-#{SecureRandom.hex(3)}.json"
+          port = upstream.open_port
+          client.upload(name, SubscriptionProxyIsolation.credential(provider, "#{provider}-#{slot}", port))
+          client.patch_fields(name, prefix: workspace)
+          credentials[[ provider, slot ]] = { name:, port:, workspace: }
+        end
+      end
+      { upstream:, proxy:, client:, credentials: }
+    end
+  end
+
+  # A failing upstream cools a credential down. Each test starts with every credential ready again.
+  def setup
+    world[:credentials].each_value { |credential| client.reset_cooldown(credential[:name]) unless credential[:deleted] }
+  end
+
+  def world = self.class.world
+  def client = world[:client]
+  def upstream = world[:upstream]
+
+  def ports_of(workspace, provider = nil)
+    world[:credentials].select { |(name, _slot), credential| credential[:workspace] == workspace && (provider.nil? || name == provider) }.values.map { |credential| credential[:port] }
+  end
+
+  def model_for(provider, workspace)
+    slot = workspace == WORKSPACE_A ? "a1" : "b1"
+    name = world[:credentials].fetch([ provider, slot ])[:name]
+    # Some providers list their models only once they have asked their upstream.
+    deadline = Time.now + 60
+    loop do
+      models = client.models_for(name)
+      found = models.find { |id| id.start_with?("#{workspace}/") }
+      return found if found
+      flunk("#{provider} lists no model for its workspace: #{models.inspect}\n#{world[:proxy].logs}") if Time.now > deadline
+
+      Kernel.sleep 1
+    end
+  end
+
+  # Sends every request at once, since the proxy waits between retry rounds on a failing upstream.
+  def burst(workspace, text: nil, cache_key: nil, rounds: 2)
+    requests = PROVIDERS.flat_map do |provider|
+      model = model_for(provider, workspace)
+      Array.new(rounds) { [ model, text || "question #{SecureRandom.hex(6)}" ] }
+    end
+    requests.flat_map do |model, words|
+      [ Thread.new { client.chat(model, words, cache_key:) }, Thread.new { client.respond(model, words, cache_key:) } ]
+    end.map(&:value).tap { |responses| warn responses.map { |response| "#{response.code} #{response.body.to_s[0, 300]}" }.uniq.join("\n") if ENV["ISOLATION_DEBUG"] }
+  end
+
+  def owners(hits)
+    by_port = world[:credentials].values.to_h { |credential| [ credential[:port], credential[:workspace] ] }
+    hits.map { |hit| by_port.fetch(hit[:port], :unclaimed) }
+  end
+
+  def assert_only_reached(workspace, hits, context)
+    strangers = hits.reject { |hit| ports_of(workspace).include?(hit[:port]) }
+    assert_empty strangers, "#{context} reached a credential that is not its workspace's: #{strangers.inspect}\n#{world[:proxy].logs}"
+  end
+
+  def assert_every_provider_reached(hits, workspace)
+    PROVIDERS.each do |provider|
+      assert hits.any? { |hit| ports_of(workspace, provider).include?(hit[:port]) }, "#{provider} never reached its upstream for #{workspace}"
+    end
+  end
+
+  def test_a_each_workspace_reaches_only_its_own_credentials_through_failover
+    [ WORKSPACE_A, WORKSPACE_B ].each do |workspace|
+      upstream.drain
+      responses = burst(workspace)
+      refute responses.any? { |response| response.is_a?(Net::HTTPSuccess) }, "a failing upstream answered"
+      hits = upstream.drain
+      assert_every_provider_reached(hits, workspace)
+      assert_only_reached workspace, hits, workspace
+    end
+  end
+
+  def test_b_several_credentials_of_one_workspace_take_turns
+    upstream.drain
+    burst(WORKSPACE_A, rounds: 3)
+    hits = upstream.drain
+    PROVIDERS.each do |provider|
+      reached = ports_of(WORKSPACE_A, provider).select { |port| hits.any? { |hit| hit[:port] == port } }
+      assert_equal 2, reached.size, "#{provider} did not use both of workspace A's credentials"
+    end
+  end
+
+  def test_c_the_same_conversation_in_two_workspaces_stays_apart
+    text = "You are Halon. The same first message in every workspace."
+    [ WORKSPACE_A, WORKSPACE_B, WORKSPACE_A ].each do |workspace|
+      upstream.drain
+      burst(workspace, text:, cache_key: "shared-session", rounds: 1)
+      assert_only_reached workspace, upstream.drain, "the shared conversation in #{workspace}"
+    end
+  end
+
+  def test_y_an_exhausted_workspace_never_borrows_another_workspaces_subscription
+    ports_of(WORKSPACE_A).each { |port| upstream.set_mode(port, :exhausted) }
+    upstream.drain
+    responses = burst(WORKSPACE_A)
+    refute responses.any? { |response| response.is_a?(Net::HTTPSuccess) }, "workspace A was answered with its own subscriptions exhausted"
+    hits = upstream.drain
+    assert_every_provider_reached(hits, WORKSPACE_A)
+    assert_only_reached WORKSPACE_A, hits, "exhausted A"
+
+    upstream.drain
+    burst(WORKSPACE_A)
+    assert_only_reached WORKSPACE_A, upstream.drain, "A again while exhausted"
+  ensure
+    ports_of(WORKSPACE_A).each { |port| upstream.set_mode(port, :unavailable) }
+  end
+
+  # Runs after the rest, since it removes workspace A's credentials.
+  def test_zz_a_workspace_with_no_subscription_reaches_nobody_elses
+    models = PROVIDERS.to_h { |provider| [ provider, model_for(provider, WORKSPACE_A) ] }
+    unclaimed_ports = PROVIDERS.to_h do |provider|
+      %w[a1 a2].each do |slot|
+        credential = world[:credentials].fetch([ provider, slot ])
+        client.delete(credential[:name])
+        credential[:deleted] = true
+      end
+      # A sign-in that has finished but that Firefight has not yet given to a workspace has no prefix.
+      name = "#{provider}-unclaimed-#{SecureRandom.hex(3)}.json"
+      port = upstream.open_port
+      client.upload(name, SubscriptionProxyIsolation.credential(provider, "#{provider}-unclaimed", port))
+      [ provider, port ]
+    end
+    upstream.drain
+
+    responses = models.values.flat_map do |model|
+      [ Thread.new { client.chat(model, "nothing of mine #{SecureRandom.hex(4)}") }, Thread.new { client.respond(model, "nothing of mine #{SecureRandom.hex(4)}") } ]
+    end.map(&:value)
+    refute responses.any? { |response| response.is_a?(Net::HTTPSuccess) }, "a workspace with no subscription was answered"
+    assert_empty upstream.drain, "a workspace with no subscription reached another credential"
+
+    models.each do |provider, model|
+      client.chat(model.split("/", 2).last, "unprefixed #{SecureRandom.hex(4)}")
+      hits = upstream.drain
+      assert hits.all? { |hit| hit[:port] == unclaimed_ports.fetch(provider) }, "#{provider} served an unprefixed request with a workspace's credential: #{hits.inspect}"
+    end
+  end
+end

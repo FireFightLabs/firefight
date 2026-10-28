@@ -182,6 +182,22 @@ jobs:
           fi
           bundle exec archspec check
 
+  # Runs the pinned subscription proxy against a stub of every provider and fails when a request for one
+  # workspace reaches another workspace's subscription. It needs Docker, so it runs on the runner itself.
+  subscription-proxy-isolation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@26e5b7d197ebf60545ee9667bcbace0be11ccaec # v1.334.0
+        with:
+          bundler-cache: false
+
+      - name: Each workspace reaches only its own subscriptions
+        run: ruby script/subscription_proxy_isolation.rb
+
   lint:
     needs: ci-image
     runs-on: ubuntu-latest
