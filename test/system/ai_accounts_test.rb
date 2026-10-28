@@ -53,6 +53,7 @@ class AiAccountsTest < ApplicationSystemTestCase
     within("[role=dialog]") do
       assert_text "API key ending in 4f2a. Enter a new one to replace it."
       assert_equal "", find_field("API key").value
+      assert_equal "false", find_field("API key")["aria-required"], "an empty key keeps the saved one"
       page.save_screenshot(Rails.root.join("tmp/screenshots/ai-accounts-edit.png"))
       click_button "Cancel"
     end
@@ -89,12 +90,15 @@ class AiAccountsTest < ApplicationSystemTestCase
     within("[role=dialog]") do
       assert_equal "QwenCloud, Singapore (ap-southeast-1.maas.qwencloudapi.com)", combobox("Region").text
       assert_no_field "Workspace ID"
+      assert_equal "true", combobox("Region")["aria-required"]
+      assert_equal "true", find_field("API key")["aria-required"]
       combobox("Region").click
     end
     page.save_screenshot(Rails.root.join("tmp/screenshots/ai-accounts-qwen-regions.png"))
     find("[role=option]", text: "Alibaba Cloud Model Studio, Germany Frankfurt (your workspace's address)").click
     within("[role=dialog]") do
       fill_in "API key", with: "sk-qwen-team-9b1c"
+      assert_equal "true", find_field("Workspace ID")["aria-required"]
       fill_in "Workspace ID", with: "llm-4f2a"
       page.save_screenshot(Rails.root.join("tmp/screenshots/ai-accounts-qwen-add.png"))
       click_button "Add and check"

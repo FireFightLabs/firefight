@@ -100,6 +100,11 @@ export function AiAccountDialog({
   const baseErrors = errorText(errors.base)
   const keyField = provider?.fields.find((candidate) => candidate.secret)
   const shownFields = provider?.fields.filter((field) => fieldShown(field, draft.settings)) ?? []
+
+  // A saved secret left empty keeps what is stored, so on an edit it is not required.
+  function settingRequired(field: ProviderField): boolean {
+    return field.required && !(field.secret && keySummary)
+  }
   const keySummary = editing?.keySummary
 
   // A new provider brings its own settings and recommended models. A label still reading the old provider's name follows it.
@@ -209,6 +214,7 @@ export function AiAccountDialog({
                   field={field}
                   value={draft.settings[field.key] ?? ""}
                   placeholder={field.secret && keySummary ? "Unchanged" : undefined}
+                  required={settingRequired(field)}
                   onChange={(value) => changeSetting(field.key, value)}
                 />
                 {keySummary && field.key === keyField?.key && <p className="text-xs text-muted-foreground">{keySummary}</p>}
@@ -255,12 +261,14 @@ function SettingInput({
   field,
   value,
   placeholder,
+  required,
   onChange,
 }: {
   id: string
   field: ProviderField
   value: string
   placeholder?: string
+  required: boolean
   onChange: (value: string) => void
 }) {
   function changeTyped(event: React.ChangeEvent<HTMLInputElement>) {
@@ -276,13 +284,14 @@ function SettingInput({
         value={value}
         onChange={changeTyped}
         placeholder={placeholder}
+        aria-required={required}
       />
     )
   }
 
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger id={id} className="w-full min-w-0">
+      <SelectTrigger id={id} className="w-full min-w-0" aria-required={required}>
         <SelectValue className="min-w-0 truncate" />
       </SelectTrigger>
       <SelectContent>
