@@ -57,6 +57,26 @@ class SubscriptionConnectTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/subscription-blocked.png"))
   end
 
+  test "a subscription is disconnected, not deleted, from its row menu through to the toast" do
+    add_subscription_account!(@workspace, credential: "codex-ana.json", state: { "limit" => { "left_percent" => 38 } })
+    Client.any_instance.expects(:delete).with("codex-ana.json")
+    visit settings_workspace_path
+
+    within(find("tr", text: "ana@example.com")) { click_button "Actions" }
+    assert_no_selector "[role=menuitem]", text: "Delete"
+    find("[role=menuitem]", text: "Disconnect").click
+
+    within("[role=dialog]") do
+      assert_text "Disconnect ChatGPT, ana@example.com?"
+      page.save_screenshot(Rails.root.join("tmp/screenshots/subscription-disconnect.png"))
+      click_button "Disconnect"
+    end
+
+    assert_text "ChatGPT subscription for ana@example.com was disconnected."
+    page.save_screenshot(Rails.root.join("tmp/screenshots/subscription-disconnected.png"))
+    assert_empty @workspace.workspace_ai_accounts.subscriptions
+  end
+
   test "a browser sign-in asks for the address it lands on" do
     Client.any_instance.stubs(:start_sign_in).returns(Client::SignIn.new(state: "abc", url: "https://auth.openai.com/oauth/authorize?state=abc", user_code: nil, expires_at: nil))
     Client.any_instance.stubs(:sign_in_status).returns(:waiting)

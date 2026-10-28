@@ -37,6 +37,7 @@ interface OptionRowProps {
   onToggleEnabled: () => void
   onEdit: () => void
   onDelete: () => void
+  deleteLabel?: string
   readOnly?: boolean
 }
 
@@ -50,6 +51,7 @@ function OptionCells({
   onToggleEnabled,
   onEdit,
   onDelete,
+  deleteLabel,
   readOnly = false,
 }: OptionRowProps) {
   return (
@@ -108,6 +110,7 @@ function OptionCells({
             onDelete={onDelete}
             editDisabledReason={option.editBlockedReason}
             deleteDisabledReason={option.deletionBlockedReason}
+            deleteLabel={deleteLabel}
           />
         </TableCell>
       )}

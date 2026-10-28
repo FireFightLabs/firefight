@@ -23,6 +23,13 @@ import type { AiProviderOption, AiSubscriptionOption, SubscriptionSignIn, Worksp
 
 const KEY_GONE = "Its key is deleted from Firefight for good."
 const SIGN_IN_GONE = "Its sign-in is removed from Firefight for good. The subscription itself is not changed."
+const DELETE = "Delete"
+// A subscription is disconnected, which is what its toast says too.
+const DISCONNECT = "Disconnect"
+
+function removalLabel(account: WorkspaceAiAccount): string {
+  return account.subscription ? DISCONNECT : DELETE
+}
 const SUBSCRIPTIONS_TAKE_TURNS =
   "Several sign-ins to the same subscription take turns, starting with the one whose limit resets soonest where the plan says when, and a conversation stays on one so it answers faster."
 const EMPTY = "No accounts yet. Add one with your provider's API key and Halon uses it first."
@@ -57,6 +64,7 @@ export function AiAccountsCard({
 }) {
   const [dialog, setDialog] = useState<AiAccountDialogState>(null)
   const [deleting, setDeleting] = useState<WorkspaceAiAccount | null>(null)
+  const removal = deleting ? removalLabel(deleting) : DELETE
   const [editingSubscription, setEditingSubscription] = useState<WorkspaceAiAccount | null>(null)
 
   function openCreate() {
@@ -162,6 +170,7 @@ export function AiAccountsCard({
             onToggleEnabled={toggle}
             onEdit={openEdit}
             onDelete={setDeleting}
+            deleteLabel={removalLabel}
             readOnly={!canManage}
           />
         ) : (
@@ -181,8 +190,9 @@ export function AiAccountsCard({
 
       <ConfirmDeleteDialog
         open={Boolean(deleting)}
-        title={`Delete ${deleting?.label ?? "this account"}?`}
+        title={`${removal} ${deleting?.label ?? "this account"}?`}
         description={`${deleting?.subscription ? SIGN_IN_GONE : KEY_GONE} ${deleting?.deletionConsequence ?? ""}`}
+        confirmLabel={removal}
         onConfirm={confirmDelete}
         onCancel={stopDeleting}
       />

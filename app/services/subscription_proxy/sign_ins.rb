@@ -22,6 +22,8 @@ module SubscriptionProxy
     DID_NOT_FINISH = "The sign-in did not finish. Start again.".freeze
 
     MISSING = :missing
+    # Set on a new credential the proxy left with no models, which makes it register them. The sync orders it after.
+    REGISTER_AGAIN_PRIORITY = 1
 
     # The account connected or signed in again, or nil while the person has not finished.
     # fresh is false when another request already settled it, which already said so.
@@ -198,7 +200,10 @@ module SubscriptionProxy
     end
 
     def connect!(sign_in, credential)
-      state = Accounts.new(@workspace).state_of(credential).merge("models" => models_of(credential), "proxy" => sign_in.proxy)
+      models = models_of(credential)
+      return register_again!(sign_in, credential) if models.empty?
+
+      state = Accounts.new(@workspace).state_of(credential).merge("models" => models, "proxy" => sign_in.proxy)
       replacing = sign_in.workspace_ai_account
       account = replacing ? reconnect_with(replacing, credential, state) : new_account(sign_in, credential, state)
       return finished(sign_in.reload) unless settle_done!(sign_in, account)
@@ -209,6 +214,15 @@ module SubscriptionProxy
     rescue ActiveRecord::RecordInvalid => error
       client.delete(credential.name)
       fail!(sign_in, "The sign-in finished, but #{error.record.errors.full_messages.to_sentence.downcase_first}. Start again.")
+    end
+
+    # Two credentials of one kind saved at the same moment can leave one listed with no models registered until it is
+    # next changed, so it is changed (its priority, which the sync sets properly) and the sign-in waits for the models.
+    # One past its time that still serves none ends, and the sweep removes its credential.
+    def register_again!(sign_in, credential)
+      fail!(sign_in, NOTHING_NEW) if sign_in.expired?
+      client.prioritize(credential.name, REGISTER_AGAIN_PRIORITY)
+      nil
     end
 
     def settle_done!(sign_in, account)

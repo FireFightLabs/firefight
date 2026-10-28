@@ -87,6 +87,22 @@ class SubscriptionProxy::SignInsTest < ActiveSupport::TestCase
     assert sign_in.reload.waiting?
   end
 
+  test "a credential the proxy left with no models is changed so it registers them, and the sign-in waits rather than failing" do
+    sign_in = start
+    Client.any_instance.stubs(:sign_in_status).returns(:done)
+    made(sign_in, "codex-ana.json")
+    list_made
+    Client.any_instance.stubs(:credential_models).returns([])
+    Client.any_instance.expects(:prioritize).with("codex-ana.json", SubscriptionProxy::SignIns::REGISTER_AGAIN_PRIORITY)
+    Client.any_instance.expects(:delete).never
+
+    assert_nil @service.advance!(sign_in)
+    assert sign_in.reload.waiting?
+
+    Client.any_instance.stubs(:credential_models).returns(%w[gpt-6.1-sol gpt-6-luna])
+    assert_equal "codex-ana.json", @service.advance!(sign_in).account.proxy_credential
+  end
+
   test "a sign-in the proxy has forgotten since it finished is still taken up, not failed" do
     sign_in = start
     Client.any_instance.stubs(:sign_in_status).returns("unknown or expired state")
