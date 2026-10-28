@@ -299,6 +299,11 @@ module SubscriptionProxyIsolation
 
     def refusal(sign_in_id) = sign_in_result(sign_in_id)["refused"]
 
+    # The proxy's debug log, for finding out why a run failed (ISOLATION_PROXY_DEBUG=1).
+    def debug!
+      management(Net::HTTP::Patch, "/v8/management/config", { observability: { logs: { debug: true } } }.to_json)
+    end
+
     def credentials
       JSON.parse(management(Net::HTTP::Get, "/v8/management/credentials").body).fetch("files")
     end
@@ -394,6 +399,7 @@ class SubscriptionProxyIsolationTest < Minitest::Test
   # A failing upstream cools a credential down. Each test starts with every credential ready again.
   def setup
     world[:credentials].each_value { |credential| client.reset_cooldown(credential[:name]) unless credential[:deleted] }
+    client.debug! if ENV["ISOLATION_PROXY_DEBUG"]
   end
 
   def world = self.class.world
@@ -485,9 +491,10 @@ class SubscriptionProxyIsolationTest < Minitest::Test
     client.credentials.select { |file| file["note"].to_s != "" }.each { |file| client.delete(file.fetch("name")) }
   end
 
-  # The proxy lists a saved credential a moment after its sign-in says it finished.
+  # The proxy shows what a sign-in saved a moment after the sign-in says it finished: the credential, its note, then
+  # its models. Each read waits for the state it is about, then is checked once.
   def listed
-    20.times do
+    60.times do
       found = yield
       return found unless found.nil? || found == []
 
@@ -498,7 +505,14 @@ class SubscriptionProxyIsolationTest < Minitest::Test
 
   def credential_for(sign_in_id) = listed { client.credentials.find { |file| file["note"] == sign_in_id } }
 
-  def served_only_for?(file, workspace) = client.models_for(file.fetch("name")).then { |ids| ids.any? && ids.all? { |id| id.start_with?("#{workspace}/") } }
+  # Two credentials of one kind saved at the same moment can leave one listed with no models registered, until the
+  # credential is next changed. Firefight's claim changes it (SubscriptionProxy::SignIns, a credential with no models),
+  # and so does this, before reading the models it then checks every one of.
+  def served_only_for?(file, workspace)
+    client.patch_fields(file.fetch("name"), { priority: 1 })
+    ids = listed { client.models_for(file.fetch("name")) }
+    ids.any? && ids.all? { |id| id.start_with?("#{workspace}/") }
+  end
 
   def test_d_two_workspaces_signing_in_at_once_each_get_exactly_their_own_credential
     with_sign_ins do
@@ -514,8 +528,8 @@ class SubscriptionProxyIsolationTest < Minitest::Test
       b = credential_for(theirs)
       assert a && b, "each sign-in's credential carries its own id: #{client.credentials.map { |file| [ file['name'], file['note'] ] }}"
       refute_equal a.fetch("name"), b.fetch("name")
-      assert served_only_for?(a, WORKSPACE_A), "A's credential serves only A"
-      assert served_only_for?(b, WORKSPACE_B), "B's credential serves only B"
+      assert served_only_for?(a, WORKSPACE_A), -> { "A's credential serves only A: #{client.models_for(a.fetch("name")).inspect} #{a.slice("name", "note", "status", "status_message").inspect}\n#{world[:proxy].logs}" }
+      assert served_only_for?(b, WORKSPACE_B), -> { "B's credential serves only B: #{client.models_for(b.fetch("name")).inspect} #{b.slice("name", "note", "status", "status_message").inspect}\n#{world[:proxy].logs}" }
     end
   end
 
@@ -568,8 +582,8 @@ class SubscriptionProxyIsolationTest < Minitest::Test
       state = client.start_sign_in(sign_in_id: again, workspace: WORKSPACE_A)
       client.finish_sign_in(state, "#{login}~pro")
       assert_equal "ok", client.settled(state)
-      mine = client.credentials.select { |file| file["email"] == "#{login}@example.com" }
-      assert_equal [ owned ], mine.map { |file| file["name"] }, "signed in again on another plan, it replaces its credential rather than adding one"
+      mine = listed { client.credentials.select { |file| file["email"] == "#{login}@example.com" }.then { |found| found if found.any? { |file| file["note"] == again } } }
+      assert_equal [ owned ], Array(mine).map { |file| file["name"] }, "signed in again on another plan, it replaces its credential rather than adding one"
       assert_equal again, mine.first.fetch("note")
     end
   end
